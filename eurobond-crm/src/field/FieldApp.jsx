@@ -480,8 +480,17 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
     const latlngs = tracking.points;
     if (latlngs.length) {
       const last = latlngs[latlngs.length - 1];
-      // red END / current marker
-      markerRef.current = L.circleMarker([last.lat, last.lng], { radius: 8, color: "#fff", weight: 3, fillColor: "#eb3b5a", fillOpacity: 1 }).bindPopup(attendanceOn ? "Current" : "End").addTo(mapObj.current);
+      if (attendanceOn) {
+        /* Uber-style live marker: pulsing navy dot with white ring + direction glow */
+        const liveIcon = L.divIcon({
+          className: "",
+          html: `<div class="uber-dot"><span class="uber-pulse"></span><span class="uber-core">🚗</span></div>`,
+          iconSize: [46, 46], iconAnchor: [23, 23],
+        });
+        markerRef.current = L.marker([last.lat, last.lng], { icon: liveIcon, zIndexOffset: 999 }).addTo(mapObj.current);
+      } else {
+        markerRef.current = L.circleMarker([last.lat, last.lng], { radius: 8, color: "#fff", weight: 3, fillColor: "#eb3b5a", fillOpacity: 1 }).bindPopup("End").addTo(mapObj.current);
+      }
       mapObj.current.setView([last.lat, last.lng], 16);
     }
     setTimeout(() => mapObj.current?.invalidateSize(), 80);
@@ -496,6 +505,26 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
       mapObj.current = null; lineRef.current = null; markerRef.current = null;
     };
   }, [tab]);
+
+  /* live glide: kotha GPS point vachinappudu marker smooth ga move (Uber feel) */
+  useEffect(() => {
+    if (tab !== "Map" || !attendanceOn || !markerRef.current || !mapObj.current) return;
+    const last = tracking.points[tracking.points.length - 1];
+    if (!last) return;
+    const from = markerRef.current.getLatLng();
+    const to = L.latLng(last.lat, last.lng);
+    if (from.equals(to)) return;
+    const steps = 30; let i = 0;
+    const t = setInterval(() => {
+      i++;
+      const lat = from.lat + (to.lat - from.lat) * (i / steps);
+      const lng = from.lng + (to.lng - from.lng) * (i / steps);
+      markerRef.current.setLatLng([lat, lng]);
+      if (i >= steps) { clearInterval(t); mapObj.current.panTo(to, { animate: true, duration: 0.6 }); if (lineRef.current) lineRef.current.addLatLng(to); }
+    }, 33);
+    return () => clearInterval(t);
+    // eslint-disable-next-line
+  }, [tracking.points.length, tab, attendanceOn]);
 
   /* live update line/marker while map open */
   useEffect(() => {

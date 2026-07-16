@@ -334,3 +334,23 @@ body.dark .grid td { border-color: #2a3158; color: #d5dbf2; }
 body.dark input, body.dark select, body.dark textarea { background: #232a52; color: #e6eafc; border-color: #343d6e; }
 .spin { animation: spin360 0.8s linear infinite; }
 @keyframes spin360 { to { transform: rotate(360deg); } }
+
+
+/* ---- Uber-style live tracking marker ---- */
+.uber-dot { position: relative; width: 46px; height: 46px; display: grid; place-items: center; }
+.uber-pulse {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: rgba(11, 60, 140, 0.35);
+  animation: uberPulse 1.6s ease-out infinite;
+}
+.uber-core {
+  position: relative; width: 30px; height: 30px; border-radius: 50%;
+  background: var(--navy, #0b3c8c); color: #fff; display: grid; place-items: center;
+  font-size: 15px; box-shadow: 0 4px 12px rgba(11, 60, 140, 0.5), 0 0 0 3px #fff;
+}
+@keyframes uberPulse {
+  0% { transform: scale(0.5); opacity: 0.9; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+.spin { animation: spinKey 1s linear infinite; }
+@keyframes spinKey { to { transform: rotate(360deg); } }

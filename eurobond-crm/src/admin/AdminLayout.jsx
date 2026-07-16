@@ -29,6 +29,7 @@ const NAV = [
       {
         label: "SFA", icon: <BarChart3 size={17} />, children: [
           { label: "Attendance", to: "/admin/sfa/attendance" },
+          { label: "Attendance Sheet", to: "/admin/sfa/attendance-sheet" },
           { label: "Checkin", to: "/admin/sfa/checkin" },
           { label: "Expense", to: "/admin/sfa/expense" },
           { label: "Leave", to: "/admin/sfa/leave" },

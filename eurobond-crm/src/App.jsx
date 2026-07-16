@@ -12,6 +12,7 @@ import RolePermission from "./admin/RolePermission.jsx";
 import TeamAccess from "./admin/TeamAccess.jsx";
 import AppSettings from "./admin/AppSettings.jsx";
 import CustomersPage from "./admin/CustomersPage.jsx";
+import AttendanceSheet from "./admin/AttendanceSheet.jsx";
 import UsersPage from "./admin/UsersPage.jsx";
 import AttendancePage from "./admin/AttendancePage.jsx";
 import { MODULES } from "./admin/moduleConfigs.jsx";
@@ -61,6 +62,7 @@ export default function App() {
         <Route path="master/users" element={<UsersPage />} />
         <Route path="sfa/attendance" element={<AttendancePage />} />
         <Route path="sfa/customers" element={<CustomersPage />} />
+        <Route path="sfa/attendance-sheet" element={<AttendanceSheet />} />
         {Object.entries(MODULES).filter(([key]) => key !== "users").map(([key, cfg]) => (
           <Route key={key} path={cfg.path} element={<ModulePage cfgKey={key} />} />
         ))}
