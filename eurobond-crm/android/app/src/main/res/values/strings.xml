@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Eurobond CRM</string>
+    <string name="title_activity_main">Eurobond CRM</string>
+    <string name="package_name">com.eurobond.crm</string>
+    <string name="custom_url_scheme">com.eurobond.crm</string>
+</resources>

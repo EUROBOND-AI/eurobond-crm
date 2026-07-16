@@ -1,0 +1,15 @@
+{
+  "appId": "com.eurobond.crm",
+  "appName": "Eurobond CRM",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "backgroundColor": "#0b3c8c",
+      "showSpinner": false
+    }
+  }
+}
