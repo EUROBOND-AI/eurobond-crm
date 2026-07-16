@@ -100,18 +100,33 @@ export default function AttendancePage() {
       : filtered.length === 0 ? <div style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No attendance found for the selected filters.</div>
       : (
         <div className="table-wrap"><table className="grid">
-          <thead><tr><th>Date</th><th>Name</th><th>Zone</th><th>City</th><th>Start</th><th>End</th><th>Distance</th><th>Points</th><th>Status</th><th>Action</th></tr></thead>
+          <thead><tr><th>Date</th><th>Name</th><th>Visit</th><th>Zone</th><th>City</th><th>Start</th><th>End</th><th>Distance</th><th>Photos</th><th>Status</th><th>Action</th></tr></thead>
           <tbody>
             {filtered.map((s) => (
               <tr key={s.id}>
                 <td>{s.work_date}</td>
                 <td style={{ fontWeight: 700 }}>{s.name}</td>
+                <td>
+                  <div style={{ fontWeight: 700, fontSize: 12 }}>{s.visit_type || "Local"}{s.transport ? ` · ${s.transport}` : ""}</div>
+                  {s.visit_name && <div style={{ fontSize: 11, color: "var(--muted)" }}>{s.visit_name}</div>}
+                </td>
                 <td>{s.zone || "—"}</td>
                 <td>{s.city || "—"}</td>
                 <td>{s.start_time ? new Date(s.start_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
                 <td>{s.end_time ? new Date(s.end_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "Running"}</td>
                 <td>{fmtKm(Number(s.distance_km) || 0)}</td>
-                <td>{s.points_count}</td>
+                <td>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {[["S", s.start_selfie, "Start selfie"], ["R", s.start_reading, "Start reading"], ["ES", s.end_selfie, "End selfie"], ["ER", s.end_reading, "End reading"]]
+                      .filter(([, u]) => u)
+                      .map(([t, u, tip]) => (
+                        <a key={t} href={u} target="_blank" rel="noreferrer" title={tip}>
+                          <img src={u} alt={t} style={{ width: 30, height: 30, objectFit: "cover", borderRadius: 6, border: "1px solid #dfe4f0" }} />
+                        </a>
+                      ))}
+                    {!s.start_selfie && !s.start_reading && !s.end_selfie && !s.end_reading && <span style={{ color: "var(--muted)" }}>—</span>}
+                  </div>
+                </td>
                 <td><Pill status={s.status === "DONE" ? "Completed" : "In Progress"} /></td>
                 <td><button className="btn btn-primary" style={{ padding: "5px 12px", fontSize: 12 }} onClick={() => setViewSess(s)}>View</button></td>
               </tr>
@@ -127,6 +142,24 @@ export default function AttendancePage() {
               <h3 style={{ margin: 0 }}>{viewSess.name} — route ({fmtKm(Number(viewSess.distance_km) || 0)})</h3>
               <button className="btn btn-ghost" onClick={() => setViewSess(null)}><X size={14} /></button>
             </div>
+            {(viewSess.start_address || viewSess.end_address) && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10, fontSize: 12 }}>
+                {viewSess.start_address && <div style={{ background: "#eef4ff", borderRadius: 9, padding: "8px 10px" }}><b>Start:</b> {viewSess.start_address}</div>}
+                {viewSess.end_address && <div style={{ background: "#f3fbf6", borderRadius: 9, padding: "8px 10px" }}><b>End:</b> {viewSess.end_address}</div>}
+              </div>
+            )}
+            {(viewSess.start_selfie || viewSess.start_reading || viewSess.end_selfie || viewSess.end_reading) && (
+              <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+                {[["Start selfie", viewSess.start_selfie], ["Start reading", viewSess.start_reading], ["End selfie", viewSess.end_selfie], ["End reading", viewSess.end_reading]]
+                  .filter(([, u]) => u)
+                  .map(([label, u]) => (
+                    <a key={label} href={u} target="_blank" rel="noreferrer" style={{ textAlign: "center", fontSize: 10.5, color: "var(--muted)", textDecoration: "none" }}>
+                      <img src={u} alt={label} style={{ width: 84, height: 84, objectFit: "cover", borderRadius: 10, border: "1px solid #dfe4f0", display: "block", marginBottom: 3 }} />
+                      {label}
+                    </a>
+                  ))}
+              </div>
+            )}
             <div ref={mapRef} style={{ height: 420, width: "100%", borderRadius: 12, overflow: "hidden" }} />
           </div>
         </div>

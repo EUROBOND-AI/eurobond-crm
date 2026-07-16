@@ -70,16 +70,27 @@ export const api = {
   /* ---------- Attendance ---------- */
   attStart: (visit) => req("/attendance.php?action=start", { method: "POST", body: visit || {} }),
   attPoints: (session_id, points) => req("/attendance.php?action=points", { method: "POST", body: { session_id, points } }),
-  attStop: (session_id) => req("/attendance.php?action=stop", { method: "POST", body: { session_id } }),
+  attStop: (session_id, extra) => req("/attendance.php?action=stop", { method: "POST", body: { session_id, ...(extra || {}) } }),
   attToday: () => req("/attendance.php?action=today"),
   attList: (from, to) => req(`/attendance.php?action=list&from=${from}&to=${to || from}`),
   attTrack: (session_id) => req("/attendance.php?action=track&session_id=" + session_id),
+
+  /* ---------- Locations (India villages/cities strict search) ---------- */
+  locationSearch: (q) => req("/locations.php?action=search&q=" + encodeURIComponent(q)),
+
+  /* ---------- Customers (from follow-ups) ---------- */
+  customers: (q = "", mine = false) => req(`/customers.php?action=list${q ? "&q=" + encodeURIComponent(q) : ""}${mine ? "&mine=1" : ""}`),
 
   /* ---------- Notifications ---------- */
   notify: (data) => req("/records.php?module=notification", { method: "POST", body: { data } }),
   myNotifications: () => req("/records.php?module=notification"),
 
-  /* ---------- Photo upload ---------- */
+  /* ---------- Photo upload (auto-compressed: disk/inode save on Hostinger) ---------- */
+  async uploadCompressed(file, module = "general", record_id = 0) {
+    const small = await compressImage(file).catch(() => file);
+    return api.uploadPhoto(small, module, record_id);
+  },
+
   async uploadPhoto(file, module = "general", record_id = 0) {
     const fd = new FormData();
     fd.append("photo", file);
@@ -88,3 +99,31 @@ export const api = {
     return req("/upload.php", { method: "POST", body: fd, isForm: true });
   },
 };
+
+
+/* Resize + JPEG-compress a photo in the browser before upload.
+   2-4 MB camera photo -> ~150-300 KB. Hostinger disk + inode limit safe. */
+export function compressImage(file, maxSide = 1280, quality = 0.72) {
+  return new Promise((resolve, reject) => {
+    if (!file || !file.type || !file.type.startsWith("image/")) return resolve(file);
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > maxSide || height > maxSide) {
+        const k = maxSide / Math.max(width, height);
+        width = Math.round(width * k); height = Math.round(height * k);
+      }
+      const c = document.createElement("canvas");
+      c.width = width; c.height = height;
+      c.getContext("2d").drawImage(img, 0, 0, width, height);
+      c.toBlob((blob) => {
+        if (!blob) return resolve(file);
+        resolve(new File([blob], (file.name || "photo").replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" }));
+      }, "image/jpeg", quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}

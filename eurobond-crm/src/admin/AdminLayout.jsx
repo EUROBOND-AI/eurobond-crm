@@ -24,18 +24,6 @@ const NAV = [
     ],
   },
   {
-    group: "Customer Modules",
-    items: [
-      {
-        label: "Customers", icon: <Users size={17} />, children: [
-          { label: "Distributor", to: "/admin/customers/distributor" },
-          { label: "Dealer", to: "/admin/customers/dealer" },
-          { label: "Project Influencer", to: "/admin/customers/influencer" },
-        ],
-      },
-    ],
-  },
-  {
     group: "App Modules",
     items: [
       {
@@ -46,6 +34,7 @@ const NAV = [
           { label: "Leave", to: "/admin/sfa/leave" },
           { label: "Enquiry", to: "/admin/sfa/enquiry" },
           { label: "Follow Up", to: "/admin/sfa/follow-up" },
+          { label: "Customers", to: "/admin/sfa/customers" },
           { label: "Quotation", to: "/admin/sfa/quotation" },
           { label: "Site-Project", to: "/admin/sfa/site-project" },
           { label: "Targets", to: "/admin/sfa/target" },
@@ -63,8 +52,6 @@ const NAV = [
           { label: "Admin Roles & Permission", to: "/admin/master/roles" },
           { label: "User & Team Access", to: "/admin/master/team-access" },
           { label: "Users", to: "/admin/master/users" },
-          { label: "Discount Master", to: "/admin/master/discount" },
-          { label: "Content Master", to: "/admin/master/content" },
           { label: "Leave Policy", to: "/admin/master/leave-policy" },
           { label: "Location Master", to: "/admin/master/location" },
           { label: "Holidays", to: "/admin/master/holidays" },

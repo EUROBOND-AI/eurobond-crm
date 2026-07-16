@@ -5,7 +5,7 @@ import {
   Home, CalendarCheck, Target, User, Users, Plus, Menu, Bell, ChevronRight, ChevronLeft,
   MapPin, Clock, Wallet, ClipboardList, LogOut, Phone, Mail, Building2, X,
   PlaneTakeoff, FileText, CalendarDays, Briefcase, ListChecks, Map as MapIcon,
-  Play, Square, Navigation, Smartphone, CheckCircle2, AlertCircle, Eye, EyeOff,
+  Play, Square, Navigation, Smartphone, CheckCircle2, AlertCircle, Eye, EyeOff, Camera, Search, Filter,
 } from "lucide-react";
 import { watchLocation, totalDistanceKm, haversineKm, fmtKm, fmtDuration } from "../lib/geo.js";
 import { api, auth } from "../lib/api.js";
@@ -312,7 +312,7 @@ function ScreenHead({ title, back = true, right = null }) {
 }
 
 /* ------------------------------------------------ HOME ------------------------------------------------ */
-function FieldHome({ attendanceOn, setAttendanceOn, tracking, expenses, followups, leaves, onStartAttendance }) {
+function FieldHome({ attendanceOn, setAttendanceOn, tracking, expenses, followups, leaves, onStartAttendance, onStopAttendance }) {
   const [seg, setSeg] = useState("Matrics");
   const [sheet, setSheet] = useState(false);
   const [, tickHome] = useState(0);
@@ -353,7 +353,7 @@ function FieldHome({ attendanceOn, setAttendanceOn, tracking, expenses, followup
           </div>
           <BellWithBadge onClick={() => nav("/app/notifications")} />
         </div>
-        <SlideToStart on={attendanceOn} onToggle={() => { if (!attendanceOn) { onStartAttendance(); } else { setAttendanceOn(false); } }} />
+        <SlideToStart on={attendanceOn} onToggle={() => { if (!attendanceOn) { onStartAttendance(); } else { onStopAttendance(); } }} />
       </div>
 
       <div className="f-seg">
@@ -839,15 +839,57 @@ function FieldExpenseNew({ add }) {
 /* ------------------------------------------------ LEAVE ------------------------------------------------ */
 function FieldLeave({ leaves, add }) {
   const nav = useNavigate();
+  const [presents, setPresents] = useState(null);
+
+  /* ee nela lo naa attendance (present days) count */
+  useEffect(() => {
+    const now = new Date();
+    const from = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+    const to = now.toISOString().slice(0, 10);
+    api.attList(from, to)
+      .then((d) => {
+        const mine = (d.sessions || []).filter((x) => Number(x.user_id) === Number(CU().id));
+        setPresents(new Set(mine.map((x) => x.work_date)).size);
+      })
+      .catch(() => setPresents(0));
+  }, []);
+
+  /* leave days helper (Half Day = 0.5) */
+  const days = (l) => {
+    const a = new Date(l.from), b = new Date(l.to || l.from);
+    const n = Math.max(1, Math.round((b - a) / 86400000) + 1);
+    return (l.mode || "").toLowerCase().includes("half") ? n * 0.5 : n;
+  };
+  const now = new Date();
+  const mKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const approved = leaves.filter((l) => (l.status || "").toLowerCase() === "approved");
+
+  /* ee nela approved leaves total */
+  const monthLeaves = approved.filter((l) => (l.from || "").startsWith(mKey)).reduce((s, l) => s + days(l), 0);
+
+  /* PL: 30/year, April 1 reset — HOD approve ayina Privilege Leaves matrame minus */
+  const fyStart = new Date(now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1, 3, 1);
+  const plUsed = approved
+    .filter((l) => (l.type || "").toLowerCase().includes("privilege") && new Date(l.from) >= fyStart)
+    .reduce((s, l) => s + days(l), 0);
+  const plLeft = Math.max(0, 30 - plUsed);
+
+  const tiles = [
+    { v: presents === null ? "…" : presents, k: "Presents", note: "this month" },
+    { v: monthLeaves, k: "Leaves", note: "this month" },
+    { v: plLeft, k: "PL Balance", note: "of 30 / year" },
+  ];
+
   return (
     <>
       <ScreenHead title="Leave" right={<button className="f-submit" style={{ padding: "8px 14px", fontSize: 12.5 }} onClick={() => nav("/app/leave/new")}>+ Apply</button>} />
       <div className="f-list-pad" style={{ paddingTop: 14 }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
-          {[["CL", "6/8"], ["SL", "4/6"], ["PL", "10/12"]].map(([k, v]) => (
-            <div key={k} className="chart-card" style={{ textAlign: "center", padding: "12px 6px" }}>
-              <div style={{ fontFamily: "Bricolage Grotesque", fontWeight: 800, fontSize: 18 }}>{v}</div>
-              <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700 }}>{k} left</div>
+          {tiles.map((t) => (
+            <div key={t.k} className="chart-card" style={{ textAlign: "center", padding: "12px 6px" }}>
+              <div style={{ fontFamily: "Bricolage Grotesque", fontWeight: 800, fontSize: 18 }}>{t.v}</div>
+              <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700 }}>{t.k}</div>
+              <div style={{ fontSize: 9.5, color: "var(--muted)" }}>{t.note}</div>
             </div>
           ))}
         </div>
@@ -1264,9 +1306,8 @@ function MenuDrawer({ open, close }) {
     return access[myRole][mod] !== false;
   };
   const rawGroups = [
-    { h: "MAIN", items: [["Home", <Home size={16} />, "/app"], ["Follow Up", <ClipboardList size={16} />, "/app/followup"], ["Near By Customers", <MapPin size={16} />, "/app/nearby"]] },
+    { h: "MAIN", items: [["Home", <Home size={16} />, "/app"], ["Follow Up", <ClipboardList size={16} />, "/app/followup"], ["Customers", <Users size={16} />, "/app/customers"], ["Near By Customers", <MapPin size={16} />, "/app/nearby"]] },
     { h: "WORK", items: [["Enquiry", <FileText size={16} />, "/app/m/enquiry"], ["Quotation", <FileText size={16} />, "/app/m/quotation"], ["Sales to Spec", <ClipboardList size={16} />, "/app/m/salesToSpec"], ["Spec to Sales", <ClipboardList size={16} />, "/app/m/specToSales"], ["Leave", <CalendarDays size={16} />, "/app/leave"]] },
-    { h: "CUSTOMERS", items: [["Distributor", <Building2 size={16} />, "/app/m/distributor"], ["Dealer", <Building2 size={16} />, "/app/m/dealer"], ["Influencer", <Users size={16} />, "/app/m/influencer"]] },
     { h: "MANAGEMENT", items: [["Target", <Target size={16} />, "/app/target"], ["Attendance", <CalendarCheck size={16} />, "/app/attendance"], ["Site Project", <Building2 size={16} />, "/app/m/siteProject"], ["Task", <ClipboardList size={16} />, "/app/m/task"]] },
   ];
   const groups = rawGroups.map((g) => ({ ...g, items: g.items.filter(([, , to]) => canSee(to)) })).filter((g) => g.items.length);
@@ -1801,56 +1842,86 @@ function FieldQuotationNew({ prefill }) {
   );
 }
 
-function FieldNearBy() {
+/* ============================================================================
+   CUSTOMERS — follow-up entries nunchi automatic ga build ayina list.
+   Search + filter; Near-by mode: user ki set chesina range (admin -> Users)
+   lopala unna customers matrame.
+============================================================================ */
+function FieldCustomers({ nearbyOnly = false }) {
   const [rows, setRows] = useState(null);
+  const [q, setQ] = useState("");
   const [myLoc, setMyLoc] = useState(null);
+  const rangeM = Number(CU().nearby_range_m || CU().nearbyRange || 500);   // per-user (admin set)
 
   useEffect(() => {
+    if (!nearbyOnly) return;
     navigator.geolocation?.getCurrentPosition(
       (pos) => setMyLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
       () => setMyLoc("denied"),
       { enableHighAccuracy: true, timeout: 15000 }
     );
-  }, []);
+  }, [nearbyOnly]);
 
   useEffect(() => {
-    // gather parties from followups + projects that have a saved location
-    Promise.all([api.list("followup", false), api.list("siteProject", false)])
-      .then(([a, b]) => {
-        const all = [...(a.records || []), ...(b.records || [])].map((r) => r.data);
-        setRows(all.filter((r) => r.address || r.city));
-      })
-      .catch(() => setRows([]));
-  }, []);
+    const t = setTimeout(() => {
+      api.customers(q.trim()).then((d) => setRows(d.customers || [])).catch(() => setRows([]));
+    }, q ? 300 : 0);
+    return () => clearTimeout(t);
+  }, [q]);
 
-  const withDist = useMemo(() => {
+  const list = useMemo(() => {
     if (!rows) return null;
-    if (!myLoc || myLoc === "denied") return rows.map((r) => ({ ...r, dist: null }));
+    if (!nearbyOnly) return rows;
+    if (!myLoc || myLoc === "denied") return rows;
     return rows
       .map((r) => ({ ...r, dist: r.lat && r.lng ? haversineKm(myLoc, { lat: Number(r.lat), lng: Number(r.lng) }) : null }))
-      .sort((a, b) => (a.dist ?? 999) - (b.dist ?? 999));
-  }, [rows, myLoc]);
+      .filter((r) => r.dist != null && r.dist * 1000 <= rangeM)
+      .sort((a, b) => a.dist - b.dist);
+  }, [rows, myLoc, nearbyOnly, rangeM]);
 
   return (
     <>
-      <ScreenHead title="Near By Customers" />
-      <div className="f-list-pad" style={{ paddingTop: 14 }}>
-        {myLoc === "denied" && <div style={{ background: "#fdf0e6", color: "#a35a1f", padding: 10, borderRadius: 10, fontSize: 12.5, marginBottom: 12 }}>Location off — showing all saved customers. Turn on location to sort by distance.</div>}
-        {withDist === null ? (
-          <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>Finding customers near you…</div>
-        ) : withDist.length === 0 ? (
-          <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>No saved customers with location yet.</div>
-        ) : withDist.map((r, i) => (
+      <ScreenHead title={nearbyOnly ? "Near By Customers" : "Customers"} />
+      <div className="f-list-pad" style={{ paddingTop: 12 }}>
+        <div style={{ position: "relative", marginBottom: 12 }}>
+          <Search size={15} color="var(--muted)" style={{ position: "absolute", left: 12, top: 12 }} />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name / mobile / place…"
+            style={{ width: "100%", padding: "10px 12px 10px 34px", borderRadius: 12, border: "1.5px solid #d7dcef", fontSize: 13.5, background: "#fff" }} />
+        </div>
+
+        {nearbyOnly && (
+          <div style={{ background: "#eef4ff", color: "#33406b", padding: "8px 11px", borderRadius: 10, fontSize: 12, marginBottom: 10, fontWeight: 600 }}>
+            Showing customers within <b>{rangeM >= 1000 ? (rangeM / 1000) + " km" : rangeM + " m"}</b> of you
+          </div>
+        )}
+        {nearbyOnly && myLoc === "denied" && (
+          <div style={{ background: "#fdf0e6", color: "#a35a1f", padding: 10, borderRadius: 10, fontSize: 12.5, marginBottom: 12 }}>
+            Location off — turn on GPS to see near-by customers.
+          </div>
+        )}
+
+        {list === null ? (
+          <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>Loading customers…</div>
+        ) : list.length === 0 ? (
+          <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>
+            <Users size={32} style={{ opacity: 0.4, marginBottom: 8 }} />
+            <div style={{ fontWeight: 700 }}>{nearbyOnly ? "No customers in your range" : "No customers yet"}</div>
+            <div style={{ fontSize: 12, marginTop: 4 }}>Follow-up entries automatic ga ikkada customers ga vastayi.</div>
+          </div>
+        ) : list.map((r, i) => (
           <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "var(--shadow)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 13.5 }}>
-              <span>{r.partyName || r.customer || r.name || "Customer"}</span>
+              <span>{r.name}</span>
               {r.dist != null && <span style={{ color: "var(--accent)", fontSize: 12 }}>{fmtKm(r.dist)}</span>}
             </div>
-            {r.category && <div style={{ fontSize: 11.5, color: "var(--accent)", fontWeight: 700, marginTop: 2 }}>{r.category}</div>}
-            {r.address && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>📍 {r.address}</div>}
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 3 }}>
+              {r.type && <span style={{ fontSize: 11, background: "var(--accent-soft)", color: "var(--accent)", fontWeight: 700, padding: "2px 8px", borderRadius: 6 }}>{r.type}</span>}
+              <span style={{ fontSize: 11.5, color: "var(--muted)", fontWeight: 600 }}>{r.followups} follow-up{r.followups > 1 ? "s" : ""}</span>
+            </div>
+            {(r.place || r.address) && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>📍 {r.place || r.address}</div>}
             <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-              {r.contactNumber && <button onClick={() => (window.location.href = `tel:${r.contactNumber}`)} style={actBtn("#1f9d55")}>📞 Call</button>}
-              {(r.whatsapp || r.contactNumber) && <button onClick={() => window.open(`https://wa.me/91${r.whatsapp || r.contactNumber}`, "_blank")} style={actBtn("#25d366")}>💬 WhatsApp</button>}
+              {r.mobile && <button onClick={() => (window.location.href = `tel:${r.mobile}`)} style={actBtn("#1f9d55")}>📞 Call</button>}
+              {r.mobile && <button onClick={() => window.open(`https://wa.me/91${r.mobile}`, "_blank")} style={actBtn("#25d366")}>💬 WhatsApp</button>}
             </div>
           </div>
         ))}
@@ -1859,7 +1930,7 @@ function FieldNearBy() {
   );
 }
 
-function FieldNearByRoute() { return <FieldNearBy />; }
+
 
 const STATUS_OPTS = {
   enquiry: ["Review Pending", "Inprocess", "Completed", "Win", "Close"],
@@ -1953,51 +2024,233 @@ function SpecThreadRoute() {
   return <FieldSpecThread id={specId} />;
 }
 
-function VisitPopup({ onClose, onConfirm }) {
-  const [type, setType] = useState("Local");
-  const [subType, setSubType] = useState("Outstation");
-  const [name, setName] = useState("");
-  const ok = name.trim().length > 0;
+/* ============================================================================
+   ATTENDANCE START WIZARD
+   Local  -> location (strict India dropdown) -> selfie (+auto GPS address) -> start
+   Tour   -> ExStation/Outstation -> Public (selfie only) / Personal (odometer
+             reading photo + selfie) -> location -> start
+   WFH    -> selfie (+address) -> start
+============================================================================ */
+
+/* strict location picker — list nunchi ne select, manual typing accept kaadu */
+function LocationPicker({ value, onPick }) {
+  const [q, setQ] = useState(value || "");
+  const [open, setOpen] = useState(false);
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const tRef = useRef(null);
+
+  const search = (text) => {
+    setQ(text); onPick(null); setOpen(true);
+    clearTimeout(tRef.current);
+    if (text.trim().length < 2) { setResults([]); return; }
+    tRef.current = setTimeout(() => {
+      setLoading(true);
+      api.locationSearch(text.trim())
+        .then((d) => setResults(d.results || []))
+        .catch(() => setResults([]))
+        .finally(() => setLoading(false));
+    }, 280);
+  };
+
   return (
-    <div className="f-sheet-mask" style={{ zIndex: 70 }} onClick={onClose}>
-      <div className="f-sheet" onClick={(e) => e.stopPropagation()}>
-        <div style={{ fontFamily: "Bricolage Grotesque", fontWeight: 800, fontSize: 17, marginBottom: 14 }}>Start Attendance</div>
-        <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
-          {["Local", "Tour"].map((t) => (
-            <button key={t} onClick={() => setType(t)}
-              style={{ flex: 1, padding: "12px", borderRadius: 12, border: type === t ? "2px solid var(--navy)" : "1.5px solid #d7dcef", background: type === t ? "#eef1ff" : "#fff", fontWeight: 800, fontSize: 14, color: type === t ? "var(--navy)" : "var(--muted)" }}>
-              {t}
-            </button>
+    <div style={{ position: "relative", marginBottom: 14 }}>
+      <input
+        value={q}
+        onChange={(e) => search(e.target.value)}
+        placeholder="Type area / village / city…"
+        style={{ width: "100%", padding: "12px", borderRadius: 11, border: value ? "2px solid #1f9d55" : "1.5px solid #d7dcef", fontSize: 15 }}
+      />
+      {value && <CheckCircle2 size={18} color="#1f9d55" style={{ position: "absolute", right: 12, top: 13 }} />}
+      {open && !value && q.trim().length >= 2 && (
+        <div style={{ position: "absolute", top: "105%", left: 0, right: 0, background: "#fff", borderRadius: 12, boxShadow: "0 12px 30px rgba(15,20,45,.18)", zIndex: 30, maxHeight: 230, overflowY: "auto", border: "1px solid #e3e7f2" }}>
+          {loading && <div style={{ padding: 12, fontSize: 12.5, color: "var(--muted)" }}>Searching…</div>}
+          {!loading && results.length === 0 && (
+            <div style={{ padding: 12, fontSize: 12.5, color: "var(--muted)" }}>No match — spelling konchem marchi try cheyandi</div>
+          )}
+          {results.map((r, i) => (
+            <div key={i}
+              onClick={() => { onPick(r); setQ(r.name); setOpen(false); }}
+              style={{ padding: "11px 13px", fontSize: 13.5, cursor: "pointer", borderBottom: "1px solid #f0f2f8" }}>
+              <b>{r.name}</b>
+              <span style={{ color: "var(--muted)", fontSize: 11.5 }}> — {[r.district, r.state].filter(Boolean).join(", ")}</span>
+            </div>
           ))}
         </div>
-        {type === "Tour" && (
-          <div style={{ marginBottom: 14 }}>
-            <label style={{ fontWeight: 700, fontSize: 13, display: "block", marginBottom: 6 }}>Tour Type <b style={{ color: "#d64545" }}>*</b></label>
-            <select value={subType} onChange={(e) => setSubType(e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: 11, border: "1.5px solid #d7dcef", fontSize: 15 }}>
-              <option>Outstation</option>
-              <option>ExStation</option>
-            </select>
+      )}
+      <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 5 }}>List nunchi select cheyali — proper spelling automatic ga vastundi.</div>
+    </div>
+  );
+}
+
+/* camera capture box: photo + auto GPS address underneath */
+function PhotoCapture({ label, photo, onPhoto, address, capture = "user" }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <label style={{ fontWeight: 700, fontSize: 13, display: "block", marginBottom: 6 }}>{label} <b style={{ color: "#d64545" }}>*</b></label>
+      <label style={{
+        display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flexDirection: "column",
+        border: photo ? "2px solid #1f9d55" : "1.5px dashed #b9c1d9", borderRadius: 13,
+        minHeight: photo ? 10 : 92, padding: 10, cursor: "pointer", background: photo ? "#f3fbf6" : "#fafbff",
+      }}>
+        {busy ? <span style={{ fontSize: 12.5, color: "var(--muted)" }}>Compressing…</span>
+        : photo ? (
+          <>
+            <img src={photo.preview} alt="" style={{ width: "100%", maxHeight: 170, objectFit: "cover", borderRadius: 9 }} />
+            <span style={{ fontSize: 11.5, color: "#1f9d55", fontWeight: 700 }}>✓ Photo ready — tap to retake</span>
+          </>
+        ) : (
+          <>
+            <Camera size={26} color="var(--accent)" />
+            <span style={{ fontSize: 12.5, color: "var(--muted)", fontWeight: 600 }}>Tap to take photo</span>
+          </>
+        )}
+        <input type="file" accept="image/*" capture={capture} style={{ display: "none" }}
+          onChange={async (e) => {
+            const f = e.target.files && e.target.files[0];
+            if (!f) return;
+            setBusy(true);
+            const { compressImage } = await import("../lib/api.js");
+            const small = await compressImage(f).catch(() => f);
+            onPhoto({ file: small, preview: URL.createObjectURL(small) });
+            setBusy(false);
+            e.target.value = "";
+          }} />
+      </label>
+      {photo && address && (
+        <div style={{ display: "flex", gap: 6, alignItems: "flex-start", marginTop: 6, background: "#eef4ff", borderRadius: 9, padding: "7px 10px" }}>
+          <MapPin size={13} color="var(--accent)" style={{ flexShrink: 0, marginTop: 1 }} />
+          <span style={{ fontSize: 11.5, color: "#33406b", lineHeight: 1.45 }}>{address}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AttendanceWizard({ mode = "start", visitInfo = null, onClose, onDone }) {
+  /* mode: "start" -> full flow; "stop" -> logout photos (rules per visit type) */
+  const [type, setType] = useState(visitInfo?.visit_type || "Local");     // Local / Tour / WFH
+  const [subType, setSubType] = useState(
+    ["ExStation", "Outstation"].includes(visitInfo?.visit_type) ? visitInfo.visit_type : "ExStation");
+  const [transport, setTransport] = useState(visitInfo?.transport || "Public");
+  const [loc, setLoc] = useState(null);
+  const [selfie, setSelfie] = useState(null);
+  const [reading, setReading] = useState(null);
+  const [address, setAddress] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  /* current GPS -> readable address (photo kinda automatic ga) */
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const a = await placeName(pos.coords.latitude, pos.coords.longitude).catch(() => "");
+        setAddress(a || `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`);
+      },
+      () => setAddress(""),
+      { enableHighAccuracy: true, timeout: 12000 }
+    );
+  }, []);
+
+  const isStop = mode === "stop";
+  const effType = isStop ? (["ExStation", "Outstation"].includes(visitInfo?.visit_type) ? "Tour" : visitInfo?.visit_type || "Local") : type;
+  const effTransport = isStop ? (visitInfo?.transport || "Public") : transport;
+
+  /* which photos does THIS flow need? (meeru cheppina rules exact ga)
+     Local: selfie | WFH: selfie
+     Tour+Public: selfie only | Tour+Personal: odometer reading + selfie   */
+  const needReading = effType === "Tour" && effTransport === "Personal";
+  const needSelfie = true;
+  const needLocation = !isStop && effType !== "WFH";
+
+  const ready = (!needLocation || loc) && (!needSelfie || selfie) && (!needReading || reading);
+
+  const submit = async () => {
+    if (!ready || busy) return;
+    setBusy(true); setErr("");
+    try {
+      const up = async (p) => (await api.uploadPhoto(p.file, "attendance")).url;
+      const selfieUrl = selfie ? await up(selfie) : "";
+      const readingUrl = reading ? await up(reading) : "";
+      onDone({
+        type: isStop ? undefined : (type === "Tour" ? subType : type),
+        name: isStop ? undefined : (effType === "WFH" ? "Work From Home" : (loc ? [loc.name, loc.district].filter(Boolean).join(", ") : "")),
+        transport: isStop ? undefined : (type === "Tour" ? transport : ""),
+        selfie: selfieUrl, reading: readingUrl, address,
+      });
+    } catch (e) { setErr(e.message || "Upload failed — try again"); setBusy(false); }
+  };
+
+  return (
+    <div className="f-sheet-mask" style={{ zIndex: 70 }} onClick={busy ? undefined : onClose}>
+      <div className="f-sheet" style={{ maxHeight: "88vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ fontFamily: "Bricolage Grotesque", fontWeight: 800, fontSize: 17, marginBottom: 14 }}>
+          {isStop ? "Stop Attendance" : "Start Attendance"}
+        </div>
+
+        {!isStop && (
+          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+            {["Local", "Tour", "WFH"].map((t) => (
+              <button key={t} onClick={() => setType(t)}
+                style={{ flex: 1, padding: "11px 4px", borderRadius: 12, border: type === t ? "2px solid var(--navy)" : "1.5px solid #d7dcef", background: type === t ? "#eef1ff" : "#fff", fontWeight: 800, fontSize: 13, color: type === t ? "var(--navy)" : "var(--muted)" }}>
+                {t === "WFH" ? "Work From Home" : t}
+              </button>
+            ))}
           </div>
         )}
-        <label style={{ fontWeight: 700, fontSize: 13, display: "block", marginBottom: 6 }}>
-          {type === "Local" ? "City / Area name" : "Tour place name"} <b style={{ color: "#d64545" }}>*</b>
-        </label>
-        <input
-          value={name} onChange={(e) => setName(e.target.value)}
-          placeholder={type === "Local" ? "e.g. Bangalore" : "e.g. Kalburgi"}
-          style={{ width: "100%", padding: "12px", borderRadius: 11, border: "1.5px solid #d7dcef", fontSize: 15, marginBottom: 16 }}
-        />
-        <button
-          className="f-submit" style={{ width: "100%", opacity: ok ? 1 : 0.5 }}
-          disabled={!ok}
-          onClick={() => onConfirm({ type: type === "Tour" ? subType : "Local", name: name.trim() })}
-        >
-          Start Attendance
+
+        {!isStop && type === "Tour" && (
+          <>
+            <label style={{ fontWeight: 700, fontSize: 13, display: "block", marginBottom: 6 }}>Tour Type <b style={{ color: "#d64545" }}>*</b></label>
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+              {["ExStation", "Outstation"].map((t) => (
+                <button key={t} onClick={() => setSubType(t)}
+                  style={{ flex: 1, padding: "10px", borderRadius: 11, border: subType === t ? "2px solid var(--navy)" : "1.5px solid #d7dcef", background: subType === t ? "#eef1ff" : "#fff", fontWeight: 700, fontSize: 12.5, color: subType === t ? "var(--navy)" : "var(--muted)" }}>
+                  {t}
+                </button>
+              ))}
+            </div>
+            <label style={{ fontWeight: 700, fontSize: 13, display: "block", marginBottom: 6 }}>Transport <b style={{ color: "#d64545" }}>*</b></label>
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+              {["Public", "Personal"].map((t) => (
+                <button key={t} onClick={() => setTransport(t)}
+                  style={{ flex: 1, padding: "10px", borderRadius: 11, border: transport === t ? "2px solid var(--navy)" : "1.5px solid #d7dcef", background: transport === t ? "#eef1ff" : "#fff", fontWeight: 700, fontSize: 12.5, color: transport === t ? "var(--navy)" : "var(--muted)" }}>
+                  {t} Transport
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {needLocation && (
+          <>
+            <label style={{ fontWeight: 700, fontSize: 13, display: "block", marginBottom: 6 }}>
+              {type === "Local" ? "Local Area / City" : "Tour Place"} <b style={{ color: "#d64545" }}>*</b>
+            </label>
+            <LocationPicker value={loc ? loc.name : ""} onPick={setLoc} />
+          </>
+        )}
+
+        {needReading && (
+          <PhotoCapture label={isStop ? "Closing Reading Photo (Bike/Car)" : "Reading Photo (Bike/Car)"}
+            photo={reading} onPhoto={setReading} address={address} capture="environment" />
+        )}
+        {needSelfie && (
+          <PhotoCapture label="Your Photo (Selfie)" photo={selfie} onPhoto={setSelfie} address={address} capture="user" />
+        )}
+
+        {err && <div style={{ background: "#fdecec", color: "#c03636", borderRadius: 9, padding: "8px 11px", fontSize: 12.5, marginBottom: 10 }}>{err}</div>}
+
+        <button className="f-submit" style={{ width: "100%", opacity: ready && !busy ? 1 : 0.5 }} disabled={!ready || busy} onClick={submit}>
+          {busy ? "Uploading…" : isStop ? "Stop Attendance" : "Start Attendance"}
         </button>
       </div>
     </div>
   );
 }
+
 
 /* ------------------------------------------------ APP SHELL ------------------------------------------------ */
 export default function FieldApp() {
@@ -2006,7 +2259,10 @@ export default function FieldApp() {
   const [authed, setAuthed] = useState(auth.isLoggedIn);
   const [menu, setMenu] = useState(false);
   const [visitPopup, setVisitPopup] = useState(false);
+  const [stopPopup, setStopPopup] = useState(false);
   const visitInfoRef = useRef({ type: "Local", name: "" });
+  const todaySessionRef = useRef(null);       // {visit_type, transport} — stop-flow photo rules ki
+  const stopExtraRef = useRef(null);          // logout photos/address -> attStop body
   const [attendanceOn, setAttendanceOn] = useState(false);
 
   /* If a session is still RUNNING on the server (app was closed/killed mid-attendance),
@@ -2016,6 +2272,7 @@ export default function FieldApp() {
     api.attToday().then((d) => {
       if (d.session && d.session.status === "RUNNING" && !attendanceOn) {
         sessionRef.current = Number(d.session.id);
+        todaySessionRef.current = d.session;
         setAttendanceOn(true);
       }
     }).catch(() => {});
@@ -2155,7 +2412,7 @@ export default function FieldApp() {
         const sid = sessionRef.current;
         if (sid) {
           if (pendingRef.current.length) { try { await api.attPoints(sid, pendingRef.current.splice(0)); } catch {} }
-          try { await api.attStop(sid); } catch {}
+          try { await api.attStop(sid, stopExtraRef.current || {}); stopExtraRef.current = null; } catch {}
           localStorage.removeItem("eb_att_on");
           sessionRef.current = null;
         }
@@ -2242,7 +2499,7 @@ export default function FieldApp() {
 
         <div className="phone-body">
           <Routes>
-            <Route index element={<FieldHome attendanceOn={attendanceOn} setAttendanceOn={setAttendanceOn} tracking={tracking} expenses={expenses} followups={followups} leaves={leaves} onStartAttendance={() => setVisitPopup(true)} />} />
+            <Route index element={<FieldHome attendanceOn={attendanceOn} setAttendanceOn={setAttendanceOn} tracking={tracking} expenses={expenses} followups={followups} leaves={leaves} onStartAttendance={() => setVisitPopup(true)} onStopAttendance={() => setStopPopup(true)} />} />
             <Route path="attendance" element={<FieldAttendance attendanceOn={attendanceOn} setAttendanceOn={setAttendanceOn} tracking={tracking} setTracking={setTracking} gpsAlarm={gpsAlarm} />} />
             <Route path="expense" element={<FieldExpense list={expenses} add={(e) => setExpenses((x) => [e, ...x])} />} />
             <Route path="expense/new" element={<FieldExpenseNew add={async (e) => { try { const r = await api.create("expense", e); setExpenses((x) => [{ _id: r.id, ...e }, ...x]); } catch (err) { alert(err.message); } }} />} />
@@ -2274,7 +2531,8 @@ export default function FieldApp() {
             <Route path="target" element={<FieldTarget />} />
             <Route path="notifications" element={<FieldNotifications />} />
             <Route path="spec/:specId" element={<SpecThreadRoute />} />
-            <Route path="nearby" element={<FieldNearBy />} />
+            <Route path="nearby" element={<FieldCustomers nearbyOnly />} />
+            <Route path="customers" element={<FieldCustomers />} />
             <Route path="thread/:mod/:rid" element={<FieldThreadRoute />} />
             <Route path="profile" element={<FieldProfile onLogout={() => { api.logout(); setAuthed(false); setAttendanceOn(false); nav("/"); }} />} />
             <Route path="*" element={<Navigate to="/app" replace />} />
@@ -2291,9 +2549,25 @@ export default function FieldApp() {
 
         <MenuDrawer open={menu} close={() => setMenu(false)} />
         {visitPopup && (
-          <VisitPopup
+          <AttendanceWizard
+            mode="start"
             onClose={() => setVisitPopup(false)}
-            onConfirm={(info) => { visitInfoRef.current = info; setVisitPopup(false); setAttendanceOn(true); nav("/app/attendance"); }}
+            onDone={(info) => {
+              visitInfoRef.current = info;
+              todaySessionRef.current = { visit_type: info.type, transport: info.transport };
+              setVisitPopup(false); setAttendanceOn(true); nav("/app/attendance");
+            }}
+          />
+        )}
+        {stopPopup && (
+          <AttendanceWizard
+            mode="stop"
+            visitInfo={todaySessionRef.current}
+            onClose={() => setStopPopup(false)}
+            onDone={(info) => {
+              stopExtraRef.current = { selfie: info.selfie, reading: info.reading, address: info.address };
+              setStopPopup(false); setAttendanceOn(false);
+            }}
           />
         )}
       </div>

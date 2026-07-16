@@ -4,7 +4,7 @@ import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 
 const ROLES = ["Sales HOD", "Specs HOD", "Sales Person", "Specification Person", "Admin"];
-const empty = { name: "", mobile: "", code: "", email: "", role: "Sales Person", designation: "", zone: "", city: "", manager: "", password: "" };
+const empty = { name: "", mobile: "", code: "", email: "", role: "Sales Person", designation: "", zone: "", city: "", manager: "", password: "", nearby_range_m: 500 };
 
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
@@ -115,6 +115,7 @@ export default function UsersPage() {
               <Field label="Designation" val={form.designation} on={(v) => setForm({ ...form, designation: v })} />
               <SelectOrAdd label="Zone" val={form.zone} on={(v) => setForm({ ...form, zone: v })} options={zoneOpts} />
               <SelectOrAdd label="City" val={form.city} on={(v) => setForm({ ...form, city: v })} options={cityOpts} />
+              <Field label="Near-by Range (meters)" type="number" val={form.nearby_range_m ?? 500} on={(v) => setForm({ ...form, nearby_range_m: v })} />
               <SelectOrAdd label="Reporting Manager" val={form.manager} on={(v) => setForm({ ...form, manager: v })} options={managerOpts} />
               {!form.id && <Field label="Password" req val={form.password} on={(v) => setForm({ ...form, password: v })} />}
             </div>
@@ -152,11 +153,11 @@ function SelectOrAdd({ label, val, on, options }) {
   );
 }
 
-function Field({ label, val, on, req }) {
+function Field({ label, val, on, req, type = "text" }) {
   return (
     <div className="field">
       <label>{label} {req && <b>*</b>}</label>
-      <input value={val || ""} onChange={(e) => on(e.target.value)} placeholder={label} />
+      <input type={type} value={val ?? ""} onChange={(e) => on(e.target.value)} placeholder={label} />
     </div>
   );
 }
