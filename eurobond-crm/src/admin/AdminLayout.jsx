@@ -38,6 +38,7 @@ const NAV = [
           { label: "Customers", to: "/admin/sfa/customers" },
           { label: "Quotation", to: "/admin/sfa/quotation" },
           { label: "Site-Project", to: "/admin/sfa/site-project" },
+          { label: "Project Projection", to: "/admin/sfa/project-projection" },
           { label: "Targets", to: "/admin/sfa/target" },
           { label: "Sales to Spec", to: "/admin/sfa/sales-to-spec" },
           { label: "Spec to Sales", to: "/admin/sfa/spec-to-sales" },

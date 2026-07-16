@@ -83,6 +83,34 @@ export const MODULES = {
     ],
   },
 
+  projectProjection: {
+    path: "sfa/project-projection", title: "Project Projection", crumb: "Project Projection", addLabel: "Add Project",
+    idPrefix: "PPJ", app: true, appLabel: "Project Projection",
+    filters: ["createdBy", "city"],
+    tabs: [
+      { key: "Running", label: "Running" }, { key: "Hold", label: "Hold" },
+      { key: "Win", label: "Win" }, { key: "Loss", label: "Loss" },
+    ],
+    tabField: "status",
+    columns: [
+      { key: "id", label: "Project Id", render: link }, { key: "createdAt", label: "Created At" },
+      { key: "createdBy", label: "Sales Person" },
+      { key: "name", label: "Project Name" }, { key: "firm", label: "Firm / Builder" },
+      { key: "projectType", label: "Type" }, { key: "city", label: "City" },
+      { key: "value", label: "Value", render: money },
+      { key: "lastUpdate", label: "Last Monthly Update" },
+      { key: "status", label: "Status", render: pill },
+    ],
+    form: [
+      { name: "name", label: "Project Name", required: true },
+      { name: "firm", label: "Firm / Builder Name" },
+      { name: "projectType", label: "Project Type", type: "select", options: ["Residential", "Commercial", "Institutional", "Industrial", "Other"] },
+      { name: "city", label: "City" },
+      { name: "value", label: "Approx Value (₹)", type: "number" },
+      { name: "details", label: "Project Details", type: "textarea", full: true },
+    ],
+  },
+
   siteProject: {
     path: "sfa/site-project", title: "Project List", crumb: "Project", addLabel: "Add Site Project",
     idPrefix: "PRJ", app: true, appLabel: "Site Project",

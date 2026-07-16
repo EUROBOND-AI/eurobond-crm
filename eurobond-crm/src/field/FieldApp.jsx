@@ -1072,33 +1072,47 @@ function UpdatePopup({ onClose, onSave }) {
   );
 }
 
+/* WhatsApp on follow-up save — admin App Settings lo API set aithe ne pampistundi.
+   Template tarvata set cheddam annaru — appati varaku ee chinna draft veltundi. */
+async function sendFollowupWhatsApp(number, party, type, date) {
+  try {
+    if (!number) return;
+    const d = await api.list("appSettings", false);
+    const cfg = ((d.records || [])[0] || {}).data || {};
+    if (!cfg.waEnabled || !cfg.waApiUrl) return;
+    const msg = `Dear ${party}, thank you for your time. Our Eurobond team has recorded a ${type} follow-up with you${date ? " (next: " + date + ")" : ""}. — Eurobond`;
+    await fetch(cfg.waApiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(cfg.waApiKey ? { Authorization: "Bearer " + cfg.waApiKey } : {}) },
+      body: JSON.stringify({ to: "91" + String(number).slice(-10), message: msg }),
+    });
+  } catch { /* silent — followup save block avvakudadu */ }
+}
+
 function FieldFollowUpNew({ add }) {
   const nav = useNavigate();
   const [f, setF] = useState({
     category: "Architect", partyName: "", projectName: "", address: "", pincode: "",
-    gst: "", pan: "", type: "Call", date: "", notes: "",
+    gst: "", pan: "", type: "Call", date: "", notes: "", lat: null, lng: null,
   });
   const [contacts, setContacts] = useState([{ name: "", mobile: "", whatsapp: "" }]);
-  const [other, setOther] = useState({ birthday: "", anniversary: "", feedback: "" });
-  const [locBusy, setLocBusy] = useState(false);
+  const [locBusy, setLocBusy] = useState(true);
 
-  const captureLocation = () => {
-    setLocBusy(true);
-    if (!navigator.geolocation) { setLocBusy(false); alert("Location not available"); return; }
+  /* address AUTO — form open avvagane GPS capture, edit cheyaledu (fake address end) */
+  useEffect(() => {
+    if (!navigator.geolocation) { setLocBusy(false); return; }
     navigator.geolocation.getCurrentPosition(async (pos) => {
       try {
-        const { latitude, lat } = pos.coords;
         const la = pos.coords.latitude, ln = pos.coords.longitude;
         const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${la}&lon=${ln}&zoom=18`, { headers: { "Accept-Language": "en" } });
         const j = await r.json();
-        const a = j.address || {};
-        const full = j.display_name || "";
-        const pin = a.postcode || "";
-        setF((x) => ({ ...x, address: full, pincode: pin }));
-      } catch { alert("Could not get address"); }
+        setF((x) => ({ ...x, address: j.display_name || `${la.toFixed(5)}, ${ln.toFixed(5)}`, pincode: (j.address || {}).postcode || "", lat: la, lng: ln }));
+      } catch {
+        setF((x) => ({ ...x, lat: pos.coords.latitude, lng: pos.coords.longitude }));
+      }
       setLocBusy(false);
-    }, () => { setLocBusy(false); alert("Location permission needed"); }, { enableHighAccuracy: true, timeout: 15000 });
-  };
+    }, () => setLocBusy(false), { enableHighAccuracy: true, timeout: 15000 });
+  }, []);
 
   const setContact = (i, key, val) => setContacts((cs) => cs.map((c, idx) => (idx === i ? { ...c, [key]: val } : c)));
   const addContact = () => setContacts((cs) => [...cs, { name: "", mobile: "", whatsapp: "" }]);
@@ -1122,12 +1136,10 @@ function FieldFollowUpNew({ add }) {
         <label>Project Name</label>
         <input value={f.projectName} onChange={(e) => setF({ ...f, projectName: e.target.value })} style={inp} />
 
-        <label>Address</label>
-        <button type="button" onClick={captureLocation} disabled={locBusy}
-          style={{ width: "100%", marginBottom: 8, padding: "10px", borderRadius: 10, border: "1.5px solid var(--navy)", background: "#eef1ff", color: "var(--navy)", fontWeight: 700, fontSize: 13 }}>
-          {locBusy ? "Getting location…" : "📍 Capture Current Location"}
-        </button>
-        <textarea rows={2} value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} placeholder="Auto-filled from location" style={inp} />
+        <label>Address (auto — current location)</label>
+        <div style={{ ...inp, background: "#f1f4fb", border: "1.5px solid #d7dcef", borderRadius: 10, padding: "10px 12px", fontSize: 13, color: locBusy ? "var(--muted)" : "#33406b", minHeight: 42 }}>
+          {locBusy ? "📍 Getting your location…" : (f.address ? `📍 ${f.address}` : "⚠️ Location unavailable — turn on GPS")}
+        </div>
 
         <div style={{ display: "flex", gap: 8 }}>
           <div style={{ flex: 1 }}>
@@ -1157,13 +1169,6 @@ function FieldFollowUpNew({ add }) {
           ➕ Add Another Contact
         </button>
 
-        <div style={{ fontWeight: 800, fontSize: 13.5, margin: "6px 0 10px", color: "var(--navy)" }}>Other Info</div>
-        <label>Birthday</label>
-        <input type="date" value={other.birthday} onChange={(e) => setOther({ ...other, birthday: e.target.value })} style={inp} />
-        <label>Anniversary</label>
-        <input type="date" value={other.anniversary} onChange={(e) => setOther({ ...other, anniversary: e.target.value })} style={inp} />
-        <label>Feedback</label>
-        <textarea rows={2} value={other.feedback} onChange={(e) => setOther({ ...other, feedback: e.target.value })} style={inp} />
 
         <label>Follow-up Type <b>*</b></label>
         <select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })} style={inp}>
@@ -1181,11 +1186,14 @@ function FieldFollowUpNew({ add }) {
             const primary = contacts[0] || {};
             add({
               ...f, customer: f.partyName,
-              contacts, birthday: other.birthday, anniversary: other.anniversary, feedback: other.feedback,
+              contacts,
               contactName: primary.name, contactNumber: primary.mobile, whatsapp: primary.whatsapp,
+              mobile: primary.mobile, place: f.address.split(",").slice(-3, -1).join(",").trim(),
               status: "To-Do", createdBy: CU().name,
               updates: [{ date: f.date, type: f.type, remark: f.notes, at: new Date().toLocaleString("en-IN") }],
             });
+            /* WhatsApp: visit chesamu ani chinna draft customer ki (settings lo enable unte) */
+            sendFollowupWhatsApp(primary.whatsapp || primary.mobile, f.partyName, f.type, f.date);
             nav("/app/followup");
           }}
         >
@@ -1963,6 +1971,7 @@ function FieldCustomers({ nearbyOnly = false }) {
 
 const STATUS_OPTS = {
   enquiry: ["Review Pending", "Inprocess", "Completed", "Win", "Close"],
+  projectProjection: ["Running", "Hold", "Win", "Loss"],
   task: ["Pending", "In Progress", "Completed", "Close", "Rejected"],
   salesToSpec: ["Pending", "Process", "Work Done", "Approved", "Rejected"],
   specToSales: ["Pending", "Process", "Work Done", "Approved", "Rejected"],
@@ -1978,9 +1987,21 @@ function FieldGenericThread({ mod, id }) {
   const [text, setText] = useState("");
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [specUsers, setSpecUsers] = useState([]);
+  const [tag, setTag] = useState("");
 
   const load = () => api.get(mod, id).then((d) => setRec({ _id: d.record.id, ...d.record.data })).catch(() => {});
   useEffect(() => { load(); }, [mod, id]);
+
+  /* Project Projection chat: SPEC TEAM matrame tag cheyagalaru */
+  useEffect(() => {
+    if (mod !== "projectProjection") return;
+    api.listUsers().then((d) => {
+      const spec = (d.users || []).filter((u) =>
+        `${u.role || ""} ${u.designation || ""}`.toLowerCase().includes("spec"));
+      setSpecUsers(spec);
+    }).catch(() => {});
+  }, [mod]);
 
   const send = async () => {
     if (!text.trim() && !file) return;
@@ -1988,10 +2009,15 @@ function FieldGenericThread({ mod, id }) {
     try {
       let doc = "";
       if (file) { const u = await api.uploadPhoto(file, mod); doc = u.url; }
-      const thread = [...(rec.thread || []), { by: CU().name, text: text.trim(), doc, at: new Date().toLocaleString("en-IN") }];
+      const msgText = (tag ? `@${tag} ` : "") + text.trim();
+      const thread = [...(rec.thread || []), { by: CU().name, text: msgText, doc, tag, at: new Date().toLocaleString("en-IN") }];
       const data = { ...rec, thread }; delete data._id;
       await api.update(mod, id, data);
-      setText(""); setFile(null); load();
+      /* tagged spec person ki notification */
+      if (tag) {
+        try { await api.notify({ to: tag, title: `Tagged in ${rec.name || rec.id || "project"}`, message: msgText.slice(0, 120), link: `/thread/${mod}/${id}`, createdAt: new Date().toLocaleString("en-IN") }); } catch {}
+      }
+      setText(""); setFile(null); setTag(""); load();
     } catch (e) { alert(e.message); }
     setBusy(false);
   };
@@ -2016,8 +2042,21 @@ function FieldGenericThread({ mod, id }) {
           <div style={{ marginTop: 8 }}>
             <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)" }}>Update Status</label>
             <select value={rec.status || ""} onChange={async (e) => {
-              const data = { ...rec, status: e.target.value }; delete data._id;
-              try { await api.update(mod, id, data); setRec({ ...rec, status: e.target.value }); } catch (er) { alert(er.message); }
+              const newStatus = e.target.value;
+              let remark = "";
+              if (mod === "projectProjection") {
+                /* monthly update: remark minimum 50 characters — "followup" lanti chinna text accept kaadu */
+                remark = (window.prompt(`Monthly update remark (minimum 50 characters) — ${newStatus}:`) || "").trim();
+                if (remark.length < 50) { alert(`Remark too short (${remark.length}/50 characters). Konchem detail ga rayandi — em jarigindi, next em cheyali.`); return; }
+              }
+              const data = { ...rec, status: newStatus }; delete data._id;
+              if (mod === "projectProjection") {
+                const month = new Date().toLocaleString("en-IN", { month: "short", year: "numeric" });
+                data.lastUpdate = `${month}: ${newStatus}`;
+                data.monthlyUpdates = [...(rec.monthlyUpdates || []), { month, status: newStatus, remark, by: CU().name, at: new Date().toLocaleString("en-IN") }];
+                data.thread = [...(rec.thread || []), { by: CU().name, text: `📅 Monthly Update (${month}) — ${newStatus}: ${remark}`, at: new Date().toLocaleString("en-IN") }];
+              }
+              try { await api.update(mod, id, data); setRec({ ...rec, ...data, _id: rec._id }); } catch (er) { alert(er.message); }
             }} style={{ width: "100%", padding: "9px 12px", borderRadius: 9, border: "1px solid #d7dcef", fontSize: 13, marginTop: 4 }}>
               {STATUS_OPTS[mod].map((s) => <option key={s}>{s}</option>)}
             </select>
@@ -2039,10 +2078,19 @@ function FieldGenericThread({ mod, id }) {
           );
         })}
       </div>
-      <div style={{ position: "fixed", bottom: "calc(62px + env(safe-area-inset-bottom))", left: 0, right: 0, maxWidth: 480, margin: "0 auto", display: "flex", gap: 8, alignItems: "center", padding: "10px 12px", background: "#fff", borderTop: "1px solid var(--line)", zIndex: 45 }}>
+      <div style={{ position: "fixed", bottom: "calc(62px + env(safe-area-inset-bottom))", left: 0, right: 0, maxWidth: 480, margin: "0 auto", padding: "8px 12px 10px", background: "#fff", borderTop: "1px solid var(--line)", zIndex: 45 }}>
+        {mod === "projectProjection" && specUsers.length > 0 && (
+          <select value={tag} onChange={(e) => setTag(e.target.value)}
+            style={{ width: "100%", marginBottom: 8, padding: "8px 10px", borderRadius: 10, border: "1.5px solid #d7dcef", fontSize: 12.5, background: tag ? "#eef1ff" : "#fff", fontWeight: tag ? 700 : 400 }}>
+            <option value="">🏷️ Tag spec team person (optional)</option>
+            {specUsers.map((u) => <option key={u.id} value={u.name}>{u.name} — {u.designation || u.role}</option>)}
+          </select>
+        )}
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <label style={{ display: "grid", placeItems: "center", cursor: "pointer", width: 38 }}>📎<input type="file" style={{ display: "none" }} onChange={(e) => setFile(e.target.files[0])} /></label>
         <input value={text} onChange={(e) => setText(e.target.value)} placeholder={file ? file.name : "Type a reply…"} style={{ flex: 1, border: "1px solid var(--line)", borderRadius: 20, padding: "10px 14px", fontSize: 13, outline: "none" }} />
         <button className="f-submit" style={{ padding: "8px 16px", borderRadius: 20 }} disabled={busy} onClick={send}>Send</button>
+        </div>
       </div>
     </>
   );
