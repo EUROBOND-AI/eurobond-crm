@@ -1370,7 +1370,7 @@ function FieldTarget() {
               My {isSpec ? "Approval" : "Sales"} Entries ({entries.length})
             </div>
             {entries.length === 0 ? (
-              <div style={{ color: "var(--muted)", fontSize: 12.5, textAlign: "center", padding: 14 }}>+ Add {isSpec ? "Approval" : "Sale"} tho entries add cheyandi</div>
+              <div style={{ color: "var(--muted)", fontSize: 12.5, textAlign: "center", padding: 14 }}>Use "+ Add" to record your entries</div>
             ) : entries.slice().reverse().map((e, i) => (
               <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "11px 13px", marginBottom: 8, boxShadow: "var(--shadow)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
@@ -1470,7 +1470,7 @@ function FieldTeamPerformance() {
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>
             <Users size={32} style={{ opacity: 0.4, marginBottom: 8 }} />
             <div style={{ fontWeight: 700 }}>No team members mapped to you</div>
-            <div style={{ fontSize: 12, marginTop: 4 }}>Admin → Users lo "Manager" field lo mee peru set cheyali.</div>
+            <div style={{ fontSize: 12, marginTop: 4 }}>Ask admin to set your name in the "Manager" field for your team members.</div>
           </div>
         ) : data.map(({ m, tgtS, tgtA, achS, achA, pc }, i) => (
           <div key={i} className="card-3d" style={{ background: "#fff", borderRadius: 14, padding: "13px 15px", marginBottom: 10, borderLeft: `5px solid ${pcColor(pc)}` }}>
@@ -1617,8 +1617,13 @@ function MenuDrawer({ open, close }) {
     }).catch(() => setAccess({}));
   }, [open]);
   if (!open) return null;
-  // map menu path → module key for access check
-  const modOf = (to) => { const m = to.match(/\/app\/m\/(\w+)/); return m ? m[1] : null; };
+  // menu path → access key (generic m/ modules + custom screens)
+  const CUSTOM_KEYS = {
+    "/app/followup/new": "customerForm", "/app/customers": "customers", "/app/nearby": "nearby",
+    "/app/leave": "leave", "/app/leave-approval": "leaveApproval", "/app/target": "target",
+    "/app/team": "teamPerformance", "/app/attendance": "attendance", "/app/project/new": "siteProjectForm",
+  };
+  const modOf = (to) => { const m = to.match(/\/app\/m\/(\w+)/); return m ? m[1] : CUSTOM_KEYS[to] || null; };
   const myRole = CU().role || "";
   const canSee = (to) => {
     const mod = modOf(to);
@@ -2277,7 +2282,7 @@ function FieldCustomers({ nearbyOnly = false }) {
         )}
         {nearbyOnly && myLoc === "denied" && (
           <div style={{ background: "#fdf0e6", color: "#a35a1f", padding: 10, borderRadius: 10, fontSize: 12.5, marginBottom: 12 }}>
-            Location off — turn on GPS to see near-by customers.
+            Location is off — turn on GPS to see near-by customers.
           </div>
         )}
 
@@ -2287,7 +2292,7 @@ function FieldCustomers({ nearbyOnly = false }) {
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>
             <Users size={32} style={{ opacity: 0.4, marginBottom: 8 }} />
             <div style={{ fontWeight: 700 }}>{nearbyOnly ? "No customers in your range" : "No customers yet"}</div>
-            <div style={{ fontSize: 12, marginTop: 4 }}>Follow-up entries automatic ga ikkada customers ga vastayi.</div>
+            <div style={{ fontSize: 12, marginTop: 4 }}>Customer entries you save will appear here automatically.</div>
           </div>
         ) : list.map((r, i) => (
           <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "var(--shadow)" }}>
@@ -2396,7 +2401,7 @@ function FieldGenericThread({ mod, id }) {
               if (mod === "projectProjection") {
                 /* monthly update: remark minimum 50 characters — "followup" lanti chinna text accept kaadu */
                 remark = (window.prompt(`Monthly update remark (minimum 50 characters) — ${newStatus}:`) || "").trim();
-                if (remark.length < 50) { alert(`Remark too short (${remark.length}/50 characters). Konchem detail ga rayandi — em jarigindi, next em cheyali.`); return; }
+                if (remark.length < 50) { alert(`Remark too short (${remark.length}/50 characters). Please write in detail — what happened and what is the next step.`); return; }
               }
               const data = { ...rec, status: newStatus }; delete data._id;
               if (mod === "projectProjection") {
@@ -2458,58 +2463,22 @@ function SpecThreadRoute() {
    WFH    -> selfie (+address) -> start
 ============================================================================ */
 
-/* strict location picker — list nunchi ne select, manual typing accept kaadu */
+/* location input — free typing, auto Title Case (jaipor -> Jaipor) */
 function LocationPicker({ value, onPick }) {
   const [q, setQ] = useState(value || "");
-  const [open, setOpen] = useState(false);
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const tRef = useRef(null);
-
-  const search = (text) => {
-    setQ(text); onPick(null); setOpen(true);
-    clearTimeout(tRef.current);
-    if (text.trim().length < 2) { setResults([]); return; }
-    tRef.current = setTimeout(() => {
-      setLoading(true);
-      api.locationSearch(text.trim())
-        .then((d) => setResults(d.results || []))
-        .catch(() => setResults([]))
-        .finally(() => setLoading(false));
-    }, 280);
-  };
-
+  const toTitle = (t) => t.replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
   return (
-    <div style={{ position: "relative", marginBottom: 14 }}>
+    <div style={{ marginBottom: 14 }}>
       <input
         value={q}
-        onChange={(e) => search(e.target.value)}
-        placeholder="Type area / village / city…"
+        onChange={(e) => {
+          const v = toTitle(e.target.value);
+          setQ(v);
+          onPick(v.trim() ? { name: v.trim() } : null);
+        }}
+        placeholder="Enter area / village / city name"
         style={{ width: "100%", padding: "12px", borderRadius: 11, border: value ? "2px solid #1f9d55" : "1.5px solid #d7dcef", fontSize: 15 }}
       />
-      {value && <CheckCircle2 size={18} color="#1f9d55" style={{ position: "absolute", right: 12, top: 13 }} />}
-      {open && !value && q.trim().length >= 2 && (
-        <div style={{ position: "absolute", top: "105%", left: 0, right: 0, background: "#fff", borderRadius: 12, boxShadow: "0 12px 30px rgba(15,20,45,.18)", zIndex: 30, maxHeight: 230, overflowY: "auto", border: "1px solid #e3e7f2" }}>
-          {loading && <div style={{ padding: 12, fontSize: 12.5, color: "var(--muted)" }}>Searching…</div>}
-          {!loading && results.length === 0 && (
-            <div style={{ padding: 12, fontSize: 12.5, color: "var(--muted)" }}>
-              No match — spelling konchem marchi try cheyandi.
-              <div style={{ fontSize: 11, marginTop: 4, color: "#a35a1f" }}>
-                Anni names ki ila vasthe: location data server lo inka load avvaledu — admin okkasari import run cheyali.
-              </div>
-            </div>
-          )}
-          {results.map((r, i) => (
-            <div key={i}
-              onClick={() => { onPick(r); setQ(r.name); setOpen(false); }}
-              style={{ padding: "11px 13px", fontSize: 13.5, cursor: "pointer", borderBottom: "1px solid #f0f2f8" }}>
-              <b>{r.name}</b>
-              <span style={{ color: "var(--muted)", fontSize: 11.5 }}> — {[r.district, r.state].filter(Boolean).join(", ")}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 5 }}>List nunchi select cheyali — proper spelling automatic ga vastundi.</div>
     </div>
   );
 }

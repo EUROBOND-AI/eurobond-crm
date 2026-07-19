@@ -3,9 +3,23 @@ import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { MODULES as ALL_MODULES } from "./moduleConfigs.jsx";
 
-// App modules (only those with app:true) — these are what field users can see
-const APP_MODULES = Object.entries(ALL_MODULES).filter(([, c]) => c.app).map(([k, c]) => ({ key: k, label: c.appLabel || c.crumb }));
-const ROLES = ["Sales HOD", "Specs HOD", "Sales Person", "Specification Person", "Admin"];
+// ALL app screens — generic modules + custom screens (Customers, Target, Attendance, etc.)
+const CUSTOM_SCREENS = [
+  { key: "customerForm", label: "Customer (Add Form)" },
+  { key: "customers", label: "Customers" },
+  { key: "nearby", label: "Near By Customers" },
+  { key: "leave", label: "Leave" },
+  { key: "leaveApproval", label: "Leave Approval (HOD)" },
+  { key: "target", label: "Target" },
+  { key: "teamPerformance", label: "Team Performance (HOD)" },
+  { key: "attendance", label: "Attendance" },
+  { key: "siteProjectForm", label: "Site Project (Add Form)" },
+];
+const APP_MODULES = [
+  ...Object.entries(ALL_MODULES).filter(([, c]) => c.app).map(([k, c]) => ({ key: k, label: c.appLabel || c.crumb })),
+  ...CUSTOM_SCREENS,
+];
+const ROLES = ["HOD (Sales)", "HOD (Spec)", "Sales Person", "Spec Person", "Admin"];
 
 const emptyMap = () => Object.fromEntries(ROLES.map((r) => [r, Object.fromEntries(APP_MODULES.map((m) => [m.key, true]))]));
 

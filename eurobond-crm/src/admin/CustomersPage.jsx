@@ -4,7 +4,7 @@ import { api } from "../lib/api.js";
 
 /* ---------------------------------------------------------------------------
    Customers (admin) — follow-up entries nunchi automatic ga aggregate ayina
-   customer directory. Separate data entry ledu; sales team follow-ups ye source.
+   customer directory built automatically from app entries.
 --------------------------------------------------------------------------- */
 export default function CustomersPage() {
   const [rows, setRows] = useState(null);
@@ -82,7 +82,7 @@ export default function CustomersPage() {
                 <tr><td colSpan={7} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
               ) : list.length === 0 ? (
                 <tr><td colSpan={7} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>
-                  <Users size={30} style={{ opacity: 0.4 }} /><br />No customers yet — follow-up entries ikkada customers ga vastayi.
+                  <Users size={30} style={{ opacity: 0.4 }} /><br />No customers yet — customer entries from the app will appear here.
                 </td></tr>
               ) : list.map((r, i) => (
                 <tr key={i} style={{ borderTop: "1px solid #eef1f8" }}>

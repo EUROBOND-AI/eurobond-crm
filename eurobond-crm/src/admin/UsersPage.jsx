@@ -83,11 +83,28 @@ export default function UsersPage() {
                   <td><span className="pill">{u.role}</span></td>
                   <td>{u.designation || "—"}</td>
                   <td>{u.city || "—"}</td>
-                  <td>{u.status == 1 ? "Active" : "Inactive"}</td>
+                  <td>
+                    {/* Active/Inactive toggle — click to switch */}
+                    <button
+                      onClick={async () => {
+                        try { await api.setUserStatus(u.id, u.status == 1 ? 0 : 1); load(); } catch (e) { alert(e.message); }
+                      }}
+                      title="Click to toggle"
+                      style={{
+                        border: "none", cursor: "pointer", fontWeight: 800, fontSize: 11.5, padding: "4px 12px", borderRadius: 9,
+                        background: u.status == 1 ? "#e8f7ee" : "#fdecec", color: u.status == 1 ? "#1f7a44" : "#c03636",
+                      }}>
+                      {u.status == 1 ? "● Active" : "○ Inactive"}
+                    </button>
+                  </td>
                   <td style={{ display: "flex", gap: 6 }}>
                     <button className="btn btn-ghost" title="Edit" onClick={() => setForm({ ...empty, ...u, password: "" })}>Edit</button>
                     <button className="btn btn-ghost" title="Reset password" onClick={() => resetPass(u)}><KeyRound size={13} /></button>
-                    <button className="btn btn-danger" title="Deactivate" onClick={() => del(u)}><Trash2 size={13} /></button>
+                    <button className="btn btn-danger" title="Delete permanently"
+                      onClick={async () => {
+                        if (!window.confirm(`Permanently DELETE ${u.name}? This removes the user and their attendance data. This cannot be undone.`)) return;
+                        try { await api.deleteUserHard(u.id); load(); } catch (e) { alert(e.message); }
+                      }}><Trash2 size={13} /></button>
                   </td>
                 </tr>
               ))}

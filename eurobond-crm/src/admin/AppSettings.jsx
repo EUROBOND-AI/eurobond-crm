@@ -122,14 +122,14 @@ export default function AppSettings() {
       </Card>
 
       <Card icon={<Database size={16} />} title="IndiaMART Integration"
-        note="IndiaMART seller account → Lead Manager → API → CRM key ikkada pettandi. Leads automatic ga Enquiry (Review Pending) lo vastayi — akkada nunchi sales person ki assign cheyandi.">
+        note="Paste your IndiaMART CRM key here (IndiaMART seller account → Lead Manager → API). Leads will automatically appear in Enquiry as Review Pending — assign them to sales persons from there.">
         <Row>
           <Field label="IndiaMART CRM Key">
             <input value={f.indiamartKey || ""} onChange={(e) => set("indiamartKey", e.target.value)} placeholder="glusr_crm_key…" style={inp} />
           </Field>
         </Row>
         <div style={hint}>
-          Save chesaka Enquiry page lo <b>"Sync IndiaMART"</b> button use cheyandi (leda cron:{" "}
+          After saving, use the <b>"Sync IndiaMART"</b> button on the Enquiry page (or set a cron:{" "}
           <code style={code}>…/crm-api/indiamart.php?action=sync&key=INSTALL_KEY</code> — hourly).
         </div>
       </Card>

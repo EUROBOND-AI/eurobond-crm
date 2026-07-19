@@ -58,6 +58,8 @@ export const api = {
   createUser: (u) => req("/users.php", { method: "POST", body: u }),
   updateUser: (id, u) => req("/users.php?id=" + id, { method: "PUT", body: u }),
   deleteUser: (id) => req("/users.php?id=" + id, { method: "DELETE" }),
+  deleteUserHard: (id) => req("/users.php?id=" + id + "&hard=1", { method: "DELETE" }),
+  setUserStatus: (id, status) => req("/users.php?id=" + id, { method: "PUT", body: { status } }),
   resetUserPass: (id, new_password) => req("/users.php?action=reset_pass", { method: "POST", body: { id, new_password } }),
 
   /* ---------- Generic records (all modules) ---------- */
