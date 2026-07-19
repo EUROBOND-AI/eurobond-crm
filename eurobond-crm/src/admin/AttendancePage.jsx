@@ -100,7 +100,7 @@ export default function AttendancePage() {
       : filtered.length === 0 ? <div style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No attendance found for the selected filters.</div>
       : (
         <div className="table-wrap"><table className="grid">
-          <thead><tr><th>Date</th><th>Name</th><th>Visit</th><th>Zone</th><th>City</th><th>Start</th><th>End</th><th>Distance</th><th>Photos</th><th>Status</th><th>Action</th></tr></thead>
+          <thead><tr><th>Date</th><th>Name</th><th>Visit</th><th>Zone</th><th>City</th><th>Login Time</th><th>Logout Time</th><th>Distance</th><th>Login Photo</th><th>Logout Photo</th><th>Reading Photos</th><th>App Status</th><th>Status</th><th>Action</th></tr></thead>
           <tbody>
             {filtered.map((s) => (
               <tr key={s.id}>
@@ -116,16 +116,30 @@ export default function AttendancePage() {
                 <td>{s.end_time ? new Date(s.end_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "Running"}</td>
                 <td>{fmtKm(Number(s.distance_km) || 0)}</td>
                 <td>
+                  {s.start_selfie
+                    ? <a href={s.start_selfie} target="_blank" rel="noreferrer" title="Login photo"><img src={s.start_selfie} alt="Login" style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 8, border: "1px solid #dfe4f0" }} /></a>
+                    : <span style={{ color: "var(--muted)" }}>—</span>}
+                </td>
+                <td>
+                  {s.end_selfie
+                    ? <a href={s.end_selfie} target="_blank" rel="noreferrer" title="Logout photo"><img src={s.end_selfie} alt="Logout" style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 8, border: "1px solid #dfe4f0" }} /></a>
+                    : <span style={{ color: "var(--muted)" }}>—</span>}
+                </td>
+                <td>
                   <div style={{ display: "flex", gap: 4 }}>
-                    {[["S", s.start_selfie, "Start selfie"], ["R", s.start_reading, "Start reading"], ["ES", s.end_selfie, "End selfie"], ["ER", s.end_reading, "End reading"]]
-                      .filter(([, u]) => u)
-                      .map(([t, u, tip]) => (
-                        <a key={t} href={u} target="_blank" rel="noreferrer" title={tip}>
-                          <img src={u} alt={t} style={{ width: 30, height: 30, objectFit: "cover", borderRadius: 6, border: "1px solid #dfe4f0" }} />
-                        </a>
-                      ))}
-                    {!s.start_selfie && !s.start_reading && !s.end_selfie && !s.end_reading && <span style={{ color: "var(--muted)" }}>—</span>}
+                    {s.start_reading && <a href={s.start_reading} target="_blank" rel="noreferrer" title="Start reading (odometer)"><img src={s.start_reading} alt="Start reading" style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 8, border: "1px solid #dfe4f0" }} /></a>}
+                    {s.end_reading && <a href={s.end_reading} target="_blank" rel="noreferrer" title="Closing reading (odometer)"><img src={s.end_reading} alt="End reading" style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 8, border: "1px solid #dfe4f0" }} /></a>}
+                    {!s.start_reading && !s.end_reading && <span style={{ color: "var(--muted)" }}>—</span>}
                   </div>
+                </td>
+                <td>
+                  <span style={{
+                    fontSize: 11, fontWeight: 800, padding: "3px 9px", borderRadius: 8,
+                    background: s.app_status === "Live" ? "#e8f7ee" : s.app_status === "App Closed" ? "#fdecec" : "#f1f3f8",
+                    color: s.app_status === "Live" ? "#1f7a44" : s.app_status === "App Closed" ? "#c03636" : "#8a93a8",
+                  }}>
+                    {s.app_status === "Live" ? "● Live" : s.app_status === "App Closed" ? "✕ App Closed" : "Completed"}
+                  </span>
                 </td>
                 <td><Pill status={s.status === "DONE" ? "Completed" : "In Progress"} /></td>
                 <td><button className="btn btn-primary" style={{ padding: "5px 12px", fontSize: 12 }} onClick={() => setViewSess(s)}>View</button></td>

@@ -1651,6 +1651,8 @@ function MenuDrawer({ open, close }) {
       ["Task", <ClipboardList size={16} />, "/app/m/task"],
     ] },
   ];
+  /* Team Access (admin) ye single source — role arrays tho double-filter cheyyam.
+     Admin lo tick chesinavi anni kanipistayi; map lekapothe anni kanipistayi. */
   const groups = rawGroups.map((g) => ({ ...g, items: g.items.filter(([, , to]) => canSee(to)) })).filter((g) => g.items.length);
   return (
     <div className="f-sheet-mask" onClick={close} style={{ zIndex: 60 }}>
@@ -1671,7 +1673,7 @@ function MenuDrawer({ open, close }) {
           {groups.map((g) => (
             <div key={g.h}>
               <div style={{ padding: "10px 18px 4px", fontSize: 10.5, fontWeight: 800, letterSpacing: 1, color: "var(--muted)" }}>{g.h}</div>
-              {g.items.filter(([, , , allowed]) => roleCanSee(allowed)).map(([t, ic, to]) => (
+              {g.items.map(([t, ic, to]) => (
                 <button key={t} className="f-menu-item" onClick={() => { close(); nav(to); }}>
                   <span className="ic">{ic}</span> {t} <ChevronRight size={14} style={{ marginLeft: "auto", color: "var(--muted)" }} />
                 </button>
@@ -2671,9 +2673,11 @@ export default function FieldApp() {
     if (!authed) return;
     api.attToday().then((d) => {
       if (d.session && d.session.status === "RUNNING" && !attendanceOn) {
+        /* AUTO-RESUME REMOVED: app close chesthe tracking stop.
+           Session info matrame gurtupettukuntam — user malli slide start chesthe
+           same session continue avutundi (attStart resumes it). */
         sessionRef.current = Number(d.session.id);
         todaySessionRef.current = d.session;
-        setAttendanceOn(true);
       }
     }).catch(() => {});
     // eslint-disable-next-line
