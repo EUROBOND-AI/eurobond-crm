@@ -23,7 +23,7 @@ const roleKey = () => {
   if (r.includes("spec") || d.includes("spec")) return "spec";
   return "sales";
 };
-const canSee = (allowed) => !allowed || allowed.includes(roleKey());
+const roleCanSee = (allowed) => !allowed || allowed.includes(roleKey());
 
 /* ---------------- NOTIFICATION READ STORE (per user) ---------------- */
 const NOTIF_READ_KEY = () => `eb_notif_read_${CU().code || CU().mobile || "u"}`;
@@ -1666,7 +1666,7 @@ function MenuDrawer({ open, close }) {
           {groups.map((g) => (
             <div key={g.h}>
               <div style={{ padding: "10px 18px 4px", fontSize: 10.5, fontWeight: 800, letterSpacing: 1, color: "var(--muted)" }}>{g.h}</div>
-              {g.items.filter(([, , , allowed]) => canSee(allowed)).map(([t, ic, to]) => (
+              {g.items.filter(([, , , allowed]) => roleCanSee(allowed)).map(([t, ic, to]) => (
                 <button key={t} className="f-menu-item" onClick={() => { close(); nav(to); }}>
                   <span className="ic">{ic}</span> {t} <ChevronRight size={14} style={{ marginLeft: "auto", color: "var(--muted)" }} />
                 </button>
@@ -2492,7 +2492,12 @@ function LocationPicker({ value, onPick }) {
         <div style={{ position: "absolute", top: "105%", left: 0, right: 0, background: "#fff", borderRadius: 12, boxShadow: "0 12px 30px rgba(15,20,45,.18)", zIndex: 30, maxHeight: 230, overflowY: "auto", border: "1px solid #e3e7f2" }}>
           {loading && <div style={{ padding: 12, fontSize: 12.5, color: "var(--muted)" }}>Searching…</div>}
           {!loading && results.length === 0 && (
-            <div style={{ padding: 12, fontSize: 12.5, color: "var(--muted)" }}>No match — spelling konchem marchi try cheyandi</div>
+            <div style={{ padding: 12, fontSize: 12.5, color: "var(--muted)" }}>
+              No match — spelling konchem marchi try cheyandi.
+              <div style={{ fontSize: 11, marginTop: 4, color: "#a35a1f" }}>
+                Anni names ki ila vasthe: location data server lo inka load avvaledu — admin okkasari import run cheyali.
+              </div>
+            </div>
           )}
           {results.map((r, i) => (
             <div key={i}
