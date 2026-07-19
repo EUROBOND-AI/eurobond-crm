@@ -3,7 +3,7 @@ import { UserPlus, KeyRound, Trash2, Search } from "lucide-react";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 
-const ROLES = ["Sales HOD", "Specs HOD", "Sales Person", "Specification Person", "Admin"];
+const ROLES = ["Admin", "HOD (Sales)", "HOD (Spec)", "Sales Person", "Spec Person"];
 const empty = { name: "", mobile: "", code: "", email: "", role: "Sales Person", designation: "", zone: "", city: "", manager: "", password: "", nearby_range_m: 500 };
 
 export default function UsersPage() {
@@ -140,6 +140,8 @@ function SelectOrAdd({ label, val, on, options }) {
       {adding || isNew ? (
         <div style={{ display: "flex", gap: 6 }}>
           <input value={val} onChange={(e) => on(e.target.value)} placeholder={"New " + label} style={{ flex: 1 }} autoFocus />
+          <button type="button" className="btn btn-primary" title="Save new value" style={{ padding: "0 12px", fontWeight: 800 }}
+            onClick={() => setAdding(false)} disabled={!val}>✓ Save</button>
           <button type="button" className="btn btn-ghost" style={{ padding: "0 10px" }} onClick={() => { on(""); setAdding(false); }}>✕</button>
         </div>
       ) : (

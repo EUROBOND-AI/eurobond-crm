@@ -63,26 +63,6 @@ export const MODULES = {
     ],
   },
 
-  followUp: {
-    path: "sfa/follow-up", title: "Follow Up List", crumb: "Follow Up", addLabel: "Add Follow Up",
-    idPrefix: "FUP", app: true, appLabel: "Follow Up",
-    tabs: [{ key: "To-Do", label: "To-Do" }, { key: "Completed", label: "Completed" }],
-    tabField: "status",
-    columns: [
-      { key: "id", label: "Followup Id", render: link }, { key: "createdAt", label: "Created At" },
-      { key: "createdBy", label: "Created By" }, { key: "customer", label: "Customer / Party" },
-      { key: "type", label: "Type" }, { key: "date", label: "Follow-up Date" },
-      { key: "nextAction", label: "Next Action" }, { key: "status", label: "Status", render: pill },
-    ],
-    form: [
-      { name: "customer", label: "Customer / Party", required: true },
-      { name: "type", label: "Type", type: "select", options: ["Call", "Visit", "Email", "WhatsApp"], required: true },
-      { name: "date", label: "Follow-up Date", type: "date", required: true },
-      { name: "nextAction", label: "Next Action" },
-      { name: "notes", label: "Notes", type: "textarea", full: true },
-    ],
-  },
-
   projectProjection: {
     path: "sfa/project-projection", title: "Project Projection", crumb: "Project Projection", addLabel: "Add Project",
     idPrefix: "PPJ", app: true, appLabel: "Project Projection",
@@ -99,6 +79,7 @@ export const MODULES = {
       { key: "projectType", label: "Type" }, { key: "city", label: "City" },
       { key: "value", label: "Value", render: money },
       { key: "lastUpdate", label: "Last Monthly Update" },
+      { key: "source", label: "Source", render: pill },
       { key: "status", label: "Status", render: pill },
     ],
     form: [
@@ -108,39 +89,7 @@ export const MODULES = {
       { name: "city", label: "City" },
       { name: "value", label: "Approx Value (₹)", type: "number" },
       { name: "details", label: "Project Details", type: "textarea", full: true },
-    ],
-  },
-
-  siteProject: {
-    path: "sfa/site-project", title: "Project List", crumb: "Project", addLabel: "Add Site Project",
-    idPrefix: "PRJ", app: true, appLabel: "Site Project",
-    filters: ["hodName", "createdBy", "city"],
-    tabs: [
-      { key: "Inprocess", label: "Inprocess" }, { key: "Hold", label: "Hold" },
-      { key: "Win", label: "Win" }, { key: "Lost", label: "Lost" }, { key: "Junk & Close", label: "Junk & Close" },
-    ],
-    tabField: "status",
-    columns: [
-      { key: "id", label: "Project Id", render: link }, { key: "createdAt", label: "Created At" },
-      { key: "hodName", label: "HOD Name" }, { key: "createdBy", label: "Sales Person" },
-      { key: "projectType", label: "Project Type" },
-      { key: "projectYear", label: "Year" }, { key: "priority", label: "Priority", render: pill },
-      { key: "firm", label: "Firm Name" }, { key: "name", label: "Project Name" },
-      { key: "pincode", label: "Pincode" }, { key: "city", label: "City" },
-      { key: "value", label: "Value", render: money }, { key: "stage", label: "Stage" },
-      { key: "photo", label: "Photo", render: (v) => v ? <a href={v} target="_blank" rel="noreferrer" className="link">View</a> : "—" },
-      { key: "status", label: "Status", render: pill },
-    ],
-    form: [
-      { name: "name", label: "Project Name", required: true },
-      { name: "projectType", label: "Project Type", type: "select", options: ["Residential", "Commercial", "Institutional", "Industrial", "Other"] },
-      { name: "projectYear", label: "Project Year", type: "select", options: ["2025", "2026", "2027", "2028"] },
-      { name: "firm", label: "Firm Name" },
-      { name: "priority", label: "Priority", type: "select", options: ["Low", "Medium", "High"] },
-      { name: "stage", label: "Stage", type: "select", options: ["Initiation", "Planning", "Execution", "Monitoring"] },
-      { name: "city", label: "City" }, { name: "pincode", label: "Pincode" },
-      { name: "value", label: "Approx Value (₹)", type: "number" },
-      { name: "specPerson", label: "Specification Help — tag person", type: "select", optionsSource: "users" },
+      { name: "specPerson", label: "Specification Help — tag spec person (optional)", type: "select", optionsSource: "specUsers" },
       { name: "specHelp", label: "What specification help is needed?", type: "textarea", full: true },
     ],
   },
@@ -269,34 +218,48 @@ export const MODULES = {
       { name: "user", label: "Team Member", type: "select", optionsSource: "users", required: true },
       { name: "targetType", label: "Target Type", type: "select", options: ["Sales", "Specs"], required: true },
       { name: "period", label: "Period (e.g. July 2026)", required: true },
-      { name: "target", label: "Target (₹ for Sales / Sq.m for Specs)", type: "number", required: true },
-      { name: "achieved", label: "Achieved", type: "number" },
+      { name: "targetSqft", label: "Target Sq.Feet", type: "number", required: true },
+      { name: "targetAmount", label: "Target Amount (₹) — Sales only", type: "number" },
       { name: "note", label: "Note", type: "textarea", full: true },
+    ],
+  },
+
+  salesEntry: {
+    path: "sfa/sales-entries", title: "Sales / Approval Entries", crumb: "Sales Entries", addLabel: "Add Entry",
+    idPrefix: "SLE", app: false,
+    filters: ["createdBy", "entryType"],
+    tabs: [{ key: "Sales", label: "Sales Entries" }, { key: "Specs", label: "Approval Entries" }],
+    tabField: "entryType",
+    columns: [
+      { key: "id", label: "Entry Id", render: link }, { key: "date", label: "Date" },
+      { key: "createdBy", label: "Person" }, { key: "entryType", label: "Type", render: pill },
+      { key: "project", label: "Project / Customer" },
+      { key: "sqft", label: "Sq.Feet" }, { key: "amount", label: "Amount (₹)", render: money },
+      { key: "invoice", label: "Invoice / Doc", render: (v) => v ? <a href={v} target="_blank" rel="noreferrer" className="link">View</a> : "—" },
+      { key: "createdAt", label: "Added At" },
+    ],
+    form: [
+      { name: "date", label: "Date", type: "date", required: true },
+      { name: "project", label: "Project / Customer Name", required: true },
+      { name: "sqft", label: "Sq.Feet", type: "number", required: true },
+      { name: "amount", label: "Amount (₹)", type: "number" },
     ],
   },
 
   /* ===================== BACKEND ONLY ===================== */
 
-  location: {
-    path: "master/location", title: "Location Master", crumb: "Location Master", addLabel: "Add Location",
-    columns: [
-      { key: "pincode", label: "Pincode" }, { key: "zone", label: "Zone" },
-      { key: "state", label: "State" }, { key: "city", label: "City" }, { key: "beat", label: "Beat Route" },
-    ],
-    form: [
-      { name: "pincode", label: "Pincode", required: true }, { name: "zone", label: "Zone" },
-      { name: "state", label: "State" }, { name: "city", label: "City" }, { name: "beat", label: "Beat Route" },
-    ],
-  },
-
   holidays: {
     path: "master/holidays", title: "Holiday List", crumb: "Holiday", addLabel: "Add Holiday",
     columns: [{ key: "date", label: "Date" }, { key: "name", label: "Holiday Name" }, { key: "type", label: "Type" }],
+    filters: ["audienceType"],
     form: [
       { name: "date", label: "Date", type: "date", required: true },
       { name: "name", label: "Holiday Name", required: true },
       { name: "type", label: "Type", type: "select", options: ["National", "Regional", "Company"] },
+      { name: "audienceType", label: "Evariki? (All / Zone / City / Users)", type: "select", options: ["All", "Zone", "City", "Users"], required: true },
+      { name: "audienceValue", label: "Zone/City name leda User names (comma tho)", placeholder: "e.g. North  |  Mumbai  |  Ramesh, Suresh" },
     ],
+    notifyOnCreate: (d) => ({ title: "🎉 Holiday: " + d.name, message: `${d.date} — ${d.name} (${d.type || "Holiday"})`, link: "/app" }),
   },
 
   products: {
@@ -313,16 +276,6 @@ export const MODULES = {
     ],
   },
 
-  leavePolicy: {
-    path: "master/leave-policy", title: "Leave Policy List", crumb: "Leave Policy", addLabel: "Add Policy",
-    columns: [{ key: "name", label: "Policy Name" }, { key: "type", label: "Leave Type" }, { key: "days", label: "Days Allowed" }],
-    form: [
-      { name: "name", label: "Policy Name", required: true },
-      { name: "type", label: "Leave Type", type: "select", options: ["Casual Leave", "Sick Leave", "Privilege Leave"], required: true },
-      { name: "days", label: "Days Allowed", type: "number", required: true },
-    ],
-  },
-
   announcement: {
     path: "support/announcement", title: "Announcement List", crumb: "Announcement", addLabel: "Add Announcement",
     tabs: [{ key: "Published", label: "Published" }, { key: "Unpublished", label: "Unpublished" }],
@@ -334,7 +287,10 @@ export const MODULES = {
     form: [
       { name: "title", label: "Title", required: true },
       { name: "desc", label: "Description", type: "textarea", full: true, required: true },
+      { name: "audienceType", label: "Evariki? (All / Zone / City / Users)", type: "select", options: ["All", "Zone", "City", "Users"], required: true },
+      { name: "audienceValue", label: "Zone/City name leda User names (comma tho)", placeholder: "e.g. North  |  Mumbai  |  Ramesh, Suresh" },
     ],
+    notifyOnCreate: (d) => ({ title: "📢 " + d.title, message: d.desc || "", link: "/app/notifications" }),
   },
 
   tickets: {

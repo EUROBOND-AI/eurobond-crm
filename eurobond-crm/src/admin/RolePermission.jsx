@@ -3,7 +3,7 @@ import { Plus, RefreshCw, Save, Trash2 } from "lucide-react";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 
-const MODULES = ["Dashboard", "Attendance", "Checkin", "Expense", "Leave", "Enquiry", "Follow Up", "Quotation", "Site-Project", "Spec Approval", "Customers", "Masters"];
+const MODULES = ["Dashboard", "Attendance", "Attendance Sheet", "Checkin", "Expense", "Leave", "Leave Approval", "Enquiry", "Customers", "Quotation", "Project Projection", "Targets", "Sales Entries", "Team Performance", "Sales to Spec", "Spec to Sales", "Task", "Holidays", "Announcement", "Notification", "Users", "App Settings", "Masters"];
 const PERMS = ["Add", "Approve", "Delete", "Export", "Import", "Modify", "View"];
 const STD_ROLES = ["Sales HOD", "Specs HOD", "Sales Person", "Specification Person", "Admin"];
 

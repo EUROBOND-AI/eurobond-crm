@@ -14,6 +14,17 @@ import { MODULES } from "../admin/moduleConfigs.jsx";
 /* logged-in field user (from auth) with safe fallbacks */
 const CU = () => auth.user || {};
 
+/* app role -> visibility key */
+const roleKey = () => {
+  const r = `${CU().role || ""}`.toLowerCase();
+  const d = `${CU().designation || ""}`.toLowerCase();
+  if (r.includes("admin")) return "admin";
+  if (r.includes("hod")) return (r.includes("spec") || d.includes("spec")) ? "hod-spec" : "hod-sales";
+  if (r.includes("spec") || d.includes("spec")) return "spec";
+  return "sales";
+};
+const canSee = (allowed) => !allowed || allowed.includes(roleKey());
+
 /* ---------------- NOTIFICATION READ STORE (per user) ---------------- */
 const NOTIF_READ_KEY = () => `eb_notif_read_${CU().code || CU().mobile || "u"}`;
 const getReadIds = () => {
@@ -26,7 +37,19 @@ const markRead = (ids) => {
   localStorage.setItem(NOTIF_READ_KEY(), JSON.stringify([...s].slice(-500)));
   window.dispatchEvent(new Event("eb-notif-read"));
 };
-const isMine = (n, me) => !n.to || n.to === me.name || n.to === me.code || n.to === me.mobile;
+const isMine = (n, me) => {
+  /* audience-based (Holiday/Announcement): All / Zone / City / Users */
+  if (n.audienceType) {
+    const t = n.audienceType, v = String(n.audienceValue || "").toLowerCase();
+    if (t === "All") return true;
+    if (t === "Zone") return v.split(",").map((x) => x.trim()).includes((me.zone || "").toLowerCase());
+    if (t === "City") return v.split(",").map((x) => x.trim()).includes((me.city || "").toLowerCase());
+    if (t === "Users") return v.split(",").map((x) => x.trim()).includes((me.name || "").toLowerCase());
+    return false;
+  }
+  if (n.to === "ADMIN") return false;
+  return !n.to || n.to === me.name || n.to === me.code || n.to === me.mobile;
+};
 
 /* ---------------- GPS / OFFICE-HOURS CONFIG (server-load control) ----------------
    Points are recorded ONLY when the person actually moved 1 km,
@@ -148,14 +171,17 @@ async function placeName(lat, lng) {
   const key = lat.toFixed(4) + "," + lng.toFixed(4);
   if (geoCache[key]) return geoCache[key];
   try {
-    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=17`, { headers: { "Accept-Language": "en" } });
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18`, { headers: { "Accept-Language": "en" } });
     const j = await r.json();
     const a = j.address || {};
     const road = a.road || a.pedestrian || a.footway || "";
     const area = a.neighbourhood || a.suburb || a.quarter || a.residential || "";
     const city = a.city || a.town || a.village || a.county || "";
-    const name = [road, area, city].filter(Boolean).join(", ")
-      || j.display_name?.split(",").slice(0, 3).join(",")
+    const state = a.state || "";
+    const pin = a.postcode || "";
+    /* FULL location: road, area, city, state + pincode */
+    const name = [road, area, city, state].filter(Boolean).join(", ") + (pin ? " - " + pin : "")
+      || j.display_name
       || "Unknown location";
     geoCache[key] = name;
     return name;
@@ -337,7 +363,7 @@ function FieldHome({ attendanceOn, setAttendanceOn, tracking, expenses, followup
 
   const metrics = [
     { label: "Distance", icon: <Navigation size={15} />, big: fmtKm(tracking.km), note: attendanceOn ? "tracking live" : "today", to: "/app/attendance" },
-    { label: "Follow-up", icon: <ClipboardList size={15} />, big: `${fuDone}/${followups.length}`, note: "completed / total", to: "/app/followup" },
+    { label: "Customer", icon: <ClipboardList size={15} />, big: `${followups.length}`, note: "total customers", to: "/app/customers" },
     { label: "Leave", icon: <CalendarDays size={15} />, big: leavePending, note: "pending approvals", to: "/app/leave" },
     { label: "Expense", icon: <Wallet size={15} />, big: "₹" + expMonth.toLocaleString("en-IN"), note: "total claimed", to: "/app/expense" },
   ];
@@ -399,7 +425,7 @@ function FieldHome({ attendanceOn, setAttendanceOn, tracking, expenses, followup
             <div style={{ fontFamily: "Bricolage Grotesque", fontWeight: 700, marginBottom: 12 }}>Quick actions</div>
             <div className="f-sheet-grid">
               {[
-                { t: "Add Follow Up", ic: <ClipboardList size={18} />, to: "/app/followup/new" },
+                { t: "Add Customer", ic: <ClipboardList size={18} />, to: "/app/followup/new" },
                 { t: "Apply Leave", ic: <CalendarDays size={18} />, to: "/app/leave/new" },
                 { t: "Add Expense", ic: <Wallet size={18} />, to: "/app/expense/new" },
                 { t: "Add Site-Project", ic: <Building2 size={18} />, to: "/app/project/new" },
@@ -480,12 +506,24 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
     const latlngs = tracking.points;
     if (latlngs.length) {
       const last = latlngs[latlngs.length - 1];
+      /* idle (sitting) points -> vankaya/purple dots */
+      latlngs.forEach((p, i) => {
+        if (i === 0 || i === latlngs.length - 1) return;
+        const prev = latlngs[i - 1];
+        const movedKm = haversineKm(prev, p);
+        if (movedKm < 0.05) {
+          L.circleMarker([p.lat, p.lng], { radius: 5, color: "#fff", weight: 2, fillColor: "#7b2d8b", fillOpacity: 0.95 })
+            .bindPopup("Sitting / stopped here").addTo(mapObj.current);
+        }
+      });
       if (attendanceOn) {
-        /* Uber-style live marker: pulsing navy dot with white ring + direction glow */
+        /* live marker: moving -> bike glide; sitting -> "Sitting" label */
+        const idleNow = Date.now() - (last.t || 0) > 3 * 60 * 1000 || latlngs.length < 2 ||
+          haversineKm(latlngs[latlngs.length - 2] || last, last) < 0.05;
         const liveIcon = L.divIcon({
           className: "",
-          html: `<div class="uber-dot"><span class="uber-pulse"></span><span class="uber-core">🚗</span></div>`,
-          iconSize: [46, 46], iconAnchor: [23, 23],
+          html: `<div class="uber-dot">${idleNow ? '<span class="sit-tag">Sitting</span>' : ''}<span class="uber-pulse"></span><span class="uber-core">🏍️</span></div>`,
+          iconSize: [46, 58], iconAnchor: [23, 29],
         });
         markerRef.current = L.marker([last.lat, last.lng], { icon: liveIcon, zIndexOffset: 999 }).addTo(mapObj.current);
       } else {
@@ -1123,7 +1161,7 @@ function FieldFollowUpNew({ add }) {
 
   return (
     <>
-      <ScreenHead title="Add Follow Up" />
+      <ScreenHead title="Add Customer" />
       <div className="f-form">
         <label>Category <b>*</b></label>
         <select value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })} style={inp}>
@@ -1194,7 +1232,7 @@ function FieldFollowUpNew({ add }) {
             });
             /* WhatsApp: visit chesamu ani chinna draft customer ki (settings lo enable unte) */
             sendFollowupWhatsApp(primary.whatsapp || primary.mobile, f.partyName, f.type, f.date);
-            nav("/app/followup");
+            nav("/app/customers");
           }}
         >
           Save Follow Up
@@ -1226,7 +1264,7 @@ function FieldProjectNew() {
         {ok && <div style={{ background: "#e8f7ee", color: "#1f9d55", borderRadius: 10, padding: "10px 12px", fontSize: 12.5, fontWeight: 700, marginBottom: 12 }}>✔ Project saved</div>}
         <button className="f-submit" style={{ width: "100%" }} disabled={!f.name} onClick={async () => {
           try {
-            await api.create("siteProject", { name: f.name, stage: f.stage, status: "Inprocess", city: f.city, value: f.value, createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) });
+            await api.create("projectProjection", { name: f.name, stage: f.stage, status: "Running", city: f.city, value: f.value, createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) });
             setOk(true); setTimeout(() => nav("/app"), 900);
           } catch (e) { alert(e.message); }
         }}>
@@ -1237,44 +1275,289 @@ function FieldProjectNew() {
   );
 }
 
+/* ============================================================================
+   TARGET & PERFORMANCE
+   Admin target set chestaru; sales/spec person achievements add chestaru
+   (date + project/customer + sq.feet + amount + invoice attach optional).
+   Performance colors: 100%+ green · 60%+ amber · below red.
+============================================================================ */
+const pcColor = (pc) => (pc >= 100 ? "#1f9d55" : pc >= 60 ? "#e8a020" : "#d64545");
+
 function FieldTarget() {
-  const [rows, setRows] = useState(null);
+  const [targets, setTargets] = useState(null);
+  const [entries, setEntries] = useState([]);
+  const [showAdd, setShowAdd] = useState(false);
+  const isSpec = `${CU().role || ""} ${CU().designation || ""}`.toLowerCase().includes("spec");
+
+  const load = () => {
+    Promise.all([api.list("target", false), api.list("salesEntry", false)])
+      .then(([t, e]) => {
+        setTargets((t.records || []).map((r) => r.data).filter((x) => x.user === CU().name));
+        setEntries((e.records || []).map((r) => ({ _id: r.id, ...r.data })).filter((x) => x.createdBy === CU().name));
+      })
+      .catch(() => setTargets([]));
+  };
+  useEffect(load, []);
+
+  /* period ("July 2026") ki naa entries totals */
+  const achFor = (t) => {
+    const per = (t.period || "").toLowerCase().replace(/\s+/g, " ").trim();
+    const inPeriod = entries.filter((e) => {
+      if (!e.date) return false;
+      const d = new Date(e.date);
+      const label = d.toLocaleString("en-IN", { month: "long", year: "numeric" }).toLowerCase();
+      const label2 = d.toLocaleString("en-IN", { month: "short", year: "numeric" }).toLowerCase();
+      return per.includes(label) || per.includes(label2) || label.includes(per);
+    });
+    const src = inPeriod.length ? inPeriod : entries;   // period match kakapothe anni
+    return {
+      sqft: src.reduce((s, e) => s + Number(e.sqft || 0), 0),
+      amount: src.reduce((s, e) => s + Number(e.amount || 0), 0),
+    };
+  };
+
+  return (
+    <>
+      <ScreenHead title="Target" back={false}
+        right={<button className="f-submit" style={{ padding: "8px 14px", fontSize: 12.5 }} onClick={() => setShowAdd(true)}>+ Add {isSpec ? "Approval" : "Sale"}</button>} />
+      <div className="f-list-pad" style={{ paddingTop: 14 }}>
+        {targets === null ? (
+          <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>Loading…</div>
+        ) : (
+          <>
+            {targets.length === 0 && (
+              <div style={{ textAlign: "center", color: "var(--muted)", padding: 26, fontSize: 13 }}>
+                <Target size={32} style={{ opacity: 0.4, marginBottom: 8 }} />
+                <div style={{ fontWeight: 700 }}>No targets assigned yet</div>
+              </div>
+            )}
+            {targets.map((t, i) => {
+              const ach = achFor(t);
+              const tgtS = Number(t.targetSqft || t.target || 0);
+              const tgtA = Number(t.targetAmount || 0);
+              const pcS = tgtS > 0 ? Math.round((ach.sqft / tgtS) * 100) : 0;
+              const pcA = tgtA > 0 ? Math.round((ach.amount / tgtA) * 100) : 0;
+              const mainPc = tgtA > 0 && !isSpec ? pcA : pcS;
+              return (
+                <div key={i} className="f-metric card-3d" style={{ marginBottom: 12, borderLeft: `5px solid ${pcColor(mainPc)}` }}>
+                  <h5><Target size={15} /> {t.period || "Target"}
+                    <span className="pct" style={{ background: pcColor(mainPc), color: "#fff", padding: "2px 9px", borderRadius: 8 }}>{mainPc}%</span>
+                  </h5>
+                  {tgtS > 0 && (
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 700 }}>
+                        <span>Sq.Feet {isSpec ? "Approved" : "Sold"}</span>
+                        <span style={{ color: pcColor(pcS) }}>{ach.sqft.toLocaleString("en-IN")} / {tgtS.toLocaleString("en-IN")}</span>
+                      </div>
+                      <div className="bar"><i style={{ width: Math.min(100, pcS) + "%", background: pcColor(pcS) }} /></div>
+                    </div>
+                  )}
+                  {tgtA > 0 && (
+                    <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 700 }}>
+                        <span>Sales Amount</span>
+                        <span style={{ color: pcColor(pcA) }}>₹{ach.amount.toLocaleString("en-IN")} / ₹{tgtA.toLocaleString("en-IN")}</span>
+                      </div>
+                      <div className="bar"><i style={{ width: Math.min(100, pcA) + "%", background: pcColor(pcA) }} /></div>
+                    </div>
+                  )}
+                  <small>{t.note || ""}</small>
+                </div>
+              );
+            })}
+
+            <div style={{ fontWeight: 800, fontSize: 14, margin: "16px 0 8px", fontFamily: "Bricolage Grotesque" }}>
+              My {isSpec ? "Approval" : "Sales"} Entries ({entries.length})
+            </div>
+            {entries.length === 0 ? (
+              <div style={{ color: "var(--muted)", fontSize: 12.5, textAlign: "center", padding: 14 }}>+ Add {isSpec ? "Approval" : "Sale"} tho entries add cheyandi</div>
+            ) : entries.slice().reverse().map((e, i) => (
+              <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "11px 13px", marginBottom: 8, boxShadow: "var(--shadow)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>{e.project}</div>
+                  <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{e.date} {e.invoice && <a href={e.invoice} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>· Invoice</a>}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontWeight: 800, fontSize: 13 }}>{Number(e.sqft || 0).toLocaleString("en-IN")} sq.ft</div>
+                  {e.amount > 0 && <div style={{ fontSize: 11.5, color: "var(--muted)" }}>₹{Number(e.amount).toLocaleString("en-IN")}</div>}
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+      {showAdd && <AddSaleEntry isSpec={isSpec} onClose={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); load(); }} />}
+    </>
+  );
+}
+
+function AddSaleEntry({ isSpec, onClose, onSaved }) {
+  const [f, setF] = useState({ date: new Date().toISOString().slice(0, 10), project: "", sqft: "", amount: "" });
+  const [file, setFile] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const inp = { width: "100%", marginBottom: 12 };
+  return (
+    <div className="f-sheet-mask" style={{ zIndex: 70 }} onClick={busy ? undefined : onClose}>
+      <div className="f-sheet sheet-3d" onClick={(e) => e.stopPropagation()}>
+        <div style={{ fontFamily: "Bricolage Grotesque", fontWeight: 800, fontSize: 16, marginBottom: 12 }}>Add {isSpec ? "Approval" : "Sale"} Entry</div>
+        <label>Date <b>*</b></label>
+        <input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} style={inp} />
+        <label>Project / Customer Name <b>*</b></label>
+        <input value={f.project} onChange={(e) => setF({ ...f, project: e.target.value })} style={inp} />
+        <label>Sq.Feet {isSpec ? "Approved" : "Sold"} <b>*</b></label>
+        <input type="number" value={f.sqft} onChange={(e) => setF({ ...f, sqft: e.target.value })} style={inp} />
+        {!isSpec && (<><label>Amount (₹)</label>
+        <input type="number" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} style={inp} /></>)}
+        <label>Invoice / Document (optional)</label>
+        <input type="file" accept="image/*,.pdf" onChange={(e) => setFile(e.target.files[0])} style={{ marginBottom: 14 }} />
+        <button className="f-submit" style={{ width: "100%", opacity: busy ? 0.6 : 1 }} disabled={busy || !f.project || !f.sqft}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              let invoice = "";
+              if (file) { const u = await api.uploadPhoto(file, "salesEntry"); invoice = u.url; }
+              await api.create("salesEntry", {
+                id: "SLE-" + String(Date.now()).slice(-4),
+                ...f, invoice, entryType: isSpec ? "Specs" : "Sales",
+                createdBy: CU().name,
+                createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+              });
+              onSaved();
+            } catch (e) { alert(e.message); setBusy(false); }
+          }}>
+          {busy ? "Saving…" : "Save Entry"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ---- HOD: Team Performance (Sales HOD -> sales team, Spec HOD -> spec team) ---- */
+function FieldTeamPerformance() {
+  const [data, setData] = useState(null);
+  const isSpecHod = `${CU().role || ""} ${CU().designation || ""}`.toLowerCase().includes("spec");
+
   useEffect(() => {
-    api.list("target").then((d) => {
-      const mine = (d.records || []).map((r) => ({ ...r.data, _by: r.created_by_name }))
-        .filter((t) => !t.user || t.user === CU().name);
-      setRows(mine);
-    }).catch(() => setRows([]));
+    Promise.all([api.listUsers(), api.list("target", false), api.list("salesEntry", false)])
+      .then(([u, t, e]) => {
+        const me = CU().name;
+        const team = (u.users || []).filter((x) => x.manager === me && x.status == 1);
+        const targets = (t.records || []).map((r) => r.data);
+        const entries = (e.records || []).map((r) => r.data);
+        setData(team.map((m) => {
+          const tg = targets.filter((x) => x.user === m.name);
+          const en = entries.filter((x) => x.createdBy === m.name);
+          const tgtS = tg.reduce((s, x) => s + Number(x.targetSqft || x.target || 0), 0);
+          const tgtA = tg.reduce((s, x) => s + Number(x.targetAmount || 0), 0);
+          const achS = en.reduce((s, x) => s + Number(x.sqft || 0), 0);
+          const achA = en.reduce((s, x) => s + Number(x.amount || 0), 0);
+          const pc = isSpecHod
+            ? (tgtS > 0 ? Math.round((achS / tgtS) * 100) : 0)
+            : (tgtA > 0 ? Math.round((achA / tgtA) * 100) : (tgtS > 0 ? Math.round((achS / tgtS) * 100) : 0));
+          return { m, tgtS, tgtA, achS, achA, pc };
+        }));
+      })
+      .catch(() => setData([]));
   }, []);
 
   return (
     <>
-      <ScreenHead title="Target" back={false} />
-      <div className="f-list-pad" style={{ paddingTop: 16 }}>
-        {rows === null ? (
+      <ScreenHead title="Team Performance" />
+      <div className="f-list-pad" style={{ paddingTop: 14 }}>
+        {data === null ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>Loading…</div>
-        ) : rows.length === 0 ? (
+        ) : data.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>
-            <Target size={34} style={{ opacity: 0.4, marginBottom: 10 }} />
-            <div style={{ fontWeight: 700, marginBottom: 4 }}>No targets assigned yet</div>
-            Your manager will assign targets from the admin panel.
+            <Users size={32} style={{ opacity: 0.4, marginBottom: 8 }} />
+            <div style={{ fontWeight: 700 }}>No team members mapped to you</div>
+            <div style={{ fontSize: 12, marginTop: 4 }}>Admin → Users lo "Manager" field lo mee peru set cheyali.</div>
           </div>
-        ) : rows.map((t, i) => {
-          const ach = Number(t.achieved || 0), tgt = Number(t.amount || t.target || 0);
-          const pc = tgt > 0 ? Math.min(100, Math.round((ach / tgt) * 100)) : 0;
-          return (
-            <div key={i} className="f-metric" style={{ marginBottom: 10 }}>
-              <h5><Target size={15} /> {t.title || t.period || "Target"} <span className="pct">{pc}%</span></h5>
-              <div className="big">₹{ach.toLocaleString("en-IN")} / ₹{tgt.toLocaleString("en-IN")}</div>
-              <div className="bar"><i style={{ width: pc + "%" }} /></div>
-              <small>{t.period || ""} {t.note ? "· " + t.note : ""}</small>
+        ) : data.map(({ m, tgtS, tgtA, achS, achA, pc }, i) => (
+          <div key={i} className="card-3d" style={{ background: "#fff", borderRadius: 14, padding: "13px 15px", marginBottom: 10, borderLeft: `5px solid ${pcColor(pc)}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontWeight: 800, fontSize: 13.5 }}>{m.name}<div style={{ fontSize: 10.5, color: "var(--muted)", fontWeight: 600 }}>{m.designation || m.role} {m.city ? "· " + m.city : ""}</div></div>
+              <span style={{ background: pcColor(pc), color: "#fff", fontWeight: 800, fontSize: 12, padding: "3px 10px", borderRadius: 9 }}>{pc}%</span>
             </div>
-          );
-        })}
+            <div className="bar" style={{ marginTop: 8 }}><i style={{ width: Math.min(100, pc) + "%", background: pcColor(pc) }} /></div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "var(--muted)", marginTop: 6, fontWeight: 600 }}>
+              <span>{isSpecHod ? "Approved" : "Sold"}: {achS.toLocaleString("en-IN")} / {tgtS.toLocaleString("en-IN")} sq.ft</span>
+              {!isSpecHod && tgtA > 0 && <span>₹{achA.toLocaleString("en-IN")} / ₹{tgtA.toLocaleString("en-IN")}</span>}
+            </div>
+          </div>
+        ))}
       </div>
     </>
   );
 }
+
+/* ---- HOD: Leave Approval (team leave requests approve/reject) ---- */
+function FieldLeaveApproval() {
+  const [rows, setRows] = useState(null);
+  const [team, setTeam] = useState([]);
+
+  const load = () => {
+    Promise.all([api.listUsers(), api.list("leave", false)])
+      .then(([u, l]) => {
+        const myTeam = (u.users || []).filter((x) => x.manager === CU().name).map((x) => x.name);
+        setTeam(myTeam);
+        setRows((l.records || []).map((r) => ({ _id: r.id, ...r.data }))
+          .filter((x) => myTeam.includes(x.createdBy || x.appliedBy || x.user)));
+      })
+      .catch(() => setRows([]));
+  };
+  useEffect(load, []);
+
+  const act = async (row, status) => {
+    try {
+      const data = { ...row, status, approvedBy: CU().name, approvedAt: new Date().toLocaleString("en-IN") };
+      delete data._id;
+      await api.update("leave", row._id, data);
+      const who = row.createdBy || row.appliedBy || row.user;
+      try { await api.notify({ to: who, title: `Leave ${status}`, message: `${row.type || "Leave"} (${row.from}${row.to ? " → " + row.to : ""}) — ${status} by ${CU().name}`, link: "/app/leave", createdAt: new Date().toLocaleString("en-IN") }); } catch {}
+      load();
+    } catch (e) { alert(e.message); }
+  };
+
+  const pending = (rows || []).filter((r) => (r.status || "").toLowerCase() === "pending" || !r.status);
+  const done = (rows || []).filter((r) => (r.status || "").toLowerCase() !== "pending" && r.status);
+
+  const Card = ({ r, actions }) => (
+    <div className="card-3d" style={{ background: "#fff", borderRadius: 13, padding: "12px 14px", marginBottom: 9 }}>
+      <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <div style={{ fontWeight: 800, fontSize: 13.5 }}>{r.createdBy || r.appliedBy || r.user}</div>
+        <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 9px", borderRadius: 7, background: (r.status || "Pending") === "Approved" ? "#e8f7ee" : (r.status || "Pending") === "Rejected" ? "#fdecec" : "#fff7e0", color: (r.status || "Pending") === "Approved" ? "#1f7a44" : (r.status || "Pending") === "Rejected" ? "#c03636" : "#9a7500" }}>{r.status || "Pending"}</span>
+      </div>
+      <div style={{ fontSize: 12.5, marginTop: 3 }}><b>{r.type || "Leave"}</b> · {r.from}{r.to && r.to !== r.from ? " → " + r.to : ""} {r.mode ? "· " + r.mode : ""}</div>
+      {r.reason && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>{r.reason}</div>}
+      {actions && (
+        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          <button onClick={() => act(r, "Approved")} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "none", background: "#1f9d55", color: "#fff", fontWeight: 800, fontSize: 12.5 }}>✓ Approve</button>
+          <button onClick={() => act(r, "Rejected")} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "none", background: "#d64545", color: "#fff", fontWeight: 800, fontSize: 12.5 }}>✕ Reject</button>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <>
+      <ScreenHead title="Leave Approval" />
+      <div className="f-list-pad" style={{ paddingTop: 14 }}>
+        {rows === null ? (
+          <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>Loading…</div>
+        ) : (
+          <>
+            <div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 8, fontFamily: "Bricolage Grotesque" }}>Pending ({pending.length})</div>
+            {pending.length === 0 && <div style={{ color: "var(--muted)", fontSize: 12.5, marginBottom: 14 }}>No pending requests from your team.</div>}
+            {pending.map((r, i) => <Card key={i} r={r} actions />)}
+            {done.length > 0 && <div style={{ fontWeight: 800, fontSize: 13.5, margin: "14px 0 8px", fontFamily: "Bricolage Grotesque" }}>History</div>}
+            {done.slice(0, 20).map((r, i) => <Card key={i} r={r} />)}
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
 
 /* ------------------------------------------------ PROFILE ------------------------------------------------ */
 function FieldProfile({ onLogout }) {
@@ -1343,9 +1626,25 @@ function MenuDrawer({ open, close }) {
     return access[myRole][mod] !== false;
   };
   const rawGroups = [
-    { h: "MAIN", items: [["Home", <Home size={16} />, "/app"], ["Follow Up", <ClipboardList size={16} />, "/app/followup"], ["Customers", <Users size={16} />, "/app/customers"], ["Near By Customers", <MapPin size={16} />, "/app/nearby"]] },
-    { h: "WORK", items: [["Enquiry", <FileText size={16} />, "/app/m/enquiry"], ["Quotation", <FileText size={16} />, "/app/m/quotation"], ["Sales to Spec", <ClipboardList size={16} />, "/app/m/salesToSpec"], ["Spec to Sales", <ClipboardList size={16} />, "/app/m/specToSales"], ["Leave", <CalendarDays size={16} />, "/app/leave"]] },
-    { h: "MANAGEMENT", items: [["Target", <Target size={16} />, "/app/target"], ["Attendance", <CalendarCheck size={16} />, "/app/attendance"], ["Site Project", <Building2 size={16} />, "/app/m/siteProject"], ["Task", <ClipboardList size={16} />, "/app/m/task"]] },
+    /* ROLE-BASED VISIBILITY:
+       Sales Person -> Sales to Spec matrame; Spec Person -> Spec to Sales matrame;
+       HODs -> Team Performance + Leave Approval extra; Admin role -> anni. */
+    { h: "MAIN", items: [["Home", <Home size={16} />, "/app"], ["Customer", <ClipboardList size={16} />, "/app/followup/new"], ["Customers", <Users size={16} />, "/app/customers"], ["Near By Customers", <MapPin size={16} />, "/app/nearby"]] },
+    { h: "WORK", items: [
+      ["Enquiry", <FileText size={16} />, "/app/m/enquiry", ["sales", "hod-sales", "admin"]],
+      ["Quotation", <FileText size={16} />, "/app/m/quotation", ["sales", "hod-sales", "admin"]],
+      ["Sales to Spec", <ClipboardList size={16} />, "/app/m/salesToSpec", ["sales", "hod-sales", "admin"]],
+      ["Spec to Sales", <ClipboardList size={16} />, "/app/m/specToSales", ["spec", "hod-spec", "admin"]],
+      ["Leave", <CalendarDays size={16} />, "/app/leave"],
+    ] },
+    { h: "MANAGEMENT", items: [
+      ["Target", <Target size={16} />, "/app/target"],
+      ["Team Performance", <Users size={16} />, "/app/team", ["hod-sales", "hod-spec", "admin"]],
+      ["Leave Approval", <CalendarDays size={16} />, "/app/leave-approval", ["hod-sales", "hod-spec", "admin"]],
+      ["Attendance", <CalendarCheck size={16} />, "/app/attendance"],
+      ["Site Project", <Building2 size={16} />, "/app/project/new", ["sales", "hod-sales", "spec", "hod-spec", "admin"]],
+      ["Task", <ClipboardList size={16} />, "/app/m/task"],
+    ] },
   ];
   const groups = rawGroups.map((g) => ({ ...g, items: g.items.filter(([, , to]) => canSee(to)) })).filter((g) => g.items.length);
   return (
@@ -1367,7 +1666,7 @@ function MenuDrawer({ open, close }) {
           {groups.map((g) => (
             <div key={g.h}>
               <div style={{ padding: "10px 18px 4px", fontSize: 10.5, fontWeight: 800, letterSpacing: 1, color: "var(--muted)" }}>{g.h}</div>
-              {g.items.map(([t, ic, to]) => (
+              {g.items.filter(([, , , allowed]) => canSee(allowed)).map(([t, ic, to]) => (
                 <button key={t} className="f-menu-item" onClick={() => { close(); nav(to); }}>
                   <span className="ic">{ic}</span> {t} <ChevronRight size={14} style={{ marginLeft: "auto", color: "var(--muted)" }} />
                 </button>
@@ -1399,6 +1698,14 @@ function FieldModule({ mod }) {
         let list = (d.records || []).map((r) => ({ _id: r.id, ...r.data }));
         const myCity = (CU().city || "").toLowerCase();
         list = list.filter((r) => (r.city || "").toLowerCase() === myCity);
+        setRows(list);
+      }).catch(() => setRows([]));
+    } else if (mod === "salesToSpec" || mod === "specToSales") {
+      /* cross-visibility: entry chesina vaadu + tag ayina vaadu iddariki kanipiyali */
+      api.list(mod, false).then((d) => {
+        const me = CU().name;
+        const list = (d.records || []).map((r) => ({ _id: r.id, ...r.data }))
+          .filter((r) => r.createdBy === me || r.specPerson === me || r.salesPerson === me);
         setRows(list);
       }).catch(() => setRows([]));
     } else if (mod === "task") {
@@ -1459,13 +1766,18 @@ function FieldModuleNew({ mod }) {
   const [f, setF] = useState({});
   const [busy, setBusy] = useState(false);
   const [userOpts, setUserOpts] = useState([]);
+  const [specOpts, setSpecOpts] = useState([]);
   const [photo, setPhoto] = useState(null);
   const [photoUrl, setPhotoUrl] = useState("");
   const [upBusy, setUpBusy] = useState(false);
 
   useEffect(() => {
-    if ((cfg?.form || []).some((x) => x.optionsSource === "users")) {
-      api.listUsers().then((d) => setUserOpts((d.users || []).filter((u) => u.status == 1).map((u) => u.name))).catch(() => {});
+    if ((cfg?.form || []).some((x) => x.optionsSource === "users" || x.optionsSource === "specUsers")) {
+      api.listUsers().then((d) => {
+        const act = (d.users || []).filter((u) => u.status == 1);
+        setUserOpts(act.map((u) => u.name));
+        setSpecOpts(act.filter((u) => `${u.role || ""} ${u.designation || ""}`.toLowerCase().includes("spec")).map((u) => u.name));
+      }).catch(() => {});
     }
   }, [mod]);
 
@@ -1487,7 +1799,7 @@ function FieldModuleNew({ mod }) {
       <ScreenHead title={"Add " + (cfg.appLabel || cfg.crumb)} />
       <div className="f-form">
         {fields.map((x) => {
-          const opts = x.optionsSource === "users" ? userOpts : x.options;
+          const opts = x.optionsSource === "users" ? userOpts : x.optionsSource === "specUsers" ? specOpts : x.options;
           return (
             <div key={x.name}>
               <label>{x.label} {x.required && <b>*</b>}</label>
@@ -1526,16 +1838,48 @@ function FieldModuleNew({ mod }) {
                 createdBy: CU().name,
                 createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
               });
+              /* Site Project entry -> Project Projection record; spec mention unte
+                 salesToSpec "Revert" record kuda create + spec person ki notification */
+              if (mod === "projectProjection" && f.specPerson) {
+                try {
+                  const sts = await api.create("salesToSpec", {
+                    id: "STS-" + String(Date.now()).slice(-4),
+                    project: f.name, firm: f.firm, city: f.city, value: f.value,
+                    help: f.specHelp || "", specPerson: f.specPerson,
+                    source: "Revert", projectionId: created && created.id ? created.id : "",
+                    status: "Pending", createdBy: CU().name,
+                    createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+                  });
+                  await api.notify({ to: f.specPerson, title: "Sales to Spec — " + (f.name || ""), message: `${CU().name} tagged you: ${f.specHelp || ""}`, link: `/app/thread/salesToSpec/${sts && sts.id ? sts.id : ""}`, createdAt: new Date().toLocaleString("en-IN") });
+                } catch {}
+              }
               // sales to spec → notify tagged spec person, with link to open the thread
               if (mod === "salesToSpec" && f.specPerson) {
                 try { await api.notify({ to: f.specPerson, title: "Sales to Spec — " + (f.project || ""), message: `${CU().name} tagged you: ${f.help || ""}`, link: `/app/thread/salesToSpec/${created && created.id ? created.id : ""}`, createdAt: new Date().toLocaleString("en-IN") }); } catch {}
               }
               // spec to sales → notify the sales person
               if (mod === "specToSales" && f.salesPerson) {
-                try { await api.notify({ to: f.salesPerson, title: "Spec to Sales — " + (f.project || ""), message: `${CU().name}: ${f.help || ""}`, link: `/app/thread/specToSales/${created && created.id ? created.id : ""}`, createdAt: new Date().toLocaleString("en-IN") }); } catch {}
+                try {
+                  /* spec direct visit: projection record + sales person ki "Direct" entry */
+                  const pj = await api.create("projectProjection", {
+                    id: "PPJ-" + String(Date.now()).slice(-4),
+                    name: f.project, firm: f.firm || "", city: f.city || "", value: f.value || "",
+                    details: f.help || "", status: "Running", source: "Direct",
+                    createdBy: CU().name,
+                    createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+                  });
+                  await api.create("salesToSpec", {
+                    id: "STS-" + String(Date.now()).slice(-4),
+                    project: f.project, help: f.help || "", specPerson: CU().name, salesPerson: f.salesPerson,
+                    source: "Direct", projectionId: pj && pj.id ? pj.id : "",
+                    status: "Approved", createdBy: CU().name,
+                    createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+                  });
+                  await api.notify({ to: f.salesPerson, title: "Spec to Sales — " + (f.project || ""), message: `${CU().name}: ${f.help || ""}`, link: `/app/thread/specToSales/${created && created.id ? created.id : ""}`, createdAt: new Date().toLocaleString("en-IN") });
+                } catch {}
               }
               // site project with specification help → notify spec person
-              if (mod === "siteProject" && f.specPerson && f.specHelp) {
+              if (false) {
                 try { await api.notify({ to: f.specPerson, title: "Specification help — " + (f.name || "Project"), message: `${CU().name} needs spec help on "${f.name}": ${f.specHelp}`, createdAt: new Date().toLocaleString("en-IN") }); } catch {}
               }
               // task → notify the assignee
@@ -1681,7 +2025,7 @@ function FieldProjectDetail({ id }) {
   const [remark, setRemark] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const load = () => api.get("siteProject", id).then((d) => setRec({ _id: d.record.id, ...d.record.data })).catch(() => {});
+  const load = () => api.get("projectProjection", id).then((d) => setRec({ _id: d.record.id, ...d.record.data })).catch(() => {});
   useEffect(() => { load(); }, [id]);
 
   const addVisit = async () => {
@@ -1691,7 +2035,7 @@ function FieldProjectDetail({ id }) {
       const month = new Date().toLocaleDateString("en-IN", { month: "short", year: "numeric" });
       const visits = [...(rec.visits || []), { month, remark: remark.trim(), by: CU().name, at: new Date().toLocaleString("en-IN") }];
       const data = { ...rec, visits }; delete data._id;
-      await api.update("siteProject", id, data);
+      await api.update("projectProjection", id, data);
       setRemark(""); load();
     } catch (e) { alert(e.message); }
     setBusy(false);
@@ -2013,6 +2357,11 @@ function FieldGenericThread({ mod, id }) {
       const thread = [...(rec.thread || []), { by: CU().name, text: msgText, doc, tag, at: new Date().toLocaleString("en-IN") }];
       const data = { ...rec, thread }; delete data._id;
       await api.update(mod, id, data);
+      /* admin panel bell ki: evaru reply chesaro name tho + click cheste aa module open */
+      try {
+        const cfg = APP_MODS[mod] || {};
+        await api.notify({ to: "ADMIN", title: `${CU().name} replied — ${rec.id || mod}`, message: msgText.slice(0, 120), adminLink: "/admin/" + (cfg.path || "sfa/" + mod), createdAt: new Date().toLocaleString("en-IN") });
+      } catch {}
       /* tagged spec person ki notification */
       if (tag) {
         try { await api.notify({ to: tag, title: `Tagged in ${rec.name || rec.id || "project"}`, message: msgText.slice(0, 120), link: `/thread/${mod}/${id}`, createdAt: new Date().toLocaleString("en-IN") }); } catch {}
@@ -2595,7 +2944,7 @@ export default function FieldApp() {
               }
             }} />} />
             <Route path="followup/new" element={<FieldFollowUpNew add={async (f) => { try { const r = await api.create("followup", f); setFollowups((x) => [{ _id: r.id, ...f }, ...x]); } catch (err) { alert(err.message); } }} />} />
-            <Route path="project/new" element={<FieldModuleNew mod="siteProject" />} />
+            <Route path="project/new" element={<FieldModuleNew mod="projectProjection" />} />
             {Object.keys(APP_MODS).map((m) => (
               <Route key={m} path={`m/${m}`} element={m === "enquiry" ? <FieldEnquiry /> : <FieldModule mod={m} />} />
             ))}
@@ -2606,6 +2955,8 @@ export default function FieldApp() {
               } />
             ))}
             <Route path="target" element={<FieldTarget />} />
+            <Route path="team" element={<FieldTeamPerformance />} />
+            <Route path="leave-approval" element={<FieldLeaveApproval />} />
             <Route path="notifications" element={<FieldNotifications />} />
             <Route path="spec/:specId" element={<SpecThreadRoute />} />
             <Route path="nearby" element={<FieldCustomers nearbyOnly />} />

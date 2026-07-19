@@ -18,6 +18,7 @@ const DEFAULTS = {
   waApiUrl: "",
   waApiKey: "",
   waEnabled: false,
+  indiamartKey: "",
 };
 
 export default function AppSettings() {
@@ -117,6 +118,19 @@ export default function AppSettings() {
         <div style={hint}>
           Cron command (Hostinger → Advanced → Cron Jobs, daily at 2:00 AM):<br />
           <code style={code}>/usr/bin/php /home/uXXXX/domains/eurobondsealant.com/public_html/crm-api/cleanup.php</code>
+        </div>
+      </Card>
+
+      <Card icon={<Database size={16} />} title="IndiaMART Integration"
+        note="IndiaMART seller account → Lead Manager → API → CRM key ikkada pettandi. Leads automatic ga Enquiry (Review Pending) lo vastayi — akkada nunchi sales person ki assign cheyandi.">
+        <Row>
+          <Field label="IndiaMART CRM Key">
+            <input value={f.indiamartKey || ""} onChange={(e) => set("indiamartKey", e.target.value)} placeholder="glusr_crm_key…" style={inp} />
+          </Field>
+        </Row>
+        <div style={hint}>
+          Save chesaka Enquiry page lo <b>"Sync IndiaMART"</b> button use cheyandi (leda cron:{" "}
+          <code style={code}>…/crm-api/indiamart.php?action=sync&key=INSTALL_KEY</code> — hourly).
         </div>
       </Card>
 

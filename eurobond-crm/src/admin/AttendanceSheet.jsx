@@ -20,6 +20,11 @@ const CODE_STYLE = {
 export default function AttendanceSheet() {
   const now = new Date();
   const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`);
+  const [zoneF, setZoneF] = useState("All Zones");
+  const [cityF, setCityF] = useState("All Cities");
+  const [userF, setUserF] = useState("All Users");
+  const [dFrom, setDFrom] = useState("");
+  const [dTo, setDTo] = useState("");
   const [users, setUsers] = useState(null);
   const [sessions, setSessions] = useState([]);
   const [leaves, setLeaves] = useState([]);
@@ -90,9 +95,25 @@ export default function AttendanceSheet() {
     return "";
   };
 
+  const zones = useMemo(() => ["All Zones", ...[...new Set((users || []).map((u) => u.zone).filter(Boolean))].sort()], [users]);
+  const cities = useMemo(() => ["All Cities", ...[...new Set((users || []).map((u) => u.city).filter(Boolean))].sort()], [users]);
+  const userNames = useMemo(() => ["All Users", ...(users || []).map((u) => u.name).sort()], [users]);
+
+  /* From/To range: month lopala day columns limit */
+  const dayRange = useMemo(() => {
+    let a = 1, b = daysInMonth;
+    if (dFrom && dFrom.startsWith(month)) a = Number(dFrom.slice(8, 10));
+    if (dTo && dTo.startsWith(month)) b = Number(dTo.slice(8, 10));
+    return [Math.min(a, b), Math.max(a, b)];
+  }, [dFrom, dTo, month, daysInMonth]);
+
   const grid = useMemo(() => {
     if (!users) return null;
-    return users.map((u) => {
+    let filtered = users;
+    if (zoneF !== "All Zones") filtered = filtered.filter((u) => u.zone === zoneF);
+    if (cityF !== "All Cities") filtered = filtered.filter((u) => u.city === cityF);
+    if (userF !== "All Users") filtered = filtered.filter((u) => u.name === userF);
+    return filtered.map((u) => {
       const cells = [];
       let p = 0, t = 0, wfh = 0, l = 0;
       for (let d = 1; d <= daysInMonth; d++) {
@@ -104,7 +125,7 @@ export default function AttendanceSheet() {
       }
       return { u, cells, totals: { p, t, wfh, l, present: p + t + wfh } };
     });
-  }, [users, sessMap, leaveMap, holidaySet, month]);
+  }, [users, sessMap, leaveMap, holidaySet, month, zoneF, cityF, userF]);
 
   const exportCsv = () => {
     if (!grid) return;
@@ -118,9 +139,10 @@ export default function AttendanceSheet() {
     a.click();
   };
 
-  const dayHead = Array.from({ length: daysInMonth }, (_, i) => {
-    const dow = new Date(Y, M - 1, i + 1).getDay();
-    return { d: i + 1, w: ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"][dow], sun: dow === 0 };
+  const dayHead = Array.from({ length: dayRange[1] - dayRange[0] + 1 }, (_, i) => {
+    const d = dayRange[0] + i;
+    const dow = new Date(Y, M - 1, d).getDay();
+    return { d, w: ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"][dow], sun: dow === 0 };
   });
 
   return (
@@ -133,8 +155,12 @@ export default function AttendanceSheet() {
           </h2>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <input type="month" value={month} onChange={(e) => setMonth(e.target.value)}
-            style={{ padding: "8px 10px", borderRadius: 10, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }} />
+          <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} style={selS} />
+          <input type="date" value={dFrom} onChange={(e) => setDFrom(e.target.value)} title="From date" style={selS} />
+          <input type="date" value={dTo} onChange={(e) => setDTo(e.target.value)} title="To date" style={selS} />
+          <select value={zoneF} onChange={(e) => setZoneF(e.target.value)} style={selS}>{zones.map((z) => <option key={z}>{z}</option>)}</select>
+          <select value={cityF} onChange={(e) => setCityF(e.target.value)} style={selS}>{cities.map((c) => <option key={c}>{c}</option>)}</select>
+          <select value={userF} onChange={(e) => setUserF(e.target.value)} style={selS}>{userNames.map((n) => <option key={n}>{n}</option>)}</select>
           <button className="btn btn-ghost" onClick={load} disabled={busy} style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <RefreshCw size={14} className={busy ? "spin" : ""} /> Refresh
           </button>
@@ -178,7 +204,7 @@ export default function AttendanceSheet() {
                     {u.name}
                     <div style={{ fontSize: 9.5, color: "var(--muted)", fontWeight: 600 }}>{[u.code, u.city].filter(Boolean).join(" · ")}</div>
                   </td>
-                  {cells.map((c, i) => (
+                  {cells.slice(dayRange[0] - 1, dayRange[1]).map((c, i) => (
                     <td key={i} style={{
                       padding: "6px 3px", textAlign: "center", fontWeight: 800, fontSize: 10.5,
                       background: c ? CODE_STYLE[c].bg : (dayHead[i].sun ? "#fafbfd" : "#fff"),
@@ -199,5 +225,6 @@ export default function AttendanceSheet() {
   );
 }
 
+const selS = { padding: "8px 10px", borderRadius: 10, border: "1px solid var(--line)", fontSize: 12.5, background: "#fff" };
 const th = { padding: "7px 5px", fontWeight: 800, fontSize: 10.5, color: "#4a5578", textAlign: "center", whiteSpace: "nowrap" };
 const tot = { padding: "6px 8px", textAlign: "center", fontWeight: 800, fontSize: 11 };

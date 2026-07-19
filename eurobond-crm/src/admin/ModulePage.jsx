@@ -39,6 +39,14 @@ export default function ModulePage({ cfgKey }) {
   const [fUser, setFUser] = useState("");
   const [fCity, setFCity] = useState("");
   const [fZone, setFZone] = useState("");
+  const [fFrom, setFFrom] = useState("");
+  /* app lo updates admin lo auto ga reflect avvadaniki — 60s refresh */
+  useEffect(() => {
+    const t = setInterval(() => { try { reload(); } catch {} }, 60000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line
+  }, [cfgKey]);
+  const [fTo, setFTo] = useState("");
 
   const knownTabs = (cfg.tabs || []).map((t) => t.key);
   const firstTab = cfg.tabs?.[0]?.key;
@@ -46,6 +54,14 @@ export default function ModulePage({ cfgKey }) {
   const visible = useMemo(() => {
     let list = rows;
     if (fUser) list = list.filter((r) => (r.createdBy || "") === fUser);
+    /* date range (From/To) — r.date leda r.createdAt meeda */
+    const parseD = (r) => {
+      const raw = r.date || r.createdAt || "";
+      const d = new Date(raw);
+      return isNaN(d) ? null : d;
+    };
+    if (fFrom) { const a = new Date(fFrom); list = list.filter((r) => { const d = parseD(r); return d && d >= a; }); }
+    if (fTo) { const b = new Date(fTo); b.setHours(23, 59, 59); list = list.filter((r) => { const d = parseD(r); return d && d <= b; }); }
     if (fCity) list = list.filter((r) => (r.city || "") === fCity);
     if (fZone) list = list.filter((r) => (r.zone || "") === fZone);
     if (!cfg.tabField || cfg.noTabFilter) return list;
@@ -55,7 +71,7 @@ export default function ModulePage({ cfgKey }) {
       // records with unknown/old status appear under the first tab
       return tab === firstTab && !knownTabs.includes(st);
     });
-  }, [rows, tab, cfg, fUser, fCity, fZone]);
+  }, [rows, tab, cfg, fUser, fCity, fZone, fFrom, fTo]);
 
   const distinct = (key) => [...new Set(rows.map((r) => r[key]).filter(Boolean))];
   const hasCol = (key) => cfg.columns.some((c) => c.key === key);
@@ -142,6 +158,18 @@ export default function ModulePage({ cfgKey }) {
         };
         const res = await api.create(cfgKey, data);
         setRows([{ _id: res.id, ...data }, ...rows]);
+        /* Holidays/Announcements: select chesina audience ki matrame notification */
+        if (cfg.notifyOnCreate) {
+          try {
+            const n = cfg.notifyOnCreate(data);
+            await api.notify({
+              ...n,
+              audienceType: data.audienceType || "All",
+              audienceValue: data.audienceValue || "",
+              createdAt: new Date().toLocaleString("en-IN"),
+            });
+          } catch {}
+        }
       }
       setShowForm(false); setEditing(null);
     } catch (e) {
@@ -168,7 +196,7 @@ export default function ModulePage({ cfgKey }) {
       if (r.createdBy && (cfgKey === "leave" || cfgKey === "specApproval" || cfgKey === "expense" || cfgKey === "outstation")) {
         try {
           const paidMsg = status === "Paid" ? " Amount will be credited to your account soon." : "";
-          await api.notify({ to: r.createdBy, title: `${cfg.title} ${status}`, message: `Your ${cfg.crumb.toLowerCase()} ${r.id || ""} was ${status.toLowerCase()}.${remark ? " Reason: " + remark : ""}${paidMsg}`, createdAt: new Date().toLocaleString("en-IN") });
+          await api.notify({ to: r.createdBy, title: `${cfg.title} ${status}`, message: `Your ${cfg.crumb.toLowerCase()} ${r.id || ""} was ${status.toLowerCase()}.${remark ? " Reason: " + remark : ""}${paidMsg}`, link: "/app/m/" + cfgKey, createdAt: new Date().toLocaleString("en-IN") });
         } catch {}
       }
     } catch (e) { alert("Could not update: " + e.message); }
@@ -213,6 +241,8 @@ export default function ModulePage({ cfgKey }) {
       )}
       {rows.length > 0 && (
         <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+          <input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} title="From date" style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }} />
+          <input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} title="To date" style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }} />
           {distinct("createdBy").length > 0 && (
             <select value={fUser} onChange={(e) => setFUser(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
               <option value="">All Sales Persons</option>

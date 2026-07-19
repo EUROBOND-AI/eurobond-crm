@@ -1,5 +1,5 @@
 import logoImg from "../assets/logo.jpg";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Outlet, NavLink, useNavigate, Navigate } from "react-router-dom";
 import {
   Search, Bell, Moon, Maximize, Settings, LayoutDashboard, Megaphone, Users,
@@ -34,12 +34,11 @@ const NAV = [
           { label: "Expense", to: "/admin/sfa/expense" },
           { label: "Leave", to: "/admin/sfa/leave" },
           { label: "Enquiry", to: "/admin/sfa/enquiry" },
-          { label: "Follow Up", to: "/admin/sfa/follow-up" },
           { label: "Customers", to: "/admin/sfa/customers" },
           { label: "Quotation", to: "/admin/sfa/quotation" },
-          { label: "Site-Project", to: "/admin/sfa/site-project" },
           { label: "Project Projection", to: "/admin/sfa/project-projection" },
           { label: "Targets", to: "/admin/sfa/target" },
+          { label: "Sales Entries", to: "/admin/sfa/sales-entries" },
           { label: "Sales to Spec", to: "/admin/sfa/sales-to-spec" },
           { label: "Spec to Sales", to: "/admin/sfa/spec-to-sales" },
         ],
@@ -54,8 +53,6 @@ const NAV = [
           { label: "Admin Roles & Permission", to: "/admin/master/roles" },
           { label: "User & Team Access", to: "/admin/master/team-access" },
           { label: "Users", to: "/admin/master/users" },
-          { label: "Leave Policy", to: "/admin/master/leave-policy" },
-          { label: "Location Master", to: "/admin/master/location" },
           { label: "Holidays", to: "/admin/master/holidays" },
           { label: "Products", to: "/admin/master/products" },
           { label: "App Settings", to: "/admin/master/app-settings" },
@@ -152,7 +149,7 @@ export default function AdminLayout() {
               <small>Welcome</small><br />
               <strong>{admin.name}</strong>
             </div>
-            <button className="icon-btn" title="Notifications" onClick={() => nav("/admin/support/notification")}><Bell size={16} /></button>
+            <AdminBell nav={nav} />
             <button className="icon-btn" title="Fullscreen" onClick={() => { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }}><Maximize size={16} /></button>
             <button className="icon-btn" title="Change password" onClick={() => setShowPass(true)}><Settings size={16} /></button>
             <button className="icon-btn" title="Logout" onClick={() => { api.logout(); nav("/"); }}><LogOut size={16} /></button>
@@ -182,6 +179,67 @@ export default function AdminLayout() {
           <FooterNote />
         </main>
       </div>
+    </div>
+  );
+}
+
+
+/* ---------------- ADMIN NOTIFICATION BELL ----------------
+   App users replies (name tho) ikkada vastayi; click cheste aa module open. */
+function AdminBell({ nav }) {
+  const [open, setOpen] = useState(false);
+  const [rows, setRows] = useState([]);
+  const readKey = "eb_admin_notif_read";
+  const getRead = () => { try { return new Set(JSON.parse(localStorage.getItem(readKey) || "[]")); } catch { return new Set(); } };
+
+  const load = () => {
+    api.list("notification", false).then((d) => {
+      const list = (d.records || []).map((r) => ({ _id: String(r.id), ...r.data }))
+        .filter((n) => n.to === "ADMIN").slice(0, 30);
+      setRows(list);
+    }).catch(() => {});
+  };
+  useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, []);
+
+  const read = getRead();
+  const unread = rows.filter((n) => !read.has(n._id)).length;
+
+  const openItem = (n) => {
+    const s = getRead(); s.add(n._id);
+    localStorage.setItem(readKey, JSON.stringify([...s].slice(-300)));
+    setOpen(false);
+    if (n.adminLink) nav(n.adminLink.replace(/^\/admin/, "/admin"));
+  };
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button className="icon-btn" title="Notifications" onClick={() => setOpen((v) => !v)} style={{ position: "relative" }}>
+        <Bell size={16} />
+        {unread > 0 && <span style={{ position: "absolute", top: -4, right: -5, minWidth: 16, height: 16, padding: "0 4px", borderRadius: 8, background: "#e5484d", color: "#fff", fontSize: 9.5, fontWeight: 800, display: "grid", placeItems: "center" }}>{unread > 99 ? "99+" : unread}</span>}
+      </button>
+      {open && (
+        <>
+          <div style={{ position: "fixed", inset: 0, zIndex: 60 }} onClick={() => setOpen(false)} />
+          <div style={{ position: "absolute", right: 0, top: "115%", width: 330, maxHeight: 420, overflowY: "auto", background: "#fff", borderRadius: 14, boxShadow: "0 18px 50px rgba(15,20,45,.22)", zIndex: 61, border: "1px solid #e6eaf4" }}>
+            <div style={{ padding: "11px 14px", fontWeight: 800, fontSize: 13, borderBottom: "1px solid #eef1f8", fontFamily: "Bricolage Grotesque" }}>Notifications</div>
+            {rows.length === 0 ? (
+              <div style={{ padding: 22, textAlign: "center", color: "var(--muted)", fontSize: 12.5 }}>No notifications yet</div>
+            ) : rows.map((n, i) => {
+              const isUnread = !read.has(n._id);
+              return (
+                <div key={i} onClick={() => openItem(n)} style={{ padding: "11px 14px", borderBottom: "1px solid #f2f4fa", cursor: "pointer", background: isUnread ? "#f5f8ff" : "#fff" }}>
+                  <div style={{ display: "flex", gap: 7, alignItems: "center" }}>
+                    {isUnread && <span style={{ width: 7, height: 7, borderRadius: 4, background: "#e5484d", flexShrink: 0 }} />}
+                    <div style={{ fontWeight: isUnread ? 800 : 600, fontSize: 12.5, flex: 1 }}>{n.title}</div>
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 2 }}>{n.message}</div>
+                  <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 3 }}>{n.createdAt}</div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }

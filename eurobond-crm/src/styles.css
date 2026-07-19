@@ -354,3 +354,61 @@ body.dark input, body.dark select, body.dark textarea { background: #232a52; col
 }
 .spin { animation: spinKey 1s linear infinite; }
 @keyframes spinKey { to { transform: rotate(360deg); } }
+
+
+/* ---- phone fit: content never hides behind bottom nav ---- */
+.f-form { padding-bottom: calc(120px + env(safe-area-inset-bottom)) !important; }
+.f-list-pad { padding-bottom: calc(110px + env(safe-area-inset-bottom)) !important; }
+.f-sheet { padding-bottom: calc(24px + env(safe-area-inset-bottom)) !important; }
+
+/* ---- Sitting tag on live marker ---- */
+.sit-tag {
+  position: absolute; top: -16px; left: 50%; transform: translateX(-50%);
+  background: #7b2d8b; color: #fff; font-size: 9.5px; font-weight: 800;
+  padding: 2px 8px; border-radius: 8px; white-space: nowrap;
+  box-shadow: 0 3px 8px rgba(123, 45, 139, 0.4);
+}
+
+/* ================= MODERN 3D POLISH (same colors, depth upgrade) ================= */
+.card-3d, .f-metric, .chart-card {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.08) !important;
+  border: 1px solid rgba(226, 232, 245, 0.9);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.card-3d:active, .f-metric:active { transform: scale(0.985); }
+
+.f-sheet, .sheet-3d {
+  box-shadow: 0 -12px 40px rgba(11, 25, 60, 0.18), 0 -2px 8px rgba(11, 25, 60, 0.08) !important;
+  border-top-left-radius: 22px !important; border-top-right-radius: 22px !important;
+  animation: sheetUp 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes sheetUp { from { transform: translateY(28px); opacity: 0.6; } to { transform: translateY(0); opacity: 1; } }
+
+.f-sheet-mask { backdrop-filter: blur(3px); background: rgba(10, 18, 40, 0.42) !important; }
+
+.f-submit {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(0, 0, 0, 0.05)) !important;
+  box-shadow: 0 6px 16px rgba(11, 60, 140, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.22) !important;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.f-submit:active { transform: translateY(1px) scale(0.98); box-shadow: 0 3px 8px rgba(11, 60, 140, 0.3) !important; }
+
+/* admin depth */
+.btn-primary {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(0, 0, 0, 0.06));
+  box-shadow: 0 4px 12px rgba(11, 60, 140, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+.btn-primary:active { transform: translateY(1px); }
+.icon-btn { transition: transform 0.12s ease, background 0.12s ease; }
+.icon-btn:active { transform: scale(0.92); }
+
+table tbody tr { transition: background 0.12s ease; }
+table tbody tr:hover { background: #f7f9ff; }
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent, #0b3c8c) !important;
+  box-shadow: 0 0 0 3px rgba(11, 60, 140, 0.12) !important;
+  outline: none !important;
+}
+
+.f-tabbar, nav.f-tabbar { box-shadow: 0 -6px 20px rgba(11, 25, 60, 0.1); }
