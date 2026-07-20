@@ -72,6 +72,7 @@ export const api = {
   /* ---------- Attendance ---------- */
   attStart: (visit) => req("/attendance.php?action=start", { method: "POST", body: visit || {} }),
   attPoints: (session_id, points) => req("/attendance.php?action=points", { method: "POST", body: { session_id, points } }),
+  attPointsList: (session_id) => req("/attendance.php?action=pointsList&session_id=" + session_id),
   attStop: (session_id, extra) => req("/attendance.php?action=stop", { method: "POST", body: { session_id, ...(extra || {}) } }),
   attToday: () => req("/attendance.php?action=today"),
   attList: (from, to) => req(`/attendance.php?action=list&from=${from}&to=${to || from}`),

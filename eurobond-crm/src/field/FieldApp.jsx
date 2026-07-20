@@ -2759,17 +2759,20 @@ export default function FieldApp() {
   const stopExtraRef = useRef(null);          // logout photos/address -> attStop body
   const [attendanceOn, setAttendanceOn] = useState(false);
 
-  /* If a session is still RUNNING on the server (app was closed/killed mid-attendance),
-     silently resume tracking that SAME session — no fresh start, keeps existing km. */
+  /* App open aithe: server lo session inka RUNNING unte -> automatic ga ON state loki,
+     GPS tracking malli start (SAME session, existing km untundi). User ki malli
+     "Slide to Start" kaadu — already logged-in/ON ga kanipistundi. Only Logout untundi. */
   useEffect(() => {
     if (!authed) return;
     api.attToday().then((d) => {
-      if (d.session && d.session.status === "RUNNING" && !attendanceOn) {
-        /* AUTO-RESUME REMOVED: app close chesthe tracking stop.
-           Session info matrame gurtupettukuntam — user malli slide start chesthe
-           same session continue avutundi (attStart resumes it). */
+      if (d.session && d.session.status === "RUNNING") {
         sessionRef.current = Number(d.session.id);
         todaySessionRef.current = d.session;
+        if (d.session.start_time) {
+          const st = new Date(d.session.start_time.replace(" ", "T")).getTime();
+          setTracking((t) => ({ ...t, startedAt: t.startedAt || st, stoppedAt: null }));
+        }
+        if (!attendanceOn) { resumeRef.current = true; setAttendanceOn(true); }   // -> ON state, resume tracking
       }
     }).catch(() => {});
     // eslint-disable-next-line
@@ -2785,6 +2788,7 @@ export default function FieldApp() {
   const sessionRef = useRef(null);
   const batteryRef = useRef(null);
   const lastSavedPt = useRef(null);   // last point actually stored (1 km / idle filter)
+  const resumeRef = useRef(false);    // true when re-opening a RUNNING session
 
   useEffect(() => {
     if (navigator.getBattery) {
@@ -2849,14 +2853,25 @@ export default function FieldApp() {
   useEffect(() => {
     let cancelled = false;
     if (attendanceOn) {
-      setTracking((t) => ({ ...t, points: [], km: 0, startedAt: Date.now(), stoppedAt: null, error: "" }));
-      pendingRef.current = [];
-      lastSavedPt.current = null;
+      const resuming = resumeRef.current;         // app re-open on a RUNNING session
+      if (!resuming) {
+        setTracking((t) => ({ ...t, points: [], km: 0, startedAt: Date.now(), stoppedAt: null, error: "" }));
+        pendingRef.current = [];
+        lastSavedPt.current = null;
+      }
       syncGpsCfg();
-      // start server session
-      api.attStart(visitInfoRef.current)
-        .then((d) => { if (!cancelled) { sessionRef.current = d.session_id; localStorage.setItem("eb_att_on", "1"); } })
-        .catch((e) => setTracking((t) => ({ ...t, error: e.message })));
+      if (resuming && sessionRef.current) {
+        /* resume: server nunchi ee session points load chesi timeline continue */
+        api.attPointsList && api.attPointsList(sessionRef.current)
+          .then((d) => { if (!cancelled && d && d.points) setTracking((t) => ({ ...t, points: d.points, km: d.km || t.km })); })
+          .catch(() => {});
+        resumeRef.current = false;
+      } else {
+        // fresh start -> create server session
+        api.attStart(visitInfoRef.current)
+          .then((d) => { if (!cancelled) { sessionRef.current = d.session_id; localStorage.setItem("eb_att_on", "1"); } })
+          .catch((e) => setTracking((t) => ({ ...t, error: e.message })));
+      }
 
       stopRef.current = watchLocation(
         (p) => {
@@ -2876,6 +2891,7 @@ export default function FieldApp() {
             if (sinceMs < intervalMs && (minKm <= 0 || haversineKm(last, p) < minKm)) return;
           }
           p.t = Date.now();
+          p.time = p.time || Date.now();
           p.online = navigator.onLine;
           p.battery = batteryRef.current;
           lastSavedPt.current = p;
