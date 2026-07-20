@@ -39,6 +39,8 @@ export default function ModulePage({ cfgKey }) {
   const [fUser, setFUser] = useState("");
   const [fCity, setFCity] = useState("");
   const [fZone, setFZone] = useState("");
+  const [fLead, setFLead] = useState("");
+  const [fAssign, setFAssign] = useState("");
   const [fFrom, setFFrom] = useState("");
   /* app lo updates admin lo auto ga reflect avvadaniki — 60s refresh */
   useEffect(() => {
@@ -64,6 +66,8 @@ export default function ModulePage({ cfgKey }) {
     if (fTo) { const b = new Date(fTo); b.setHours(23, 59, 59); list = list.filter((r) => { const d = parseD(r); return d && d <= b; }); }
     if (fCity) list = list.filter((r) => (r.city || "") === fCity);
     if (fZone) list = list.filter((r) => (r.zone || "") === fZone);
+    if (fLead) list = list.filter((r) => (r.leadSource || "") === fLead);
+    if (fAssign) list = list.filter((r) => (r.assignedTo || "") === fAssign);
     if (!cfg.tabField || cfg.noTabFilter) return list;
     return list.filter((r) => {
       const st = String(r[cfg.tabField] ?? "");
@@ -71,7 +75,7 @@ export default function ModulePage({ cfgKey }) {
       // records with unknown/old status appear under the first tab
       return tab === firstTab && !knownTabs.includes(st);
     });
-  }, [rows, tab, cfg, fUser, fCity, fZone, fFrom, fTo]);
+  }, [rows, tab, cfg, fUser, fCity, fZone, fLead, fAssign, fFrom, fTo]);
 
   const distinct = (key) => [...new Set(rows.map((r) => r[key]).filter(Boolean))];
   const hasCol = (key) => cfg.columns.some((c) => c.key === key);
@@ -259,6 +263,18 @@ export default function ModulePage({ cfgKey }) {
             <select value={fZone} onChange={(e) => setFZone(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
               <option value="">All Zones</option>
               {distinct("zone").map((z) => <option key={z}>{z}</option>)}
+            </select>
+          )}
+          {hasCol("leadSource") && distinct("leadSource").length > 0 && (
+            <select value={fLead} onChange={(e) => setFLead(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
+              <option value="">All Lead Sources</option>
+              {distinct("leadSource").map((l) => <option key={l}>{l}</option>)}
+            </select>
+          )}
+          {hasCol("assignedTo") && distinct("assignedTo").length > 0 && (
+            <select value={fAssign} onChange={(e) => setFAssign(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
+              <option value="">All Assignees</option>
+              {distinct("assignedTo").map((a) => <option key={a}>{a}</option>)}
             </select>
           )}
         </div>

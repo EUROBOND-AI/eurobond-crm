@@ -3,6 +3,11 @@ import { Pill } from "../components/ui.jsx";
 const pill = (v) => <Pill status={v} />;
 const link = (v) => <span className="link">{v}</span>;
 const money = (v) => (v != null && v !== "" ? "₹" + Number(v).toLocaleString("en-IN") : "—");
+const attach = (v) => v
+  ? (String(v).match(/\.pdf$/i)
+      ? <a href={v} target="_blank" rel="noreferrer" className="link">📄 PDF</a>
+      : <a href={v} target="_blank" rel="noreferrer"><img src={v} alt="doc" style={{ width: 34, height: 34, objectFit: "cover", borderRadius: 6, border: "1px solid #dfe4f0" }} /></a>)
+  : "—";
 
 /* Every module here is read by BOTH the admin panel (ModulePage) and, where appFields exist,
    by the field app. idPrefix auto-generates ids like ENQ-0001 on create. */
@@ -13,6 +18,7 @@ export const MODULES = {
   enquiry: {
     path: "sfa/enquiry", title: "Enquiry List", crumb: "Enquiry", addLabel: "Add Enquiry",
     idPrefix: "ENQ", app: true, appLabel: "Enquiry",
+    filters: ["createdBy", "leadSource", "city", "assignedTo"],
     tabs: [
       { key: "Review Pending", label: "Review Pending" }, { key: "Inprocess", label: "Inprocess" },
       { key: "Win", label: "Win" }, { key: "Close", label: "Close" },
@@ -100,10 +106,10 @@ export const MODULES = {
     tabs: [{ key: "Pending", label: "Pending" }, { key: "Approved", label: "Approved" }, { key: "Rejected", label: "Rejected" }],
     tabField: "status",
     columns: [
-      { key: "id", label: "Leave Id", render: link }, { key: "createdAt", label: "Applied At" },
       { key: "createdBy", label: "Applied By" }, { key: "type", label: "Leave Type" },
       { key: "mode", label: "Mode" }, { key: "from", label: "From" }, { key: "to", label: "To" },
-      { key: "reason", label: "Reason" }, { key: "status", label: "Status", render: pill },
+      { key: "reason", label: "Reason" }, { key: "photo", label: "Attachment", render: attach },
+      { key: "approvedBy", label: "Approved By" }, { key: "status", label: "Status", render: pill },
     ],
     form: [
       { name: "type", label: "Leave Type", type: "select", options: ["Casual Leave", "Sick Leave", "Privilege Leave"], required: true },
@@ -118,15 +124,16 @@ export const MODULES = {
     path: "sfa/expense", title: "Expense List", crumb: "Expense", addLabel: "Add Expense",
     idPrefix: "EXP", app: true, appLabel: "Expense", approveFlow: ["Approved", "Reject", "Paid"],
     tabs: [
-      { key: "Draft", label: "Draft" }, { key: "Submitted", label: "Submitted" },
+      { key: "Submitted", label: "Submitted" },
       { key: "Approved", label: "Approved" }, { key: "Reject", label: "Reject" }, { key: "Paid", label: "Paid" },
     ],
     tabField: "status",
     columns: [
-      { key: "id", label: "Expense Id", render: link }, { key: "createdAt", label: "Created At" },
+      { key: "createdAt", label: "Created At" },
       { key: "createdBy", label: "Created By" }, { key: "type", label: "Type" },
       { key: "category", label: "Category" }, { key: "amount", label: "Amount", render: money },
       { key: "date", label: "Date" }, { key: "desc", label: "Description" },
+      { key: "photo", label: "Attachment", render: attach },
       { key: "status", label: "Status", render: pill },
     ],
     form: [
@@ -217,7 +224,7 @@ export const MODULES = {
     form: [
       { name: "user", label: "Team Member", type: "select", optionsSource: "users", required: true },
       { name: "targetType", label: "Target Type", type: "select", options: ["Sales", "Specs"], required: true },
-      { name: "period", label: "Period (e.g. July 2026)", required: true },
+      { name: "period", label: "Financial Year (e.g. 2026-27)", required: true },
       { name: "targetSqft", label: "Target Sq.Feet", type: "number", required: true },
       { name: "targetAmount", label: "Target Amount (₹) — Sales only", type: "number" },
       { name: "note", label: "Note", type: "textarea", full: true },

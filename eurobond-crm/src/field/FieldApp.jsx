@@ -37,6 +37,7 @@ const markRead = (ids) => {
   localStorage.setItem(NOTIF_READ_KEY(), JSON.stringify([...s].slice(-500)));
   window.dispatchEvent(new Event("eb-notif-read"));
 };
+const QUOTE_PREFILL = { data: null };
 const isMine = (n, me) => {
   /* audience-based (Holiday/Announcement): All / Zone / City / Users */
   if (n.audienceType) {
@@ -613,8 +614,12 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
       // keep a point if it's ~80m from the last kept one, or a stop (long gap), or first/last
       const far = !lastKept || haversineKm(lastKept, p) * 1000 >= 80;
       const gap = last ? (p.time - last.time) : 0;
-      const isStop = gap > 120000; // no movement 2+ min
-      if (far || isStop || i === 0 || i === pts.length - 1) {
+      const isStop = gap > 120000 && gap <= 300000; // 2-5 min no movement = stop
+      const appClosed = gap > 300000;               // 5+ min gap = app was closed
+      if (appClosed && last) {
+        out.push({ ...last, cumKm: cum, appClosed: true, closedFrom: last.time, closedTo: p.time });
+      }
+      if (far || isStop || appClosed || i === 0 || i === pts.length - 1) {
         out.push({ ...p, cumKm: cum, stop: isStop });
         lastKept = p;
       }
@@ -747,8 +752,22 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
               No location data yet. Start attendance to begin tracking.
             </div>
           )}
-          {timelinePoints.slice(0, 15).map((p, i) => {
+          {timelinePoints.slice(0, 20).map((p, i) => {
             const key = p.lat.toFixed(4) + "," + p.lng.toFixed(4);
+            if (p.appClosed) {
+              const mins = Math.round((p.closedTo - p.closedFrom) / 60000);
+              return (
+                <div key={i} style={{ display: "flex", gap: 10, alignItems: "center", background: "#fff5f5", borderRadius: 12, padding: "11px 12px", marginBottom: 8, fontSize: 12.5, borderLeft: "4px solid #c03636" }}>
+                  <Smartphone size={16} color="#c03636" />
+                  <div style={{ flex: 1 }}>
+                    <b style={{ color: "#c03636" }}>App Closed</b>
+                    <div style={{ color: "var(--muted)", marginTop: 2 }}>
+                      {new Date(p.closedFrom).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })} → {new Date(p.closedTo).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })} · {mins} min not tracked
+                    </div>
+                  </div>
+                </div>
+              );
+            }
             return (
               <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", background: "#fff", borderRadius: 12, padding: "11px 12px", marginBottom: 8, boxShadow: "var(--shadow)", fontSize: 12.5, borderLeft: p.stop ? "4px solid #eb3b5a" : "4px solid var(--accent)" }}>
                 <MapPin size={16} color={p.stop ? "#eb3b5a" : "var(--accent)"} style={{ marginTop: 2 }} />
@@ -1233,7 +1252,10 @@ function FieldFollowUpNew({ add }) {
             });
             /* WhatsApp: visit chesamu ani chinna draft customer ki (settings lo enable unte) */
             sendFollowupWhatsApp(primary.whatsapp || primary.mobile, f.partyName, f.type, f.date);
-            nav("/app/customers");
+            if (window.confirm("Customer saved. Add a Quotation for this customer now?")) {
+              QUOTE_PREFILL.data = { customer: f.partyName, mobile: primary.mobile, city: f.address };
+              nav("/app/m/quotation/new");
+            } else nav("/app/customers");
           }}
         >
           Save Follow Up
@@ -1436,6 +1458,8 @@ function AddSaleEntry({ isSpec, onClose, onSaved }) {
 /* ---- HOD: Team Performance (Sales HOD -> sales team, Spec HOD -> spec team) ---- */
 function FieldTeamPerformance() {
   const [data, setData] = useState(null);
+  const [q, setQ] = useState("");
+  const [sortBy, setSortBy] = useState("performance");
   const isSpecHod = `${CU().role || ""} ${CU().designation || ""}`.toLowerCase().includes("spec");
 
   useEffect(() => {
@@ -1465,6 +1489,17 @@ function FieldTeamPerformance() {
     <>
       <ScreenHead title="Team Performance" />
       <div className="f-list-pad" style={{ paddingTop: 14 }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <div style={{ position: "relative", flex: 1 }}>
+            <Search size={15} color="var(--muted)" style={{ position: "absolute", left: 11, top: 11 }} />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search team member…" style={{ width: "100%", padding: "9px 12px 9px 33px", borderRadius: 11, border: "1.5px solid #d7dcef", fontSize: 13, background: "#fff" }} />
+          </div>
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{ padding: "9px 12px", borderRadius: 11, border: "1.5px solid #d7dcef", fontSize: 13, background: "#fff" }}>
+            <option value="performance">Top performers</option>
+            <option value="lowest">Lowest first</option>
+            <option value="name">Name</option>
+          </select>
+        </div>
         {data === null ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>Loading…</div>
         ) : data.length === 0 ? (
@@ -1473,7 +1508,10 @@ function FieldTeamPerformance() {
             <div style={{ fontWeight: 700 }}>No team members mapped to you</div>
             <div style={{ fontSize: 12, marginTop: 4 }}>Ask admin to set your name in the "Manager" field for your team members.</div>
           </div>
-        ) : data.map(({ m, tgtS, tgtA, achS, achA, pc }, i) => (
+        ) : data
+          .filter(({ m }) => !q.trim() || m.name.toLowerCase().includes(q.toLowerCase()))
+          .sort((a, b) => sortBy === "name" ? a.m.name.localeCompare(b.m.name) : sortBy === "lowest" ? a.pc - b.pc : b.pc - a.pc)
+          .map(({ m, tgtS, tgtA, achS, achA, pc }, i) => (
           <div key={i} className="card-3d" style={{ background: "#fff", borderRadius: 14, padding: "13px 15px", marginBottom: 10, borderLeft: `5px solid ${pcColor(pc)}` }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ fontWeight: 800, fontSize: 13.5 }}>{m.name}<div style={{ fontSize: 10.5, color: "var(--muted)", fontWeight: 600 }}>{m.designation || m.role} {m.city ? "· " + m.city : ""}</div></div>
@@ -1493,6 +1531,7 @@ function FieldTeamPerformance() {
 
 /* ---- HOD: Leave Approval (team leave requests approve/reject) ---- */
 function FieldLeaveApproval() {
+  const nav = useNavigate();
   const [rows, setRows] = useState(null);
   const [team, setTeam] = useState([]);
 
@@ -1530,8 +1569,16 @@ function FieldLeaveApproval() {
       </div>
       <div style={{ fontSize: 12.5, marginTop: 3 }}><b>{r.type || "Leave"}</b> · {r.from}{r.to && r.to !== r.from ? " → " + r.to : ""} {r.mode ? "· " + r.mode : ""}</div>
       {r.reason && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>{r.reason}</div>}
+      {r.photo && (
+        <a href={r.photo} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 6 }}>
+          {String(r.photo).match(/\.pdf$/i)
+            ? <span style={{ fontSize: 12, color: "var(--accent)", fontWeight: 700 }}>📄 View Attachment</span>
+            : <img src={r.photo} alt="attachment" style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 8, border: "1px solid #dfe4f0" }} />}
+        </a>
+      )}
+      <button onClick={() => nav(`/app/thread/leave/${r._id}`)} style={{ width: "100%", marginTop: 8, padding: "8px", borderRadius: 9, border: "1px solid var(--accent)", background: "#eef1ff", color: "var(--accent)", fontWeight: 700, fontSize: 12 }}>💬 Chat with applicant</button>
       {actions && (
-        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
           <button onClick={() => act(r, "Approved")} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "none", background: "#1f9d55", color: "#fff", fontWeight: 800, fontSize: 12.5 }}>✓ Approve</button>
           <button onClick={() => act(r, "Rejected")} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "none", background: "#d64545", color: "#fff", fontWeight: 800, fontSize: 12.5 }}>✕ Reject</button>
         </div>
@@ -1688,7 +1735,6 @@ function MenuDrawer({ open, close }) {
 /* ------------------------------------------------ GENERIC FIELD MODULES ------------------------------------------------ */
 /* App modules read the SAME config as the admin backend, so fields match exactly.
    Only modules with app:true are exposed in the field app. */
-const QUOTE_PREFILL = { data: null };
 
 const APP_MODS = Object.fromEntries(Object.entries(MODULES).filter(([, c]) => c.app));
 
@@ -1732,7 +1778,7 @@ function FieldModule({ mod }) {
 
   return (
     <>
-      <ScreenHead title={cfg.appLabel || cfg.crumb} right={cfg.appReadOnly ? null : <button className="f-submit" style={{ padding: "8px 14px", fontSize: 12.5 }} onClick={() => nav(`/app/m/${mod}/new`)}>+ Add</button>} />
+      <ScreenHead title={cfg.appLabel || cfg.crumb} right={(cfg.appReadOnly || mod === "salesToSpec" || mod === "specToSales" || mod === "projectProjection") ? null : <button className="f-submit" style={{ padding: "8px 14px", fontSize: 12.5 }} onClick={() => nav(`/app/m/${mod}/new`)}>+ Add</button>} />
       <div className="f-list-pad" style={{ paddingTop: 14 }}>
         {rows === null ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>Loading…</div>
@@ -2004,7 +2050,9 @@ function FieldSpecThread({ id }) {
             <div key={i} style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "78%" }}>
               <div style={{ background: mine ? "var(--navy)" : "#fff", color: mine ? "#fff" : "var(--ink)", borderRadius: 12, padding: "9px 12px", fontSize: 13, boxShadow: "var(--shadow)" }}>
                 {m.text}
-                {m.doc && <a href={m.doc} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 5, color: mine ? "#cfe0ff" : "var(--accent)", fontSize: 12, fontWeight: 700 }}>📎 View document</a>}
+                {m.doc && (String(m.doc).match(/\.pdf$/i)
+                  ? <a href={m.doc} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 5, color: mine ? "#cfe0ff" : "var(--accent)", fontSize: 12, fontWeight: 700 }}>📄 View PDF</a>
+                  : <a href={m.doc} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 5 }}><img src={m.doc} alt="" style={{ maxWidth: 160, borderRadius: 8, display: "block" }} /></a>)}
               </div>
               <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2, textAlign: mine ? "right" : "left" }}>{m.by} · {m.at}</div>
             </div>
@@ -2369,7 +2417,15 @@ function FieldGenericThread({ mod, id }) {
       } catch {}
       /* tagged spec person ki notification */
       if (tag) {
-        try { await api.notify({ to: tag, title: `Tagged in ${rec.name || rec.id || "project"}`, message: msgText.slice(0, 120), link: `/thread/${mod}/${id}`, createdAt: new Date().toLocaleString("en-IN") }); } catch {}
+        try { await api.notify({ to: tag, title: `Tagged in ${rec.name || rec.id || "project"}`, message: msgText.slice(0, 120), link: `/app/thread/${mod}/${id}`, createdAt: new Date().toLocaleString("en-IN") }); } catch {}
+      }
+      /* leave chat: applicant <-> HOD person-to-person notification (same row, both sides) */
+      if (mod === "leave") {
+        const applicant = rec.createdBy;
+        const other = CU().name === applicant ? (rec.approvedBy || rec.manager || CU().manager) : applicant;
+        if (other && other !== CU().name) {
+          try { await api.notify({ to: other, title: `Message on Leave`, message: `${CU().name}: ${msgText.slice(0, 100)}`, link: `/app/thread/leave/${id}`, createdAt: new Date().toLocaleString("en-IN") }); } catch {}
+        }
       }
       setText(""); setFile(null); setTag(""); load();
     } catch (e) { alert(e.message); }
@@ -2383,8 +2439,32 @@ function FieldGenericThread({ mod, id }) {
     <>
       <ScreenHead title={rec.id || "Details"} />
       <div style={{ padding: "12px 16px", background: "#fff", borderBottom: "1px solid #eceff8" }}>
-        <div style={{ fontWeight: 800, fontSize: 14 }}>{rec.project || rec.customer || rec.title || rec.category || rec.type || mod} {rec.amount ? "· ₹" + Number(rec.amount).toLocaleString("en-IN") : ""}</div>
-        <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{rec.product || rec.desc || rec.help || ""}</div>
+        <div style={{ fontWeight: 800, fontSize: 14 }}>{rec.name || rec.project || rec.customer || rec.title || rec.category || rec.type || mod} {rec.amount || rec.value ? "· ₹" + Number(rec.amount || rec.value).toLocaleString("en-IN") : ""}</div>
+        <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{rec.product || rec.desc || rec.help || rec.details || rec.specHelp || ""}</div>
+        {/* full project details (Sales/Spec/Projection): open cheyaganē full info */}
+        {["projectProjection", "salesToSpec", "specToSales"].includes(mod) && (
+          <div style={{ marginTop: 8, background: "#f6f8fd", borderRadius: 10, padding: "9px 11px", fontSize: 12, display: "grid", gap: 4 }}>
+            {rec.firm && <div><b>Firm/Builder:</b> {rec.firm}</div>}
+            {rec.city && <div><b>City:</b> {rec.city}</div>}
+            {rec.projectType && <div><b>Type:</b> {rec.projectType}</div>}
+            {(rec.value || rec.amount) && <div><b>Value:</b> ₹{Number(rec.value || rec.amount).toLocaleString("en-IN")}</div>}
+            {rec.salesPerson && <div><b>Sales Person:</b> {rec.salesPerson}</div>}
+            {rec.specPerson && <div><b>Spec Person:</b> {rec.specPerson}</div>}
+            {rec.source && <div><b>Source:</b> {rec.source}</div>}
+            {rec.createdBy && <div><b>Created By:</b> {rec.createdBy}</div>}
+            {rec.details && <div><b>Details:</b> {rec.details}</div>}
+          </div>
+        )}
+        {/* first photos attached at creation */}
+        {(rec.photo || rec.photos || rec.doc) && (
+          <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+            {[rec.photo, rec.doc, ...(Array.isArray(rec.photos) ? rec.photos : [])].filter(Boolean).map((u, i) => (
+              String(u).match(/\.pdf$/i)
+                ? <a key={i} href={u} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "var(--accent)", fontWeight: 700 }}>📄 Attachment</a>
+                : <a key={i} href={u} target="_blank" rel="noreferrer"><img src={u} alt="" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 8, border: "1px solid #dfe4f0" }} /></a>
+            ))}
+          </div>
+        )}
         {(rec.colourApproved || rec.sqmApproved) && (
           <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
             {rec.colourApproved && <span style={{ fontSize: 11, background: "#eef1ff", color: "#3949ab", padding: "3px 8px", borderRadius: 6 }}>Colour: {rec.colourApproved}</span>}
@@ -2414,6 +2494,21 @@ function FieldGenericThread({ mod, id }) {
             }} style={{ width: "100%", padding: "9px 12px", borderRadius: 9, border: "1px solid #d7dcef", fontSize: 13, marginTop: 4 }}>
               {STATUS_OPTS[mod].map((s) => <option key={s}>{s}</option>)}
             </select>
+            {mod === "projectProjection" && (
+              <button onClick={async () => {
+                const remark = (window.prompt("Monthly follow-up remark (min 50 chars):") || "").trim();
+                if (remark.length < 50) { alert(`Too short (${remark.length}/50).`); return; }
+                const month = new Date().toLocaleString("en-IN", { month: "short", year: "numeric" });
+                const data = { ...rec };
+                delete data._id;
+                data.lastUpdate = `${month}: follow-up`;
+                data.monthlyUpdates = [...(rec.monthlyUpdates || []), { month, remark, by: CU().name, at: new Date().toLocaleString("en-IN") }];
+                data.thread = [...(rec.thread || []), { by: CU().name, text: `📅 Follow-up (${month}): ${remark}`, at: new Date().toLocaleString("en-IN") }];
+                try { await api.update(mod, id, data); setRec({ ...rec, ...data, _id: rec._id }); } catch (e) { alert(e.message); }
+              }} style={{ width: "100%", marginTop: 8, padding: "9px", borderRadius: 9, border: "1px solid var(--accent)", background: "#eef1ff", color: "var(--accent)", fontWeight: 700, fontSize: 12.5 }}>
+                📅 Add Monthly Follow-up
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -2425,7 +2520,9 @@ function FieldGenericThread({ mod, id }) {
             <div key={i} style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "78%" }}>
               <div style={{ background: mine ? "var(--navy)" : "#fff", color: mine ? "#fff" : "var(--ink)", borderRadius: 12, padding: "9px 12px", fontSize: 13, boxShadow: "var(--shadow)" }}>
                 {m.text}
-                {m.doc && <a href={m.doc} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 5, color: mine ? "#cfe0ff" : "var(--accent)", fontSize: 12, fontWeight: 700 }}>📎 View document</a>}
+                {m.doc && (String(m.doc).match(/\.pdf$/i)
+                  ? <a href={m.doc} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 5, color: mine ? "#cfe0ff" : "var(--accent)", fontSize: 12, fontWeight: 700 }}>📄 View PDF</a>
+                  : <a href={m.doc} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 5 }}><img src={m.doc} alt="" style={{ maxWidth: 160, borderRadius: 8, display: "block" }} /></a>)}
               </div>
               <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2, textAlign: mine ? "right" : "left" }}>{m.by} · {m.at}</div>
             </div>

@@ -72,16 +72,16 @@ export default function CustomersPage() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: "#f4f6fc", textAlign: "left" }}>
-                {["Customer", "Mobile", "Type", "Place", "Follow-ups", "Last Follow-up", "By"].map((h) => (
+                {["Customer", "Mobile", "Type", "Place", "Address", "Entries", "Last Entry", "By", "Action"].map((h) => (
                   <th key={h} style={{ padding: "11px 14px", fontWeight: 800, fontSize: 12, color: "#4a5578", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {rows === null ? (
-                <tr><td colSpan={7} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
+                <tr><td colSpan={9} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
               ) : list.length === 0 ? (
-                <tr><td colSpan={7} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>
+                <tr><td colSpan={9} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>
                   <Users size={30} style={{ opacity: 0.4 }} /><br />No customers yet — customer entries from the app will appear here.
                 </td></tr>
               ) : list.map((r, i) => (
@@ -92,9 +92,17 @@ export default function CustomersPage() {
                   </td>
                   <td style={{ padding: "11px 14px" }}>{r.type ? <span style={{ fontSize: 11, background: "var(--accent-soft)", color: "var(--accent)", fontWeight: 700, padding: "2px 8px", borderRadius: 6 }}>{r.type}</span> : "—"}</td>
                   <td style={{ padding: "11px 14px" }}>{r.place ? <span style={{ display: "inline-flex", gap: 4, alignItems: "center" }}><MapPin size={12} color="var(--muted)" />{r.place}</span> : "—"}</td>
+                  <td style={{ padding: "11px 14px" }}>{r.address || "—"}</td>
                   <td style={{ padding: "11px 14px", textAlign: "center", fontWeight: 700 }}>{r.followups}</td>
                   <td style={{ padding: "11px 14px", whiteSpace: "nowrap", color: "var(--muted)" }}>{(r.last_followup || "").slice(0, 16)}</td>
                   <td style={{ padding: "11px 14px", color: "var(--muted)" }}>{r.by || "—"}</td>
+                  <td style={{ padding: "11px 14px" }}>
+                    <button className="btn btn-danger" style={{ padding: "4px 10px", fontSize: 12 }}
+                      onClick={async () => {
+                        if (!window.confirm(`Delete customer ${r.name}? This removes their entries.`)) return;
+                        try { await api.deleteCustomer(r.mobile, r.name); load(); } catch (e) { alert(e.message); }
+                      }}>Delete</button>
+                  </td>
                 </tr>
               ))}
             </tbody>

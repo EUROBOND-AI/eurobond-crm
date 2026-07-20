@@ -81,6 +81,7 @@ export const api = {
   locationSearch: (q) => req("/locations.php?action=search&q=" + encodeURIComponent(q)),
 
   /* ---------- Customers (from follow-ups) ---------- */
+  deleteCustomer: (mobile, name) => req("/customers.php?action=delete", { method: "POST", body: { mobile, name } }),
   customers: (q = "", mine = false) => req(`/customers.php?action=list${q ? "&q=" + encodeURIComponent(q) : ""}${mine ? "&mine=1" : ""}`),
 
   /* ---------- Notifications ---------- */
