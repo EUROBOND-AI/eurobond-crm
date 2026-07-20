@@ -9,9 +9,9 @@ import { api } from "../lib/api.js";
 --------------------------------------------------------------------------- */
 
 const DEFAULTS = {
-  intervalSec: 90,
+  intervalSec: 30,
   minDistanceKm: 0,
-  idleMaxMs: 90000,
+  idleMaxMs: 30000,
   officeStart: "09:00",
   officeEnd: "20:00",
   officeHoursOnly: false,

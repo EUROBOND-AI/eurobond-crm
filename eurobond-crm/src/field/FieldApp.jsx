@@ -57,9 +57,9 @@ const isMine = (n, me) => {
    or once every 5 min while idle. Outside office hours nothing is sent.
    Admin can override these from Masters -> App Settings.                        */
 const GPS_CFG = {
-  intervalSec: 90,           // time-based: record one point every 90 seconds (moving OR idle)
-  minDistanceKm: 0,          // 0 = pure time-based (like Traccar/commercial trackers)
-  idleMaxMs: 90 * 1000,
+  intervalSec: 30,           // record one point every 30 seconds (moving OR idle)
+  minDistanceKm: 0,          // 0 = pure time-based
+  idleMaxMs: 30 * 1000,
   officeStart: "09:00",
   officeEnd: "20:00",
   officeHoursOnly: false,
@@ -603,7 +603,7 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
   /* timeline: EVERY recorded point is shown (login address, battery, online) +
      "App Closed" gaps in between. Points already come at ~90s interval. */
   const timelinePoints = useMemo(() => {
-    const pts = tracking.points.filter((p) => p.accuracy == null || p.accuracy <= 60);
+    const pts = tracking.points;   // show every recorded point (no accuracy filter)
     const out = [];
     let cum = 0, last = null;
     for (let i = 0; i < pts.length; i++) {
@@ -745,7 +745,7 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
         <div className="f-list-pad">
           {timelinePoints.length === 0 && (
             <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, padding: 30 }}>
-              No location data yet. Start attendance to begin tracking.
+              {attendanceOn ? "Getting your first location… please wait a few seconds." : "No location data yet. Start attendance to begin tracking."}
             </div>
           )}
           {timelinePoints.slice(0, 40).map((p, i) => {
@@ -2883,11 +2883,10 @@ export default function FieldApp() {
           if (!withinOfficeHours(cfg)) return;                 // outside office hours -> nothing stored/sent
 
           const last = lastSavedPt.current;
-          if (last) {
+          if (last) {                                            // first point always kept immediately
             const sinceMs = Date.now() - (last.t || 0);
-            const intervalMs = (cfg.intervalSec ?? 90) * 1000;
+            const intervalMs = (cfg.intervalSec ?? 30) * 1000;
             const minKm = cfg.minDistanceKm ?? 0;
-            /* time-based: har interval ki okka point. distance rule optional (0 = off). */
             if (sinceMs < intervalMs && (minKm <= 0 || haversineKm(last, p) < minKm)) return;
           }
           p.t = Date.now();
