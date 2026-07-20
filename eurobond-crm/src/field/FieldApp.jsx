@@ -1618,43 +1618,40 @@ function MenuDrawer({ open, close }) {
     }).catch(() => setAccess({}));
   }, [open]);
   if (!open) return null;
-  // menu path → access key (generic m/ modules + custom screens)
-  const CUSTOM_KEYS = {
-    "/app/followup/new": "customerForm", "/app/customers": "customers", "/app/nearby": "nearby",
-    "/app/leave": "leave", "/app/leave-approval": "leaveApproval", "/app/target": "target",
-    "/app/team": "teamPerformance", "/app/attendance": "attendance", "/app/project/new": "siteProjectForm",
-  };
-  const modOf = (to) => { const m = to.match(/\/app\/m\/(\w+)/); return m ? m[1] : CUSTOM_KEYS[to] || null; };
+  /* Each drawer item carries its Team-Access KEY (4th element) — this must exactly
+     match the keys used in admin TeamAccess. Access map is the ONLY control. */
   const myRole = CU().role || "";
-  const canSee = (to) => {
-    const mod = modOf(to);
-    if (!mod || !access || !access[myRole]) return true; // no restriction set → show all
-    return access[myRole][mod] !== false;
+  const canSee = (key) => {
+    if (!key) return true;                          // no key (Home) → always
+    if (!access || !access[myRole]) return true;    // admin never saved a map → show all
+    return access[myRole][key] !== false;           // saved map decides
   };
   const rawGroups = [
-    /* ROLE-BASED VISIBILITY:
-       Sales Person -> Sales to Spec matrame; Spec Person -> Spec to Sales matrame;
-       HODs -> Team Performance + Leave Approval extra; Admin role -> anni. */
-    { h: "MAIN", items: [["Home", <Home size={16} />, "/app"], ["Customer", <ClipboardList size={16} />, "/app/followup/new"], ["Customers", <Users size={16} />, "/app/customers"], ["Near By Customers", <MapPin size={16} />, "/app/nearby"]] },
+    { h: "MAIN", items: [
+      ["Home", <Home size={16} />, "/app", null],
+      ["Customer", <ClipboardList size={16} />, "/app/followup/new", "customerForm"],
+      ["Customers", <Users size={16} />, "/app/customers", "customers"],
+      ["Near By Customers", <MapPin size={16} />, "/app/nearby", "nearby"],
+    ] },
     { h: "WORK", items: [
-      ["Enquiry", <FileText size={16} />, "/app/m/enquiry", ["sales", "hod-sales", "admin"]],
-      ["Quotation", <FileText size={16} />, "/app/m/quotation", ["sales", "hod-sales", "admin"]],
-      ["Sales to Spec", <ClipboardList size={16} />, "/app/m/salesToSpec", ["sales", "hod-sales", "admin"]],
-      ["Spec to Sales", <ClipboardList size={16} />, "/app/m/specToSales", ["spec", "hod-spec", "admin"]],
-      ["Leave", <CalendarDays size={16} />, "/app/leave"],
+      ["Enquiry", <FileText size={16} />, "/app/m/enquiry", "enquiry"],
+      ["Quotation", <FileText size={16} />, "/app/m/quotation", "quotation"],
+      ["Project Projection", <Building2 size={16} />, "/app/m/projectProjection", "projectProjection"],
+      ["Sales to Spec", <ClipboardList size={16} />, "/app/m/salesToSpec", "salesToSpec"],
+      ["Spec to Sales", <ClipboardList size={16} />, "/app/m/specToSales", "specToSales"],
+      ["Expense", <Wallet size={16} />, "/app/m/expense", "expense"],
+      ["Leave", <CalendarDays size={16} />, "/app/leave", "leave"],
     ] },
     { h: "MANAGEMENT", items: [
-      ["Target", <Target size={16} />, "/app/target"],
-      ["Team Performance", <Users size={16} />, "/app/team", ["hod-sales", "hod-spec", "admin"]],
-      ["Leave Approval", <CalendarDays size={16} />, "/app/leave-approval", ["hod-sales", "hod-spec", "admin"]],
-      ["Attendance", <CalendarCheck size={16} />, "/app/attendance"],
-      ["Site Project", <Building2 size={16} />, "/app/project/new", ["sales", "hod-sales", "spec", "hod-spec", "admin"]],
-      ["Task", <ClipboardList size={16} />, "/app/m/task"],
+      ["Target", <Target size={16} />, "/app/target", "target"],
+      ["Team Performance", <Users size={16} />, "/app/team", "teamPerformance"],
+      ["Leave Approval", <CalendarDays size={16} />, "/app/leave-approval", "leaveApproval"],
+      ["Attendance", <CalendarCheck size={16} />, "/app/attendance", "attendance"],
+      ["Site Project", <Building2 size={16} />, "/app/project/new", "siteProjectForm"],
+      ["Task", <ClipboardList size={16} />, "/app/m/task", "task"],
     ] },
   ];
-  /* Team Access (admin) ye single source — role arrays tho double-filter cheyyam.
-     Admin lo tick chesinavi anni kanipistayi; map lekapothe anni kanipistayi. */
-  const groups = rawGroups.map((g) => ({ ...g, items: g.items.filter(([, , to]) => canSee(to)) })).filter((g) => g.items.length);
+  const groups = rawGroups.map((g) => ({ ...g, items: g.items.filter(([, , , key]) => canSee(key)) })).filter((g) => g.items.length);
   return (
     <div className="f-sheet-mask" onClick={close} style={{ zIndex: 60 }}>
       <div className="f-menu" onClick={(e) => e.stopPropagation()}>
