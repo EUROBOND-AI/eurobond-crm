@@ -9,8 +9,9 @@ import { api } from "../lib/api.js";
 --------------------------------------------------------------------------- */
 
 const DEFAULTS = {
-  minDistanceKm: 1,
-  idleMaxMs: 300000,
+  intervalSec: 90,
+  minDistanceKm: 0,
+  idleMaxMs: 90000,
   officeStart: "09:00",
   officeEnd: "20:00",
   officeHoursOnly: true,
@@ -45,8 +46,9 @@ export default function AppSettings() {
     try {
       const data = {
         ...f,
-        minDistanceKm: Number(f.minDistanceKm) || 1,
-        idleMaxMs: Number(f.idleMaxMs) || 300000,
+        intervalSec: Math.max(30, Number(f.intervalSec) || 90),
+        minDistanceKm: Number(f.minDistanceKm) || 0,
+        idleMaxMs: (Math.max(30, Number(f.intervalSec) || 90)) * 1000,
         gpsRetentionDays: Math.max(30, Number(f.gpsRetentionDays) || 90),
       };
       if (rid) await api.update("appSettings", rid, data);
@@ -91,19 +93,19 @@ export default function AppSettings() {
       </Card>
 
       <Card icon={<Navigation size={16} />} title="GPS Tracking Rules"
-        note="A location point is stored only when the person actually moves the set distance — standing still records just one point per idle interval. Fewer points = faster timeline, smaller database.">
+        note="Time-based tracking (like commercial trackers): one location point every N seconds, whether moving or stationary — giving a smooth full-day trail on the timeline.">
         <Row>
-          <Field label="Record point after (km)">
-            <input type="number" step="0.5" min="0.5" value={f.minDistanceKm}
-              onChange={(e) => set("minDistanceKm", e.target.value)} style={inp} />
+          <Field label="Record point every (seconds)">
+            <input type="number" min="30" step="10" value={f.intervalSec}
+              onChange={(e) => set("intervalSec", e.target.value)} style={inp} />
           </Field>
-          <Field label={`Idle interval (minutes) — now ${idleMin} min`}>
-            <input type="number" min="1" value={idleMin}
-              onChange={(e) => set("idleMaxMs", (Number(e.target.value) || 5) * 60000)} style={inp} />
+          <Field label="Min distance (km) — 0 = pure time-based">
+            <input type="number" step="0.5" min="0" value={f.minDistanceKm}
+              onChange={(e) => set("minDistanceKm", e.target.value)} style={inp} />
           </Field>
         </Row>
         <div style={hint}>
-          Current: point stored after <b>{f.minDistanceKm} km</b> of movement, or one point every <b>{idleMin} min</b> while stationary.
+          Current: one point every <b>{f.intervalSec || 90} seconds</b>{Number(f.minDistanceKm) > 0 ? <> (or after <b>{f.minDistanceKm} km</b> of movement)</> : ""}. Lower seconds = more points, more detailed trail, slightly more server load.
         </div>
       </Card>
 

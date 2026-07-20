@@ -8,7 +8,6 @@ const CUSTOM_SCREENS = [
   { key: "customerForm", label: "Customer (Add Form)" },
   { key: "customers", label: "Customers" },
   { key: "nearby", label: "Near By Customers" },
-  { key: "leave", label: "Leave" },
   { key: "leaveApproval", label: "Leave Approval (HOD)" },
   { key: "target", label: "Target" },
   { key: "teamPerformance", label: "Team Performance (HOD)" },
@@ -21,7 +20,24 @@ const APP_MODULES = [
 ];
 const ROLES = ["HOD (Sales)", "HOD (Spec)", "Sales Person", "Spec Person", "Admin"];
 
-const emptyMap = () => Object.fromEntries(ROLES.map((r) => [r, Object.fromEntries(APP_MODULES.map((m) => [m.key, true]))]));
+/* default visibility per role (admin can override & save) */
+const HOD_ONLY = ["leaveApproval", "teamPerformance"];
+const SALES_ONLY = ["salesToSpec"];
+const SPEC_ONLY = ["specToSales"];
+const roleDefault = (role, key) => {
+  const r = role.toLowerCase();
+  const isAdmin = r.includes("admin");
+  const isHodSales = r === "hod (sales)";
+  const isHodSpec = r === "hod (spec)";
+  const isSales = r === "sales person";
+  const isSpec = r === "spec person";
+  if (isAdmin) return true;                                  // Admin -> everything
+  if (HOD_ONLY.includes(key)) return isHodSales || isHodSpec; // Leave Approval / Team Perf -> HODs
+  if (SALES_ONLY.includes(key)) return isSales || isHodSales; // Sales to Spec
+  if (SPEC_ONLY.includes(key)) return isSpec || isHodSpec;    // Spec to Sales
+  return true;                                               // rest -> all users
+};
+const emptyMap = () => Object.fromEntries(ROLES.map((r) => [r, Object.fromEntries(APP_MODULES.map((m) => [m.key, roleDefault(r, m.key)]))]));
 
 export default function TeamAccess() {
   const [map, setMap] = useState(emptyMap());

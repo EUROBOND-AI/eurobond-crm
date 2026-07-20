@@ -56,8 +56,9 @@ const isMine = (n, me) => {
    or once every 5 min while idle. Outside office hours nothing is sent.
    Admin can override these from Masters -> App Settings.                        */
 const GPS_CFG = {
-  minDistanceKm: 1,          // record a point after 1 km of movement
-  idleMaxMs: 5 * 60 * 1000,  // ...or one point every 5 min when standing still
+  intervalSec: 90,           // time-based: record one point every 90 seconds (moving OR idle)
+  minDistanceKm: 0,          // 0 = pure time-based (like Traccar/commercial trackers)
+  idleMaxMs: 90 * 1000,
   officeStart: "09:00",
   officeEnd: "20:00",
   officeHoursOnly: true,
@@ -2777,10 +2778,11 @@ export default function FieldApp() {
 
           const last = lastSavedPt.current;
           if (last) {
-            const moved = haversineKm(last, p);                 // km since last saved point
-            const idleFor = Date.now() - (last.t || 0);
-            /* keep the point only if he really moved 1 km, or he's idle and 5 min passed */
-            if (moved < (cfg.minDistanceKm ?? 1) && idleFor < (cfg.idleMaxMs ?? 300000)) return;
+            const sinceMs = Date.now() - (last.t || 0);
+            const intervalMs = (cfg.intervalSec ?? 90) * 1000;
+            const minKm = cfg.minDistanceKm ?? 0;
+            /* time-based: har interval ki okka point. distance rule optional (0 = off). */
+            if (sinceMs < intervalMs && (minKm <= 0 || haversineKm(last, p) < minKm)) return;
           }
           p.t = Date.now();
           p.online = navigator.onLine;

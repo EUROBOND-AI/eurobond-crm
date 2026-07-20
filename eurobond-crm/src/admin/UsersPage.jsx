@@ -47,7 +47,13 @@ export default function UsersPage() {
 
   const zoneOpts = [...new Set(users.map((u) => u.zone).filter(Boolean))];
   const cityOpts = [...new Set(users.map((u) => u.city).filter(Boolean))];
-  const managerOpts = [...new Set(users.map((u) => u.name).filter(Boolean))];
+  /* Reporting Managers = HOD (Sales/Spec) + Admin role users only */
+  const managerOpts = [...new Set(
+    users.filter((u) => {
+      const r = (u.role || "").toLowerCase();
+      return r.includes("hod") || r.includes("admin");
+    }).map((u) => u.name).filter(Boolean)
+  )];
 
   const filtered = users.filter((u) =>
     !q || (u.name + u.mobile + (u.code || "") + (u.city || "")).toLowerCase().includes(q.toLowerCase())
