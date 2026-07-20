@@ -14,7 +14,7 @@ const DEFAULTS = {
   idleMaxMs: 90000,
   officeStart: "09:00",
   officeEnd: "20:00",
-  officeHoursOnly: true,
+  officeHoursOnly: false,
   gpsRetentionDays: 90,
   waApiUrl: "",
   waApiKey: "",

@@ -62,7 +62,7 @@ const GPS_CFG = {
   idleMaxMs: 90 * 1000,
   officeStart: "09:00",
   officeEnd: "20:00",
-  officeHoursOnly: true,
+  officeHoursOnly: false,
 };
 const loadGpsCfg = () => {
   try { return { ...GPS_CFG, ...(JSON.parse(localStorage.getItem("eb_gps_cfg") || "{}")) }; }
@@ -583,7 +583,7 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
   useEffect(() => {
     if (tab !== "Timeline") return;
     let stop = false;
-    const pts = timelinePoints.slice(0, 15);
+    const pts = timelinePoints.filter((x) => !x.appClosed).slice(0, 30);
     (async () => {
       for (const p of pts) {
         if (stop) return;
@@ -592,7 +592,7 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
         const nm = await placeName(p.lat, p.lng);
         if (stop) return;
         setNames((n) => ({ ...n, [key]: nm }));
-        await new Promise((r) => setTimeout(r, 1100));
+        await new Promise((r) => setTimeout(r, 900));
       }
     })();
     return () => { stop = true; };
@@ -600,29 +600,25 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
 
   const km = tracking.km;
 
-  /* spaced timeline: keep meaningful points, add cumulative km + stop flag */
+  /* timeline: EVERY recorded point is shown (login address, battery, online) +
+     "App Closed" gaps in between. Points already come at ~90s interval. */
   const timelinePoints = useMemo(() => {
-    const pts = tracking.points.filter((p) => p.accuracy == null || p.accuracy <= 35);
+    const pts = tracking.points.filter((p) => p.accuracy == null || p.accuracy <= 60);
     const out = [];
-    let cum = 0, last = null, lastKept = null;
+    let cum = 0, last = null;
     for (let i = 0; i < pts.length; i++) {
       const p = pts[i];
+      const gap = last ? ((p.time || 0) - (last.time || 0)) : 0;
       if (last) {
         const d = haversineKm(last, p);
-        if (d * 1000 >= 8 && d < 0.5) cum += d;
+        if (d < 0.5) cum += d;
       }
-      // keep a point if it's ~80m from the last kept one, or a stop (long gap), or first/last
-      const far = !lastKept || haversineKm(lastKept, p) * 1000 >= 80;
-      const gap = last ? (p.time - last.time) : 0;
-      const isStop = gap > 120000 && gap <= 300000; // 2-5 min no movement = stop
-      const appClosed = gap > 300000;               // 5+ min gap = app was closed
-      if (appClosed && last) {
+      /* 5+ min gap between points = app was closed in between */
+      if (gap > 300000 && last) {
         out.push({ ...last, cumKm: cum, appClosed: true, closedFrom: last.time, closedTo: p.time });
       }
-      if (far || isStop || appClosed || i === 0 || i === pts.length - 1) {
-        out.push({ ...p, cumKm: cum, stop: isStop });
-        lastKept = p;
-      }
+      const isStop = gap > 120000 && gap <= 300000;   // stayed 2-5 min at same spot
+      out.push({ ...p, cumKm: cum, stop: isStop, isStart: i === 0 });
       last = p;
     }
     return out.reverse(); // newest first
@@ -752,7 +748,7 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
               No location data yet. Start attendance to begin tracking.
             </div>
           )}
-          {timelinePoints.slice(0, 20).map((p, i) => {
+          {timelinePoints.slice(0, 40).map((p, i) => {
             const key = p.lat.toFixed(4) + "," + p.lng.toFixed(4);
             if (p.appClosed) {
               const mins = Math.round((p.closedTo - p.closedFrom) / 60000);
@@ -773,6 +769,7 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
                 <MapPin size={16} color={p.stop ? "#eb3b5a" : "var(--accent)"} style={{ marginTop: 2 }} />
                 <div style={{ flex: 1 }}>
                   <b style={{ fontSize: 13 }}>{names[key] || "Finding location…"}</b>
+                  {p.isStart && <span style={{ background: "#e8f7ee", color: "#1f7a44", fontSize: 10, fontWeight: 800, padding: "1px 6px", borderRadius: 6, marginLeft: 6 }}>LOGIN</span>}
                   {p.stop && <span style={{ background: "#fdecec", color: "#c03636", fontSize: 10, fontWeight: 800, padding: "1px 6px", borderRadius: 6, marginLeft: 6 }}>STOP</span>}
                   <div style={{ color: "var(--muted)", marginTop: 2 }}>
                     {fmtKm(p.cumKm || 0)} from start · ±{Math.round(p.accuracy || 0)} m
