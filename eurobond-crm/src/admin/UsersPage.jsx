@@ -64,7 +64,10 @@ export default function UsersPage() {
       <PageHead
         crumb="Masters / Users"
         title="Users & Team"
-        actions={<button className="btn btn-primary" onClick={() => setForm({ ...empty })}><UserPlus size={14} /> Add User</button>}
+        actions={<div style={{ display: "flex", gap: 8 }}>
+          <button className="btn btn-ghost" onClick={() => setForm({ ...empty, role: "HOD (Sales)", isHod: true })}><UserPlus size={14} /> Add HOD</button>
+          <button className="btn btn-primary" onClick={() => setForm({ ...empty })}><UserPlus size={14} /> Add User</button>
+        </div>}
       />
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", border: "1px solid var(--line)", borderRadius: 10, padding: "8px 12px", maxWidth: 320, marginBottom: 14 }}>
@@ -123,7 +126,7 @@ export default function UsersPage() {
       {form && (
         <div className="modal-mask" onClick={() => setForm(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>{form.id ? "Edit User" : "Add User"}</h3>
+            <h3>{form.id ? "Edit User" : form.isHod ? "Add HOD" : "Add User"}</h3>
             <div className="form-grid">
               <Field label="Full Name" req val={form.name} on={(v) => setForm({ ...form, name: v })} />
               <Field label="Mobile (login id)" req val={form.mobile} on={(v) => setForm({ ...form, mobile: v.replace(/\D/g, "") })} />
@@ -132,14 +135,16 @@ export default function UsersPage() {
               <div className="field">
                 <label>Role</label>
                 <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-                  {ROLES.map((r) => <option key={r}>{r}</option>)}
+                  {(form.isHod ? ["HOD (Sales)", "HOD (Spec)"] : ROLES).map((r) => <option key={r}>{r}</option>)}
                 </select>
               </div>
               <Field label="Designation" val={form.designation} on={(v) => setForm({ ...form, designation: v })} />
               <SelectOrAdd label="Zone" val={form.zone} on={(v) => setForm({ ...form, zone: v })} options={zoneOpts} />
               <SelectOrAdd label="City" val={form.city} on={(v) => setForm({ ...form, city: v })} options={cityOpts} />
               <Field label="Near-by Range (meters)" type="number" val={form.nearby_range_m ?? 500} on={(v) => setForm({ ...form, nearby_range_m: v })} />
-              <SelectOrAdd label="Reporting Manager" val={form.manager} on={(v) => setForm({ ...form, manager: v })} options={managerOpts} />
+              {!form.isHod && !((form.role || "").includes("HOD")) && (
+                <SelectOrAdd label="Reporting Manager" val={form.manager} on={(v) => setForm({ ...form, manager: v })} options={managerOpts} />
+              )}
               {!form.id && <Field label="Password" req val={form.password} on={(v) => setForm({ ...form, password: v })} />}
             </div>
             {form.id && <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>Use the key icon on the list to reset password.</p>}

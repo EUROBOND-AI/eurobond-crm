@@ -1885,11 +1885,11 @@ function FieldModuleNew({ mod }) {
               }
               // site project with specification help → notify spec person
               if (false) {
-                try { await api.notify({ to: f.specPerson, title: "Specification help — " + (f.name || "Project"), message: `${CU().name} needs spec help on "${f.name}": ${f.specHelp}`, createdAt: new Date().toLocaleString("en-IN") }); } catch {}
+                try { await api.notify({ to: f.specPerson, title: "Specification help — " + (f.name || "Project"), message: `${CU().name} needs spec help on "${f.name}": ${f.specHelp}`, link: "/app/m/salesToSpec", createdAt: new Date().toLocaleString("en-IN") }); } catch {}
               }
               // task → notify the assignee
               if (mod === "task" && f.assignee) {
-                try { await api.notify({ to: f.assignee, title: "New task assigned", message: `${CU().name} assigned you: ${f.title || "a task"}`, createdAt: new Date().toLocaleString("en-IN") }); } catch {}
+                try { await api.notify({ to: f.assignee, title: "New task assigned", message: `${CU().name} assigned you: ${f.title || "a task"}`, link: "/app/m/task", createdAt: new Date().toLocaleString("en-IN") }); } catch {}
               }
               nav(`/app/m/${mod}`);
             } catch (e) { alert(e.message); setBusy(false); }
@@ -1978,7 +1978,7 @@ function FieldSpecThread({ id }) {
       const thread = [...(rec.thread || []), { by: CU().name, text: text.trim(), doc, at: new Date().toLocaleString("en-IN") }];
       const data = { ...rec, thread }; delete data._id;
       await api.update("specApproval", id, data);
-      if (rec.specPerson) { try { await api.notify({ to: rec.specPerson, title: "Reply on spec " + (rec.id || ""), message: `${CU().name}: ${text.trim() || "sent a document"}`, createdAt: new Date().toLocaleString("en-IN") }); } catch {} }
+      if (rec.specPerson) { try { await api.notify({ to: rec.specPerson, title: "Reply on spec " + (rec.id || ""), message: `${CU().name}: ${text.trim() || "sent a document"}`, link: "/app/thread/salesToSpec/" + id, createdAt: new Date().toLocaleString("en-IN") }); } catch {} }
       setText(""); setFile(null); load();
     } catch (e) { alert(e.message); }
     setBusy(false);
@@ -2907,7 +2907,7 @@ export default function FieldApp() {
             <Route path="expense" element={<FieldExpense list={expenses} add={(e) => setExpenses((x) => [e, ...x])} />} />
             <Route path="expense/new" element={<FieldExpenseNew add={async (e) => { try { const r = await api.create("expense", e); setExpenses((x) => [{ _id: r.id, ...e }, ...x]); } catch (err) { alert(err.message); } }} />} />
             <Route path="leave" element={<FieldLeave leaves={leaves} add={(l) => setLeaves((x) => [l, ...x])} />} />
-            <Route path="leave/new" element={<FieldLeaveNew add={async (l) => { try { const r = await api.create("leave", l); setLeaves((x) => [{ _id: r.id, ...l }, ...x]); const mgr = CU().manager; if (mgr) { try { await api.notify({ to: mgr, title: "Leave request", message: `${CU().name} applied for ${l.type} (${l.from} to ${l.to})`, createdAt: new Date().toLocaleString("en-IN") }); } catch {} } } catch (err) { alert(err.message); } }} />} />
+            <Route path="leave/new" element={<FieldLeaveNew add={async (l) => { try { const r = await api.create("leave", l); setLeaves((x) => [{ _id: r.id, ...l }, ...x]); const mgr = CU().manager; if (mgr) { try { await api.notify({ to: mgr, title: "Leave request", message: `${CU().name} applied for ${l.type} (${l.from} to ${l.to})`, link: "/app/leave-approval", createdAt: new Date().toLocaleString("en-IN") }); } catch {} } } catch (err) { alert(err.message); } }} />} />
             <Route path="followup" element={<FieldFollowUp items={followups} add={async (f) => {
               if (f._update) {
                 const idx = f._idx;
