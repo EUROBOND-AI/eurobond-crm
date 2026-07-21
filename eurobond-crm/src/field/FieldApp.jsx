@@ -38,6 +38,7 @@ const markRead = (ids) => {
   window.dispatchEvent(new Event("eb-notif-read"));
 };
 const QUOTE_PREFILL = { data: null };
+const FOLLOWUP_PREFILL = { data: null };
 const isMine = (n, me) => {
   /* audience-based (Holiday/Announcement): All / Zone / City / Users */
   if (n.audienceType) {
@@ -2283,9 +2284,11 @@ function FieldQuotationNew({ prefill }) {
    lopala unna customers matrame.
 ============================================================================ */
 function FieldCustomers({ nearbyOnly = false }) {
+  const nav = useNavigate();
   const [rows, setRows] = useState(null);
   const [q, setQ] = useState("");
   const [myLoc, setMyLoc] = useState(null);
+  const [viewCust, setViewCust] = useState(null);
   const rangeM = Number(CU().nearby_range_m || CU().nearbyRange || 500);   // per-user (admin set)
 
   useEffect(() => {
