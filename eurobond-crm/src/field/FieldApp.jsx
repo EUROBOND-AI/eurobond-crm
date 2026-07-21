@@ -821,7 +821,7 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
 /* ------------------------------------------------ EXPENSE ------------------------------------------------ */
 function FieldExpense({ list, add }) {
   const [tab, setTab] = useState("Submitted");
-  const tabs = ["Draft", "Submitted", "Approved", "Reject", "Paid"];
+  const tabs = ["Submitted", "Approved", "Reject", "Paid"];
   const nav = useNavigate();
   const rows = list.filter((e) => {
     if (tab === "Reject") return e.status === "Reject" || e.status === "Rejected";
@@ -2039,7 +2039,7 @@ function FieldSpecThread({ id }) {
         <div style={{ fontSize: 13, marginTop: 6 }}>{rec.help}</div>
       </div>
 
-      <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10, paddingBottom: 150 }}>
+      <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10, paddingBottom: 170 }}>
         {thread.length === 0 && <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, padding: 20 }}>No replies yet.</div>}
         {thread.map((m, i) => {
           const mine = m.by === CU().name;
@@ -2057,7 +2057,7 @@ function FieldSpecThread({ id }) {
         })}
       </div>
 
-      <div style={{ position: "fixed", bottom: "calc(62px + env(safe-area-inset-bottom))", left: 0, right: 0, maxWidth: 480, margin: "0 auto", display: "flex", gap: 8, alignItems: "center", padding: "10px 12px", background: "#fff", borderTop: "1px solid var(--line)", zIndex: 45 }}>
+      <div style={{ position: "fixed", bottom: "calc(74px + env(safe-area-inset-bottom))", left: 0, right: 0, maxWidth: 480, margin: "0 auto", display: "flex", gap: 8, alignItems: "center", padding: "10px 12px", background: "#fff", borderTop: "1px solid var(--line)", zIndex: 45 }}>
         <label style={{ display: "grid", placeItems: "center", cursor: "pointer", color: "var(--muted)", width: 38 }}>
           📎<input type="file" style={{ display: "none" }} onChange={(e) => setFile(e.target.files[0])} />
         </label>
@@ -2438,6 +2438,30 @@ function FieldGenericThread({ mod, id }) {
       <div style={{ padding: "12px 16px", background: "#fff", borderBottom: "1px solid #eceff8" }}>
         <div style={{ fontWeight: 800, fontSize: 14 }}>{rec.name || rec.project || rec.customer || rec.title || rec.category || rec.type || mod} {rec.amount || rec.value ? "· ₹" + Number(rec.amount || rec.value).toLocaleString("en-IN") : ""}</div>
         <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{rec.product || rec.desc || rec.help || rec.details || rec.specHelp || ""}</div>
+        {/* Expense full details */}
+        {mod === "expense" && (
+          <div style={{ marginTop: 8, background: "#f6f8fd", borderRadius: 10, padding: "9px 11px", fontSize: 12, display: "grid", gap: 4 }}>
+            {rec.category && <div><b>Category:</b> {rec.category}</div>}
+            {rec.type && <div><b>Type:</b> {rec.type}</div>}
+            {rec.amount != null && <div><b>Amount:</b> ₹{Number(rec.amount).toLocaleString("en-IN")}</div>}
+            {rec.date && <div><b>Date:</b> {rec.date}</div>}
+            {rec.desc && rec.desc !== "--" && <div><b>Description:</b> {rec.desc}</div>}
+            {rec.createdBy && <div><b>By:</b> {rec.createdBy}</div>}
+            {rec.status && <div><b>Status:</b> {rec.status}</div>}
+          </div>
+        )}
+        {/* Leave full details */}
+        {mod === "leave" && (
+          <div style={{ marginTop: 8, background: "#f6f8fd", borderRadius: 10, padding: "9px 11px", fontSize: 12, display: "grid", gap: 4 }}>
+            {rec.type && <div><b>Leave Type:</b> {rec.type}</div>}
+            {rec.mode && <div><b>Mode:</b> {rec.mode}</div>}
+            {rec.from && <div><b>From:</b> {rec.from}</div>}
+            {rec.to && <div><b>To:</b> {rec.to}</div>}
+            {rec.reason && <div><b>Reason:</b> {rec.reason}</div>}
+            {rec.approvedBy && <div><b>Approved By:</b> {rec.approvedBy}</div>}
+            {rec.status && <div><b>Status:</b> {rec.status}</div>}
+          </div>
+        )}
         {/* full project details (Sales/Spec/Projection): open cheyaganē full info */}
         {["projectProjection", "salesToSpec", "specToSales"].includes(mod) && (
           <div style={{ marginTop: 8, background: "#f6f8fd", borderRadius: 10, padding: "9px 11px", fontSize: 12, display: "grid", gap: 4 }}>
@@ -2509,7 +2533,7 @@ function FieldGenericThread({ mod, id }) {
           </div>
         )}
       </div>
-      <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10, paddingBottom: 150 }}>
+      <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10, paddingBottom: 170 }}>
         {thread.length === 0 && <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, padding: 20 }}>No messages yet. You can reply below.</div>}
         {thread.map((m, i) => {
           const mine = m.by === CU().name;
@@ -2526,7 +2550,7 @@ function FieldGenericThread({ mod, id }) {
           );
         })}
       </div>
-      <div style={{ position: "fixed", bottom: "calc(62px + env(safe-area-inset-bottom))", left: 0, right: 0, maxWidth: 480, margin: "0 auto", padding: "8px 12px 10px", background: "#fff", borderTop: "1px solid var(--line)", zIndex: 45 }}>
+      <div style={{ position: "fixed", bottom: "calc(74px + env(safe-area-inset-bottom))", left: 0, right: 0, maxWidth: 480, margin: "0 auto", padding: "8px 12px 10px", background: "#fff", borderTop: "1px solid var(--line)", zIndex: 45 }}>
         {mod === "projectProjection" && specUsers.length > 0 && (
           <select value={tag} onChange={(e) => setTag(e.target.value)}
             style={{ width: "100%", marginBottom: 8, padding: "8px 10px", borderRadius: 10, border: "1.5px solid #d7dcef", fontSize: 12.5, background: tag ? "#eef1ff" : "#fff", fontWeight: tag ? 700 : 400 }}>

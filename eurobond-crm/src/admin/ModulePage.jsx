@@ -299,7 +299,7 @@ export default function ModulePage({ cfgKey }) {
         <DataTable
           extraActions={(cfg.approveFlow || cfg.isSpecThread) ? (r) => (
             <span style={{ display: "inline-flex", gap: 4, marginRight: 6 }}>
-              {cfg.isSpecThread && (
+              {(cfg.isSpecThread || cfg.approveFlow) && (
                 <button className="btn" style={{ padding: "3px 8px", fontSize: 11, background: "#eef1ff", color: "#3949ab" }} onClick={() => setChatRow(r)}>💬 Chat</button>
               )}
               {(cfg.approveFlow || []).filter((st) => st !== r.status).map((st) => (
