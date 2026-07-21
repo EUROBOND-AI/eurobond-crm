@@ -1255,7 +1255,7 @@ function FieldFollowUpNew({ add }) {
             /* WhatsApp: visit chesamu ani chinna draft customer ki (settings lo enable unte) */
             sendFollowupWhatsApp(primary.whatsapp || primary.mobile, f.partyName, f.type, f.date);
             if (window.confirm("Customer saved. Add a Quotation for this customer now?")) {
-              QUOTE_PREFILL.data = { customer: f.partyName, mobile: primary.mobile, city: f.address };
+              QUOTE_PREFILL.data = { customer: f.partyName, partyName: f.partyName, contactName: primary.name, contactNumber: primary.mobile, mobile: primary.mobile, address: f.address, category: f.category };
               nav("/app/m/quotation/new");
             } else nav("/app/customers");
           }}
@@ -1788,9 +1788,8 @@ function FieldModule({ mod }) {
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>No records yet. Tap + Add to create one.</div>
         ) : rows.map((r, i) => (
           <div key={i} onClick={() => {
-            if (mod === "task") nav(`/app/thread/task/${r._id}`);
-            else if (cfg.isSpecThread) nav(`/app/thread/${mod}/${r._id}`);
-          }} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "var(--shadow)", cursor: (cfg.isSpecThread || mod === "task") ? "pointer" : "default" }}>
+            if (mod === "task" || mod === "projectProjection" || cfg.isSpecThread) nav(`/app/thread/${mod}/${r._id}`);
+          }} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "var(--shadow)", cursor: (cfg.isSpecThread || mod === "task" || mod === "projectProjection") ? "pointer" : "default" }}>
             {r.photo && <img src={r.photo} alt="" style={{ width: "100%", borderRadius: 10, marginBottom: 8, maxHeight: 180, objectFit: "cover" }} />}
             <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 13.5 }}>
               <span>{r[primary] || cfg.appLabel}</span>
@@ -1899,6 +1898,7 @@ function FieldModuleNew({ mod }) {
                     id: "STS-" + String(Date.now()).slice(-4),
                     project: f.name, firm: f.firm, city: f.city, value: f.value,
                     help: f.specHelp || "", specPerson: f.specPerson,
+                    ...(photoUrl ? { photo: photoUrl } : {}),
                     source: "Revert", projectionId: created && created.id ? created.id : "",
                     status: "Pending", createdBy: CU().name,
                     createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
@@ -1918,12 +1918,14 @@ function FieldModuleNew({ mod }) {
                     id: "PPJ-" + String(Date.now()).slice(-4),
                     name: f.project, firm: f.firm || "", city: f.city || "", value: f.value || "",
                     details: f.help || "", status: "Running", source: "Direct",
+                    ...(photoUrl ? { photo: photoUrl } : {}),
                     createdBy: CU().name,
                     createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
                   });
                   await api.create("salesToSpec", {
                     id: "STS-" + String(Date.now()).slice(-4),
                     project: f.project, help: f.help || "", specPerson: CU().name, salesPerson: f.salesPerson,
+                    ...(photoUrl ? { photo: photoUrl } : {}),
                     source: "Direct", projectionId: pj && pj.id ? pj.id : "",
                     status: "Approved", createdBy: CU().name,
                     createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
@@ -2361,7 +2363,7 @@ function FieldCustomers({ nearbyOnly = false }) {
               {r.mobile && <button onClick={() => (window.location.href = `tel:${r.mobile}`)} style={actBtn("#1f9d55")}>📞 Call</button>}
               {r.mobile && <button onClick={() => window.open(`https://wa.me/91${r.mobile}`, "_blank")} style={actBtn("#25d366")}>💬 WhatsApp</button>}
               <button onClick={() => setViewCust(r)} style={{ ...actBtn("#3949ab"), background: "#eef1ff", color: "#3949ab" }}>👁 View</button>
-              <button onClick={() => { QUOTE_PREFILL.data = { customer: r.name, mobile: r.mobile, city: r.place || r.address }; nav("/app/m/quotation/new"); }} style={{ ...actBtn("#0b3c8c"), background: "#e8f0ff", color: "#0b3c8c" }}>📄 Add Quotation</button>
+              <button onClick={() => { QUOTE_PREFILL.data = { customer: r.name, partyName: r.name, contactName: r.name, contactNumber: r.mobile, mobile: r.mobile, address: r.address || r.place, type: r.type }; nav("/app/m/quotation/new"); }} style={{ ...actBtn("#0b3c8c"), background: "#e8f0ff", color: "#0b3c8c" }}>📄 Add Quotation</button>
             </div>
           </div>
         ))}
@@ -2412,6 +2414,7 @@ function FieldGenericThread({ mod, id }) {
   const [busy, setBusy] = useState(false);
   const [specUsers, setSpecUsers] = useState([]);
   const [tag, setTag] = useState("");
+  const [showFollowup, setShowFollowup] = useState(false);
 
   const load = () => api.get(mod, id).then((d) => setRec({ _id: d.record.id, ...d.record.data })).catch(() => {});
   useEffect(() => { load(); }, [mod, id]);
@@ -2545,17 +2548,7 @@ function FieldGenericThread({ mod, id }) {
               {STATUS_OPTS[mod].map((s) => <option key={s}>{s}</option>)}
             </select>
             {mod === "projectProjection" && (
-              <button onClick={async () => {
-                const remark = (window.prompt("Monthly follow-up remark (min 50 chars):") || "").trim();
-                if (remark.length < 50) { alert(`Too short (${remark.length}/50).`); return; }
-                const month = new Date().toLocaleString("en-IN", { month: "short", year: "numeric" });
-                const data = { ...rec };
-                delete data._id;
-                data.lastUpdate = `${month}: follow-up`;
-                data.monthlyUpdates = [...(rec.monthlyUpdates || []), { month, remark, by: CU().name, at: new Date().toLocaleString("en-IN") }];
-                data.thread = [...(rec.thread || []), { by: CU().name, text: `📅 Follow-up (${month}): ${remark}`, at: new Date().toLocaleString("en-IN") }];
-                try { await api.update(mod, id, data); setRec({ ...rec, ...data, _id: rec._id }); } catch (e) { alert(e.message); }
-              }} style={{ width: "100%", marginTop: 8, padding: "9px", borderRadius: 9, border: "1px solid var(--accent)", background: "#eef1ff", color: "var(--accent)", fontWeight: 700, fontSize: 12.5 }}>
+              <button onClick={() => setShowFollowup(true)} style={{ width: "100%", marginTop: 8, padding: "9px", borderRadius: 9, border: "1px solid var(--accent)", background: "#eef1ff", color: "var(--accent)", fontWeight: 700, fontSize: 12.5 }}>
                 📅 Add Monthly Follow-up
               </button>
             )}
@@ -2593,7 +2586,57 @@ function FieldGenericThread({ mod, id }) {
         <button className="f-submit" style={{ padding: "8px 16px", borderRadius: 20 }} disabled={busy} onClick={send}>Send</button>
         </div>
       </div>
+      {showFollowup && (
+        <MonthlyFollowupModal
+          onClose={() => setShowFollowup(false)}
+          onSave={async ({ date, remark, photoUrl }) => {
+            const month = new Date(date).toLocaleString("en-IN", { month: "short", year: "numeric" });
+            const data = { ...rec }; delete data._id;
+            data.lastUpdate = `${month}: follow-up`;
+            data.monthlyUpdates = [...(rec.monthlyUpdates || []), { month, date, remark, photo: photoUrl || "", by: CU().name, at: new Date().toLocaleString("en-IN") }];
+            /* project photos: first photo + prati follow-up photo accumulate (backend lo kuda) */
+            if (photoUrl) data.photos = [...(Array.isArray(rec.photos) ? rec.photos : (rec.photo ? [rec.photo] : [])), photoUrl];
+            data.thread = [...(rec.thread || []), { by: CU().name, text: `📅 Follow-up (${month}): ${remark}`, doc: photoUrl || "", at: new Date().toLocaleString("en-IN") }];
+            try { await api.update(mod, id, data); setRec({ ...rec, ...data, _id: rec._id }); setShowFollowup(false); } catch (e) { alert(e.message); }
+          }}
+        />
+      )}
     </>
+  );
+}
+
+function MonthlyFollowupModal({ onClose, onSave }) {
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [remark, setRemark] = useState("");
+  const [photoUrl, setPhotoUrl] = useState("");
+  const [upBusy, setUpBusy] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const doUpload = async (file) => {
+    if (!file) return;
+    setUpBusy(true);
+    try { const r = await api.uploadPhoto(file, "projectProjection"); setPhotoUrl(r.url); }
+    catch (e) { alert("Upload failed: " + e.message); }
+    setUpBusy(false);
+  };
+  return (
+    <div className="f-sheet-mask" onClick={onClose}>
+      <div className="f-sheet sheet-3d" onClick={(e) => e.stopPropagation()}>
+        <div style={{ fontFamily: "Bricolage Grotesque", fontWeight: 800, fontSize: 17, marginBottom: 12 }}>Monthly Follow-up</div>
+        <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)" }}>Date</label>
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: 10, border: "1.5px solid #d7dcef", marginBottom: 10 }} />
+        <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)" }}>Remark (min 50 chars)</label>
+        <textarea rows={3} value={remark} onChange={(e) => setRemark(e.target.value)} placeholder="What happened this month…" style={{ width: "100%", padding: "10px", borderRadius: 10, border: "1.5px solid #d7dcef", marginBottom: 4 }} />
+        <div style={{ fontSize: 11, color: remark.length >= 50 ? "#1f9d55" : "var(--muted)", marginBottom: 10 }}>{remark.length}/50</div>
+        <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)" }}>Attachment (photo)</label>
+        <input type="file" accept="image/*" capture="environment" onChange={(e) => doUpload(e.target.files[0])} style={{ marginBottom: 6, width: "100%" }} />
+        {upBusy && <div style={{ fontSize: 12, color: "var(--muted)" }}>Uploading…</div>}
+        {photoUrl && <img src={photoUrl} alt="" style={{ width: "100%", borderRadius: 10, marginBottom: 8 }} />}
+        <button className="f-submit" style={{ width: "100%", marginTop: 8 }} disabled={remark.length < 50 || busy || upBusy}
+          onClick={async () => { setBusy(true); await onSave({ date, remark, photoUrl }); setBusy(false); }}>
+          {busy ? "Saving…" : "Save Follow-up"}
+        </button>
+      </div>
+    </div>
   );
 }
 

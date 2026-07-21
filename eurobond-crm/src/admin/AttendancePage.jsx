@@ -5,6 +5,14 @@ import { PageHead, Pill } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { fmtKm } from "../lib/geo.js";
 
+const rawTime = (dt) => {
+  if (!dt) return null;
+  const m = String(dt).match(/(\d{2}):(\d{2})/);
+  if (!m) return null;
+  let h = +m[1]; const min = m[2]; const ap = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return `${h}:${min} ${ap}`;
+};
 export default function AttendancePage() {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [dateTo, setDateTo] = useState(new Date().toISOString().slice(0, 10));
@@ -112,8 +120,8 @@ export default function AttendancePage() {
                 </td>
                 <td>{s.zone || "—"}</td>
                 <td>{s.city || "—"}</td>
-                <td>{s.start_time ? new Date(s.start_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
-                <td>{s.end_time ? new Date(s.end_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "Running"}</td>
+                <td>{rawTime(s.start_time) || "—"}</td>
+                <td>{rawTime(s.end_time) || "Running"}</td>
                 <td>{fmtKm(Number(s.distance_km) || 0)}</td>
                 <td>
                   {s.start_selfie

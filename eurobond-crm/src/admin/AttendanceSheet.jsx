@@ -4,7 +4,7 @@ import { api } from "../lib/api.js";
 
 /* ---------------------------------------------------------------------------
    Attendance Sheet — mee Excel sheet laga month grid.
-   Codes: P = Present (Local) · T = Tour (Ex/Outstation) · WFH = Work From Home
+   Codes: P = Local · T = Tour (Ex/Outstation) · WFH = Work From Home
           L = Leave (approved) · HO = Holiday · S = Sunday/Weekly off · blank = Absent
 --------------------------------------------------------------------------- */
 
@@ -129,7 +129,7 @@ export default function AttendanceSheet() {
 
   const exportCsv = () => {
     if (!grid) return;
-    const head = ["Name", "Code", "Zone", "City", ...Array.from({ length: daysInMonth }, (_, i) => i + 1), "Present", "Tour", "WFH", "Leave"];
+    const head = ["Name", "Code", "Zone", "City", ...Array.from({ length: daysInMonth }, (_, i) => i + 1), "Local", "Tour", "WFH", "Leave"];
     const rows = grid.map(({ u, cells, totals }) =>
       [u.name, u.code || "", u.zone || "", u.city || "", ...cells, totals.present, totals.t, totals.wfh, totals.l]);
     const csv = [head, ...rows].map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -172,7 +172,7 @@ export default function AttendanceSheet() {
 
       {/* legend */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-        {Object.entries({ P: "Present", T: "Tour", WFH: "Work From Home", L: "Leave", HO: "Holiday", S: "Weekly Off" }).map(([k, label]) => (
+        {Object.entries({ P: "Local", T: "Tour", WFH: "Work From Home", L: "Leave", HO: "Holiday", S: "Weekly Off" }).map(([k, label]) => (
           <span key={k} style={{ fontSize: 11.5, fontWeight: 700, padding: "4px 10px", borderRadius: 8, background: CODE_STYLE[k].bg, color: CODE_STYLE[k].color }}>
             {k} — {label}
           </span>
