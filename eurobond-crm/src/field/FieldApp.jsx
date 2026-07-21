@@ -979,12 +979,15 @@ function FieldLeave({ leaves, add }) {
         </div>
         {leaves.length === 0 && <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, padding: 26 }}>No leave applications yet</div>}
         {leaves.map((l, i) => (
-          <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "var(--shadow)" }}>
+          <div key={i}
+            onClick={() => l._id && nav(`/app/thread/leave/${l._id}`)}
+            style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "var(--shadow)", cursor: "pointer" }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 13.5 }}>
               <span>{l.type} · {l.mode}</span>
-              <span style={{ color: l.status === "Approved" ? "#1f9d55" : "#c99400" }}>{l.status}</span>
+              <span style={{ color: l.status === "Approved" ? "#1f9d55" : l.status === "Rejected" ? "#c03636" : "#c99400" }}>{l.status}</span>
             </div>
             <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 4 }}>{l.from} → {l.to} · {l.reason}</div>
+            <div style={{ color: "var(--accent)", fontSize: 11, marginTop: 6, fontWeight: 700 }}>💬 Tap to view / chat</div>
           </div>
         ))}
       </div>
