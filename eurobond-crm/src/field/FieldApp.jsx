@@ -2361,7 +2361,7 @@ function FieldCustomers({ nearbyOnly = false }) {
               {r.mobile && <button onClick={() => (window.location.href = `tel:${r.mobile}`)} style={actBtn("#1f9d55")}>📞 Call</button>}
               {r.mobile && <button onClick={() => window.open(`https://wa.me/91${r.mobile}`, "_blank")} style={actBtn("#25d366")}>💬 WhatsApp</button>}
               <button onClick={() => setViewCust(r)} style={{ ...actBtn("#3949ab"), background: "#eef1ff", color: "#3949ab" }}>👁 View</button>
-              <button onClick={() => { FOLLOWUP_PREFILL.data = r; nav("/app/followup/new"); }} style={{ ...actBtn("#0b3c8c"), background: "#e8f0ff", color: "#0b3c8c" }}>➕ Follow Up</button>
+              <button onClick={() => { QUOTE_PREFILL.data = { customer: r.name, mobile: r.mobile, city: r.place || r.address }; nav("/app/m/quotation/new"); }} style={{ ...actBtn("#0b3c8c"), background: "#e8f0ff", color: "#0b3c8c" }}>📄 Add Quotation</button>
             </div>
           </div>
         ))}
