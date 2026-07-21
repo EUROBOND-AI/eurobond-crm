@@ -62,7 +62,7 @@ export function EmptyState() {
 }
 
 // Generic filterable table used across every module
-export function DataTable({ columns, rows, onDelete, onEdit, onView, actions = true, extraActions }) {
+export function DataTable({ columns, rows, onDelete, onEdit, onView, onRowClick, actions = true, extraActions }) {
   const [filters, setFilters] = useState({});
   const filtered = useMemo(
     () =>
@@ -106,10 +106,10 @@ export function DataTable({ columns, rows, onDelete, onEdit, onView, actions = t
           </thead>
           <tbody>
             {filtered.map((r, i) => (
-              <tr key={i}>
-                <td>{i + 1}</td>
+              <tr key={i} className={onRowClick ? "row-click" : ""}>
+                <td onClick={() => onRowClick && onRowClick(r)} style={onRowClick ? { cursor: "pointer" } : undefined}>{i + 1}</td>
                 {columns.map((c) => (
-                  <td key={c.key}>{c.render ? c.render(r[c.key], r) : r[c.key] ?? "--"}</td>
+                  <td key={c.key} onClick={() => onRowClick && onRowClick(r)} style={onRowClick ? { cursor: "pointer" } : undefined}>{c.render ? c.render(r[c.key], r) : r[c.key] ?? "--"}</td>
                 ))}
                 {actions && (
                   <td>

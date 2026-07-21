@@ -49,7 +49,7 @@ export function watchLocation(onPoint, onError) {
           backgroundTitle: "Eurobond CRM",
           requestPermissions: true,
           stale: false,
-          distanceFilter: 10,
+          distanceFilter: 5,
         },
         (location, error) => {
           if (error) {

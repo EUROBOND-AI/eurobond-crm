@@ -297,15 +297,12 @@ export default function ModulePage({ cfgKey }) {
         <div style={{ padding: 24, background: "#fdecec", color: "#c03636", borderRadius: 12, fontWeight: 600 }}>{err}</div>
       ) : (
         <DataTable
-          extraActions={(cfg.approveFlow || cfg.isSpecThread) ? (r) => (
+          extraActions={cfg.approveFlow ? (r) => (
             <span style={{ display: "inline-flex", gap: 4, marginRight: 6 }}>
-              {(cfg.isSpecThread || cfg.approveFlow) && (
-                <button className="btn" style={{ padding: "3px 8px", fontSize: 11, background: "#eef1ff", color: "#3949ab" }} onClick={() => setChatRow(r)}>💬 Chat</button>
-              )}
               {(cfg.approveFlow || []).filter((st) => st !== r.status).map((st) => (
                 <button key={st} className="btn"
                   style={{ padding: "3px 8px", fontSize: 11, background: st.startsWith("Rej") || st === "Reject" ? "#fdecea" : st === "Paid" ? "#e4e8ff" : "#d7f5ea", color: st.startsWith("Rej") || st === "Reject" ? "#c03636" : st === "Paid" ? "#3949ab" : "#00885f" }}
-                  onClick={() => setStatus(r, st)}>
+                  onClick={(e) => { e.stopPropagation(); setStatus(r, st); }}>
                   {st}
                 </button>
               ))}
@@ -314,6 +311,7 @@ export default function ModulePage({ cfgKey }) {
           columns={shownColumns}
           rows={visible}
           actions={cfg.actions !== false}
+          onRowClick={(cfg.approveFlow || cfg.isSpecThread) ? (r) => setChatRow(r) : null}
           onDelete={handleDelete}
           onEdit={cfg.form ? (r) => { setEditing(r); setShowForm(true); } : null}
         />
@@ -420,8 +418,33 @@ function AdminChatModal({ row, cfgKey, onClose, onSent }) {
   return (
     <div className="modal-mask" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 480, display: "flex", flexDirection: "column", maxHeight: "80vh" }} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ marginBottom: 4 }}>{rec.id} · {rec.project || ""}</h3>
-        <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 10 }}>{rec.createdBy} ↔ {rec.specPerson || rec.salesPerson || ""} · {rec.help || ""}</div>
+        <h3 style={{ marginBottom: 4 }}>{rec.id} · {rec.project || rec.name || rec.category || rec.type || ""}</h3>
+        <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 8 }}>{rec.createdBy} {rec.specPerson || rec.salesPerson ? "↔ " + (rec.specPerson || rec.salesPerson) : ""} {rec.help ? "· " + rec.help : ""}</div>
+        <div style={{ background: "#f6f8fd", borderRadius: 10, padding: "9px 11px", fontSize: 12, display: "grid", gap: 4, marginBottom: 10 }}>
+          {rec.category && <div><b>Category:</b> {rec.category}</div>}
+          {rec.type && <div><b>Type:</b> {rec.type}</div>}
+          {(rec.amount != null && rec.amount !== "") && <div><b>Amount:</b> ₹{Number(rec.amount).toLocaleString("en-IN")}</div>}
+          {(rec.value) && <div><b>Value:</b> ₹{Number(rec.value).toLocaleString("en-IN")}</div>}
+          {rec.date && <div><b>Date:</b> {rec.date}</div>}
+          {rec.from && <div><b>From:</b> {rec.from}</div>}
+          {rec.to && <div><b>To:</b> {rec.to}</div>}
+          {rec.mode && <div><b>Mode:</b> {rec.mode}</div>}
+          {rec.reason && <div><b>Reason:</b> {rec.reason}</div>}
+          {rec.desc && rec.desc !== "--" && <div><b>Description:</b> {rec.desc}</div>}
+          {rec.firm && <div><b>Firm:</b> {rec.firm}</div>}
+          {rec.city && <div><b>City:</b> {rec.city}</div>}
+          {rec.approvedBy && <div><b>Approved By:</b> {rec.approvedBy}</div>}
+          {rec.status && <div><b>Status:</b> {rec.status}</div>}
+        </div>
+        {(rec.photo || (Array.isArray(rec.photos) && rec.photos.length)) && (
+          <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+            {[rec.photo, ...(Array.isArray(rec.photos) ? rec.photos : [])].filter(Boolean).map((u, i) => (
+              String(u).match(/\.pdf$/i)
+                ? <a key={i} href={u} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "var(--accent)", fontWeight: 700 }}>📄 Attachment</a>
+                : <a key={i} href={u} target="_blank" rel="noreferrer"><img src={u} alt="" style={{ width: 54, height: 54, objectFit: "cover", borderRadius: 8, border: "1px solid #dfe4f0" }} /></a>
+            ))}
+          </div>
+        )}
         <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, padding: "6px 0", minHeight: 160 }}>
           {thread.length === 0 && <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, padding: 16 }}>No messages yet.</div>}
           {thread.map((m, i) => {
@@ -430,7 +453,9 @@ function AdminChatModal({ row, cfgKey, onClose, onSent }) {
               <div key={i} style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "75%" }}>
                 <div style={{ background: mine ? "var(--navy)" : "#f0f2fa", color: mine ? "#fff" : "var(--ink)", borderRadius: 12, padding: "8px 12px", fontSize: 13 }}>
                   {m.text}
-                  {m.doc && <a href={m.doc} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 4, color: mine ? "#cfe0ff" : "var(--accent)", fontSize: 12, fontWeight: 700 }}>📎 View document</a>}
+                  {m.doc && (String(m.doc).match(/\.pdf$/i)
+                    ? <a href={m.doc} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 4, color: mine ? "#cfe0ff" : "var(--accent)", fontSize: 12, fontWeight: 700 }}>📄 View PDF</a>
+                    : <a href={m.doc} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 4 }}><img src={m.doc} alt="" style={{ maxWidth: 150, borderRadius: 8 }} /></a>)}
                 </div>
                 <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 2, textAlign: mine ? "right" : "left" }}>{m.by} · {m.at}</div>
               </div>

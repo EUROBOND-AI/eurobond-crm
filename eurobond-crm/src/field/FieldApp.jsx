@@ -341,7 +341,10 @@ function ScreenHead({ title, back = true, right = null }) {
 }
 
 /* ------------------------------------------------ HOME ------------------------------------------------ */
-function FieldHome({ attendanceOn, setAttendanceOn, tracking, expenses, followups, leaves, onStartAttendance, onStopAttendance }) {
+const ATT_START_HOUR = 6;   // morning 6 AM
+const ATT_END_HOUR = 21;    // night 9 PM
+const withinAttWindow = () => { const h = new Date().getHours(); return h >= ATT_START_HOUR && h < ATT_END_HOUR; };
+function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expenses, followups, leaves, onStartAttendance, onStopAttendance }) {
   const [seg, setSeg] = useState("Matrics");
   const [sheet, setSheet] = useState(false);
   const [, tickHome] = useState(0);
@@ -382,7 +385,17 @@ function FieldHome({ attendanceOn, setAttendanceOn, tracking, expenses, followup
           </div>
           <BellWithBadge onClick={() => nav("/app/notifications")} />
         </div>
-        <SlideToStart on={attendanceOn} onToggle={() => { if (!attendanceOn) { onStartAttendance(); } else { onStopAttendance(); } }} />
+        {doneToday ? (
+          <div style={{ background: "#e8f7ee", border: "1.5px solid #7ed9a0", borderRadius: 16, padding: "16px", textAlign: "center", fontWeight: 800, color: "#1f7a44", fontSize: 14 }}>
+            ✓ Attendance completed for today
+          </div>
+        ) : !withinAttWindow() && !attendanceOn ? (
+          <div style={{ background: "#f1f3f8", border: "1.5px solid #d7dcef", borderRadius: 16, padding: "16px", textAlign: "center", fontWeight: 700, color: "var(--muted)", fontSize: 13 }}>
+            Attendance available 6:00 AM – 9:00 PM
+          </div>
+        ) : (
+          <SlideToStart on={attendanceOn} onToggle={() => { if (!attendanceOn) { onStartAttendance(); } else { onStopAttendance(); } }} />
+        )}
       </div>
 
       <div className="f-seg">
@@ -2854,10 +2867,12 @@ export default function FieldApp() {
   const todaySessionRef = useRef(null);       // {visit_type, transport} — stop-flow photo rules ki
   const stopExtraRef = useRef(null);          // logout photos/address -> attStop body
   const [attendanceOn, setAttendanceOn] = useState(false);
+  const [doneToday, setDoneToday] = useState(false);   // aa roju logout ayipoyinda
 
-  /* App open aithe: server lo session inka RUNNING unte -> automatic ga ON state loki,
-     GPS tracking malli start (SAME session, existing km untundi). User ki malli
-     "Slide to Start" kaadu — already logged-in/ON ga kanipistundi. Only Logout untundi. */
+  /* App open aithe:
+     - session RUNNING -> auto ON state (Slide to Start kaadu, only Logout)
+     - session DONE (aa roju already logout) -> doneToday=true, malli login raadu
+     App close/open madhyalo RUNNING unte options ye untayi (logout cheyyanantavaraku). */
   useEffect(() => {
     if (!authed) return;
     api.attToday().then((d) => {
@@ -2868,7 +2883,10 @@ export default function FieldApp() {
           const st = new Date(d.session.start_time.replace(" ", "T")).getTime();
           setTracking((t) => ({ ...t, startedAt: t.startedAt || st, stoppedAt: null }));
         }
-        if (!attendanceOn) { resumeRef.current = true; setAttendanceOn(true); }   // -> ON state, resume tracking
+        if (!attendanceOn) { resumeRef.current = true; setAttendanceOn(true); }
+        setDoneToday(false);
+      } else if (d.session && d.session.status === "DONE") {
+        setDoneToday(true);   // aa roju logout ayipoyindi -> malli login option raadu
       }
     }).catch(() => {});
     // eslint-disable-next-line
@@ -2982,8 +3000,9 @@ export default function FieldApp() {
           if (last) {                                            // first point always kept immediately
             const sinceMs = Date.now() - (last.t || 0);
             const intervalMs = (cfg.intervalSec ?? 30) * 1000;
-            const minKm = cfg.minDistanceKm ?? 0;
-            if (sinceMs < intervalMs && (minKm <= 0 || haversineKm(last, p) < minKm)) return;
+            const movedM = haversineKm(last, p) * 1000;
+            /* keep if moved >=5m (full path) OR 30s passed (idle points too) */
+            if (movedM < 5 && sinceMs < intervalMs) return;
           }
           p.t = Date.now();
           p.time = p.time || Date.now();
@@ -3107,7 +3126,7 @@ export default function FieldApp() {
 
         <div className="phone-body">
           <Routes>
-            <Route index element={<FieldHome attendanceOn={attendanceOn} setAttendanceOn={setAttendanceOn} tracking={tracking} expenses={expenses} followups={followups} leaves={leaves} onStartAttendance={() => setVisitPopup(true)} onStopAttendance={() => setStopPopup(true)} />} />
+            <Route index element={<FieldHome attendanceOn={attendanceOn} doneToday={doneToday} setAttendanceOn={setAttendanceOn} tracking={tracking} expenses={expenses} followups={followups} leaves={leaves} onStartAttendance={() => setVisitPopup(true)} onStopAttendance={() => setStopPopup(true)} />} />
             <Route path="attendance" element={<FieldAttendance attendanceOn={attendanceOn} setAttendanceOn={setAttendanceOn} tracking={tracking} setTracking={setTracking} gpsAlarm={gpsAlarm} />} />
             <Route path="expense" element={<FieldExpense list={expenses} add={(e) => setExpenses((x) => [e, ...x])} />} />
             <Route path="expense/new" element={<FieldExpenseNew add={async (e) => { try { const r = await api.create("expense", e); setExpenses((x) => [{ _id: r.id, ...e }, ...x]); } catch (err) { alert(err.message); } }} />} />
@@ -3176,7 +3195,7 @@ export default function FieldApp() {
             onClose={() => setStopPopup(false)}
             onDone={(info) => {
               stopExtraRef.current = { selfie: info.selfie, reading: info.reading, address: info.address };
-              setStopPopup(false); setAttendanceOn(false);
+              setStopPopup(false); setAttendanceOn(false); setDoneToday(true);
             }}
           />
         )}
