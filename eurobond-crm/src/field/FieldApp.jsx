@@ -1149,11 +1149,12 @@ async function sendFollowupWhatsApp(number, party, type, date) {
 
 function FieldFollowUpNew({ add }) {
   const nav = useNavigate();
+  const pf = FOLLOWUP_PREFILL.data; FOLLOWUP_PREFILL.data = null;   // one-time prefill from Customer -> Follow Up
   const [f, setF] = useState({
-    category: "Architect", partyName: "", projectName: "", address: "", pincode: "",
+    category: pf?.type || "Architect", partyName: pf?.name || "", projectName: "", address: "", pincode: "",
     gst: "", pan: "", type: "Call", date: "", notes: "", lat: null, lng: null,
   });
-  const [contacts, setContacts] = useState([{ name: "", mobile: "", whatsapp: "" }]);
+  const [contacts, setContacts] = useState([{ name: pf?.name || "", mobile: pf?.mobile || "", whatsapp: pf?.mobile || "" }]);
   const [locBusy, setLocBusy] = useState(true);
 
   /* address AUTO — form open avvagane GPS capture, edit cheyaledu (fake address end) */
@@ -2353,13 +2354,35 @@ function FieldCustomers({ nearbyOnly = false }) {
               <span style={{ fontSize: 11.5, color: "var(--muted)", fontWeight: 600 }}>{r.followups} follow-up{r.followups > 1 ? "s" : ""}</span>
             </div>
             {(r.place || r.address) && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>📍 {r.place || r.address}</div>}
-            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
               {r.mobile && <button onClick={() => (window.location.href = `tel:${r.mobile}`)} style={actBtn("#1f9d55")}>📞 Call</button>}
               {r.mobile && <button onClick={() => window.open(`https://wa.me/91${r.mobile}`, "_blank")} style={actBtn("#25d366")}>💬 WhatsApp</button>}
+              <button onClick={() => setViewCust(r)} style={{ ...actBtn("#3949ab"), background: "#eef1ff", color: "#3949ab" }}>👁 View</button>
+              <button onClick={() => { FOLLOWUP_PREFILL.data = r; nav("/app/followup/new"); }} style={{ ...actBtn("#0b3c8c"), background: "#e8f0ff", color: "#0b3c8c" }}>➕ Follow Up</button>
             </div>
           </div>
         ))}
       </div>
+      {viewCust && (
+        <div className="f-sheet-mask" onClick={() => setViewCust(null)}>
+          <div className="f-sheet sheet-3d" onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontFamily: "Bricolage Grotesque", fontWeight: 800, fontSize: 17, marginBottom: 12 }}>{viewCust.name}</div>
+            <div style={{ display: "grid", gap: 7, fontSize: 13 }}>
+              {viewCust.mobile && <div><b>Mobile:</b> {viewCust.mobile}</div>}
+              {viewCust.type && <div><b>Type:</b> {viewCust.type}</div>}
+              {viewCust.place && <div><b>Place:</b> {viewCust.place}</div>}
+              {viewCust.address && <div><b>Address:</b> {viewCust.address}</div>}
+              <div><b>Follow-ups:</b> {viewCust.followups}</div>
+              {viewCust.last_followup && <div><b>Last Entry:</b> {String(viewCust.last_followup).slice(0, 16)}</div>}
+              {viewCust.by && <div><b>By:</b> {viewCust.by}</div>}
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+              {viewCust.mobile && <button onClick={() => (window.location.href = `tel:${viewCust.mobile}`)} style={{ flex: 1, ...actBtn("#1f9d55") }}>📞 Call</button>}
+              <button onClick={() => { FOLLOWUP_PREFILL.data = viewCust; setViewCust(null); nav("/app/followup/new"); }} style={{ flex: 1, ...actBtn("#0b3c8c") }}>➕ Follow Up</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
