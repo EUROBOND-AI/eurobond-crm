@@ -58,9 +58,9 @@ const isMine = (n, me) => {
    or once every 5 min while idle. Outside office hours nothing is sent.
    Admin can override these from Masters -> App Settings.                        */
 const GPS_CFG = {
-  intervalSec: 30,           // record one point every 30 seconds (moving OR idle)
-  minDistanceKm: 0,          // 0 = pure time-based
-  idleMaxMs: 30 * 1000,
+  intervalSec: 10,           // record one point every 10 seconds (moving OR idle) - full walking capture
+  minDistanceKm: 0,          // no distance filter - pure time-based
+  idleMaxMs: 10 * 1000,
   officeStart: "09:00",
   officeEnd: "20:00",
   officeHoursOnly: false,
@@ -2867,26 +2867,30 @@ export default function FieldApp() {
   const todaySessionRef = useRef(null);       // {visit_type, transport} — stop-flow photo rules ki
   const stopExtraRef = useRef(null);          // logout photos/address -> attStop body
   const [attendanceOn, setAttendanceOn] = useState(false);
-  const [doneToday, setDoneToday] = useState(false);   // aa roju logout ayipoyinda
+  const todayKey = () => new Date().toLocaleDateString("en-CA");   // YYYY-MM-DD local (IST)
+  const [doneToday, setDoneToday] = useState(() => localStorage.getItem("eb_att_done") === todayKey());
 
   /* App open aithe:
      - session RUNNING -> auto ON state (Slide to Start kaadu, only Logout)
      - session DONE (aa roju already logout) -> doneToday=true, malli login raadu
-     App close/open madhyalo RUNNING unte options ye untayi (logout cheyyanantavaraku). */
+     doneToday localStorage lo date tho save -> app reopen aina, timezone shift aina hold avutundi. */
   useEffect(() => {
     if (!authed) return;
     api.attToday().then((d) => {
-      if (d.session && d.session.status === "RUNNING") {
-        sessionRef.current = Number(d.session.id);
-        todaySessionRef.current = d.session;
-        if (d.session.start_time) {
-          const st = new Date(d.session.start_time.replace(" ", "T")).getTime();
+      const s = d.session;
+      if (s && s.status === "RUNNING") {
+        sessionRef.current = Number(s.id);
+        todaySessionRef.current = s;
+        if (s.start_time) {
+          const st = new Date(s.start_time.replace(" ", "T")).getTime();
           setTracking((t) => ({ ...t, startedAt: t.startedAt || st, stoppedAt: null }));
         }
         if (!attendanceOn) { resumeRef.current = true; setAttendanceOn(true); }
         setDoneToday(false);
-      } else if (d.session && d.session.status === "DONE") {
-        setDoneToday(true);   // aa roju logout ayipoyindi -> malli login option raadu
+        localStorage.removeItem("eb_att_done");
+      } else if (s && s.status === "DONE") {
+        setDoneToday(true);
+        localStorage.setItem("eb_att_done", todayKey());
       }
     }).catch(() => {});
     // eslint-disable-next-line
@@ -2996,13 +3000,15 @@ export default function FieldApp() {
           const cfg = loadGpsCfg();
           if (!withinOfficeHours(cfg)) return;                 // outside office hours -> nothing stored/sent
 
+          /* GPS noise skip: accuracy chala weak (>50m) unte skip - walking distance clean ga untundi */
+          if (p.accuracy != null && p.accuracy > 50) return;
+
           const last = lastSavedPt.current;
           if (last) {                                            // first point always kept immediately
             const sinceMs = Date.now() - (last.t || 0);
-            const intervalMs = (cfg.intervalSec ?? 30) * 1000;
-            const movedM = haversineKm(last, p) * 1000;
-            /* keep if moved >=5m (full path) OR 30s passed (idle points too) */
-            if (movedM < 5 && sinceMs < intervalMs) return;
+            const intervalMs = (cfg.intervalSec ?? 10) * 1000;
+            /* pure time-based: prati 10 sec ki point (walking, driving, idle anni capture) */
+            if (sinceMs < intervalMs) return;
           }
           p.t = Date.now();
           p.time = p.time || Date.now();
@@ -3195,7 +3201,7 @@ export default function FieldApp() {
             onClose={() => setStopPopup(false)}
             onDone={(info) => {
               stopExtraRef.current = { selfie: info.selfie, reading: info.reading, address: info.address };
-              setStopPopup(false); setAttendanceOn(false); setDoneToday(true);
+              setStopPopup(false); setAttendanceOn(false); setDoneToday(true); localStorage.setItem("eb_att_done", new Date().toLocaleDateString("en-CA"));
             }}
           />
         )}

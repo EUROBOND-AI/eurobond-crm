@@ -22,11 +22,12 @@ export function totalDistanceKm(points) {
   let km = 0;
   let last = null;
   for (const p of points) {
-    if (p.accuracy != null && p.accuracy > 35) continue;
+    if (p.accuracy != null && p.accuracy > 50) continue;   // match capture filter (was 35 - skipped walking)
     if (last) {
       const d = haversineKm(last, p);
-      if (d * 1000 >= 8 && d < 0.5) km += d; // also skip impossible >500m jumps between ticks
-      if (d * 1000 >= 8) last = p;
+      // count any real movement >=3m, skip GPS teleport jumps >500m between ticks
+      if (d * 1000 >= 3 && d < 0.5) { km += d; last = p; }
+      else if (d >= 0.5) { last = p; }   // big jump -> reset anchor, don't count
     } else {
       last = p;
     }
@@ -49,7 +50,7 @@ export function watchLocation(onPoint, onError) {
           backgroundTitle: "Eurobond CRM",
           requestPermissions: true,
           stale: false,
-          distanceFilter: 5,
+          distanceFilter: 0,
         },
         (location, error) => {
           if (error) {
