@@ -149,8 +149,8 @@ export async function startTracker(onPoint, onError) {
           backgroundMessage: "Tracking on",
           backgroundTitle: "Eurobond CRM",
           requestPermissions: true,
-          stale: true,          // KEEP locations captured while backgrounded (don't drop as "stale")
-          distanceFilter: 25,   // native fires ~every 25m; our logic then applies accuracy + 50m move + 15-min rules
+          stale: true,
+          distanceFilter: 0,    // fire continuously (even while stationary) so 15-min points land in background too
         },
         (location, error) => {
           if (error) { onError && onError(new Error(error.message || "Location error")); return; }
