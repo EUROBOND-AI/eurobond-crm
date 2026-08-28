@@ -136,9 +136,12 @@ export default function AttendancePage() {
           const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${p.lat}&lon=${p.lng}&zoom=18&addressdetails=1`, { headers: { "Accept-Language": "en" } });
           const j = await r.json();
           const a = j.address || {};
-          const place = a.amenity || a.building || a.shop || a.office || a.hospital || a.school || a.college || "";
-          const parts = [place, [a.house_number, a.road || a.pedestrian || a.footway].filter(Boolean).join(" "), a.neighbourhood || a.suburb || a.quarter || a.residential, a.city_district, a.city || a.town || a.village, a.state].filter(Boolean);
-          const full = (parts.join(", ") + (a.postcode ? " " + a.postcode : "")).trim() || j.display_name || "";
+          const place = a.amenity || a.building || a.shop || a.office || a.hospital || a.school || a.college || a.hotel || a.mall || "";
+          const locality = [a.neighbourhood, a.suburb, a.quarter, a.residential, a.city_district].filter((x, i, arr) => x && arr.indexOf(x) === i);
+          const parts = [place, [a.house_number, a.road || a.pedestrian || a.footway].filter(Boolean).join(" "), ...locality, a.city || a.town || a.village, a.state].filter(Boolean);
+          let full = (parts.join(", ") + (a.postcode ? " " + a.postcode : "")).trim();
+          if (full.split(",").length < 4 && j.display_name) full = j.display_name.replace(/, India$/, "");
+          if (!full) full = j.display_name || "";
           if (full && !stop) setPtAddr((m) => ({ ...m, [key]: full }));
           await new Promise((res) => setTimeout(res, 900));   // be gentle with the free geocoder
         } catch {}
@@ -338,14 +341,15 @@ export default function AttendancePage() {
                   return (
                   <div key={i} style={{ borderLeft: `3px solid ${i === 0 ? "#20bf6b" : (isLast && !running) ? "#e8422e" : isLast ? "#2f6fed" : "#c5cae0"}`, background: "#fff", borderRadius: 8, padding: "7px 10px", marginBottom: 6, boxShadow: "var(--shadow)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: 10.5, fontWeight: 800, color: "var(--muted)" }}>{label}</span>
-                      <span style={{ fontSize: 10, display: "flex", gap: 6, color: "var(--muted)" }}>
-                        <span>🔋 {p.battery != null ? p.battery + "%" : "NA"}</span>
-                        <span>{p.online === true || p.online === 1 ? "🟢" : p.online === false || p.online === 0 ? "🔴" : ""}</span>
-                      </span>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: i === 0 ? "#20bf6b" : (isLast && !running) ? "#e8422e" : isLast ? "#2f6fed" : "var(--muted)" }}>{label}</span>
                     </div>
-                    <div style={{ fontSize: 11.5, color: "var(--ink)", marginTop: 2, fontWeight: 500 }}>{addr || "Finding address…"}</div>
-                    <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 1 }}>{p.recorded_at ? String(p.recorded_at).slice(11, 16) : ""} · {Number(p.lat).toFixed(4)}, {Number(p.lng).toFixed(4)}</div>
+                    <div style={{ fontSize: 13, color: "var(--ink)", marginTop: 3, fontWeight: 600, lineHeight: 1.4 }}>{addr || "Finding address…"}</div>
+                    <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                      <span>🔋 {p.battery != null ? p.battery + "%" : "NA"}</span>
+                      <span>{p.online === 1 || p.online === true ? "🟢 Online" : p.online === 0 || p.online === false ? "🔴 Offline" : "📶 NA"}</span>
+                      <span>🕐 {p.recorded_at ? String(p.recorded_at).slice(11, 16) : ""}</span>
+                    </div>
+                    <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>📍 {Number(p.lat).toFixed(5)}, {Number(p.lng).toFixed(5)}</div>
                   </div>
                   );
                 })}

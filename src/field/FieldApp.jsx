@@ -5,7 +5,7 @@ import {
   Home, CalendarCheck, Target, User, Users, Plus, Menu, Bell, ChevronRight, ChevronLeft,
   MapPin, Clock, Wallet, ClipboardList, LogOut, Phone, Mail, Building2, X,
   PlaneTakeoff, FileText, CalendarDays, Briefcase, ListChecks, Map as MapIcon,
-  Play, Square, Navigation, Smartphone, CheckCircle2, AlertCircle, Eye, EyeOff, Camera, Search, Filter,
+  Play, Square, Navigation, Smartphone, CheckCircle2, AlertCircle, Eye, EyeOff, Camera, Search, Filter, Pencil,
 } from "lucide-react";
 import { watchLocation, startTracker, stopTracker, setTrackerHandler, setTrackerSession, isTrackerActive, showTrackingNotification, hideTrackingNotification, totalDistanceKm, haversineKm, fmtKm, fmtDuration } from "../lib/geo.js";
 import { api, auth } from "../lib/api.js";
@@ -214,19 +214,21 @@ async function placeName(lat, lng) {
     const j = await r.json();
     const a = j.address || {};
     /* named landmark (hospital, mall, building, shop, office...) if present */
-    const place = a.amenity || a.building || a.shop || a.office || a.hospital || a.school || a.college || j.name || "";
+    const place = a.amenity || a.building || a.shop || a.office || a.hospital || a.school || a.college || a.hotel || a.mall || j.name || "";
     const house = a.house_number || "";
     const road = a.road || a.pedestrian || a.footway || "";
-    const area = a.neighbourhood || a.suburb || a.quarter || a.residential || "";
-    const city2 = a.city_district || "";
+    /* include as many locality levels as available for a long Google-style address */
+    const locality = [a.neighbourhood, a.suburb, a.quarter, a.residential, a.city_district].filter((x, i, arr) => x && arr.indexOf(x) === i);
     const city = a.city || a.town || a.village || a.county || "";
     const state = a.state || "";
     const pin = a.postcode || "";
-    /* Google-style full address: Landmark, House Road, Area, Sub-district, City, State PIN */
-    const parts = [place, [house, road].filter(Boolean).join(" "), area, city2, city, state].filter(Boolean);
-    const name = (parts.join(", ") + (pin ? " " + pin : "")).trim()
-      || j.display_name
-      || "Unknown location";
+    const parts = [place, [house, road].filter(Boolean).join(" "), ...locality, city, state].filter(Boolean);
+    let name = (parts.join(", ") + (pin ? " " + pin : "")).trim();
+    /* if our composed address is short, fall back to the full display_name (minus country) */
+    if (name.split(",").length < 4 && j.display_name) {
+      name = j.display_name.replace(/, India$/, "").replace(/, \d{6}, India$/, m => m.replace(", India", ""));
+    }
+    if (!name) name = j.display_name || "Unknown location";
     geoCache[key] = name;
     return name;
   } catch { return "—"; }
@@ -4007,6 +4009,7 @@ function PlanEditor({ session, sessionId }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [editing, setEditing] = useState(false);   // read-only until user taps Edit
 
   /* prefill from login plan when session data arrives (only if not edited yet) */
   useEffect(() => {
@@ -4024,7 +4027,7 @@ function PlanEditor({ session, sessionId }) {
     setSaving(true); setSaved(false);
     try {
       await api.attUpdateVisit(sessionId, type, areas.join(", "));
-      setSaved(true); setDirty(false); setTimeout(() => setSaved(false), 2000);
+      setSaved(true); setDirty(false); setEditing(false); setTimeout(() => setSaved(false), 2000);
     } catch (e) { alert("Could not update: " + e.message); }
     setSaving(false);
   };
@@ -4035,10 +4038,30 @@ function PlanEditor({ session, sessionId }) {
   return (
     <div style={{ background: "#fff", borderRadius: 14, padding: "14px 15px", marginTop: 10, boxShadow: "var(--shadow)", border: "1.5px solid #eef1ff" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <span style={{ fontWeight: 800, fontSize: 13.5, color: "var(--navy)" }}>📋 Update Plan / Areas</span>
-        {saved && <span style={{ fontSize: 11, color: "#1f9d55", fontWeight: 700 }}>✓ Saved</span>}
+        <span style={{ fontWeight: 800, fontSize: 13.5, color: "var(--navy)" }}>📋 Plan / Areas</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {saved && <span style={{ fontSize: 11, color: "#1f9d55", fontWeight: 700 }}>✓ Saved</span>}
+          {!editing && (
+            <button onClick={() => setEditing(true)} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#eef1ff", border: "none", color: "var(--navy)", fontWeight: 700, fontSize: 12, padding: "6px 11px", borderRadius: 8, cursor: "pointer" }}>
+              <Pencil size={13} /> Edit
+            </button>
+          )}
+        </div>
       </div>
 
+      {!editing ? (
+        /* read-only summary */
+        <div>
+          <div style={{ fontSize: 12.5, marginBottom: 8 }}><b style={{ color: "var(--muted)" }}>Type:</b> {isTour ? (type === "Outstation" ? "Outstation (Tour)" : "ExStation (Tour)") : "Local"}</div>
+          <div style={{ fontSize: 12.5 }}><b style={{ color: "var(--muted)" }}>Areas:</b></div>
+          {areas.length ? (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+              {areas.map((a, i) => <span key={i} style={{ background: "#eef1ff", color: "var(--navy)", borderRadius: 20, padding: "5px 10px", fontSize: 12.5, fontWeight: 700 }}>📍 {a}</span>)}
+            </div>
+          ) : <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>No areas set. Tap Edit to add.</div>}
+        </div>
+      ) : (
+      <>
       {/* Local / Tour switch */}
       <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", display: "block", marginBottom: 6 }}>Type</label>
       <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
@@ -4083,6 +4106,11 @@ function PlanEditor({ session, sessionId }) {
         style={{ width: "100%", marginTop: 12, padding: "12px", borderRadius: 11, border: "none", background: dirty ? "var(--navy)" : "#c5cbd8", color: "#fff", fontWeight: 800, fontSize: 14, cursor: dirty ? "pointer" : "default" }}>
         {saving ? "Saving…" : dirty ? "Save Plan" : "Saved"}
       </button>
+      <button onClick={() => setEditing(false)} style={{ width: "100%", marginTop: 8, padding: "10px", borderRadius: 11, border: "1.5px solid #d7dcef", background: "#fff", color: "var(--muted)", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+        Cancel
+      </button>
+      </>
+      )}
     </div>
   );
 }
@@ -4589,10 +4617,10 @@ export default function FieldApp() {
         if (!sessionRef.current || !navigator.geolocation) return;
         navigator.geolocation.getCurrentPosition(
           (pos) => {
-            const p = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, time: Date.now(), t: Date.now(), online: navigator.onLine };
-            api.attPoints(sessionRef.current, [p])
-              .then(() => { setTracking((t) => { const points = [...t.points, p]; return { ...t, points, km: totalDistanceKm(points) }; }); })
-              .catch(() => {});
+            const p = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, time: Date.now(), t: Date.now(), online: navigator.onLine, battery: batteryRef.current };
+            /* attach a full address so admin/app show it without re-geocoding */
+            placeName(pos.coords.latitude, pos.coords.longitude).then((addr) => { p.address = addr; api.attPoints(sessionRef.current, [p]).catch(() => {}); }).catch(() => { api.attPoints(sessionRef.current, [p]).catch(() => {}); });
+            setTracking((t) => { const points = [...t.points, p]; return { ...t, points, km: totalDistanceKm(points) }; });
           },
           (err) => { setTracking((t) => ({ ...t, error: "Location: " + (err.message || "unavailable") })); },
           { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
