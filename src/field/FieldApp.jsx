@@ -4669,11 +4669,12 @@ export default function FieldApp() {
           { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
         );
       };
-      /* Capture ONE point right after Start (so the timeline has a start point immediately).
-         After that, the native background watcher handles the 15-min points itself
-         (it throttles to one per 15 min). We do NOT run a second JS interval here —
-         two uploaders caused extra points while travelling. */
+      /* Capture right after Start, then every 5 min as a FOREGROUND BACKUP.
+         The server enforces 15-min spacing, so extra foreground captures are simply
+         ignored server-side — but this guarantees points keep flowing whenever the
+         app is open, even if the native background watcher stalls. */
       setTimeout(captureAndSave, 4000);
+      uploadTimer.current = setInterval(captureAndSave, 5 * 60 * 1000);
 
     } else if (isTrackerActive()) {
       stopTracker();
