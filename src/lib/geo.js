@@ -45,25 +45,14 @@ export async function showTrackingNotification() {
     const LN = Cap && Cap.Plugins && Cap.Plugins.LocalNotifications;
     if (!LN) return;
     try { await LN.requestPermissions(); } catch {}
-    /* create a high-importance ongoing channel so the notification stays put */
-    try {
-      await LN.createChannel({
-        id: "tracking",
-        name: "Attendance Tracking",
-        description: "Shows while your attendance GPS is running",
-        importance: 4,
-        visibility: 1,
-      });
-    } catch {}
     await LN.schedule({
       notifications: [{
         id: TRACK_NOTIF_ID,
         title: "Eurobond CRM",
         body: "Tracking on",
-        ongoing: true,            // sticky — user can't swipe it away while tracking
+        ongoing: true,
         autoCancel: false,
-        smallIcon: "ic_launcher",   // app logo
-        largeIcon: "ic_launcher",
+        smallIcon: "ic_stat_icon_config_sample",
         channelId: "tracking",
       }],
     });
