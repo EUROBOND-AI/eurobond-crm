@@ -749,10 +749,10 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
   }, [tab, sessionId, attendanceOn]);
 
   const timelinePoints = useMemo(() => {
-    /* prefer server points (identical to admin); fall back to local while tracking */
-    /* always use server points (the true 15-min timeline, same as admin) */
-    const src = (serverPts || []).length ? serverPts : (serverPts === null ? tracking.points : []);
-    const pts = src.map((p) => ({ ...p, time: p.time || p.t || (p.recorded_at ? Date.parse(p.recorded_at.replace(" ", "T")) : Date.now()) }));
+    /* ALWAYS use server points so the app timeline is identical to admin.
+       (Local points are only a fallback for the very first seconds before the first load.) */
+    const src = serverPts !== null ? serverPts : tracking.points;
+    const pts = (src || []).map((p) => ({ ...p, time: p.time || p.t || (p.recorded_at ? Date.parse(String(p.recorded_at).replace(" ", "T")) : Date.now()) }));
     const out = [];
     let cum = 0, last = null;
     for (let i = 0; i < pts.length; i++) {
