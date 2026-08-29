@@ -4535,6 +4535,9 @@ export default function FieldApp() {
           if (state && state.isActive) {
             loadLists();
             api.me().then((usr) => { if (usr && (usr.name || usr.mobile)) auth.user = { ...auth.user, ...usr }; }).catch(() => {});
+            /* if attendance is running, make sure the sticky tracking notification is present
+               (re-shows it if the user managed to swipe it away) */
+            if (localStorage.getItem("eb_att_on") === "1") { try { showTrackingNotification(); } catch {} }
           }
         });
         if (r1 && typeof r1.then === "function") r1.then((h) => { capListener = h; }).catch(() => {}); else capListener = r1;

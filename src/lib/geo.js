@@ -53,13 +53,10 @@ export async function showTrackingNotification() {
     } catch {}
     const base = { id: TRACK_NOTIF_ID, title: "Eurobond CRM", body: "Tracking on", ongoing: true, autoCancel: false, channelId: "eurobond_crm" };
     try {
-      /* with app logo icons */
-      await LN.schedule({ notifications: [{ ...base, smallIcon: "ic_stat_notify", largeIcon: "ic_launcher" }] });
+      /* colored Eurobond logo on the right (largeIcon) + white silhouette in status bar (smallIcon) */
+      await LN.schedule({ notifications: [{ ...base, smallIcon: "ic_stat_notify", largeIcon: "ic_notify_large" }] });
     } catch {
-      try {
-        /* fallback: keep the notification even if a drawable name isn't found */
-        await LN.schedule({ notifications: [base] });
-      } catch {}
+      try { await LN.schedule({ notifications: [base] }); } catch {}
     }
   } catch {}
 }
