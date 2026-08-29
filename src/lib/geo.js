@@ -45,15 +45,21 @@ export async function showTrackingNotification() {
     const LN = Cap && Cap.Plugins && Cap.Plugins.LocalNotifications;
     if (!LN) return;
     try { await LN.requestPermissions(); } catch {}
+    /* reuse the app's existing working channel (created in phoneNotify) */
+    try {
+      if (LN.createChannel) {
+        await LN.createChannel({ id: "eurobond_crm", name: "Eurobond CRM", description: "CRM alerts", importance: 5, visibility: 1 });
+      }
+    } catch {}
     await LN.schedule({
       notifications: [{
         id: TRACK_NOTIF_ID,
         title: "Eurobond CRM",
         body: "Tracking on",
-        ongoing: true,            // sticky — user can't swipe it away while tracking
+        ongoing: true,
         autoCancel: false,
         smallIcon: "ic_stat_icon_config_sample",
-        channelId: "tracking",
+        channelId: "eurobond_crm",
       }],
     });
   } catch {}
