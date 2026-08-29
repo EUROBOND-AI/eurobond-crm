@@ -4513,11 +4513,11 @@ export default function FieldApp() {
           }
         });
         if (r1 && typeof r1.then === "function") r1.then((h) => { capListener = h; }).catch(() => {}); else capListener = r1;
-        /* Hardware BACK button: if we can go back in-app, do that; otherwise MINIMIZE
-           the app (send to background) instead of exiting — so GPS tracking keeps running. */
-        const r2 = Cap.Plugins.App.addListener("backButton", (ev) => {
-          if (ev && ev.canGoBack) { window.history.back(); }
-          else { try { Cap.Plugins.App.minimizeApp(); } catch { /* older plugin */ } }
+        /* Hardware BACK button: ALWAYS minimize the app (send to background / home screen)
+           instead of navigating back or exiting. This keeps the foreground service +
+           GPS tracking alive. The app is never destroyed by Back. */
+        const r2 = Cap.Plugins.App.addListener("backButton", () => {
+          try { Cap.Plugins.App.minimizeApp(); } catch { try { Cap.Plugins.App.exitApp(); } catch {} }
         });
         if (r2 && typeof r2.then === "function") r2.then((h) => { backListener = h; }).catch(() => {}); else backListener = r2;
       }
