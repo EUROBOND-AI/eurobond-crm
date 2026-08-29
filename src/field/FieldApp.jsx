@@ -167,7 +167,8 @@ function phoneNotify(title, body, extra = {}) {
           id: Date.now() % 2000000000,
           title, body,
           channelId: "eurobond_crm",
-          smallIcon: "ic_stat_icon_config_sample",
+          smallIcon: "ic_stat_notify",
+          largeIcon: "ic_notify_large",
           sound: "default",
           extra,                                   // { notifId, link } -> used on tap
         }],
@@ -4537,7 +4538,8 @@ export default function FieldApp() {
             api.me().then((usr) => { if (usr && (usr.name || usr.mobile)) auth.user = { ...auth.user, ...usr }; }).catch(() => {});
             /* if attendance is running, make sure the sticky tracking notification is present
                (re-shows it if the user managed to swipe it away) */
-            if (localStorage.getItem("eb_att_on") === "1") { try { showTrackingNotification(); } catch {} }
+            /* background-geolocation plugin shows its own persistent "Tracking on"
+               notification (foreground service) — we don't add a second one. */
           }
         });
         if (r1 && typeof r1.then === "function") r1.then((h) => { capListener = h; }).catch(() => {}); else capListener = r1;
@@ -4637,7 +4639,8 @@ export default function FieldApp() {
         setTrackerHandler(handlePoint);          // already running (screen re-opened) → just re-point
       } else {
         startTracker(handlePoint, handleErr);    // first start → launch native background watcher
-        showTrackingNotification();              // real phone notification bar entry
+        /* the background-geolocation watcher shows its own "Tracking on" foreground
+           notification — no separate LocalNotification needed (avoids a duplicate). */
       }
       stopRef.current = null;                     // stopping handled via stopTracker() on OFF
 

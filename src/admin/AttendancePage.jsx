@@ -168,7 +168,19 @@ export default function AttendancePage() {
       setRoutePoints(raw);
       const pts = raw.map((p) => [Number(p.lat), Number(p.lng)]);
       if (pts.length) {
-        if (pts.length > 1) L.polyline(pts, { color: "#e8422e", weight: 4, opacity: 0.85 }).addTo(m);
+        if (pts.length > 1) {
+          const poly = L.polyline(pts, { color: "#e8422e", weight: 4, opacity: 0.85 }).addTo(m);
+          /* snap the line to roads via OSRM so it follows streets, same as the app map */
+          (async () => {
+            try {
+              const coords = pts.map((p) => `${p[1]},${p[0]}`).join(";");
+              const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`);
+              const j = await r.json();
+              const line = j.routes && j.routes[0] && j.routes[0].geometry && j.routes[0].geometry.coordinates;
+              if (line && line.length) poly.setLatLngs(line.map(([lng, lat]) => [lat, lng]));
+            } catch {}
+          })();
+        }
         L.marker(pts[0], { icon: pinIcon("#20bf6b", "S") }).addTo(m).bindPopup("Start");
         const running = String(viewSess.status || "").toUpperCase() === "RUNNING" || !viewSess.end_time;
         if (pts.length > 1 || !running) {
