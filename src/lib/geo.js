@@ -130,7 +130,19 @@ function _handleLocation(loc) {
   if (_tracker.sessionId && _tracker.uploadFn) {
     _tracker.lastSavedMs = now;
     pt.online = typeof navigator !== "undefined" ? navigator.onLine : true;
-    try { _tracker.uploadFn(_tracker.sessionId, [pt]).catch(() => {}); } catch {}
+    /* reverse-geocode so every point (even background) has a stored address → no "Finding location" later */
+    (async () => {
+      try {
+        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${pt.lat}&lon=${pt.lng}&zoom=18&addressdetails=1`, { headers: { "Accept-Language": "en" } });
+        const j = await r.json();
+        const a = j.address || {};
+        const place = a.amenity || a.building || a.shop || a.office || a.hospital || a.school || a.college || "";
+        const loc = [a.neighbourhood, a.suburb, a.quarter, a.residential, a.city_district].filter((x, i, arr) => x && arr.indexOf(x) === i);
+        const parts = [place, [a.house_number, a.road || a.pedestrian].filter(Boolean).join(" "), ...loc, a.city || a.town || a.village, a.state].filter(Boolean);
+        pt.address = (parts.join(", ") + (a.postcode ? " " + a.postcode : "")).trim() || j.display_name || "";
+      } catch {}
+      try { _tracker.uploadFn(_tracker.sessionId, [pt]).catch(() => {}); } catch {}
+    })();
   }
 }
 

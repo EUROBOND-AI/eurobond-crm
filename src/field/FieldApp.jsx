@@ -196,7 +196,12 @@ function useNotifTapHandler() {
       const r = Cap.Plugins.LocalNotifications.addListener("localNotificationActionPerformed", (ev) => {
         const ex = (ev && ev.notification && ev.notification.extra) || {};
         if (ex.notifId) markRead(ex.notifId);
-        nav(ex.link || "/app/notifications");
+        /* this is the field APP — never open admin routes here. Admin links go to the
+           app's own notifications screen instead. */
+        let link = ex.link || "/app/notifications";
+        if (link.startsWith("/admin")) link = "/app/notifications";
+        if (!link.startsWith("/app")) link = "/app/notifications";
+        nav(link);
       });
       if (r && typeof r.then === "function") r.then((x) => { h = x; }).catch(() => {});
       else h = r;
@@ -4536,10 +4541,11 @@ export default function FieldApp() {
           if (state && state.isActive) {
             loadLists();
             api.me().then((usr) => { if (usr && (usr.name || usr.mobile)) auth.user = { ...auth.user, ...usr }; }).catch(() => {});
-            /* if attendance is running, make sure the sticky tracking notification is present
-               (re-shows it if the user managed to swipe it away) */
-            /* background-geolocation plugin shows its own persistent "Tracking on"
-               notification (foreground service) — we don't add a second one. */
+            /* WATCHDOG: attendance should be running but the tracker died (e.g. user swiped
+               the notification / OS killed the service) → restart it so GPS resumes. */
+            if (localStorage.getItem("eb_att_on") === "1" && !isTrackerActive()) {
+              try { window.dispatchEvent(new Event("eb-restart-tracking")); } catch {}
+            }
           }
         });
         if (r1 && typeof r1.then === "function") r1.then((h) => { capListener = h; }).catch(() => {}); else capListener = r1;
@@ -4642,6 +4648,9 @@ export default function FieldApp() {
         /* the background-geolocation watcher shows its own "Tracking on" foreground
            notification — no separate LocalNotification needed (avoids a duplicate). */
       }
+      /* watchdog: if the OS killed the tracker (notification swiped), restart it on resume */
+      const restartHandler = () => { if (!isTrackerActive()) { startTracker(handlePoint, handleErr); if (sessionRef.current) setTrackerSession(sessionRef.current, (loadGpsCfg().intervalSec ?? 900) * 1000, api.attPoints); } };
+      window.addEventListener("eb-restart-tracking", restartHandler);
       stopRef.current = null;                     // stopping handled via stopTracker() on OFF
 
       /* Reliable capture+upload: fire ONCE immediately (so the server always has a
@@ -4660,9 +4669,11 @@ export default function FieldApp() {
           { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
         );
       };
-      /* first capture ~4s after Start (give the session id + GPS a moment), then every 15 min */
+      /* Capture ONE point right after Start (so the timeline has a start point immediately).
+         After that, the native background watcher handles the 15-min points itself
+         (it throttles to one per 15 min). We do NOT run a second JS interval here —
+         two uploaders caused extra points while travelling. */
       setTimeout(captureAndSave, 4000);
-      uploadTimer.current = setInterval(captureAndSave, (loadGpsCfg().intervalSec ?? 900) * 1000);
 
     } else if (isTrackerActive()) {
       stopTracker();
@@ -4684,7 +4695,7 @@ export default function FieldApp() {
     /* On unmount (screen change / background): do NOT stop the tracker. The native
        background watcher must keep running. We only clear the local upload interval.
        Tracking stops solely when the user turns attendance OFF (stopTracker above). */
-    return () => { cancelled = true; clearInterval(uploadTimer.current); };
+    return () => { cancelled = true; clearInterval(uploadTimer.current); window.removeEventListener("eb-restart-tracking", restartHandler); };
   }, [attendanceOn]);
 
   /* ---- GPS-off alarm: phone notification + loud beep + vibrate until GPS is back ---- */

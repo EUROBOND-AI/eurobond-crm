@@ -39,12 +39,13 @@ function downloadSessionExcel(s, points, visits) {
   a.click();
 }
 
-function downloadSessionPdf(s, visits) {
+function downloadSessionPdf(s, visits, points) {
   const w = window.open("", "_blank");
   const visitRows = (visits || []).map((v, i) => `<tr><td>${i + 1}</td><td>${v.partyName || v.customer || ""}</td><td>${v.address || ""}</td></tr>`).join("");
+  const pointRows = (points || []).map((p, i) => `<tr><td>${i + 1}</td><td>${p.recorded_at ? String(p.recorded_at).slice(11, 16) : ""}</td><td>${p.address || ""}</td><td>${p.battery ?? ""}</td><td>${(p.online === 1 || p.online === true) ? "Online" : "Offline"}</td></tr>`).join("");
   w.document.write(`
     <html><head><title>Attendance ${s.name} ${s.work_date}</title>
-    <style>body{font-family:Arial;padding:24px;color:#1c2340}h2{color:#0b3c8c}table{width:100%;border-collapse:collapse;margin-top:10px}td,th{border:1px solid #ccc;padding:7px;text-align:left;font-size:13px}th{background:#eef1ff}.kv{margin:4px 0}</style>
+    <style>body{font-family:Arial;padding:24px;color:#1c2340}h2{color:#0b3c8c}table{width:100%;border-collapse:collapse;margin-top:10px}td,th{border:1px solid #ccc;padding:7px;text-align:left;font-size:12px}th{background:#eef1ff}.kv{margin:4px 0}</style>
     </head><body>
     <h2>EUROBOND — Attendance Report</h2>
     <div class="kv"><b>Name:</b> ${s.name} (${s.code || "—"})</div>
@@ -55,6 +56,8 @@ function downloadSessionPdf(s, visits) {
     <div class="kv"><b>End:</b> ${s.end_address || "—"}</div>
     <h3>Customer Visits (${(visits || []).length})</h3>
     <table><tr><th>#</th><th>Customer</th><th>Address</th></tr>${visitRows || '<tr><td colspan="3">None</td></tr>'}</table>
+    <h3>GPS Timeline (${(points || []).length} points)</h3>
+    <table><tr><th>#</th><th>Time</th><th>Location</th><th>Battery</th><th>Network</th></tr>${pointRows || '<tr><td colspan="5">None</td></tr>'}</table>
     <p style="margin-top:20px;color:#888;font-size:11px">Generated ${new Date().toLocaleString("en-IN")}</p>
     </body></html>`);
   w.document.close();
@@ -307,7 +310,7 @@ export default function AttendancePage() {
               <h3 style={{ margin: 0 }}>{viewSess.name} — route ({fmtKm(Number(viewSess.distance_km) || 0)})</h3>
               <div style={{ display: "flex", gap: 6 }}>
                 <button className="btn btn-soft" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => downloadSessionExcel(viewSess, routePoints, custVisits)}>⬇ Excel</button>
-                <button className="btn btn-pink" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => downloadSessionPdf(viewSess, custVisits)}>⬇ PDF</button>
+                <button className="btn btn-pink" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => downloadSessionPdf(viewSess, custVisits, routePoints)}>⬇ PDF</button>
                 <button className="btn btn-ghost" onClick={() => setViewSess(null)}><X size={14} /></button>
               </div>
             </div>
