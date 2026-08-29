@@ -4665,8 +4665,12 @@ export default function FieldApp() {
             placeName(pos.coords.latitude, pos.coords.longitude).then((addr) => { p.address = addr; api.attPoints(sessionRef.current, [p]).catch(() => {}); }).catch(() => { api.attPoints(sessionRef.current, [p]).catch(() => {}); });
             setTracking((t) => { const points = [...t.points, p]; return { ...t, points, km: totalDistanceKm(points) }; });
           },
-          (err) => { setTracking((t) => ({ ...t, error: "Location: " + (err.message || "unavailable") })); },
-          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+          (err) => {
+            /* don't nag on transient background timeouts — just try again next tick */
+            if (err && err.code === 3) return;   // TIMEOUT: keep quiet, retry on next interval
+            setTracking((t) => ({ ...t, error: "Location: " + (err.message || "unavailable") }));
+          },
+          { enableHighAccuracy: true, timeout: 30000, maximumAge: 60000 }
         );
       };
       /* Capture right after Start, then every 5 min as a FOREGROUND BACKUP.
