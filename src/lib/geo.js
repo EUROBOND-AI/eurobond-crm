@@ -52,7 +52,7 @@ export async function showTrackingNotification() {
         body: "Tracking on",
         ongoing: true,
         autoCancel: false,
-        smallIcon: "ic_stat_icon_config_sample",
+        smallIcon: "ic_stat_notify",
         channelId: "tracking",
       }],
     });
