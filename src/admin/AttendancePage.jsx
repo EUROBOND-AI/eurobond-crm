@@ -166,8 +166,9 @@ export default function AttendancePage() {
       iconSize: [26, 26], iconAnchor: [13, 26],
     });
     api.attTrack(viewSess.id).then((d) => {
-      let raw = (d.points || []).filter((p) => p.accuracy == null || Number(p.accuracy) <= 60);
-      if (!raw.length) raw = (d.points || []);   // never show blank — use all if accuracy weak
+      /* show ALL uploaded points — don't drop weak-accuracy ones (phones often report
+         ±60-100m indoors, and dropping them made the admin timeline look empty) */
+      const raw = (d.points || []);
       setRoutePoints(raw);
       const pts = raw.map((p) => [Number(p.lat), Number(p.lng)]);
       if (pts.length) {
