@@ -717,7 +717,7 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
       for (const p of pts) {
         if (stop) return;
         const key = p.lat.toFixed(4) + "," + p.lng.toFixed(4);
-        if (names[key]) continue;
+        if (p.address || names[key]) continue;   // already have it (stored or cached) → no re-fetch
         const nm = await placeName(p.lat, p.lng);
         if (stop) return;
         setNames((n) => ({ ...n, [key]: nm }));
@@ -732,18 +732,21 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
   /* timeline: EVERY recorded point is shown (login address, battery, online) +
      "App Closed" gaps in between. Points already come at ~90s interval. */
   const [serverPts, setServerPts] = useState(null);
-  /* On Timeline/Map tab, load the SAME points the admin sees (from server) so app == admin. */
+  /* Timeline/Map: load the SAME points admin sees (server) so app == admin.
+     Poll only while tracking; after stop, load once and keep (no re-flicker). */
   useEffect(() => {
     if ((tab !== "Timeline" && tab !== "Map") || !sessionId) return;
     const load = () => api.attPointsList(sessionId).then((d) => { if (d && d.points) setServerPts(d.points); }).catch(() => {});
     load();
+    if (!attendanceOn) return;
     const t = setInterval(load, 30000);
     return () => clearInterval(t);
-  }, [tab, sessionId]);
+  }, [tab, sessionId, attendanceOn]);
 
   const timelinePoints = useMemo(() => {
     /* prefer server points (identical to admin); fall back to local while tracking */
-    const src = (serverPts && serverPts.length ? serverPts : tracking.points) || [];
+    /* always use server points (the true 15-min timeline, same as admin) */
+    const src = (serverPts || []).length ? serverPts : (serverPts === null ? tracking.points : []);
     const pts = src.map((p) => ({ ...p, time: p.time || p.t || (p.recorded_at ? Date.parse(p.recorded_at.replace(" ", "T")) : Date.now()) }));
     const out = [];
     let cum = 0, last = null;
@@ -942,7 +945,7 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
               <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", background: "#fff", borderRadius: 12, padding: "11px 12px", marginBottom: 8, boxShadow: "var(--shadow)", fontSize: 12.5, borderLeft: p.stop ? "4px solid #eb3b5a" : "4px solid var(--accent)" }}>
                 <MapPin size={16} color={p.stop ? "#eb3b5a" : "var(--accent)"} style={{ marginTop: 2 }} />
                 <div style={{ flex: 1 }}>
-                  <b style={{ fontSize: 13 }}>{names[key] || "Finding location…"}</b>
+                  <b style={{ fontSize: 13 }}>{p.address || names[key] || "Finding location…"}</b>
                   {p.isStart && <span style={{ background: "#e8f7ee", color: "#1f7a44", fontSize: 10, fontWeight: 800, padding: "1px 6px", borderRadius: 6, marginLeft: 6 }}>START</span>}
                   {p.isEnd && !p.isStart && <span style={{ background: attendanceOn ? "#e8f0ff" : "#fdecec", color: attendanceOn ? "#2f6fed" : "#c03636", fontSize: 10, fontWeight: 800, padding: "1px 6px", borderRadius: 6, marginLeft: 6 }}>{attendanceOn ? "LIVE" : "END"}</span>}
                   {p.stop && <span style={{ background: "#fdecec", color: "#c03636", fontSize: 10, fontWeight: 800, padding: "1px 6px", borderRadius: 6, marginLeft: 6 }}>STOP</span>}
