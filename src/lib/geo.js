@@ -152,7 +152,7 @@ export async function startTracker(onPoint, onError) {
           backgroundTitle: "Eurobond CRM",
           requestPermissions: true,
           stale: true,
-          distanceFilter: 0,    // fire continuously (even while stationary) so 15-min points land in background too
+          distanceFilter: 5,    // small filter: GPS drift alone keeps it firing so 15-min points land even when stationary/backgrounded
         },
         (location, error) => {
           if (error) { onError && onError(new Error(error.message || "Location error")); return; }
