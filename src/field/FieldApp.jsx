@@ -168,7 +168,6 @@ function phoneNotify(title, body, extra = {}) {
           title, body,
           channelId: "eurobond_crm",
           smallIcon: "ic_stat_notify",
-          largeIcon: "ic_notify_large",
           sound: "default",
           extra,                                   // { notifId, link } -> used on tap
         }],

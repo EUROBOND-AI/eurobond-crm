@@ -96,7 +96,24 @@ export const api = {
 
   /* ---------- Attendance ---------- */
   attStart: (visit) => req("/attendance.php?action=start", { method: "POST", body: visit || {} }),
-  attPoints: (session_id, points) => req("/attendance.php?action=points", { method: "POST", body: { session_id, points } }),
+  /* GPS points upload via NATIVE HTTP (CapacitorHttp) so it works even when the app is
+     backgrounded — WebView fetch() gets throttled/suspended after ~5 min in the background. */
+  attPoints: async (session_id, points) => {
+    const url = API_BASE + "/attendance.php?action=points";
+    const token = auth.token;
+    const Cap = typeof window !== "undefined" ? window.Capacitor : null;
+    const Http = Cap && Cap.Plugins && Cap.Plugins.CapacitorHttp;
+    if (Http && Cap.isNativePlatform && Cap.isNativePlatform()) {
+      try {
+        return await Http.post({
+          url,
+          headers: { "Content-Type": "application/json", Authorization: token ? "Bearer " + token : "" },
+          data: { session_id, points },
+        });
+      } catch (e) { /* fall through to fetch */ }
+    }
+    return req("/attendance.php?action=points", { method: "POST", body: { session_id, points } });
+  },
   attPointsList: (session_id) => req("/attendance.php?action=pointsList&session_id=" + session_id),
   attStop: (session_id, extra) => req("/attendance.php?action=stop", { method: "POST", body: { session_id, ...(extra || {}) } }),
   attToday: () => req("/attendance.php?action=today"),
