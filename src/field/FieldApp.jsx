@@ -4432,6 +4432,31 @@ export default function FieldApp() {
   useEffect(() => { localStorage.removeItem("eb_att_done"); }, []);   // clear stale lock from old versions
   const [doneToday, setDoneToday] = useState(false);
 
+  /* On app open: proactively ask for Notification + Location permissions (like on first install).
+     Runs every launch until granted, so the notification + background GPS can work. */
+  useEffect(() => {
+    (async () => {
+      try {
+        const Cap = window.Capacitor;
+        if (!Cap || !Cap.Plugins) return;
+        const LN = Cap.Plugins.LocalNotifications;
+        if (LN) {
+          try {
+            const st = await LN.checkPermissions();
+            if (!st || st.display !== "granted") await LN.requestPermissions();
+          } catch { try { await LN.requestPermissions(); } catch {} }
+          /* make sure the channel the tracking notification uses exists */
+          try { if (LN.createChannel) await LN.createChannel({ id: "eurobond_crm", name: "Eurobond CRM", description: "CRM alerts", importance: 5, visibility: 1 }); } catch {}
+        }
+        const BG = Cap.Plugins.BackgroundGeolocation;
+        /* background geolocation asks for "always" location itself when the watcher starts;
+           also nudge the Geolocation permission so the OS prompt appears early */
+        const Geo = Cap.Plugins.Geolocation;
+        if (Geo && Geo.requestPermissions) { try { await Geo.requestPermissions(); } catch {} }
+      } catch {}
+    })();
+  }, []);
+
   /* SERVER is the source of truth for attendance state (localStorage lock removed —
      adi stale ga undi false "completed" chupinchedi).
      - today's session RUNNING -> ON state (only Logout)
