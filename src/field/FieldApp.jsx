@@ -4500,6 +4500,7 @@ export default function FieldApp() {
   const stopRef = useRef(null);
   const sessionRef = useRef(null);
   const batteryRef = useRef(null);
+  const restartHandlerRef = useRef(null);
   const lastSavedPt = useRef(null);   // last point actually stored (1 km / idle filter)
   const resumeRef = useRef(false);    // true when re-opening a RUNNING session
 
@@ -4649,8 +4650,8 @@ export default function FieldApp() {
            notification — no separate LocalNotification needed (avoids a duplicate). */
       }
       /* watchdog: if the OS killed the tracker (notification swiped), restart it on resume */
-      const restartHandler = () => { if (!isTrackerActive()) { startTracker(handlePoint, handleErr); if (sessionRef.current) setTrackerSession(sessionRef.current, (loadGpsCfg().intervalSec ?? 900) * 1000, api.attPoints); } };
-      window.addEventListener("eb-restart-tracking", restartHandler);
+      restartHandlerRef.current = () => { if (!isTrackerActive()) { startTracker(handlePoint, handleErr); if (sessionRef.current) setTrackerSession(sessionRef.current, (loadGpsCfg().intervalSec ?? 900) * 1000, api.attPoints); } };
+      window.addEventListener("eb-restart-tracking", restartHandlerRef.current);
       stopRef.current = null;                     // stopping handled via stopTracker() on OFF
 
       /* Reliable capture+upload: fire ONCE immediately (so the server always has a
@@ -4695,7 +4696,7 @@ export default function FieldApp() {
     /* On unmount (screen change / background): do NOT stop the tracker. The native
        background watcher must keep running. We only clear the local upload interval.
        Tracking stops solely when the user turns attendance OFF (stopTracker above). */
-    return () => { cancelled = true; clearInterval(uploadTimer.current); window.removeEventListener("eb-restart-tracking", restartHandler); };
+    return () => { cancelled = true; clearInterval(uploadTimer.current); if (restartHandlerRef.current) window.removeEventListener("eb-restart-tracking", restartHandlerRef.current); };
   }, [attendanceOn]);
 
   /* ---- GPS-off alarm: phone notification + loud beep + vibrate until GPS is back ---- */
