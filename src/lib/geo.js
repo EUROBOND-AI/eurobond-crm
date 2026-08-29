@@ -51,17 +51,16 @@ export async function showTrackingNotification() {
         await LN.createChannel({ id: "eurobond_crm", name: "Eurobond CRM", description: "CRM alerts", importance: 5, visibility: 1 });
       }
     } catch {}
-    await LN.schedule({
-      notifications: [{
-        id: TRACK_NOTIF_ID,
-        title: "Eurobond CRM",
-        body: "Tracking on",
-        ongoing: true,
-        autoCancel: false,
-        smallIcon: "ic_stat_icon_config_sample",
-        channelId: "eurobond_crm",
-      }],
-    });
+    const base = { id: TRACK_NOTIF_ID, title: "Eurobond CRM", body: "Tracking on", ongoing: true, autoCancel: false, channelId: "eurobond_crm" };
+    try {
+      /* with app logo icons */
+      await LN.schedule({ notifications: [{ ...base, smallIcon: "ic_stat_notify", largeIcon: "ic_launcher" }] });
+    } catch {
+      try {
+        /* fallback: keep the notification even if a drawable name isn't found */
+        await LN.schedule({ notifications: [base] });
+      } catch {}
+    }
   } catch {}
 }
 export async function hideTrackingNotification() {
