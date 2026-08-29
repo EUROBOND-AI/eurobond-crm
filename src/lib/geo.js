@@ -45,30 +45,17 @@ export async function showTrackingNotification() {
     const LN = Cap && Cap.Plugins && Cap.Plugins.LocalNotifications;
     if (!LN) return;
     try { await LN.requestPermissions(); } catch {}
-    /* Android 8+ needs a channel to exist before a notification can post on it. */
-    let useChannel = false;
-    try {
-      if (LN.createChannel) {
-        await LN.createChannel({ id: "tracking", name: "Attendance Tracking", importance: 3, visibility: 1 });
-        useChannel = true;
-      }
-    } catch {}
-    const notif = {
-      id: TRACK_NOTIF_ID,
-      title: "Eurobond CRM",
-      body: "Tracking on",
-      ongoing: true,
-      autoCancel: false,
-      smallIcon: "ic_stat_notify",
-    };
-    if (useChannel) notif.channelId = "tracking";
-    try {
-      await LN.schedule({ notifications: [notif] });
-    } catch {
-      /* retry without the custom icon in case the drawable isn't present */
-      delete notif.smallIcon;
-      try { await LN.schedule({ notifications: [notif] }); } catch {}
-    }
+    await LN.schedule({
+      notifications: [{
+        id: TRACK_NOTIF_ID,
+        title: "Eurobond CRM",
+        body: "Tracking on",
+        ongoing: true,            // sticky — user can't swipe it away while tracking
+        autoCancel: false,
+        smallIcon: "ic_stat_icon_config_sample",
+        channelId: "tracking",
+      }],
+    });
   } catch {}
 }
 export async function hideTrackingNotification() {
