@@ -136,17 +136,22 @@ export default function AttendancePage() {
         const key = `${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`;
         if (p.address || ptAddr[key]) continue;
         try {
-          const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${p.lat}&lon=${p.lng}&zoom=18&addressdetails=1`, { headers: { "Accept-Language": "en" } });
+          /* BigDataCloud reverse geocode — free, no API key, CORS-enabled, no aggressive
+             rate-blocking like Nominatim (which returns 403 on bulk browser use). */
+          const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${p.lat}&longitude=${p.lng}&localityLanguage=en`);
           const j = await r.json();
-          const a = j.address || {};
-          const place = a.amenity || a.building || a.shop || a.office || a.hospital || a.school || a.college || a.hotel || a.mall || "";
-          const locality = [a.neighbourhood, a.suburb, a.quarter, a.residential, a.city_district].filter((x, i, arr) => x && arr.indexOf(x) === i);
-          const parts = [place, [a.house_number, a.road || a.pedestrian || a.footway].filter(Boolean).join(" "), ...locality, a.city || a.town || a.village, a.state].filter(Boolean);
-          let full = (parts.join(", ") + (a.postcode ? " " + a.postcode : "")).trim();
-          if (full.split(",").length < 4 && j.display_name) full = j.display_name.replace(/, India$/, "");
-          if (!full) full = j.display_name || "";
+          const parts = [
+            j.locality, j.city && j.city !== j.locality ? j.city : "",
+            j.principalSubdivision, j.postcode,
+          ].filter(Boolean);
+          let full = parts.join(", ").trim();
+          /* add the more detailed admin areas if present */
+          if (j.localityInfo && j.localityInfo.administrative) {
+            const admins = j.localityInfo.administrative.map((a) => a.name).filter(Boolean);
+            if (admins.length && full.split(",").length < 3) full = admins.slice(-4).join(", ");
+          }
           if (full && !stop) setPtAddr((m) => ({ ...m, [key]: full }));
-          await new Promise((res) => setTimeout(res, 1100));   // Nominatim allows ~1 request/second — respect it or it returns 403
+          await new Promise((res) => setTimeout(res, 250));
         } catch {}
       }
     })();

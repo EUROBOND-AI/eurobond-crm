@@ -218,25 +218,21 @@ async function placeName(lat, lng) {
   const key = lat.toFixed(4) + "," + lng.toFixed(4);
   if (geoCache[key]) return geoCache[key];
   try {
-    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`, { headers: { "Accept-Language": "en" } });
+    /* BigDataCloud — free, no API key, CORS-enabled, no aggressive rate-blocking. */
+    const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`);
     const j = await r.json();
-    const a = j.address || {};
-    /* named landmark (hospital, mall, building, shop, office...) if present */
-    const place = a.amenity || a.building || a.shop || a.office || a.hospital || a.school || a.college || a.hotel || a.mall || j.name || "";
-    const house = a.house_number || "";
-    const road = a.road || a.pedestrian || a.footway || "";
-    /* include as many locality levels as available for a long Google-style address */
-    const locality = [a.neighbourhood, a.suburb, a.quarter, a.residential, a.city_district].filter((x, i, arr) => x && arr.indexOf(x) === i);
-    const city = a.city || a.town || a.village || a.county || "";
-    const state = a.state || "";
-    const pin = a.postcode || "";
-    const parts = [place, [house, road].filter(Boolean).join(" "), ...locality, city, state].filter(Boolean);
-    let name = (parts.join(", ") + (pin ? " " + pin : "")).trim();
-    /* if our composed address is short, fall back to the full display_name (minus country) */
-    if (name.split(",").length < 4 && j.display_name) {
-      name = j.display_name.replace(/, India$/, "").replace(/, \d{6}, India$/, m => m.replace(", India", ""));
+    const parts = [
+      j.locality,
+      j.city && j.city !== j.locality ? j.city : "",
+      j.principalSubdivision,
+      j.postcode,
+    ].filter(Boolean);
+    let name = parts.join(", ").trim();
+    if (j.localityInfo && j.localityInfo.administrative) {
+      const admins = j.localityInfo.administrative.map((a) => a.name).filter(Boolean);
+      if (admins.length && name.split(",").length < 3) name = admins.slice(-4).join(", ");
     }
-    if (!name) name = j.display_name || "Unknown location";
+    if (!name) name = j.locality || j.city || "Unknown location";
     geoCache[key] = name;
     return name;
   } catch { return "—"; }
@@ -1768,26 +1764,20 @@ function FieldFollowUpNew({ add, editData }) {
       const la = pos.coords.latitude, ln = pos.coords.longitude;
       setF((x) => ({ ...x, lat: la, lng: ln }));
       try {
-        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${la}&lon=${ln}&zoom=18&addressdetails=1`, { headers: { "Accept-Language": "en" } });
+        const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${la}&longitude=${ln}&localityLanguage=en`);
         const j = await r.json();
-        const a = j.address || {};
-        /* full address — Borivali West/East vantivi suburb/city_district lo untay.
-           display_name lo anni untay kani country/redundant teesesi build cheddam. */
         const ordered = [
-          a.road, a.neighbourhood, a.suburb, a.quarter, a.residential,
-          a.city_district, a.borough, a.municipality,
-          a.city || a.town || a.village,
-          a.county, a.state_district, a.state, a.postcode,
+          j.locality, j.city && j.city !== j.locality ? j.city : "",
+          j.principalSubdivision, j.postcode,
         ].filter(Boolean);
-        /* dedup + keep order */
         const seen = new Set();
-        const parts = ordered.filter((p) => { const k = p.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+        const parts = ordered.filter((p) => { const k = String(p).toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
         let addr = parts.join(", ");
-        /* display_name lo "West"/"East" unte kani mana parts lo lekpote, display_name vadu */
-        if (!/\b(west|east|north|south)\b/i.test(addr) && /\b(west|east|north|south)\b/i.test(j.display_name || "")) {
-          addr = (j.display_name || "").replace(/, India$/i, "").replace(/, \d{6}$/, (m) => m);
+        if (j.localityInfo && j.localityInfo.administrative && addr.split(",").length < 3) {
+          const admins = j.localityInfo.administrative.map((a) => a.name).filter(Boolean);
+          if (admins.length) addr = admins.slice(-4).join(", ");
         }
-        setF((x) => ({ ...x, address: addr || j.display_name || `${la.toFixed(5)}, ${ln.toFixed(5)}` }));
+        setF((x) => ({ ...x, address: addr || `${la.toFixed(5)}, ${ln.toFixed(5)}` }));
       } catch {
         setF((x) => ({ ...x, address: `${la.toFixed(5)}, ${ln.toFixed(5)}` }));
       }
