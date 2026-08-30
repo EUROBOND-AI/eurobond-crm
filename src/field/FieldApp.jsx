@@ -538,8 +538,76 @@ function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expense
   );
 }
 
+/* ---- One-time background-tracking setup: requests permissions + opens the
+   OEM battery/autostart screens so GPS never sleeps. Works on all brands. ---- */
+function GpsSetupModal({ onClose }) {
+  const Cap = typeof window !== "undefined" ? window.Capacitor : null;
+  const P = Cap && Cap.Plugins;
+  const isNative = Cap && Cap.isNativePlatform && Cap.isNativePlatform();
+  const [done, setDone] = useState({});
+
+  const mark = (k) => setDone((d) => ({ ...d, [k]: true }));
+
+  const askNotif = async () => { try { await P.LocalNotifications.requestPermissions(); mark("notif"); } catch {} };
+  const askLoc = async () => { try { await P.Geolocation.requestPermissions(); mark("loc"); } catch {} };
+  const askBattery = async () => {
+    try {
+      if (P.BatteryOptimization) {
+        const r = await P.BatteryOptimization.isBatteryOptimizationEnabled();
+        if (r && r.enabled) await P.BatteryOptimization.requestIgnoreBatteryOptimization();
+        else await P.BatteryOptimization.openBatteryOptimizationSettings();
+        mark("battery");
+      }
+    } catch {}
+  };
+  const openAppSettings = async () => {
+    /* opens THIS app's system settings page — user taps Battery / Autostart there */
+    try {
+      if (P.BatteryOptimization && P.BatteryOptimization.openBatteryOptimizationSettings) {
+        await P.BatteryOptimization.openBatteryOptimizationSettings(); mark("oem");
+      }
+    } catch {}
+  };
+
+  const Row = ({ n, title, desc, btn, onClick, k }) => (
+    <div style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "12px 0", borderBottom: "1px solid #eef0f6" }}>
+      <div style={{ width: 26, height: 26, borderRadius: "50%", background: done[k] ? "#20bf6b" : "var(--navy)", color: "#fff", display: "grid", placeItems: "center", fontWeight: 800, fontSize: 13, flexShrink: 0 }}>{done[k] ? "✓" : n}</div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 800, fontSize: 13.5, color: "var(--ink)" }}>{title}</div>
+        <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 2, lineHeight: 1.4 }}>{desc}</div>
+        <button onClick={onClick} style={{ marginTop: 8, background: done[k] ? "#e8f7ee" : "var(--navy)", color: done[k] ? "#1f7a44" : "#fff", border: "none", borderRadius: 8, padding: "7px 14px", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>{done[k] ? "Done ✓" : btn}</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.55)", zIndex: 9999, display: "grid", placeItems: "center", padding: 18 }}>
+      <div style={{ background: "#fff", borderRadius: 16, maxWidth: 400, width: "100%", maxHeight: "90vh", overflowY: "auto", padding: 20, boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}>
+        <div style={{ fontWeight: 800, fontSize: 17, color: "var(--navy)", marginBottom: 4 }}>📍 Enable Background Tracking</div>
+        <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 8, lineHeight: 1.5 }}>To track attendance even when the app is closed or the screen is locked, please allow these. Tap each button and choose <b>Allow</b>.</div>
+
+        <Row n="1" k="notif" title="Notifications" desc="So the tracking status stays visible." btn="Allow Notifications" onClick={askNotif} />
+        <Row n="2" k="loc" title="Location — Allow all the time" desc="Choose 'Allow all the time' (not 'Only while using')." btn="Allow Location" onClick={askLoc} />
+        <Row n="3" k="battery" title="Run in background (Battery)" desc="Allow the app to run without battery limits — this stops it from sleeping." btn="Allow Background" onClick={askBattery} />
+        <Row n="4" k="oem" title="No restrictions / Autostart" desc="On Vivo, Redmi, Oppo, Realme, Samsung: open settings → Battery → set 'No restrictions', and turn Autostart ON." btn="Open App Settings" onClick={openAppSettings} />
+
+        <button onClick={onClose} style={{ width: "100%", marginTop: 16, padding: "12px", borderRadius: 11, border: "none", background: "var(--navy)", color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>Done — Start Tracking</button>
+        {!isNative && <div style={{ fontSize: 11, color: "var(--muted)", textAlign: "center", marginTop: 8 }}>(These apply on the installed app, not the browser.)</div>}
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------------------------ ATTENDANCE + GPS TRACKING ------------------------------------------------ */
 function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking, gpsAlarm, todaySession, sessionId }) {
+  const [showGpsSetup, setShowGpsSetup] = useState(false);
+  /* first time attendance is ever turned on, show the background-setup guide once */
+  useEffect(() => {
+    if (attendanceOn && !localStorage.getItem("eb_gps_setup_done")) {
+      setShowGpsSetup(true);
+      localStorage.setItem("eb_gps_setup_done", "1");
+    }
+  }, [attendanceOn]);
   const [battery, setBattery] = useState(null);
   const [online, setOnline] = useState(navigator.onLine);
 
@@ -884,6 +952,11 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
           }} />
           {attendanceOn ? "Attendance ON · GPS Tracking Live" : "Attendance OFF · GPS Tracking Stopped"}
         </div>
+        {/* one-time background setup helper — always reachable */}
+        <button onClick={() => setShowGpsSetup(true)} style={{ width: "100%", marginTop: 8, background: "#eef1ff", color: "var(--navy)", border: "none", borderRadius: 10, padding: "9px 12px", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
+          ⚙️ Fix background tracking (if points stop)
+        </button>
+        {showGpsSetup && <GpsSetupModal onClose={() => setShowGpsSetup(false)} />}
         {tracking.error && !gpsAlarm && (
           <div style={{ marginTop: 10, background: "#fdecec", color: "#c03636", borderRadius: 10, padding: "10px 12px", fontSize: 12.5, fontWeight: 600, display: "flex", gap: 8, alignItems: "flex-start" }}>
             <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
