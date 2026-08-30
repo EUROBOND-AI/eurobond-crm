@@ -134,25 +134,39 @@ export default function AttendancePage() {
       for (const p of routePoints.slice(0, 40)) {
         if (stop) break;
         const key = `${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`;
-        if (p.address || ptAddr[key]) continue;
+        /* geocode if we don't have a browser address yet AND the stored one looks coarse
+           (no street/road/society — e.g. only "Mumbai Zone 4, R/C Ward" from a fallback) */
+        const stored = p.address || "";
+        const looksCoarse = !stored || /zone \d|ward|district|suburban/i.test(stored) && stored.split(",").length <= 4;
+        if (ptAddr[key] || (stored && !looksCoarse)) continue;
+        let full = "";
+        /* 1) Nominatim — has real street/road/society detail */
         try {
-          /* BigDataCloud reverse geocode — free, no API key, CORS-enabled, no aggressive
-             rate-blocking like Nominatim (which returns 403 on bulk browser use). */
-          const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${p.lat}&longitude=${p.lng}&localityLanguage=en`);
-          const j = await r.json();
-          const parts = [
-            j.locality, j.city && j.city !== j.locality ? j.city : "",
-            j.principalSubdivision, j.postcode,
-          ].filter(Boolean);
-          let full = parts.join(", ").trim();
-          /* add the more detailed admin areas if present */
-          if (j.localityInfo && j.localityInfo.administrative) {
-            const admins = j.localityInfo.administrative.map((a) => a.name).filter(Boolean);
-            if (admins.length && full.split(",").length < 3) full = admins.slice(-4).join(", ");
+          const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${p.lat}&lon=${p.lng}&zoom=18&addressdetails=1`, { headers: { "Accept-Language": "en" } });
+          if (r.ok) {
+            const j = await r.json();
+            const a = j.address || {};
+            if (a && Object.keys(a).length) {
+              const place = a.amenity || a.building || a.shop || a.office || a.hospital || a.school || a.college || "";
+              const road = [a.house_number, a.road || a.pedestrian || a.footway].filter(Boolean).join(" ");
+              const locality = [a.neighbourhood, a.suburb, a.quarter, a.residential, a.city_district].filter((x, i, arr) => x && arr.indexOf(x) === i);
+              const parts = [place, road, ...locality, a.city || a.town || a.village, a.state].filter(Boolean);
+              full = (parts.join(", ") + (a.postcode ? " " + a.postcode : "")).trim();
+              if (!full && j.display_name) full = j.display_name.replace(/, India$/, "");
+            }
           }
-          if (full && !stop) setPtAddr((m) => ({ ...m, [key]: full }));
-          await new Promise((res) => setTimeout(res, 250));
         } catch {}
+        /* 2) fallback: BigDataCloud (coarser but never blocked) */
+        if (!full) {
+          try {
+            const r2 = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${p.lat}&longitude=${p.lng}&localityLanguage=en`);
+            const j2 = await r2.json();
+            const parts = [j2.locality, j2.city && j2.city !== j2.locality ? j2.city : "", j2.principalSubdivision, j2.postcode].filter(Boolean);
+            full = parts.join(", ").trim();
+          } catch {}
+        }
+        if (full && !stop) setPtAddr((m) => ({ ...m, [key]: full }));
+        await new Promise((res) => setTimeout(res, 1100));   // Nominatim ~1 req/sec
       }
     })();
     return () => { stop = true; };
@@ -358,7 +372,8 @@ export default function AttendancePage() {
                   const running = String(viewSess.status || "").toUpperCase() === "RUNNING" || !viewSess.end_time;
                   const isLast = i === routePoints.length - 1;
                   const label = i === 0 ? "Start" : (isLast ? (running ? "Live" : "End") : "Point " + (i + 1));
-                  const addr = p.address || ptAddr[`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`];
+                  const geoAddr = ptAddr[`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`];
+                  const addr = geoAddr || p.address;
                   return (
                   <div key={i} style={{ borderLeft: `3px solid ${i === 0 ? "#20bf6b" : (isLast && !running) ? "#e8422e" : isLast ? "#2f6fed" : "#c5cae0"}`, background: "#fff", borderRadius: 8, padding: "7px 10px", marginBottom: 6, boxShadow: "var(--shadow)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>

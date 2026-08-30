@@ -21,8 +21,7 @@ try {
   if (!fs.existsSync(file)) { console.log("[patch-bg-geo] plugin file not found, skipping"); process.exit(0); }
   let src = fs.readFileSync(file, "utf8");
 
-  const alreadyPatched = src.includes("EB_ALARM_V2");
-  // marker: EB_ALARM_V2 EB_NATIVE_UPLOAD
+  const alreadyPatched = src.includes("EB_NATIVE_UPLOAD");
 
   // ---- imports ----
   if (!alreadyPatched) {
