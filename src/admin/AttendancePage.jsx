@@ -146,7 +146,7 @@ export default function AttendancePage() {
           if (full.split(",").length < 4 && j.display_name) full = j.display_name.replace(/, India$/, "");
           if (!full) full = j.display_name || "";
           if (full && !stop) setPtAddr((m) => ({ ...m, [key]: full }));
-          await new Promise((res) => setTimeout(res, 300));   // faster fill for any missing addresses
+          await new Promise((res) => setTimeout(res, 1100));   // Nominatim allows ~1 request/second — respect it or it returns 403
         } catch {}
       }
     })();
