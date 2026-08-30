@@ -195,11 +195,14 @@ function useNotifTapHandler() {
       const r = Cap.Plugins.LocalNotifications.addListener("localNotificationActionPerformed", (ev) => {
         const ex = (ev && ev.notification && ev.notification.extra) || {};
         if (ex.notifId) markRead(ex.notifId);
-        /* this is the field APP — never open admin routes here. Admin links go to the
-           app's own notifications screen instead. */
+        /* this is the field APP — open the matching IN-APP screen, never the admin panel */
         let link = ex.link || "/app/notifications";
-        if (link.startsWith("/admin")) link = "/app/notifications";
-        if (!link.startsWith("/app")) link = "/app/notifications";
+        /* map admin dashboard links to the app's own screens */
+        if (link.includes("expense")) link = "/app/expense";
+        else if (link.includes("enquiry") || link.includes("followup")) link = "/app/followup";
+        else if (link.includes("leave")) link = "/app/leave";
+        else if (link.includes("customer")) link = "/app/customers";
+        else if (link.startsWith("/admin") || !link.startsWith("/app")) link = "/app/notifications";
         nav(link);
       });
       if (r && typeof r.then === "function") r.then((x) => { h = x; }).catch(() => {});

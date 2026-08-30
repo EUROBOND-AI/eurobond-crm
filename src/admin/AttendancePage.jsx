@@ -27,9 +27,9 @@ function downloadSessionExcel(s, points, visits) {
     [], ["Customer Visits"],
     ["#", "Customer", "Address", "Type"],
     ...(visits || []).map((v, i) => [i + 1, v.partyName || v.customer || "", v.address || "", v.type || v.category || ""]),
-    [], ["GPS Points"],
-    ["#", "Time", "Lat", "Lon", "Battery", "Online", "Address"],
-    ...(points || []).map((p, i) => [i + 1, p.recorded_at ? String(p.recorded_at).slice(11, 16) : "", p.lat, p.lng, p.battery ?? "", (p.online === 1 || p.online === true) ? "Online" : "Offline", p.address || ""]),
+    [], ["GPS Timeline"],
+    ["#", "Time", "Location"],
+    ...(points || []).map((p, i) => [i + 1, p.recorded_at ? String(p.recorded_at).slice(11, 16) : "", p.address || `${Number(p.lat).toFixed(5)}, ${Number(p.lng).toFixed(5)}`]),
   ];
   const csv = rows.map((r) => r.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
@@ -42,7 +42,7 @@ function downloadSessionExcel(s, points, visits) {
 function downloadSessionPdf(s, visits, points) {
   const w = window.open("", "_blank");
   const visitRows = (visits || []).map((v, i) => `<tr><td>${i + 1}</td><td>${v.partyName || v.customer || ""}</td><td>${v.address || ""}</td></tr>`).join("");
-  const pointRows = (points || []).map((p, i) => `<tr><td>${i + 1}</td><td>${p.recorded_at ? String(p.recorded_at).slice(11, 16) : ""}</td><td>${p.address || ""}</td><td>${p.battery ?? ""}</td><td>${(p.online === 1 || p.online === true) ? "Online" : "Offline"}</td></tr>`).join("");
+  const pointRows = (points || []).map((p, i) => `<tr><td>${i + 1}</td><td>${p.recorded_at ? String(p.recorded_at).slice(11, 16) : ""}</td><td>${p.address || (Number(p.lat).toFixed(5) + ", " + Number(p.lng).toFixed(5))}</td></tr>`).join("");
   w.document.write(`
     <html><head><title>Attendance ${s.name} ${s.work_date}</title>
     <style>body{font-family:Arial;padding:24px;color:#1c2340}h2{color:#0b3c8c}table{width:100%;border-collapse:collapse;margin-top:10px}td,th{border:1px solid #ccc;padding:7px;text-align:left;font-size:12px}th{background:#eef1ff}.kv{margin:4px 0}</style>
@@ -57,7 +57,7 @@ function downloadSessionPdf(s, visits, points) {
     <h3>Customer Visits (${(visits || []).length})</h3>
     <table><tr><th>#</th><th>Customer</th><th>Address</th></tr>${visitRows || '<tr><td colspan="3">None</td></tr>'}</table>
     <h3>GPS Timeline (${(points || []).length} points)</h3>
-    <table><tr><th>#</th><th>Time</th><th>Location</th><th>Battery</th><th>Network</th></tr>${pointRows || '<tr><td colspan="5">None</td></tr>'}</table>
+    <table><tr><th>#</th><th>Time</th><th>Location</th></tr>${pointRows || '<tr><td colspan="3">None</td></tr>'}</table>
     <p style="margin-top:20px;color:#888;font-size:11px">Generated ${new Date().toLocaleString("en-IN")}</p>
     </body></html>`);
   w.document.close();
@@ -146,7 +146,7 @@ export default function AttendancePage() {
           if (full.split(",").length < 4 && j.display_name) full = j.display_name.replace(/, India$/, "");
           if (!full) full = j.display_name || "";
           if (full && !stop) setPtAddr((m) => ({ ...m, [key]: full }));
-          await new Promise((res) => setTimeout(res, 900));   // be gentle with the free geocoder
+          await new Promise((res) => setTimeout(res, 300));   // faster fill for any missing addresses
         } catch {}
       }
     })();
