@@ -21,10 +21,11 @@ try {
   if (!fs.existsSync(file)) { console.log("[patch-bg-geo] plugin file not found, skipping"); process.exit(0); }
   let src = fs.readFileSync(file, "utf8");
 
-  if (src.includes("EB_ALARM_V2")) { console.log("[patch-bg-geo] already patched ✓"); process.exit(0); }
+  const alreadyPatched = src.includes("EB_ALARM_V2");
   // marker: EB_ALARM_V2 EB_NATIVE_UPLOAD
 
   // ---- imports ----
+  if (!alreadyPatched) {
   const imports = [
     "import android.os.Handler;",
     "import android.os.Looper;",
@@ -196,6 +197,9 @@ try {
 
   fs.writeFileSync(file, src, "utf8");
   console.log("[patch-bg-geo] patched: NATIVE upload + Doze alarm + sticky service ✓");
+  } else {
+    console.log("[patch-bg-geo] java already patched ✓ (checking resources)");
+  }
 
   // ---- also add alarm permissions to the app's AndroidManifest ----
   try {
@@ -216,6 +220,20 @@ try {
       }
     }
   } catch (e) { console.log("[patch-bg-geo] manifest note:", e.message); }
+
+  // ---- set the tracking-notification icon to the Eurobond logo (string resource only,
+  //      no code logic touched) ----
+  try {
+    const strings = path.join(__dirname, "..", "android", "app", "src", "main", "res", "values", "strings.xml");
+    if (fs.existsSync(strings)) {
+      let sx = fs.readFileSync(strings, "utf8");
+      if (!sx.includes("capacitor_background_geolocation_notification_icon")) {
+        sx = sx.replace(/<\/resources>/, '    <string name="capacitor_background_geolocation_notification_icon">drawable/ic_stat_notify</string>\n</resources>');
+        fs.writeFileSync(strings, sx, "utf8");
+        console.log("[patch-bg-geo] set tracking notification icon to Eurobond logo ✓");
+      }
+    }
+  } catch (e) { console.log("[patch-bg-geo] strings note:", e.message); }
 } catch (e) {
   console.log("[patch-bg-geo] skipped:", e.message);
 }

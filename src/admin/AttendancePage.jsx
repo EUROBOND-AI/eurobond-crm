@@ -310,8 +310,8 @@ export default function AttendancePage() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <h3 style={{ margin: 0 }}>{viewSess.name} — route ({fmtKm(Number(viewSess.distance_km) || 0)})</h3>
               <div style={{ display: "flex", gap: 6 }}>
-                <button className="btn btn-soft" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => downloadSessionExcel(viewSess, routePoints, custVisits)}>⬇ Excel</button>
-                <button className="btn btn-pink" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => downloadSessionPdf(viewSess, custVisits, routePoints)}>⬇ PDF</button>
+                <button className="btn btn-soft" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => downloadSessionExcel(viewSess, routePoints.map((p) => ({ ...p, address: p.address || ptAddr[`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`] || "" })), custVisits)}>⬇ Excel</button>
+                <button className="btn btn-pink" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => downloadSessionPdf(viewSess, custVisits, routePoints.map((p) => ({ ...p, address: p.address || ptAddr[`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`] || "" })))}>⬇ PDF</button>
                 <button className="btn btn-ghost" onClick={() => setViewSess(null)}><X size={14} /></button>
               </div>
             </div>

@@ -2098,6 +2098,24 @@ function FieldTeamTracking() {
   const [sessions, setSessions] = useState(null);
   const [sel, setSel] = useState(null);        // selected session for map
   const [pts, setPts] = useState([]);
+  const [hodAddr, setHodAddr] = useState({});
+  /* reverse-geocode HOD timeline points that don't already have a stored address */
+  useEffect(() => {
+    let stop = false;
+    (async () => {
+      for (const p of (pts || []).slice(0, 40)) {
+        if (stop) break;
+        const key = `${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`;
+        if (p.address || hodAddr[key]) continue;
+        try {
+          const nm = await placeName(p.lat, p.lng);
+          if (nm && !stop) setHodAddr((m) => ({ ...m, [key]: nm }));
+          await new Promise((r) => setTimeout(r, 300));
+        } catch {}
+      }
+    })();
+    return () => { stop = true; };
+  }, [pts]);
   const mapRef = useRef(null);
   const mapObj = useRef(null);
   const today = new Date().toISOString().slice(0, 10);
@@ -2174,7 +2192,7 @@ function FieldTeamTracking() {
                     <span style={{ fontSize: 10.5, fontWeight: 800, color: "var(--muted)" }}>{label}</span>
                     <span style={{ fontSize: 10, color: "var(--muted)" }}>🔋 {p.battery != null ? p.battery + "%" : "NA"} {p.online === 1 || p.online === true ? "🟢" : ""}</span>
                   </div>
-                  <div style={{ fontSize: 11.5, color: "var(--ink)", marginTop: 2, fontWeight: 500 }}>{p.address || `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`}</div>
+                  <div style={{ fontSize: 11.5, color: "var(--ink)", marginTop: 2, fontWeight: 500 }}>{p.address || hodAddr[`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`] || "Finding address…"}</div>
                   <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 1 }}>{p.recorded_at ? String(p.recorded_at).slice(11, 16) : ""}</div>
                 </div>
               );
