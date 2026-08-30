@@ -4437,27 +4437,41 @@ export default function FieldApp() {
   useEffect(() => { localStorage.removeItem("eb_att_done"); }, []);   // clear stale lock from old versions
   const [doneToday, setDoneToday] = useState(false);
 
-  /* On app open: proactively ask for Notification + Location permissions (like on first install).
-     Runs every launch until granted, so the notification + background GPS can work. */
+  /* On app open: proactively request ALL permissions + disable battery optimization
+     (so background GPS never sleeps). Runs on every phone brand. The battery-optimization
+     prompt is shown once; after the user allows it, the app won't be dozed. */
   useEffect(() => {
     (async () => {
       try {
         const Cap = window.Capacitor;
         if (!Cap || !Cap.Plugins) return;
+
+        // 1) Notifications (+ tracking channel)
         const LN = Cap.Plugins.LocalNotifications;
         if (LN) {
           try {
             const st = await LN.checkPermissions();
             if (!st || st.display !== "granted") await LN.requestPermissions();
           } catch { try { await LN.requestPermissions(); } catch {} }
-          /* make sure the channel the tracking notification uses exists */
           try { if (LN.createChannel) await LN.createChannel({ id: "eurobond_crm", name: "Eurobond CRM", description: "CRM alerts", importance: 5, visibility: 1 }); } catch {}
         }
-        const BG = Cap.Plugins.BackgroundGeolocation;
-        /* background geolocation asks for "always" location itself when the watcher starts;
-           also nudge the Geolocation permission so the OS prompt appears early */
+
+        // 2) Location — "while using" first, then "always" (background)
         const Geo = Cap.Plugins.Geolocation;
         if (Geo && Geo.requestPermissions) { try { await Geo.requestPermissions(); } catch {} }
+
+        // 3) Battery optimization — ask ONCE to disable it (this is what stops Doze/sleep
+        //    on Vivo, Redmi, Realme, Oppo, Samsung, Pixel, etc). Shows the system dialog.
+        const Batt = Cap.Plugins.BatteryOptimization;
+        if (Batt && Cap.isNativePlatform && Cap.isNativePlatform() && !localStorage.getItem("eb_batt_asked")) {
+          try {
+            const r = await Batt.isBatteryOptimizationEnabled();
+            if (r && r.enabled) {
+              await Batt.requestIgnoreBatteryOptimization();  // system dialog: "Allow app to run in background"
+            }
+            localStorage.setItem("eb_batt_asked", "1");
+          } catch { localStorage.setItem("eb_batt_asked", "1"); }
+        }
       } catch {}
     })();
   }, []);

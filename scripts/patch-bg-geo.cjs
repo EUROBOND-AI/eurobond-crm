@@ -86,6 +86,18 @@ try {
         return true;`
   );
 
+  // Force a fast native location interval (60s) so points keep coming even when
+  // Android throttles background updates. The plugin builds a LocationRequest with
+  // setInterval(...) — make it 60s and fastest 30s regardless of the JS-side value.
+  src = src.replace(
+    /\.setInterval\((\d+|[a-zA-Z0-9_\.\*\s]+)\)/g,
+    ".setInterval(60000)"
+  );
+  src = src.replace(
+    /\.setFastestInterval\((\d+|[a-zA-Z0-9_\.\*\s]+)\)/g,
+    ".setFastestInterval(30000)"
+  );
+
   fs.writeFileSync(file, src, "utf8");
   console.log("[patch-bg-geo] patched: sticky notification + GPS re-arm ✓");
 } catch (e) {
