@@ -1,6 +1,7 @@
 /* ============ Central API client — talks to Hostinger backend ============ */
 
 export const API_BASE = "https://eurobondsealant.com/crm-api";
+if (typeof window !== "undefined") { try { window.__EB_API_BASE__ = API_BASE; } catch {} }
 
 const TOKEN_KEY = "eb_token";
 const USER_KEY = "eb_user";

@@ -84,7 +84,26 @@ const _tracker = {
   intervalMs: 900000,      // 15 min timeline cadence
   uploadFn: null,
   lastKept: null,          // last KEPT point {lat,lng} — for stationary/move detection
+  diag: { watcherFires: 0, lastFireMs: 0, uploads: 0, lastUploadMs: 0, lastUploadOk: null, lastError: "", startedMs: 0 },
 };
+
+/* diagnostic snapshot for the in-app debug screen */
+export function getTrackerDiag() {
+  const d = _tracker.diag;
+  const ago = (ms) => ms ? Math.round((Date.now() - ms) / 1000) + "s ago" : "never";
+  return {
+    active: _tracker.active,
+    sessionId: _tracker.sessionId,
+    watcherFires: d.watcherFires,
+    lastFire: ago(d.lastFireMs),
+    uploads: d.uploads,
+    lastUpload: ago(d.lastUploadMs),
+    lastUploadOk: d.lastUploadOk,
+    lastError: d.lastError || "none",
+    lastSaved: ago(_tracker.lastSavedMs),
+    runningFor: d.startedMs ? Math.round((Date.now() - d.startedMs) / 60000) + " min" : "-",
+  };
+}
 
 export function setTrackerHandler(fn) { _tracker.onPoint = fn; }
 export function isTrackerActive() { return _tracker.active; }
@@ -93,6 +112,23 @@ export function setTrackerSession(sessionId, intervalMs, uploadFn) {
   _tracker.sessionId = sessionId;
   if (intervalMs) _tracker.intervalMs = intervalMs;
   if (uploadFn) _tracker.uploadFn = uploadFn;
+  /* Write session + token + URL to native storage so the patched native service can
+     upload locations directly (works when the JS/WebView is frozen in background). */
+  try {
+    const Cap = typeof window !== "undefined" ? window.Capacitor : null;
+    const Prefs = Cap && Cap.Plugins && Cap.Plugins.Preferences;
+    if (Prefs) {
+      const token = (typeof localStorage !== "undefined" && localStorage.getItem("eb_token")) || "";
+      const base = (typeof window !== "undefined" && window.__EB_API_BASE__) || "https://eurobondsealant.com/crm-api";
+      if (sessionId) {
+        Prefs.set({ key: "eb_session_id", value: String(sessionId) });
+        Prefs.set({ key: "eb_token", value: token });
+        Prefs.set({ key: "eb_upload_url", value: base + "/attendance.php?action=points" });
+      } else {
+        Prefs.remove({ key: "eb_session_id" });
+      }
+    }
+  } catch {}
   if (changed && sessionId) {
     _tracker.lastSavedMs = 0;
     _tracker.lastKept = null;
@@ -116,6 +152,8 @@ function _handleLocation(loc) {
     time: loc.time || Date.now(),
     t: loc.time || Date.now(),
   };
+  _tracker.diag.watcherFires++;
+  _tracker.diag.lastFireMs = Date.now();
   if (pt.lat == null || pt.lng == null) return;
 
   /* Simple rule (like BreezERP): keep ONE point every 15 minutes — wherever they are.
@@ -130,19 +168,16 @@ function _handleLocation(loc) {
   if (_tracker.sessionId && _tracker.uploadFn) {
     _tracker.lastSavedMs = now;
     pt.online = typeof navigator !== "undefined" ? navigator.onLine : true;
-    /* reverse-geocode so every point (even background) has a stored address → no "Finding location" later */
-    (async () => {
-      try {
-        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${pt.lat}&lon=${pt.lng}&zoom=18&addressdetails=1`, { headers: { "Accept-Language": "en" } });
-        const j = await r.json();
-        const a = j.address || {};
-        const place = a.amenity || a.building || a.shop || a.office || a.hospital || a.school || a.college || "";
-        const loc = [a.neighbourhood, a.suburb, a.quarter, a.residential, a.city_district].filter((x, i, arr) => x && arr.indexOf(x) === i);
-        const parts = [place, [a.house_number, a.road || a.pedestrian].filter(Boolean).join(" "), ...loc, a.city || a.town || a.village, a.state].filter(Boolean);
-        pt.address = (parts.join(", ") + (a.postcode ? " " + a.postcode : "")).trim() || j.display_name || "";
-      } catch {}
-      try { _tracker.uploadFn(_tracker.sessionId, [pt]).catch(() => {}); } catch {}
-    })();
+    /* UPLOAD IMMEDIATELY — do not wait on geocoding (the server geocodes the address
+       itself, and a background WebView can stall the fetch below, which used to block
+       the upload entirely). Address here is best-effort only. */
+    _tracker.diag.uploads++;
+    _tracker.diag.lastUploadMs = Date.now();
+    try {
+      _tracker.uploadFn(_tracker.sessionId, [pt])
+        .then(() => { _tracker.diag.lastUploadOk = true; })
+        .catch((e) => { _tracker.diag.lastUploadOk = false; _tracker.diag.lastError = "upload: " + (e && e.message || "fail"); });
+    } catch (e) { _tracker.diag.lastUploadOk = false; _tracker.diag.lastError = "upload throw: " + (e && e.message || ""); }
   }
 }
 
@@ -150,6 +185,8 @@ export async function startTracker(onPoint, onError) {
   _tracker.onPoint = onPoint;
   if (_tracker.active) return;                 // already running — just re-point the handler
   _tracker.active = true;
+  _tracker.diag.startedMs = Date.now();
+  _tracker.diag.lastError = "";
   _tracker.lastSavedMs = 0;
 
   const Cap = typeof window !== "undefined" ? window.Capacitor : null;
