@@ -126,6 +126,23 @@ export default function AttendancePage() {
 
   /* map modal for one session — Login/In-Between/Logout markers + travel points panel */
   const [routePoints, setRoutePoints] = useState([]);
+  /* single source of truth for distance — same formula used for per-point AND total,
+     so the last point's cumulative always equals "Total KM Traveled" */
+  const cumKmAt = (pts, upto) => {
+    const hav = (a, b) => { const R = 6371, dLat = (b.lat - a.lat) * Math.PI / 180, dLng = (b.lng - a.lng) * Math.PI / 180; const x = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
+    let cum = 0, last = null;
+    for (let i = 0; i <= upto && i < pts.length; i++) {
+      const p = { lat: Number(pts[i].lat), lng: Number(pts[i].lng) };
+      if (last) {
+        const d = hav(last, p);
+        if (d * 1000 >= 60 && d < 5) { cum += d; last = p; }   // real movement -> count + advance
+        else if (d >= 5) { last = p; }                          // teleport -> reset anchor, don't count
+        // drift <60m -> keep same anchor (matches app's totalDistanceKm exactly)
+      } else { last = p; }
+    }
+    return cum;
+  };
+  const totalKm = routePoints.length ? cumKmAt(routePoints, routePoints.length - 1) : 0;
   const [ptAddr, setPtAddr] = useState({});
   /* reverse-geocode each timeline point to a full address (cached by lat,lng) */
   useEffect(() => {
@@ -330,7 +347,7 @@ export default function AttendancePage() {
         <div className="modal-mask" onClick={() => setViewSess(null)}>
           <div className="modal" style={{ maxWidth: 720, width: "94%" }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <h3 style={{ margin: 0 }}>{viewSess.name} — route ({fmtKm(Number(viewSess.distance_km) || 0)})</h3>
+              <h3 style={{ margin: 0 }}>{viewSess.name} — route ({totalKm.toFixed(2)} km)</h3>
               <div style={{ display: "flex", gap: 6 }}>
                 <button className="btn btn-soft" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => downloadSessionExcel(viewSess, routePoints.map((p) => ({ ...p, address: p.address || ptAddr[`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`] || "" })), custVisits)}>⬇ Excel</button>
                 <button className="btn btn-pink" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => downloadSessionPdf(viewSess, custVisits, routePoints.map((p) => ({ ...p, address: p.address || ptAddr[`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`] || "" })))}>⬇ PDF</button>
@@ -372,13 +389,8 @@ export default function AttendancePage() {
                 ))}
                 <div style={{ fontWeight: 800, fontSize: 12.5, color: "var(--muted)", margin: "14px 0 8px" }}>Timeline ({routePoints.length} points)</div>
                 {(() => {
-                  /* cumulative distance up to each point (ignore <60m drift, skip >5km jumps) */
-                  const hav = (a, b) => { const R = 6371, dLat = (b.lat - a.lat) * Math.PI / 180, dLng = (b.lng - a.lng) * Math.PI / 180; const x = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
-                  let cum = 0, prev = null;
                   return routePoints.slice(0, 100).map((p, i) => {
-                  const pt = { lat: Number(p.lat), lng: Number(p.lng) };
-                  if (prev) { const d = hav(prev, pt); if (d * 1000 >= 60 && d < 5) cum += d; }
-                  prev = pt;
+                  const cum = cumKmAt(routePoints, i);
                   const running = String(viewSess.status || "").toUpperCase() === "RUNNING" || !viewSess.end_time;
                   const isLast = i === routePoints.length - 1;
                   const label = i === 0 ? "Start" : (isLast ? (running ? "Live" : "End") : "Point " + (i + 1));
@@ -409,7 +421,7 @@ export default function AttendancePage() {
                 <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 16, height: 16, borderRadius: 4, background: "#8b5cf6" }} /> Customer Visit</span>
                 <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 16, height: 16, borderRadius: 4, background: "#e8422e" }} /> Logout</span>
               </div>
-              <div style={{ fontWeight: 800, fontSize: 15, color: "var(--navy)" }}>Total KM Traveled: <span style={{ color: "var(--accent)" }}>{(Number(viewSess.distance_km) || 0).toFixed(2)}</span></div>
+              <div style={{ fontWeight: 800, fontSize: 15, color: "var(--navy)" }}>Total KM Traveled: <span style={{ color: "var(--accent)" }}>{totalKm.toFixed(2)}</span></div>
             </div>
           </div>
         </div>

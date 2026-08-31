@@ -65,6 +65,13 @@ const isMine = (n, me) => {
     return false;
   }
   if (n.to === "ADMIN") return false;
+  /* admin/HOD-role broadcasts must NOT reach a field user's inbox */
+  if (n.forRole) {
+    const fr = String(n.forRole).toLowerCase();
+    const myRole = String(me.role || "").toLowerCase();
+    if (fr === "admin") return myRole === "admin";
+    return fr === myRole;
+  }
   return !n.to || n.to === me.name || n.to === me.code || n.to === me.mobile;
 };
 
@@ -2890,7 +2897,15 @@ function FieldNotifications() {
     setRead(getReadIds());
     /* once viewed, remove it so it never shows again (even after re-login) */
     dismiss(n._id);
-    if (n.link) nav(n.link);
+    /* never open the admin panel from the field app — map admin links to app screens */
+    let link = n.link || "";
+    if (link.includes("expense")) link = "/app/expense";
+    else if (link.includes("enquiry") || link.includes("followup")) link = "/app/followup";
+    else if (link.includes("leave")) link = "/app/leave";
+    else if (link.includes("customer")) link = "/app/customers";
+    else if (link.includes("quotation")) link = "/app";
+    else if (link.startsWith("/admin") || !link.startsWith("/app")) link = "";
+    if (link) nav(link);
   };
 
   const dismiss = (id) => {
