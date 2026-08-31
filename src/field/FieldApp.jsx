@@ -178,7 +178,13 @@ function phoneNotify(title, body, extra = {}) {
         window.focus();
         if (extra.notifId) markRead(extra.notifId);
         window.location.hash = "";
-        window.location.href = extra.link ? `/app${extra.link.startsWith("/") ? extra.link : "/" + extra.link}` : "/app/notifications";
+        let link = extra.link || "/app/notifications";
+        if (link.includes("expense")) link = "/app/expense";
+        else if (link.includes("enquiry") || link.includes("followup")) link = "/app/followup";
+        else if (link.includes("leave")) link = "/app/leave";
+        else if (link.includes("customer")) link = "/app/customers";
+        else if (link.startsWith("/admin") || !link.startsWith("/app")) link = "/app/notifications";
+        window.location.href = link;
       };
     }
   } catch {}
@@ -217,25 +223,35 @@ const geoCache = {};
 async function placeName(lat, lng) {
   const key = lat.toFixed(4) + "," + lng.toFixed(4);
   if (geoCache[key]) return geoCache[key];
+  let name = "";
+  /* 1) Nominatim — real street/road/society detail */
   try {
-    /* BigDataCloud — free, no API key, CORS-enabled, no aggressive rate-blocking. */
-    const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`);
-    const j = await r.json();
-    const parts = [
-      j.locality,
-      j.city && j.city !== j.locality ? j.city : "",
-      j.principalSubdivision,
-      j.postcode,
-    ].filter(Boolean);
-    let name = parts.join(", ").trim();
-    if (j.localityInfo && j.localityInfo.administrative) {
-      const admins = j.localityInfo.administrative.map((a) => a.name).filter(Boolean);
-      if (admins.length && name.split(",").length < 3) name = admins.slice(-4).join(", ");
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`, { headers: { "Accept-Language": "en" } });
+    if (r.ok) {
+      const j = await r.json();
+      const a = j.address || {};
+      if (a && Object.keys(a).length) {
+        const place = a.amenity || a.building || a.shop || a.office || a.hospital || a.school || a.college || "";
+        const road = [a.house_number, a.road || a.pedestrian || a.footway].filter(Boolean).join(" ");
+        const locality = [a.neighbourhood, a.suburb, a.quarter, a.residential, a.city_district].filter((x, i, arr) => x && arr.indexOf(x) === i);
+        const parts = [place, road, ...locality, a.city || a.town || a.village, a.state].filter(Boolean);
+        name = (parts.join(", ") + (a.postcode ? " " + a.postcode : "")).trim();
+        if (!name && j.display_name) name = j.display_name.replace(/, India$/, "");
+      }
     }
-    if (!name) name = j.locality || j.city || "Unknown location";
-    geoCache[key] = name;
-    return name;
-  } catch { return "—"; }
+  } catch {}
+  /* 2) fallback: BigDataCloud (coarser, never blocked) */
+  if (!name) {
+    try {
+      const r2 = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`);
+      const j2 = await r2.json();
+      const parts = [j2.locality, j2.city && j2.city !== j2.locality ? j2.city : "", j2.principalSubdivision, j2.postcode].filter(Boolean);
+      name = parts.join(", ").trim();
+    } catch {}
+  }
+  if (!name) name = "—";
+  geoCache[key] = name;
+  return name;
 }
 
 /* ---- iPhone-style slide to start/stop ---- */

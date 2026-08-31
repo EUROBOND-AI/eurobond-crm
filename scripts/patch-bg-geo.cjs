@@ -32,6 +32,7 @@ try {
     "import android.app.AlarmManager;",
     "import android.app.PendingIntent;",
     "import android.content.Context;",
+    "import android.os.PowerManager;",
     "import java.io.OutputStream;",
     "import java.net.HttpURLConnection;",
     "import java.net.URL;",
@@ -57,6 +58,14 @@ try {
         ebLastUploadMs = now;
         new Thread(new Runnable() {
             @Override public void run() {
+                PowerManager.WakeLock wl = null;
+                try {
+                    // Hold a short WakeLock so the CPU stays awake to finish the upload
+                    // even in deep Doze (works the same on every brand — Redmi, Vivo, etc).
+                    PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+                    wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "eurobond:upload");
+                    wl.acquire(30000);
+                } catch (Exception e) {}
                 try {
                     SharedPreferences prefs = getApplicationContext()
                         .getSharedPreferences("CapacitorStorage", MODE_PRIVATE);
@@ -92,6 +101,7 @@ try {
                     c.getResponseCode();   // fire the request
                     c.disconnect();
                 } catch (Exception e) { /* retry on next location */ }
+                finally { try { if (wl != null && wl.isHeld()) wl.release(); } catch (Exception e) {} }
             }
         }).start();
     }
