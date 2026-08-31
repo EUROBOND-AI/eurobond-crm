@@ -133,9 +133,21 @@ try {
     private void ebPollOnce() {
         for (Watcher w : watchers) {
             try {
-                w.client.removeLocationUpdates(w.locationCallback);
-                w.client.requestLocationUpdates(w.locationRequest, w.locationCallback, null);
-            } catch (Exception e) {}
+                // Force a FRESH single location (ignores distanceFilter), so a point is
+                // captured even when the user hasn't moved. This is the key fix for
+                // "stationary = no points": getCurrentLocation always returns a fix.
+                w.client.getCurrentLocation(100, null)
+                    .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<Location>() {
+                        @Override public void onSuccess(Location loc) {
+                            if (loc != null) { ebUploadLocation(loc); }
+                        }
+                    });
+            } catch (Exception e) {
+                try {
+                    w.client.removeLocationUpdates(w.locationCallback);
+                    w.client.requestLocationUpdates(w.locationRequest, w.locationCallback, null);
+                } catch (Exception e2) {}
+            }
         }
     }
 
