@@ -131,7 +131,7 @@ export default function AttendancePage() {
   useEffect(() => {
     let stop = false;
     (async () => {
-      for (const p of routePoints.slice(0, 40)) {
+      for (const p of routePoints.slice(0, 100)) {
         if (stop) break;
         const key = `${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`;
         /* geocode if we don't have a browser address yet AND the stored one looks coarse
@@ -375,7 +375,7 @@ export default function AttendancePage() {
                   /* cumulative distance up to each point (ignore <60m drift, skip >5km jumps) */
                   const hav = (a, b) => { const R = 6371, dLat = (b.lat - a.lat) * Math.PI / 180, dLng = (b.lng - a.lng) * Math.PI / 180; const x = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
                   let cum = 0, prev = null;
-                  return routePoints.slice(0, 40).map((p, i) => {
+                  return routePoints.slice(0, 100).map((p, i) => {
                   const pt = { lat: Number(p.lat), lng: Number(p.lng) };
                   if (prev) { const d = hav(prev, pt); if (d * 1000 >= 60 && d < 5) cum += d; }
                   prev = pt;

@@ -1019,7 +1019,7 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
               {attendanceOn ? "Getting your first location… please wait a few seconds." : "No location data yet. Start attendance to begin tracking."}
             </div>
           )}
-          {timelinePoints.slice(0, 40).map((p, i) => {
+          {timelinePoints.slice(0, 100).map((p, i) => {
             const key = p.lat.toFixed(4) + "," + p.lng.toFixed(4);
             if (p.appClosed) {
               const mins = Math.round((p.closedTo - p.closedFrom) / 60000);
@@ -2104,7 +2104,7 @@ function FieldTeamTracking() {
   useEffect(() => {
     let stop = false;
     (async () => {
-      for (const p of (pts || []).slice(0, 40)) {
+      for (const p of (pts || []).slice(0, 100)) {
         if (stop) break;
         const key = `${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`;
         if (p.address || hodAddr[key]) continue;
@@ -2183,7 +2183,7 @@ function FieldTeamTracking() {
             <div style={{ fontWeight: 800, fontSize: 12.5, color: "var(--muted)", margin: "6px 0 8px" }}>Timeline ({pts.length} points)</div>
             {pts.length === 0 ? (
               <div style={{ textAlign: "center", color: "var(--muted)", padding: 20, fontSize: 13 }}>No location points yet today.</div>
-            ) : pts.slice().reverse().slice(0, 40).map((p, ri) => {
+            ) : pts.slice().reverse().slice(0, 100).map((p, ri) => {
               const i = pts.length - 1 - ri;   // original index
               const isStart = i === 0, isEnd = i === pts.length - 1;
               const label = isStart ? "Start" : isEnd ? (sel.app_status === "Live" ? "Live" : "End") : "Point " + (i + 1);
