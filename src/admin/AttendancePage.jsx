@@ -184,6 +184,9 @@ export default function AttendancePage() {
       html: `<div style="background:${color};width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 3px 8px rgba(0,0,0,.4);display:grid;place-items:center;border:2px solid #fff"><span style="transform:rotate(45deg);color:#fff;font-size:10px;font-weight:800">${label}</span></div>`,
       iconSize: [26, 26], iconAnchor: [13, 26],
     });
+    /* kick off a server-side address fill for any points missing one (non-blocking,
+       a few at a time) so PDF/Excel and future opens have addresses ready */
+    try { api.attGeocode(viewSess.id).catch(() => {}); } catch {}
     api.attTrack(viewSess.id).then((d) => {
       /* show ALL uploaded points — don't drop weak-accuracy ones (phones often report
          ±60-100m indoors, and dropping them made the admin timeline look empty) */
