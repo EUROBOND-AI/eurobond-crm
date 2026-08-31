@@ -431,9 +431,10 @@ function ScreenHead({ title, back = true, right = null }) {
 }
 
 /* ------------------------------------------------ HOME ------------------------------------------------ */
-const ATT_START_HOUR = 6;   // morning 6 AM
-const ATT_END_HOUR = 21;    // night 9 PM
-const withinAttWindow = () => { const h = new Date().getHours(); return h >= ATT_START_HOUR && h < ATT_END_HOUR; };
+const ATT_START_HOUR = 5;      // morning 5 AM
+const ATT_END_HOUR = 22;       // night — window closes at 10:30 PM (22.5)
+const ATT_END_MIN = 30;        // :30
+const withinAttWindow = () => { const d = new Date(); const mins = d.getHours() * 60 + d.getMinutes(); return mins >= ATT_START_HOUR * 60 && mins < ATT_END_HOUR * 60 + ATT_END_MIN; };
 function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expenses, followups, leaves, onStartAttendance, onStopAttendance }) {
   const [seg, setSeg] = useState("Matrics");
   const [sheet, setSheet] = useState(false);
@@ -489,7 +490,7 @@ function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expense
           </div>
         ) : !withinAttWindow() && !attendanceOn ? (
           <div style={{ background: "#f1f3f8", border: "1.5px solid #d7dcef", borderRadius: 16, padding: "16px", textAlign: "center", fontWeight: 700, color: "var(--muted)", fontSize: 13 }}>
-            Attendance available 6:00 AM – 9:00 PM
+            Attendance available 5:00 AM – 10:30 PM
           </div>
         ) : (
           <SlideToStart on={attendanceOn} onToggle={() => { if (!attendanceOn) { onStartAttendance(); } else { onStopAttendance(); } }} />
@@ -1311,6 +1312,8 @@ function ExpenseFormatView({ list, reload }) {
     try {
       await api.update("expense", fmt._id, { ...fmt, status: "Submitted", submittedAt: new Date().toLocaleString("en-IN"), rejectRemark: "", rejectAttachment: "", partialRejected: false });
       try { await api.create("notification", { title: "Expense Submitted", message: `${CU().name} submitted an expense statement of ₹${total.toLocaleString("en-IN")}`, forRole: "Admin", link: "/admin/dashboards/expense", at: new Date().toISOString() }); } catch {}
+      /* the submitter's own confirmation — goes only to them, opens the app expense screen */
+      try { await api.create("notification", { title: "Expense Submitted", message: `Your expense statement of ₹${total.toLocaleString("en-IN")} was submitted.`, to: CU().name, link: "/app/expense", at: new Date().toISOString() }); } catch {}
       reload && reload();
       nav("/app/expense");
     } catch (e) { alert(e.message); setBusy(false); }
@@ -2000,35 +2003,27 @@ function FieldTarget() {
             )}
             {targets.map((t, i) => {
               const ach = achFor(t);
-              const tgtS = Number(t.targetSqft || t.target || 0);
-              const tgtA = Number(t.targetAmount || 0);
-              const pcS = tgtS > 0 ? Math.round((ach.sqft / tgtS) * 100) : 0;
-              const pcA = tgtA > 0 ? Math.round((ach.amount / tgtA) * 100) : 0;
-              const mainPc = tgtA > 0 && !isSpec ? pcA : pcS;
+              const isSalesT = String(t.targetType || "").toLowerCase() === "sales";
+              const tgt = Number(t.target || t.targetSqft || t.targetAmount || 0);
+              const achVal = isSalesT ? ach.amount : ach.sqft;
+              const mainPc = tgt > 0 ? Math.round((achVal / tgt) * 100) : 0;
               return (
                 <div key={i} className="f-metric card-3d" style={{ marginBottom: 12, borderLeft: `5px solid ${pcColor(mainPc)}` }}>
                   <h5><Target size={15} /> {t.period || "Target"}
                     <span className="pct" style={{ background: pcColor(mainPc), color: "#fff", padding: "2px 9px", borderRadius: 8 }}>{mainPc}%</span>
                   </h5>
-                  {tgtS > 0 && (
-                    <div style={{ marginBottom: 8 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 700 }}>
-                        <span>Sq.Feet {isSpec ? "Approved" : "Sold"}</span>
-                        <span style={{ color: pcColor(pcS) }}>{ach.sqft.toLocaleString("en-IN")} / {tgtS.toLocaleString("en-IN")}</span>
-                      </div>
-                      <div className="bar"><i style={{ width: Math.min(100, pcS) + "%", background: pcColor(pcS) }} /></div>
-                    </div>
-                  )}
-                  {tgtA > 0 && (
+                  {tgt > 0 && (
                     <div>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 700 }}>
-                        <span>Sales Amount</span>
-                        <span style={{ color: pcColor(pcA) }}>₹{ach.amount.toLocaleString("en-IN")} / ₹{tgtA.toLocaleString("en-IN")}</span>
+                        <span>{isSalesT ? "Sales Amount" : "Sq.Mtr " + (isSpec ? "Approved" : "Sold")}</span>
+                        <span style={{ color: pcColor(mainPc) }}>
+                          {isSalesT ? "₹" : ""}{achVal.toLocaleString("en-IN")} / {isSalesT ? "₹" : ""}{tgt.toLocaleString("en-IN")}{isSalesT ? "" : " Sq.Mtr"}
+                        </span>
                       </div>
-                      <div className="bar"><i style={{ width: Math.min(100, pcA) + "%", background: pcColor(pcA) }} /></div>
+                      <div className="bar"><i style={{ width: Math.min(100, mainPc) + "%", background: pcColor(mainPc) }} /></div>
                     </div>
                   )}
-                  <small>{t.note || ""}</small>
+                  <small>{t.periodType ? t.periodType + " · " : ""}{t.period || ""} {t.note ? "· " + t.note : ""}</small>
                 </div>
               );
             })}
@@ -4678,8 +4673,19 @@ export default function FieldApp() {
     const pollNotif = () => {
       api.myNotifications().then((d) => {
         const me = CU();
+        const myRole = (me.role || "").toLowerCase();
         const mine = (d.records || []).map((r) => ({ id: r.id, ...r.data }))
-          .filter((n) => !n.to || n.to === me.name || n.to === me.code || n.to === me.mobile);
+          .filter((n) => {
+            /* addressed to me by name/code/mobile → mine */
+            if (n.to && (n.to === me.name || n.to === me.code || n.to === me.mobile)) return true;
+            /* admin/HOD-role broadcasts should NOT reach a field user */
+            if (n.forRole) {
+              const fr = String(n.forRole).toLowerCase();
+              return fr === myRole || (fr === "admin" && myRole === "admin");
+            }
+            /* a notification with neither "to" nor "forRole" is a general one → show it */
+            return !n.to && !n.forRole;
+          });
         const readSet = getReadIds();
         mine.forEach((n) => {
           const nid = String(n.id);

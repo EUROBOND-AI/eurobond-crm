@@ -124,6 +124,16 @@ export default function ModulePage({ cfgKey }) {
     a.click();
   };
 
+  /* download a CSV template with the module's column headers (like Holidays) */
+  const downloadFormat = () => {
+    const labels = (cfg.form || []).map((f) => f.label || f.name).filter(Boolean);
+    const heads = labels.length ? labels : (cfg.columns || []).map((c) => c.label);
+    const csv = heads.join(",") + "\n";
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    a.download = `${cfgKey}-format.csv`; a.click();
+  };
+
   const importCsv = () => {
     const inp = document.createElement("input");
     inp.type = "file"; inp.accept = ".csv";
@@ -263,6 +273,7 @@ export default function ModulePage({ cfgKey }) {
             refreshing={refreshing}
             onExport={exportCsv}
             onImport={cfg.form ? importCsv : null}
+            onDownloadFormat={cfg.form ? downloadFormat : null}
             onHeaderConfig={() => setShowColCfg(true)}
             onLogs={() => setShowLogs(true)}
             onReport={viewReport}

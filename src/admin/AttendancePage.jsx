@@ -368,7 +368,14 @@ export default function AttendancePage() {
                   </div>
                 ))}
                 <div style={{ fontWeight: 800, fontSize: 12.5, color: "var(--muted)", margin: "14px 0 8px" }}>Timeline ({routePoints.length} points)</div>
-                {routePoints.slice(0, 40).map((p, i) => {
+                {(() => {
+                  /* cumulative distance up to each point (ignore <60m drift, skip >5km jumps) */
+                  const hav = (a, b) => { const R = 6371, dLat = (b.lat - a.lat) * Math.PI / 180, dLng = (b.lng - a.lng) * Math.PI / 180; const x = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
+                  let cum = 0, prev = null;
+                  return routePoints.slice(0, 40).map((p, i) => {
+                  const pt = { lat: Number(p.lat), lng: Number(p.lng) };
+                  if (prev) { const d = hav(prev, pt); if (d * 1000 >= 60 && d < 5) cum += d; }
+                  prev = pt;
                   const running = String(viewSess.status || "").toUpperCase() === "RUNNING" || !viewSess.end_time;
                   const isLast = i === routePoints.length - 1;
                   const label = i === 0 ? "Start" : (isLast ? (running ? "Live" : "End") : "Point " + (i + 1));
@@ -378,6 +385,7 @@ export default function AttendancePage() {
                   <div key={i} style={{ borderLeft: `3px solid ${i === 0 ? "#20bf6b" : (isLast && !running) ? "#e8422e" : isLast ? "#2f6fed" : "#c5cae0"}`, background: "#fff", borderRadius: 8, padding: "7px 10px", marginBottom: 6, boxShadow: "var(--shadow)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <span style={{ fontSize: 11, fontWeight: 800, color: i === 0 ? "#20bf6b" : (isLast && !running) ? "#e8422e" : isLast ? "#2f6fed" : "var(--muted)" }}>{label}</span>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: "var(--accent)" }}>{cum.toFixed(2)} km</span>
                     </div>
                     <div style={{ fontSize: 13, color: "var(--ink)", marginTop: 3, fontWeight: 600, lineHeight: 1.4 }}>{addr || "Finding address…"}</div>
                     <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3, display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -388,7 +396,8 @@ export default function AttendancePage() {
                     <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>📍 {Number(p.lat).toFixed(5)}, {Number(p.lng).toFixed(5)}</div>
                   </div>
                   );
-                })}
+                });
+                })()}
               </div>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, flexWrap: "wrap", gap: 10 }}>
