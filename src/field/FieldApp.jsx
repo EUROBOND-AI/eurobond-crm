@@ -5108,7 +5108,7 @@ export default function FieldApp() {
             <Route path="followup/new" element={<FieldFollowUpNew add={async (f) => { try { const r = await api.create("followup", f); setFollowups((x) => [{ _id: r.id, ...f }, ...x]); } catch (err) { alert(err.message); } }} />} />
             <Route path="followup/quick" element={<FieldFollowUpQuick add={async (f) => { const r = await api.create("followup", f); setFollowups((x) => [{ _id: r.id, ...f }, ...x]); }} />} />
             <Route path="customer/edit" element={<FieldFollowUpNew editData={CUST_EDIT.data} add={async (f) => { try { const id = CUST_EDIT.data?._id; if (id) { await api.update("followup", id, f); setFollowups((x) => x.map((c) => (c._id === id ? { _id: id, ...f } : c))); } CUST_EDIT.data = null; } catch (err) { alert(err.message); } }} />} />
-            <Route path="project/new" element={<FieldModuleNew mod="projectProjection" />} />
+            <Route path="project/new" element={<FieldProjectNew />} />
             {Object.keys(APP_MODS).map((m) => (
               <Route key={m} path={`m/${m}`} element={m === "enquiry" ? <FieldEnquiry /> : m === "quotation" ? <FieldQuotationList /> : <FieldModule mod={m} />} />
             ))}
