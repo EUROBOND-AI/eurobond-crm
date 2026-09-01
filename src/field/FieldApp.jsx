@@ -1936,6 +1936,7 @@ function FieldProjectList() {
   const [viewRec, setViewRec] = useState(null);
   const [fupRec, setFupRec] = useState(null);
   const [statRec, setStatRec] = useState(null);
+  const [fwdRec, setFwdRec] = useState(null);
   const isSpec = `${CU().role || ""} ${CU().designation || ""}`.toLowerCase().includes("spec");
 
   const load = () => api.list("projectProjection", false)
@@ -1974,6 +1975,7 @@ function FieldProjectList() {
               <button onClick={() => { PROJ_EDIT.data = r; nav("/app/project/new"); }} style={pBtn("#0b3c8c")}>Edit</button>
               <button onClick={() => setFupRec(r)} style={pBtn("#1f9d55")}>Followup</button>
               <button onClick={() => setStatRec(r)} style={pBtn("#e08600")}>Status</button>
+              <button onClick={() => setFwdRec(r)} style={pBtn("#8854d0")}>Forward</button>
             </div>
           </div>
         ))}
@@ -1981,6 +1983,7 @@ function FieldProjectList() {
       {viewRec && <ProjectView rec={viewRec} onClose={() => setViewRec(null)} />}
       {fupRec && <ProjectFollowup rec={fupRec} onClose={() => setFupRec(null)} onSaved={() => { setFupRec(null); load(); }} />}
       {statRec && <ProjectStatus rec={statRec} onClose={() => setStatRec(null)} onSaved={() => { setStatRec(null); load(); }} />}
+      {fwdRec && <ProjectForward rec={fwdRec} onClose={() => setFwdRec(null)} onSaved={() => { setFwdRec(null); load(); }} />}
     </>
   );
 }
@@ -2098,6 +2101,40 @@ function ProjectStatus({ rec, onClose, onSaved }) {
         <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
           <button onClick={onClose} style={{ flex: 1, padding: 11, borderRadius: 10, border: "1.5px solid #d7dcef", background: "#fff", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
           <button onClick={save} disabled={busy} style={{ flex: 1, padding: 11, borderRadius: 10, border: "none", background: "var(--navy)", color: "#fff", fontWeight: 800, cursor: "pointer" }}>{busy ? "Saving…" : "Save"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProjectForward({ rec, onClose, onSaved }) {
+  const [users, setUsers] = useState([]);
+  const [to, setTo] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { api.listUsers().then((d) => setUsers((d.users || []).filter((u) => u.status == 1).map((u) => u.name))).catch(() => {}); }, []);
+  const save = async () => {
+    if (!to) { alert("Select a person"); return; }
+    setBusy(true);
+    try {
+      const fwd = [...(rec.forwards || []), { to, note, by: CU().name, at: new Date().toLocaleString("en-IN") }];
+      await api.update("projectProjection", rec._id, { ...rec, forwards: fwd });
+      try { await api.create("notification", { title: "Project Forwarded", message: `${CU().name} forwarded "${rec.projectName}"${note ? ": " + note : ""}`, to, link: "/app/m/projectProjection", at: new Date().toISOString() }); } catch {}
+      onSaved();
+    } catch (e) { alert(e.message); setBusy(false); }
+  };
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.55)", zIndex: 9999, display: "grid", placeItems: "center", padding: 16 }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, maxWidth: 400, width: "100%", padding: 18 }}>
+        <h3 style={{ marginTop: 0 }}>Forward Project</h3>
+        <label style={{ fontWeight: 800, fontSize: 13 }}>Forward to</label>
+        <SearchSelect value={to} onChange={setTo} options={users} placeholder="Search person..." />
+        <div style={{ height: 10 }} />
+        <label style={{ fontWeight: 800, fontSize: 13 }}>Note (optional)</label>
+        <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} style={{ width: "100%", marginBottom: 12 }} />
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: 11, borderRadius: 10, border: "1.5px solid #d7dcef", background: "#fff", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
+          <button onClick={save} disabled={busy || !to} style={{ flex: 1, padding: 11, borderRadius: 10, border: "none", background: "var(--navy)", color: "#fff", fontWeight: 800, cursor: "pointer" }}>{busy ? "Sending..." : "Forward"}</button>
         </div>
       </div>
     </div>

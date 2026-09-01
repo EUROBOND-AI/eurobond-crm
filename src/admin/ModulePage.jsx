@@ -100,6 +100,7 @@ export default function ModulePage({ cfgKey }) {
   const [rejectRemark, setRejectRemark] = useState("");
   const [rejectDoc, setRejectDoc] = useState("");
   const [chatRow, setChatRow] = useState(null);
+  const [projView, setProjView] = useState(null);
   const [hiddenCols, setHiddenCols] = useState([]);
   const [showColCfg, setShowColCfg] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
@@ -368,13 +369,14 @@ export default function ModulePage({ cfgKey }) {
           actions={cfg.actions !== false}
           selectable
           onBulkDelete={handleBulkDelete}
-          onRowClick={(cfg.approveFlow || cfg.isSpecThread) ? (r) => setChatRow(r) : null}
+          onRowClick={cfgKey === "projectProjection" ? (r) => setProjView(r) : (cfg.approveFlow || cfg.isSpecThread) ? (r) => setChatRow(r) : null}
           onDelete={handleDelete}
           onEdit={cfg.form ? (r) => { setEditing(r); setShowForm(true); } : null}
         />
       )}
 
       {chatRow && <AdminChatModal row={chatRow} cfgKey={cfgKey} onClose={() => setChatRow(null)} onSent={(updated) => { setRows(rows.map((x) => (x._id === updated._id ? updated : x))); setChatRow(updated); }} />}
+      {projView && <AdminProjectView rec={projView} onClose={() => setProjView(null)} />}
 
       {rejectFor && (
         <div className="modal-mask" onClick={() => setRejectFor(null)}>
@@ -524,6 +526,63 @@ function AdminChatModal({ row, cfgKey, onClose, onSent }) {
           <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} placeholder={file ? file.name : "Type a reply…"} style={{ flex: 1, border: "1px solid var(--line)", borderRadius: 20, padding: "9px 14px", fontSize: 13, outline: "none" }} />
           <button className="btn btn-primary" disabled={busy} onClick={send} style={{ borderRadius: 20 }}>Send</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* Full Project Projection detail (admin) — shows everything the app captured */
+function AdminProjectView({ rec, onClose }) {
+  const d = rec || {};
+  const Row = ({ l, v }) => v ? <div style={{ marginBottom: 4 }}><b style={{ color: "#64708a" }}>{l}:</b> {v}</div> : null;
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.5)", zIndex: 9999, display: "grid", placeItems: "center", padding: 18 }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 14, maxWidth: 560, width: "100%", maxHeight: "90vh", overflowY: "auto", padding: 22 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <h2 style={{ margin: 0, fontSize: 19 }}>{d.projectName || d.name || "Project"}</h2>
+          <button className="btn" onClick={onClose}>✕ Close</button>
+        </div>
+        <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+          <Row l="Project Id" v={d.id} />
+          <Row l="Created By" v={d.createdBy} />
+          <Row l="Created At" v={d.createdAt} />
+          <Row l="Status" v={d.status || "Open"} />
+          <Row l="Visit Date" v={d.visitDate} />
+          <Row l="Project Type" v={d.projectType} />
+          <Row l="City" v={d.city} />
+          <Row l="Expected Month" v={d.expectedMonth} />
+          <Row l="Approval Status" v={d.approvalStatus} />
+          <Row l="Category (Specs)" v={d.category} />
+          <Row l="Category Firm" v={d.categoryFirm} />
+          <Row l="Spec Person" v={d.specPerson} />
+          <Row l="Sales Person" v={d.salesPerson} />
+          <Row l="Help / Work" v={d.helpNeeded} />
+          <Row l="Sq.Mtr (Win)" v={d.winSqm} />
+          <Row l="Sales Done (Win)" v={d.winSales ? "₹" + Number(d.winSales).toLocaleString("en-IN") : ""} />
+          <Row l="Status Remark" v={d.statusRemark} />
+        </div>
+
+        {(d.contacts || []).length > 0 && <h4 style={{ margin: "14px 0 6px" }}>Contacts</h4>}
+        {(d.contacts || []).map((c, i) => (
+          <div key={i} style={{ background: "#f4f6fc", borderRadius: 8, padding: 10, marginBottom: 6, fontSize: 12.5 }}>
+            <div style={{ fontWeight: 700 }}>{c.category} · {c.firmName}</div>
+            {(c.people || []).map((p, j) => <div key={j} style={{ color: "#64708a" }}>{p.person} {p.number ? "· " + p.number : ""} {p.email ? "· " + p.email : ""}</div>)}
+          </div>
+        ))}
+
+        {(d.items || []).filter((it) => it.grade).length > 0 && <h4 style={{ margin: "14px 0 6px" }}>Products</h4>}
+        {(d.items || []).map((it, i) => it.grade && <div key={i} style={{ fontSize: 12.5, color: "#64708a", marginBottom: 3 }}>{it.grade} · {it.colourCode} · Qty {it.qty}</div>)}
+
+        {(d.followups || []).length > 0 && <h4 style={{ margin: "14px 0 6px" }}>Followup History ({d.followups.length})</h4>}
+        {(d.followups || []).slice().reverse().map((fu, i) => (
+          <div key={i} style={{ borderLeft: "3px solid #3949ab", background: "#f7f9ff", borderRadius: 7, padding: "7px 10px", marginBottom: 5 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700 }}>{fu.date}</div>
+            <div style={{ fontSize: 12.5 }}>{fu.remark}</div>
+            {fu.photo && <img src={fu.photo} alt="" style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 7, marginTop: 4 }} />}
+          </div>
+        ))}
+
+        {d.photo && <><h4 style={{ margin: "14px 0 6px" }}>Photo</h4><img src={d.photo} alt="" style={{ maxWidth: "100%", borderRadius: 10 }} /></>}
       </div>
     </div>
   );
