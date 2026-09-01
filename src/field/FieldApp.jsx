@@ -1927,6 +1927,182 @@ const EXPECTED_MONTHS = (() => {
   return out;
 })();
 
+/* ---- Project Projection LIST with View / Edit / Followup / Status ---- */
+const PROJ_EDIT = { data: null };
+function FieldProjectList() {
+  const nav = useNavigate();
+  const [rows, setRows] = useState(null);
+  const [filter, setFilter] = useState("All");
+  const [viewRec, setViewRec] = useState(null);
+  const [fupRec, setFupRec] = useState(null);
+  const [statRec, setStatRec] = useState(null);
+  const isSpec = `${CU().role || ""} ${CU().designation || ""}`.toLowerCase().includes("spec");
+
+  const load = () => api.list("projectProjection", false)
+    .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data })).filter((x) => x.createdBy === CU().name)))
+    .catch(() => setRows([]));
+  useEffect(load, []);
+
+  const STATUSES = ["All", "Open", "Win", "Lost", "Hold"];
+  const filtered = (rows || []).filter((r) => filter === "All" || (r.status || "Open") === filter);
+  const sColor = (s) => s === "Win" ? "#1f9d55" : s === "Lost" ? "#c03636" : s === "Hold" ? "#e08600" : "#3949ab";
+
+  return (
+    <>
+      <ScreenHead title="Project Projection" right={<button className="f-submit" style={{ padding: "8px 14px", fontSize: 12.5 }} onClick={() => nav("/app/project/new")}>+ Add</button>} />
+      <div className="f-list-pad" style={{ paddingTop: 14 }}>
+        <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+          {STATUSES.map((s) => (
+            <button key={s} onClick={() => setFilter(s)} style={{ padding: "7px 13px", borderRadius: 8, border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer", background: filter === s ? "var(--navy)" : "#eef1ff", color: filter === s ? "#fff" : "var(--navy)" }}>{s}</button>
+          ))}
+        </div>
+        {rows === null ? (
+          <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>Loading…</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>No projects yet. Tap + Add.</div>
+        ) : filtered.map((r, i) => (
+          <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "var(--shadow)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontWeight: 800, fontSize: 14 }}>{r.projectName || r.name || "Project"}</span>
+              <span style={{ background: sColor(r.status), color: "#fff", padding: "2px 10px", borderRadius: 8, fontSize: 11.5, fontWeight: 800 }}>{r.status || "Open"}</span>
+            </div>
+            <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 4 }}>
+              {[r.projectType, r.city, r.expectedMonth].filter(Boolean).join(" · ") || r.createdAt}
+            </div>
+            <div style={{ display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap" }}>
+              <button onClick={() => setViewRec(r)} style={pBtn("#3949ab")}>View</button>
+              <button onClick={() => { PROJ_EDIT.data = r; nav("/app/project/new"); }} style={pBtn("#0b3c8c")}>Edit</button>
+              <button onClick={() => setFupRec(r)} style={pBtn("#1f9d55")}>Followup</button>
+              <button onClick={() => setStatRec(r)} style={pBtn("#e08600")}>Status</button>
+            </div>
+          </div>
+        ))}
+      </div>
+      {viewRec && <ProjectView rec={viewRec} onClose={() => setViewRec(null)} />}
+      {fupRec && <ProjectFollowup rec={fupRec} onClose={() => setFupRec(null)} onSaved={() => { setFupRec(null); load(); }} />}
+      {statRec && <ProjectStatus rec={statRec} onClose={() => setStatRec(null)} onSaved={() => { setStatRec(null); load(); }} />}
+    </>
+  );
+}
+function pBtn(bg) { return { flex: "1 1 auto", background: bg, color: "#fff", border: "none", borderRadius: 8, padding: "8px 0", fontWeight: 700, fontSize: 12, cursor: "pointer", minWidth: 70 }; }
+
+function ProjectView({ rec, onClose }) {
+  const fups = rec.followups || [];
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.55)", zIndex: 9999, display: "grid", placeItems: "center", padding: 16 }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, maxWidth: 420, width: "100%", maxHeight: "88vh", overflowY: "auto", padding: 18 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <h3 style={{ margin: 0 }}>{rec.projectName}</h3>
+          <button onClick={onClose} style={{ background: "#1c2340", color: "#fff", border: "none", borderRadius: 8, width: 30, height: 30, cursor: "pointer" }}>✕</button>
+        </div>
+        <div style={{ fontSize: 12.5, lineHeight: 1.7 }}>
+          <div><b>Status:</b> {rec.status || "Open"}</div>
+          {rec.visitDate && <div><b>Visit Date:</b> {rec.visitDate}</div>}
+          {rec.projectType && <div><b>Type:</b> {rec.projectType}</div>}
+          {rec.city && <div><b>City:</b> {rec.city}</div>}
+          {rec.expectedMonth && <div><b>Expected:</b> {rec.expectedMonth}</div>}
+          {rec.approvalStatus && <div><b>Approval:</b> {rec.approvalStatus}</div>}
+          {(rec.specPerson || rec.salesPerson) && <div><b>Mentioned:</b> {rec.specPerson || rec.salesPerson}</div>}
+          {rec.helpNeeded && <div><b>Help:</b> {rec.helpNeeded}</div>}
+          {rec.winSqm && <div><b>Sq.Mtr:</b> {rec.winSqm}</div>}
+          {rec.winSales && <div><b>Sales:</b> ₹{Number(rec.winSales).toLocaleString("en-IN")}</div>}
+          {rec.statusRemark && <div><b>Remark:</b> {rec.statusRemark}</div>}
+        </div>
+        {(rec.contacts || []).length > 0 && <div style={{ fontWeight: 800, fontSize: 12.5, margin: "12px 0 6px", color: "var(--navy)" }}>Contacts</div>}
+        {(rec.contacts || []).map((c, i) => (
+          <div key={i} style={{ background: "#f4f6fc", borderRadius: 9, padding: 9, marginBottom: 6, fontSize: 12 }}>
+            <div style={{ fontWeight: 700 }}>{c.category} · {c.firmName}</div>
+            {(c.people || []).map((p, j) => <div key={j} style={{ color: "var(--muted)" }}>{p.person} {p.number ? "· " + p.number : ""} {p.email ? "· " + p.email : ""}</div>)}
+          </div>
+        ))}
+        {(rec.items || []).length > 0 && <div style={{ fontWeight: 800, fontSize: 12.5, margin: "12px 0 6px", color: "var(--navy)" }}>Products</div>}
+        {(rec.items || []).map((it, i) => it.grade && <div key={i} style={{ fontSize: 12, color: "var(--muted)" }}>{it.grade} · {it.colourCode} · Qty {it.qty}</div>)}
+        <div style={{ fontWeight: 800, fontSize: 12.5, margin: "12px 0 6px", color: "var(--navy)" }}>Followup History ({fups.length})</div>
+        {fups.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No followups yet.</div> : fups.slice().reverse().map((fu, i) => (
+          <div key={i} style={{ borderLeft: "3px solid var(--accent)", background: "#f7f9ff", borderRadius: 8, padding: "7px 10px", marginBottom: 6 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700 }}>{fu.date}</div>
+            <div style={{ fontSize: 12 }}>{fu.remark}</div>
+            {fu.photo && <img src={fu.photo} alt="" style={{ width: 70, height: 70, objectFit: "cover", borderRadius: 8, marginTop: 4 }} />}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProjectFollowup({ rec, onClose, onSaved }) {
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [remark, setRemark] = useState("");
+  const [photo, setPhoto] = useState("");
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    setBusy(true);
+    try {
+      const fups = [...(rec.followups || []), { date, remark, photo }];
+      await api.update("projectProjection", rec._id, { ...rec, followups: fups });
+      onSaved();
+    } catch (e) { alert(e.message); setBusy(false); }
+  };
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.55)", zIndex: 9999, display: "grid", placeItems: "center", padding: 16 }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, maxWidth: 400, width: "100%", padding: 18 }}>
+        <h3 style={{ marginTop: 0 }}>Add Followup</h3>
+        <label style={{ fontWeight: 800, fontSize: 13 }}>Date</label>
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: "100%", marginBottom: 10 }} />
+        <label style={{ fontWeight: 800, fontSize: 13 }}>Remark</label>
+        <textarea value={remark} onChange={(e) => setRemark(e.target.value)} rows={3} style={{ width: "100%", marginBottom: 10 }} />
+        <label style={{ fontWeight: 800, fontSize: 13 }}>Photo (optional)</label>
+        <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files[0]; if (!file) return; const rd = new FileReader(); rd.onload = () => setPhoto(rd.result); rd.readAsDataURL(file); }} style={{ width: "100%", marginBottom: 12 }} />
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: 11, borderRadius: 10, border: "1.5px solid #d7dcef", background: "#fff", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
+          <button onClick={save} disabled={busy || !remark} style={{ flex: 1, padding: 11, borderRadius: 10, border: "none", background: "var(--navy)", color: "#fff", fontWeight: 800, cursor: "pointer" }}>{busy ? "Saving…" : "Save"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProjectStatus({ rec, onClose, onSaved }) {
+  const [status, setStatus] = useState(rec.status === "Open" ? "Win" : rec.status || "Win");
+  const [remark, setRemark] = useState(rec.statusRemark || "");
+  const [winSqm, setWinSqm] = useState(rec.winSqm || "");
+  const [winSales, setWinSales] = useState(rec.winSales || "");
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    setBusy(true);
+    try {
+      await api.update("projectProjection", rec._id, { ...rec, status, statusRemark: remark, winSqm: status === "Win" ? winSqm : "", winSales: status === "Win" ? winSales : "" });
+      onSaved();
+    } catch (e) { alert(e.message); setBusy(false); }
+  };
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.55)", zIndex: 9999, display: "grid", placeItems: "center", padding: 16 }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, maxWidth: 400, width: "100%", padding: 18 }}>
+        <h3 style={{ marginTop: 0 }}>Update Status</h3>
+        <div style={{ display: "flex", gap: 7, marginBottom: 12 }}>
+          {["Win", "Lost", "Hold"].map((s) => (
+            <button key={s} onClick={() => setStatus(s)} style={{ flex: 1, padding: 10, borderRadius: 9, border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer", background: status === s ? (s === "Win" ? "#1f9d55" : s === "Lost" ? "#c03636" : "#e08600") : "#eef1ff", color: status === s ? "#fff" : "var(--navy)" }}>{s}</button>
+          ))}
+        </div>
+        {status === "Win" && (<>
+          <label style={{ fontWeight: 800, fontSize: 13 }}>Sq.Mtr</label>
+          <input inputMode="numeric" value={winSqm} onChange={(e) => setWinSqm(e.target.value.replace(/\D/g, ""))} style={{ width: "100%", marginBottom: 10 }} />
+          <label style={{ fontWeight: 800, fontSize: 13 }}>Sales Done (₹)</label>
+          <input inputMode="numeric" value={winSales} onChange={(e) => setWinSales(e.target.value.replace(/\D/g, ""))} style={{ width: "100%", marginBottom: 10 }} />
+        </>)}
+        {(status === "Lost" || status === "Hold") && (<>
+          <label style={{ fontWeight: 800, fontSize: 13 }}>Remark</label>
+          <textarea value={remark} onChange={(e) => setRemark(e.target.value)} rows={3} style={{ width: "100%", marginBottom: 10 }} />
+        </>)}
+        <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: 11, borderRadius: 10, border: "1.5px solid #d7dcef", background: "#fff", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
+          <button onClick={save} disabled={busy} style={{ flex: 1, padding: 11, borderRadius: 10, border: "none", background: "var(--navy)", color: "#fff", fontWeight: 800, cursor: "pointer" }}>{busy ? "Saving…" : "Save"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FieldProjectNew() {
   const nav = useNavigate();
   const isSpec = `${CU().role || ""} ${CU().designation || ""}`.toLowerCase().includes("spec");
@@ -2102,7 +2278,6 @@ function FieldProjectNew() {
     </>
   );
 }
-const PROJ_EDIT = { data: null };
 
 /* ============================================================================
    TARGET & PERFORMANCE
@@ -5134,7 +5309,7 @@ export default function FieldApp() {
             <Route path="customer/edit" element={<FieldFollowUpNew editData={CUST_EDIT.data} add={async (f) => { try { const id = CUST_EDIT.data?._id; if (id) { await api.update("followup", id, f); setFollowups((x) => x.map((c) => (c._id === id ? { _id: id, ...f } : c))); } CUST_EDIT.data = null; } catch (err) { alert(err.message); } }} />} />
             <Route path="project/new" element={<FieldProjectNew />} />
             {Object.keys(APP_MODS).map((m) => (
-              <Route key={m} path={`m/${m}`} element={m === "enquiry" ? <FieldEnquiry /> : m === "quotation" ? <FieldQuotationList /> : <FieldModule mod={m} />} />
+              <Route key={m} path={`m/${m}`} element={m === "enquiry" ? <FieldEnquiry /> : m === "quotation" ? <FieldQuotationList /> : m === "projectProjection" ? <FieldProjectList /> : <FieldModule mod={m} />} />
             ))}
             {Object.keys(APP_MODS).map((m) => (
               <Route key={m + "n"} path={`m/${m}/new`} element={
