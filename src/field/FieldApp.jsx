@@ -2227,9 +2227,6 @@ function FieldProjectNew() {
           <option value="">Select…</option>{PROJ_TYPES.map((t) => <option key={t}>{t}</option>)}
         </select>
 
-        <label>State</label>
-        <input value={f.state} onChange={(e) => set("state", e.target.value)} style={inp} />
-
         <label>City Name</label>
         <input value={f.city} onChange={(e) => set("city", e.target.value)} style={inp} />
 

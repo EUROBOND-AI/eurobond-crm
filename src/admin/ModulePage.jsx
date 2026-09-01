@@ -17,6 +17,18 @@ function projProductsText(items) {
   if (!items || !items.length) return "";
   return items.filter((it) => it.grade).map((it) => `${it.grade}${it.colourCode ? " / " + it.colourCode : ""}${it.qty ? " x" + it.qty : ""}`).join(", ");
 }
+/* per-category contact text: {cat_Architect: "Firm (person number email)", ...} */
+function projCategoryCols(contacts) {
+  const out = {};
+  (contacts || []).forEach((c) => {
+    if (!c.category) return;
+    const ppl = (c.people || []).map((p) => [p.person, p.number, p.email].filter(Boolean).join(" ")).filter(Boolean).join("; ");
+    const txt = `${c.firmName || ""}${ppl ? " (" + ppl + ")" : ""}`.trim();
+    const key = "cat_" + c.category;
+    out[key] = out[key] ? out[key] + " | " + txt : txt;
+  });
+  return out;
+}
 
 
 export default function ModulePage({ cfgKey }) {
@@ -59,13 +71,14 @@ export default function ModulePage({ cfgKey }) {
     let alive = true;
     setLoading(true); setErr("");
     api.list(cfgKey)
-      .then((d) => { if (alive) setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length, contactsText: projContactsText(r.data.contacts), productsText: projProductsText(r.data.items) }))); })
+      .then((d) => { if (alive) setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length, productsText: projProductsText(r.data.items), ...projCategoryCols(r.data.contacts) }))); })
       .catch((e) => { if (alive) setErr(e.message); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [cfgKey]);
 
   const [fUser, setFUser] = useState("");
+  const [fHod, setFHod] = useState("");
   const [fCity, setFCity] = useState("");
   const [fZone, setFZone] = useState("");
   const [fLead, setFLead] = useState("");
@@ -85,6 +98,7 @@ export default function ModulePage({ cfgKey }) {
   const visible = useMemo(() => {
     let list = scopeRows(rows, allUsers);
     if (fUser) list = list.filter((r) => (r.createdBy || "") === fUser);
+    if (fHod) list = list.filter((r) => (r.hod || "") === fHod);
     /* date range (From/To) — r.date leda r.createdAt meeda */
     const parseD = (r) => {
       const raw = r.date || r.createdAt || "";
@@ -104,7 +118,7 @@ export default function ModulePage({ cfgKey }) {
       // records with unknown/old status appear under the first tab
       return tab === firstTab && !knownTabs.includes(st);
     });
-  }, [rows, tab, cfg, fUser, fCity, fZone, fLead, fAssign, fFrom, fTo, allUsers]);
+  }, [rows, tab, cfg, fUser, fHod, fCity, fZone, fLead, fAssign, fFrom, fTo, allUsers]);
 
   const distinct = (key) => [...new Set(rows.map((r) => r[key]).filter(Boolean))];
   const hasCol = (key) => cfg.columns.some((c) => c.key === key);
@@ -123,7 +137,7 @@ export default function ModulePage({ cfgKey }) {
   const reload = () => {
     setRefreshing(true); setErr("");
     api.list(cfgKey)
-      .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length, contactsText: projContactsText(r.data.contacts), productsText: projProductsText(r.data.items) }))))
+      .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length, productsText: projProductsText(r.data.items), ...projCategoryCols(r.data.contacts) }))))
       .catch((e) => setErr(e.message))
       .finally(() => setRefreshing(false));
   };
@@ -320,8 +334,14 @@ export default function ModulePage({ cfgKey }) {
           <input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} title="To date" style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }} />
           {distinct("createdBy").length > 0 && (
             <select value={fUser} onChange={(e) => setFUser(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
-              <option value="">All Sales Persons</option>
+              <option value="">All Users</option>
               {distinct("createdBy").map((u) => <option key={u}>{u}</option>)}
+            </select>
+          )}
+          {cfgKey === "projectProjection" && distinct("hod").length > 0 && (
+            <select value={fHod} onChange={(e) => setFHod(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
+              <option value="">All HOD</option>
+              {distinct("hod").map((h) => <option key={h}>{h}</option>)}
             </select>
           )}
           {hasCol("city") && distinct("city").length > 0 && (
@@ -612,33 +632,41 @@ function AdminProjectView({ rec, onClose }) {
 /* Admin forward project to a user */
 function AdminProjectForward({ rec, onClose, onSent }) {
   const [users, setUsers] = useState([]);
-  const [to, setTo] = useState("");
+  const [sel, setSel] = useState([]);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => { api.listUsers().then((d) => setUsers((d.users || []).filter((u) => u.status == 1).map((u) => u.name))).catch(() => {}); }, []);
+  const toggle = (u) => setSel((s) => s.includes(u) ? s.filter((x) => x !== u) : [...s, u]);
   const send = async () => {
-    if (!to) { alert("Select a person"); return; }
+    if (!sel.length) { alert("Select at least one person"); return; }
     setBusy(true);
     try {
-      const fwd = [...(rec.forwards || []), { to, note, by: "Admin", at: new Date().toLocaleString("en-IN") }];
+      const fwd = [...(rec.forwards || []), ...sel.map((to) => ({ to, note, by: "Admin", at: new Date().toLocaleString("en-IN") }))];
       await api.update("projectProjection", rec._id, { ...rec, forwards: fwd });
-      try { await api.create("notification", { title: "Project Forwarded", message: `Admin forwarded "${rec.projectName}"${note ? ": " + note : ""}`, to, link: "/app/m/projectProjection", at: new Date().toISOString() }); } catch {}
+      for (const to of sel) { try { await api.create("notification", { title: "Project Forwarded", message: `Admin forwarded "${rec.projectName}"${note ? ": " + note : ""}`, to, link: "/app/m/projectProjection", at: new Date().toISOString() }); } catch {} }
       onSent();
     } catch (e) { alert(e.message); setBusy(false); }
   };
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.5)", zIndex: 9999, display: "grid", placeItems: "center", padding: 18 }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 14, maxWidth: 420, width: "100%", padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 14, maxWidth: 440, width: "100%", maxHeight: "88vh", overflowY: "auto", padding: 20 }}>
         <h3 style={{ marginTop: 0 }}>Forward Project</h3>
-        <label style={{ fontWeight: 700, fontSize: 13 }}>Forward to</label>
-        <select value={to} onChange={(e) => setTo(e.target.value)} style={{ width: "100%", padding: 10, borderRadius: 9, border: "1.5px solid #d7dcef", marginBottom: 10 }}>
-          <option value="">Select…</option>{users.map((u) => <option key={u}>{u}</option>)}
-        </select>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+          <label style={{ fontWeight: 700, fontSize: 13 }}>Select people ({sel.length})</label>
+          <button className="btn" style={{ padding: "2px 8px", fontSize: 11 }} onClick={() => setSel(sel.length === users.length ? [] : [...users])}>{sel.length === users.length ? "Clear all" : "Select all"}</button>
+        </div>
+        <div style={{ maxHeight: 220, overflowY: "auto", border: "1px solid #e3e8f5", borderRadius: 9, padding: 8, marginBottom: 12 }}>
+          {users.map((u) => (
+            <label key={u} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 4px", fontSize: 13, cursor: "pointer" }}>
+              <input type="checkbox" checked={sel.includes(u)} onChange={() => toggle(u)} /> {u}
+            </label>
+          ))}
+        </div>
         <label style={{ fontWeight: 700, fontSize: 13 }}>Note (optional)</label>
-        <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} style={{ width: "100%", padding: 10, borderRadius: 9, border: "1.5px solid #d7dcef", marginBottom: 12 }} />
+        <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} style={{ width: "100%", padding: 10, borderRadius: 9, border: "1.5px solid #d7dcef", marginBottom: 12 }} />
         <div style={{ display: "flex", gap: 8 }}>
           <button className="btn" onClick={onClose} style={{ flex: 1 }}>Cancel</button>
-          <button className="btn btn-primary" onClick={send} disabled={busy || !to} style={{ flex: 1 }}>{busy ? "Sending…" : "Forward"}</button>
+          <button className="btn btn-primary" onClick={send} disabled={busy || !sel.length} style={{ flex: 1 }}>{busy ? "Sending…" : `Forward to ${sel.length}`}</button>
         </div>
       </div>
     </div>
