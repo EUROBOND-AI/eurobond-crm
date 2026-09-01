@@ -1920,37 +1920,165 @@ function FieldFollowUpNew({ add, editData }) {
 }
 
 /* ------------------------------------------------ SIMPLE FORM SCREENS ------------------------------------------------ */
+const PROJ_TYPES = ["Commercial", "Residential", "Govt", "Hospitality", "Healthcare", "Corporate", "Architect", "Consultant", "Builder", "Contractor", "Industrial"];
+const EXPECTED_MONTHS = (() => {
+  const out = []; const start = new Date(2026, 7, 1); // Aug 2026
+  for (let i = 0; i < 76; i++) { const d = new Date(start.getFullYear(), start.getMonth() + i, 1); out.push(d.toLocaleString("en-US", { month: "short" }) + "-" + String(d.getFullYear()).slice(2)); }
+  return out;
+})();
+
 function FieldProjectNew() {
   const nav = useNavigate();
-  const [f, setF] = useState({ name: "", stage: "Initiation", city: "", value: "" });
+  const isSpec = `${CU().role || ""} ${CU().designation || ""}`.toLowerCase().includes("spec");
+  const edRef = useRef(undefined);
+  if (edRef.current === undefined) { edRef.current = PROJ_EDIT.data || null; PROJ_EDIT.data = null; }
+  const ed = edRef.current;
+
+  const [f, setF] = useState(ed || {
+    visitDate: "", projectName: "", projectType: "",
+    firmName: "", contactPerson: "", contactNumber: "", email: "",
+    approvalStatus: "In Process", expectedMonth: "", specPerson: "", helpNeeded: "", photo: "",
+    // specs-only extra
+    category: "", categoryFirm: "", salesPerson: "",
+  });
+  const [rows, setRows] = useState(ed?.items?.length ? ed.items : [{ grade: "", colour: "", colourCode: "", qty: "" }]);
+  const [gradeNames, setGradeNames] = useState([]);
+  const [colourMap, setColourMap] = useState({});
+  const [specPersons, setSpecPersons] = useState([]);
+  const [salesPersons, setSalesPersons] = useState([]);
   const [ok, setOk] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api.productNames && api.productNames().then((d) => setGradeNames(d.names || [])).catch(() => {});
+    api.listUsers().then((d) => {
+      const us = (d.users || []).filter((u) => u.status == 1);
+      setSpecPersons(us.filter((u) => `${u.role || ""} ${u.designation || ""}`.toLowerCase().includes("spec")).map((u) => u.name));
+      setSalesPersons(us.filter((u) => `${u.role || ""} ${u.designation || ""}`.toLowerCase().includes("sales")).map((u) => u.name));
+    }).catch(() => {});
+  }, []);
+  const loadColours = async (name) => { if (!name || colourMap[name]) return; try { const d = await api.productsByName(name); setColourMap((m) => ({ ...m, [name]: d.rows || [] })); } catch {} };
+  useEffect(() => { rows.forEach((r) => r.grade && loadColours(r.grade)); /* eslint-disable-next-line */ }, [gradeNames.length]);
+
+  const inp = { width: "100%", marginBottom: 12 };
+  const setRow = (i, k, v) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
+  const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
+
+  const CATS = ["Architect", "Consultant", "Builder", "Contractor", "Facade Consultant", "Govnt", "NA", "Agency", "Vendor", "Corporate"];
+
+  const save = async () => {
+    if (!f.projectName) { alert("Project Name required"); return; }
+    setBusy(true);
+    try {
+      const payload = {
+        ...f, items: rows, createdBy: CU().name, isSpec,
+        status: "Open", createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+      };
+      const r = await api.create("projectProjection", payload);
+      /* if mentioned to a spec/sales person, notify + route */
+      if (!isSpec && f.specPerson) {
+        try { await api.create("notification", { title: "New Project for Specs", message: `${CU().name} sent project "${f.projectName}"`, to: f.specPerson, link: "/app/m/salesToSpec", at: new Date().toISOString() }); } catch {}
+      }
+      if (isSpec && f.salesPerson) {
+        try { await api.create("notification", { title: "New Project from Specs", message: `${CU().name} sent project "${f.projectName}"`, to: f.salesPerson, link: "/app/m/specToSales", at: new Date().toISOString() }); } catch {}
+      }
+      setOk(true); setTimeout(() => nav("/app/m/projectProjection"), 900);
+    } catch (e) { alert(e.message); setBusy(false); }
+  };
+
   return (
     <>
-      <ScreenHead title="Add Site-Project" />
+      <ScreenHead title={ed ? "Edit Project Projection" : "Add Project Projection"} />
       <div className="f-form">
+        <label>Visit Date</label>
+        <input type="date" value={f.visitDate} onChange={(e) => set("visitDate", e.target.value)} style={inp} />
+
+        {/* specs-only extra columns */}
+        {isSpec && (<>
+          <label>Category</label>
+          <select value={f.category} onChange={(e) => set("category", e.target.value)} style={inp}>
+            <option value="">Select…</option>{CATS.map((c) => <option key={c}>{c}</option>)}
+          </select>
+          <label>Category Firm Name</label>
+          <input value={f.categoryFirm} onChange={(e) => set("categoryFirm", e.target.value)} style={inp} />
+        </>)}
+
         <label>Project Name <b>*</b></label>
-        <input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} style={{ width: "100%", marginBottom: 12 }} />
-        <label>Stage</label>
-        <select value={f.stage} onChange={(e) => setF({ ...f, stage: e.target.value })} style={{ width: "100%", marginBottom: 12 }}>
-          <option>Initiation</option><option>Planning</option><option>Execution</option><option>Monitoring</option>
+        <input value={f.projectName} onChange={(e) => set("projectName", e.target.value)} style={inp} />
+
+        <label>Project Type</label>
+        <select value={f.projectType} onChange={(e) => set("projectType", e.target.value)} style={inp}>
+          <option value="">Select…</option>{PROJ_TYPES.map((t) => <option key={t}>{t}</option>)}
         </select>
-        <label>City</label>
-        <input value={f.city} onChange={(e) => setF({ ...f, city: e.target.value })} style={{ width: "100%", marginBottom: 12 }} />
-        <label>Approx Value (₹)</label>
-        <input inputMode="numeric" value={f.value} onChange={(e) => setF({ ...f, value: e.target.value.replace(/\D/g, "") })} style={{ width: "100%", marginBottom: 16 }} />
-        {ok && <div style={{ background: "#e8f7ee", color: "#1f9d55", borderRadius: 10, padding: "10px 12px", fontSize: 12.5, fontWeight: 700, marginBottom: 12 }}>✔ Project saved</div>}
-        <button className="f-submit" style={{ width: "100%" }} disabled={!f.name} onClick={async () => {
-          try {
-            await api.create("projectProjection", { name: f.name, stage: f.stage, status: "Running", city: f.city, value: f.value, createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) });
-            setOk(true); setTimeout(() => nav("/app"), 900);
-          } catch (e) { alert(e.message); }
-        }}>
-          Save Project
-        </button>
+
+        {/* contact details */}
+        <div style={{ fontWeight: 800, fontSize: 13, margin: "6px 0 8px", color: "var(--navy)" }}>Contact Details</div>
+        <label>Firm Name</label>
+        <input value={f.firmName} onChange={(e) => set("firmName", e.target.value)} style={inp} />
+        <label>Contact Person</label>
+        <input value={f.contactPerson} onChange={(e) => set("contactPerson", e.target.value)} style={inp} />
+        <label>Contact Number</label>
+        <input inputMode="numeric" value={f.contactNumber} onChange={(e) => set("contactNumber", e.target.value)} style={inp} />
+        <label>Email ID</label>
+        <input value={f.email} onChange={(e) => set("email", e.target.value)} style={inp} />
+
+        <label>Approval Status</label>
+        <select value={f.approvalStatus} onChange={(e) => set("approvalStatus", e.target.value)} style={inp}>
+          <option>In Process</option><option>Approved</option>
+        </select>
+
+        {/* products (same source as quotation) */}
+        <div style={{ fontWeight: 800, fontSize: 13, margin: "6px 0 8px", color: "var(--navy)" }}>Products</div>
+        {rows.map((r, i) => (
+          <div key={i} style={{ background: "#f7f9ff", borderRadius: 11, padding: 11, marginBottom: 10 }}>
+            <label>Grade Name (Product)</label>
+            <select value={r.grade} onChange={(e) => { setRow(i, "grade", e.target.value); loadColours(e.target.value); }} style={{ width: "100%", marginBottom: 8 }}>
+              <option value="">Select…</option>{gradeNames.map((g) => <option key={g}>{g}</option>)}
+            </select>
+            <label>Colour Code</label>
+            <select value={r.colourCode} onChange={(e) => setRow(i, "colourCode", e.target.value)} style={{ width: "100%", marginBottom: 8 }}>
+              <option value="">Select…</option>{(colourMap[r.grade] || []).map((c, j) => <option key={j} value={c.colourCode || c.colour}>{c.colour}{c.colourCode ? ` (${c.colourCode})` : ""}</option>)}
+            </select>
+            <label>Qty</label>
+            <input inputMode="numeric" value={r.qty} onChange={(e) => setRow(i, "qty", e.target.value.replace(/\D/g, ""))} style={{ width: "100%" }} />
+            {rows.length > 1 && <button onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} style={{ marginTop: 8, background: "#fdecec", color: "#c03636", border: "none", borderRadius: 8, padding: "6px 12px", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Remove</button>}
+          </div>
+        ))}
+        <button onClick={() => setRows((rs) => [...rs, { grade: "", colour: "", colourCode: "", qty: "" }])} style={{ background: "#eef1ff", color: "var(--navy)", border: "none", borderRadius: 9, padding: "8px 14px", fontWeight: 700, fontSize: 12.5, cursor: "pointer", marginBottom: 14 }}>+ Add Product</button>
+
+        <label>Expected by Month</label>
+        <select value={f.expectedMonth} onChange={(e) => set("expectedMonth", e.target.value)} style={inp}>
+          <option value="">Select…</option>{EXPECTED_MONTHS.map((m) => <option key={m}>{m}</option>)}
+        </select>
+
+        {/* mention person: sales -> spec person; specs -> sales person */}
+        {!isSpec ? (<>
+          <label>Specification Person</label>
+          <select value={f.specPerson} onChange={(e) => set("specPerson", e.target.value)} style={inp}>
+            <option value="">Select…</option>{specPersons.map((p) => <option key={p}>{p}</option>)}
+          </select>
+          <label>What specification help is needed?</label>
+          <textarea value={f.helpNeeded} onChange={(e) => set("helpNeeded", e.target.value)} rows={3} style={inp} />
+        </>) : (<>
+          <label>Sales Person</label>
+          <select value={f.salesPerson} onChange={(e) => set("salesPerson", e.target.value)} style={inp}>
+            <option value="">Select…</option>{salesPersons.map((p) => <option key={p}>{p}</option>)}
+          </select>
+          <label>What work to be Done</label>
+          <textarea value={f.helpNeeded} onChange={(e) => set("helpNeeded", e.target.value)} rows={3} style={inp} />
+        </>)}
+
+        <label>Photo (optional)</label>
+        <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files[0]; if (!file) return; const rd = new FileReader(); rd.onload = () => set("photo", rd.result); rd.readAsDataURL(file); }} style={inp} />
+        {f.photo && <img src={f.photo} alt="" style={{ width: 90, height: 90, objectFit: "cover", borderRadius: 10, marginBottom: 12 }} />}
+
+        {ok && <div style={{ background: "#e8f7ee", color: "#1f9d55", borderRadius: 10, padding: "10px 12px", fontSize: 12.5, fontWeight: 700, margin: "12px 0" }}>✔ Project saved</div>}
+        <button className="f-submit" style={{ width: "100%", marginTop: 10 }} disabled={busy || !f.projectName} onClick={save}>{busy ? "Saving…" : "Save Project"}</button>
       </div>
     </>
   );
 }
+const PROJ_EDIT = { data: null };
 
 /* ============================================================================
    TARGET & PERFORMANCE
@@ -2659,7 +2787,6 @@ function MenuDrawer({ open, close }) {
       ["Team Customers Tracking", <Users size={16} />, "/app/team-customers", "teamCustomers"],
       ["Leave Approval", <CalendarDays size={16} />, "/app/leave-approval", "leaveApproval"],
       ["Attendance", <CalendarCheck size={16} />, "/app/attendance", "attendance"],
-      ["Site Project", <Building2 size={16} />, "/app/project/new", "siteProjectForm"],
       ["Task", <ClipboardList size={16} />, "/app/m/task", "task"],
     ] },
   ];
