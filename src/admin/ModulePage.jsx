@@ -5,6 +5,20 @@ import { PageHead, Tabs, DataTable, ToolButtons, FormModal, StatCard } from "../
 import { api, auth } from "../lib/api.js";
 import { scopeRows } from "../lib/scope.js";
 
+/* flatten arrays into readable text for admin table columns */
+function projContactsText(contacts) {
+  if (!contacts || !contacts.length) return "";
+  return contacts.map((c) => {
+    const ppl = (c.people || []).map((p) => [p.person, p.number, p.email].filter(Boolean).join(" ")).filter(Boolean).join("; ");
+    return `${c.category || ""}${c.firmName ? " - " + c.firmName : ""}${ppl ? " (" + ppl + ")" : ""}`;
+  }).filter(Boolean).join(" | ");
+}
+function projProductsText(items) {
+  if (!items || !items.length) return "";
+  return items.filter((it) => it.grade).map((it) => `${it.grade}${it.colourCode ? " / " + it.colourCode : ""}${it.qty ? " x" + it.qty : ""}`).join(", ");
+}
+
+
 export default function ModulePage({ cfgKey }) {
   const cfg = MODULES[cfgKey];
   const [tab, setTab] = useState(cfg.tabs?.[0]?.key);
@@ -45,7 +59,7 @@ export default function ModulePage({ cfgKey }) {
     let alive = true;
     setLoading(true); setErr("");
     api.list(cfgKey)
-      .then((d) => { if (alive) setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length }))); })
+      .then((d) => { if (alive) setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length, contactsText: projContactsText(r.data.contacts), productsText: projProductsText(r.data.items) }))); })
       .catch((e) => { if (alive) setErr(e.message); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
@@ -109,7 +123,7 @@ export default function ModulePage({ cfgKey }) {
   const reload = () => {
     setRefreshing(true); setErr("");
     api.list(cfgKey)
-      .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length }))))
+      .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length, contactsText: projContactsText(r.data.contacts), productsText: projProductsText(r.data.items) }))))
       .catch((e) => setErr(e.message))
       .finally(() => setRefreshing(false));
   };

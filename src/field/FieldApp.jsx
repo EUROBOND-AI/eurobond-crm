@@ -1976,7 +1976,6 @@ function FieldProjectList() {
               <button onClick={() => { PROJ_EDIT.data = r; nav("/app/project/new"); }} style={pBtn("#0b3c8c")}>Edit</button>
               <button onClick={() => setFupRec(r)} style={pBtn("#1f9d55")}>Followup</button>
               <button onClick={() => setStatRec(r)} style={pBtn("#e08600")}>Status</button>
-              <button onClick={() => setFwdRec(r)} style={pBtn("#8854d0")}>Forward</button>
             </div>
           </div>
         ))}
@@ -2227,6 +2226,9 @@ function FieldProjectNew() {
         <select value={f.projectType} onChange={(e) => set("projectType", e.target.value)} style={inp}>
           <option value="">Select…</option>{PROJ_TYPES.map((t) => <option key={t}>{t}</option>)}
         </select>
+
+        <label>State</label>
+        <input value={f.state} onChange={(e) => set("state", e.target.value)} style={inp} />
 
         <label>City Name</label>
         <input value={f.city} onChange={(e) => set("city", e.target.value)} style={inp} />
