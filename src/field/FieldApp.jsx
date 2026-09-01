@@ -1941,7 +1941,7 @@ function FieldProjectList() {
   const load = () => api.list("projectProjection", false)
     .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data })).filter((x) => x.createdBy === CU().name)))
     .catch(() => setRows([]));
-  useEffect(load, []);
+  useEffect(() => { load(); }, []);
 
   const STATUSES = ["All", "Open", "Win", "Lost", "Hold"];
   const filtered = (rows || []).filter((r) => filter === "All" || (r.status || "Open") === filter);
@@ -2017,6 +2017,7 @@ function ProjectView({ rec, onClose }) {
         ))}
         {(rec.items || []).length > 0 && <div style={{ fontWeight: 800, fontSize: 12.5, margin: "12px 0 6px", color: "var(--navy)" }}>Products</div>}
         {(rec.items || []).map((it, i) => it.grade && <div key={i} style={{ fontSize: 12, color: "var(--muted)" }}>{it.grade} · {it.colourCode} · Qty {it.qty}</div>)}
+        {rec.photo && <><div style={{ fontWeight: 800, fontSize: 12.5, margin: "12px 0 6px", color: "var(--navy)" }}>Photo</div><img src={rec.photo} alt="" style={{ width: "100%", borderRadius: 10, maxHeight: 220, objectFit: "cover" }} /></>}
         <div style={{ fontWeight: 800, fontSize: 12.5, margin: "12px 0 6px", color: "var(--navy)" }}>Followup History ({fups.length})</div>
         {fups.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No followups yet.</div> : fups.slice().reverse().map((fu, i) => (
           <div key={i} style={{ borderLeft: "3px solid var(--accent)", background: "#f7f9ff", borderRadius: 8, padding: "7px 10px", marginBottom: 6 }}>
