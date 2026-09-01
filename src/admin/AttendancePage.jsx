@@ -15,14 +15,26 @@ const rawTime = (dt) => {
 };
 
 /* ---- session download: Excel (CSV) + PDF (print window) ---- */
+/* distance from points — same formula as the timeline/app (60m drift ignore, 5km jump skip) */
+function kmFromPoints(points) {
+  const hav = (a, b) => { const R = 6371, dLat = (b.lat - a.lat) * Math.PI / 180, dLng = (b.lng - a.lng) * Math.PI / 180; const x = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
+  let cum = 0, last = null;
+  for (const p of (points || [])) {
+    const pt = { lat: Number(p.lat), lng: Number(p.lng) };
+    if (last) { const d = hav(last, pt); if (d * 1000 >= 60 && d < 5) { cum += d; last = pt; } else if (d >= 5) { last = pt; } }
+    else { last = pt; }
+  }
+  return cum;
+}
 function downloadSessionExcel(s, points, visits) {
+  const distKm = points && points.length ? kmFromPoints(points) : (Number(s.distance_km) || 0);
   const rows = [
     ["EUROBOND — Attendance Session"],
     ["Date", s.work_date], ["Name", s.name], ["Emp Code", s.code || ""],
     ["Type", s.visit_type || "Local"], ["Area", s.visit_name || ""], ["HOD", s.manager || ""],
     ["Zone", s.zone || ""], ["City", s.city || ""],
     ["Login Time", rawTime(s.start_time) || ""], ["Logout Time", rawTime(s.end_time) || ""],
-    ["Distance (km)", (Number(s.distance_km) || 0).toFixed(2)],
+    ["Distance (km)", distKm.toFixed(2)],
     ["Start Address", s.start_address || ""], ["End Address", s.end_address || ""],
     [], ["Customer Visits"],
     ["#", "Customer", "Address", "Type"],
@@ -40,6 +52,7 @@ function downloadSessionExcel(s, points, visits) {
 }
 
 function downloadSessionPdf(s, visits, points) {
+  const distKm = points && points.length ? kmFromPoints(points) : (Number(s.distance_km) || 0);
   const w = window.open("", "_blank");
   const visitRows = (visits || []).map((v, i) => `<tr><td>${i + 1}</td><td>${v.partyName || v.customer || ""}</td><td>${v.address || ""}</td></tr>`).join("");
   const pointRows = (points || []).map((p, i) => `<tr><td>${i + 1}</td><td>${p.recorded_at ? String(p.recorded_at).slice(11, 16) : ""}</td><td>${p.address || (Number(p.lat).toFixed(5) + ", " + Number(p.lng).toFixed(5))}</td></tr>`).join("");
@@ -51,7 +64,7 @@ function downloadSessionPdf(s, visits, points) {
     <div class="kv"><b>Name:</b> ${s.name} (${s.code || "—"})</div>
     <div class="kv"><b>Date:</b> ${s.work_date} &nbsp; <b>Type:</b> ${s.visit_type || "Local"} &nbsp; <b>Area:</b> ${s.visit_name || "—"}</div>
     <div class="kv"><b>HOD:</b> ${s.manager || "—"} &nbsp; <b>Zone:</b> ${s.zone || "—"} &nbsp; <b>City:</b> ${s.city || "—"}</div>
-    <div class="kv"><b>Login:</b> ${rawTime(s.start_time) || "—"} &nbsp; <b>Logout:</b> ${rawTime(s.end_time) || "—"} &nbsp; <b>Distance:</b> ${(Number(s.distance_km) || 0).toFixed(2)} km</div>
+    <div class="kv"><b>Login:</b> ${rawTime(s.start_time) || "—"} &nbsp; <b>Logout:</b> ${rawTime(s.end_time) || "—"} &nbsp; <b>Distance:</b> ${distKm.toFixed(2)} km</div>
     <div class="kv"><b>Start:</b> ${s.start_address || "—"}</div>
     <div class="kv"><b>End:</b> ${s.end_address || "—"}</div>
     <h3>Customer Visits (${(visits || []).length})</h3>

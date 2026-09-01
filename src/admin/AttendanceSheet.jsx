@@ -194,7 +194,7 @@ export default function AttendanceSheet() {
           <table style={{ borderCollapse: "collapse", fontSize: 11.5, minWidth: 900 }}>
             <thead style={{ position: "sticky", top: 0, zIndex: 5 }}>
               <tr style={{ background: "#f4f6fc" }}>
-                <th style={{ ...th, position: "sticky", left: 0, background: "#f4f6fc", zIndex: 6, minWidth: 160, textAlign: "left" }}>Sales Person</th>
+                <th style={{ ...th, position: "sticky", left: 0, background: "#f4f6fc", zIndex: 6, minWidth: 160, textAlign: "left" }}>User</th>
                 {dayHead.map((d) => (
                   <th key={d.d} style={{ ...th, minWidth: 30, background: d.sun ? "#e9edf6" : "#f4f6fc" }}>
                     <div>{d.d}</div><div style={{ fontSize: 9, color: "#8a93a8" }}>{d.w}</div>

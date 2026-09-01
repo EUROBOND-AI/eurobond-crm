@@ -1996,7 +1996,7 @@ function FieldTarget() {
   return (
     <>
       <ScreenHead title="Target" back={false}
-        right={<button className="f-submit" style={{ padding: "8px 14px", fontSize: 12.5 }} onClick={() => setShowAdd(true)}>+ Add {isSpec ? "Approval" : "Sale"}</button>} />
+        right={null} />
       <div className="f-list-pad" style={{ paddingTop: 14 }}>
         {targets === null ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>Loading…</div>
@@ -2009,10 +2009,10 @@ function FieldTarget() {
               </div>
             )}
             {targets.map((t, i) => {
-              const ach = achFor(t);
               const isSalesT = String(t.targetType || "").toLowerCase() === "sales";
               const tgt = Number(t.target || t.targetSqft || t.targetAmount || 0);
-              const achVal = isSalesT ? ach.amount : ach.sqft;
+              /* admin enters the achieved value directly now */
+              const achVal = Number(t.achieved || 0);
               const mainPc = tgt > 0 ? Math.round((achVal / tgt) * 100) : 0;
               return (
                 <div key={i} className="f-metric card-3d" style={{ marginBottom: 12, borderLeft: `5px solid ${pcColor(mainPc)}` }}>
