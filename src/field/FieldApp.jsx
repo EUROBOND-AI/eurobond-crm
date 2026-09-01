@@ -1935,12 +1935,14 @@ function FieldProjectNew() {
   const ed = edRef.current;
 
   const [f, setF] = useState(ed || {
-    visitDate: "", projectName: "", projectType: "",
-    firmName: "", contactPerson: "", contactNumber: "", email: "",
+    visitDate: "", projectName: "", projectType: "", city: "",
     approvalStatus: "In Process", expectedMonth: "", specPerson: "", helpNeeded: "", photo: "",
-    // specs-only extra
     category: "", categoryFirm: "", salesPerson: "",
   });
+  const [contacts, setContacts] = useState(ed?.contacts?.length ? ed.contacts : [{ category: "", firmName: "", people: [{ person: "", number: "", email: "" }] }]);
+  const setContact = (ci, k, v) => setContacts((cs) => cs.map((c, j) => j === ci ? { ...c, [k]: v } : c));
+  const setPerson = (ci, pi, k, v) => setContacts((cs) => cs.map((c, j) => j === ci ? { ...c, people: c.people.map((p, m) => m === pi ? { ...p, [k]: v } : p) } : c));
+  const CONTACT_CATS = ["Architect", "Builder", "Fabricator", "Contractor", "Facade Consultant", "End User"];
   const [rows, setRows] = useState(ed?.items?.length ? ed.items : [{ grade: "", colour: "", colourCode: "", qty: "" }]);
   const [gradeNames, setGradeNames] = useState([]);
   const [colourMap, setColourMap] = useState({});
@@ -1971,7 +1973,7 @@ function FieldProjectNew() {
     setBusy(true);
     try {
       const payload = {
-        ...f, items: rows, createdBy: CU().name, isSpec,
+        ...f, contacts, items: rows, createdBy: CU().name, isSpec,
         status: "Open", createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
       };
       const r = await api.create("projectProjection", payload);
@@ -2011,16 +2013,40 @@ function FieldProjectNew() {
           <option value="">Select…</option>{PROJ_TYPES.map((t) => <option key={t}>{t}</option>)}
         </select>
 
-        {/* contact details */}
-        <div style={{ fontWeight: 800, fontSize: 13, margin: "6px 0 8px", color: "var(--navy)" }}>Contact Details</div>
-        <label>Firm Name</label>
-        <input value={f.firmName} onChange={(e) => set("firmName", e.target.value)} style={inp} />
-        <label>Contact Person</label>
-        <input value={f.contactPerson} onChange={(e) => set("contactPerson", e.target.value)} style={inp} />
-        <label>Contact Number</label>
-        <input inputMode="numeric" value={f.contactNumber} onChange={(e) => set("contactNumber", e.target.value)} style={inp} />
-        <label>Email ID</label>
-        <input value={f.email} onChange={(e) => set("email", e.target.value)} style={inp} />
+        <label>City Name</label>
+        <input value={f.city} onChange={(e) => set("city", e.target.value)} style={inp} />
+
+        {/* contact details — multiple category blocks; each has firm + multiple person/number/email */}
+        <div style={{ fontWeight: 800, fontSize: 13, margin: "10px 0 8px", color: "var(--navy)" }}>Contact Details</div>
+        {contacts.map((c, ci) => (
+          <div key={ci} style={{ background: "#f4f6fc", borderRadius: 12, padding: 12, marginBottom: 10, border: "1px solid #e3e8f5" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <span style={{ fontWeight: 800, fontSize: 12, color: "var(--muted)" }}>Contact {ci + 1}</span>
+              {contacts.length > 1 && <button onClick={() => setContacts((cs) => cs.filter((_, j) => j !== ci))} style={{ background: "#fdecec", color: "#c03636", border: "none", borderRadius: 7, padding: "4px 10px", fontWeight: 700, fontSize: 11, cursor: "pointer" }}>Remove</button>}
+            </div>
+            <label>Category</label>
+            <select value={c.category} onChange={(e) => setContact(ci, "category", e.target.value)} style={{ width: "100%", marginBottom: 8 }}>
+              <option value="">Select…</option>{CONTACT_CATS.map((x) => <option key={x}>{x}</option>)}
+            </select>
+            {c.category && (<>
+              <label>Firm Name</label>
+              <input value={c.firmName} onChange={(e) => setContact(ci, "firmName", e.target.value)} style={{ width: "100%", marginBottom: 8 }} />
+              {c.people.map((p, pi) => (
+                <div key={pi} style={{ background: "#fff", borderRadius: 9, padding: 9, marginBottom: 8 }}>
+                  {c.people.length > 1 && <div style={{ textAlign: "right" }}><button onClick={() => setContacts((cs) => cs.map((cc, j) => j === ci ? { ...cc, people: cc.people.filter((_, k) => k !== pi) } : cc))} style={{ background: "none", border: "none", color: "#c03636", fontWeight: 700, fontSize: 11, cursor: "pointer" }}>✕ remove person</button></div>}
+                  <label>Contact Person</label>
+                  <input value={p.person} onChange={(e) => setPerson(ci, pi, "person", e.target.value)} style={{ width: "100%", marginBottom: 6 }} />
+                  <label>Contact Number</label>
+                  <input inputMode="numeric" value={p.number} onChange={(e) => setPerson(ci, pi, "number", e.target.value)} style={{ width: "100%", marginBottom: 6 }} />
+                  <label>Email ID</label>
+                  <input value={p.email} onChange={(e) => setPerson(ci, pi, "email", e.target.value)} style={{ width: "100%" }} />
+                </div>
+              ))}
+              <button onClick={() => setContacts((cs) => cs.map((cc, j) => j === ci ? { ...cc, people: [...cc.people, { person: "", number: "", email: "" }] } : cc))} style={{ background: "#eef1ff", color: "var(--navy)", border: "none", borderRadius: 8, padding: "6px 12px", fontWeight: 700, fontSize: 11.5, cursor: "pointer" }}>+ Add Person</button>
+            </>)}
+          </div>
+        ))}
+        <button onClick={() => setContacts((cs) => [...cs, { category: "", firmName: "", people: [{ person: "", number: "", email: "" }] }])} style={{ background: "var(--navy)", color: "#fff", border: "none", borderRadius: 9, padding: "8px 14px", fontWeight: 700, fontSize: 12.5, cursor: "pointer", marginBottom: 14 }}>+ Add Contact (another category)</button>
 
         <label>Approval Status</label>
         <select value={f.approvalStatus} onChange={(e) => set("approvalStatus", e.target.value)} style={inp}>
