@@ -2058,13 +2058,11 @@ function FieldProjectNew() {
         {rows.map((r, i) => (
           <div key={i} style={{ background: "#f7f9ff", borderRadius: 11, padding: 11, marginBottom: 10 }}>
             <label>Grade Name (Product)</label>
-            <select value={r.grade} onChange={(e) => { setRow(i, "grade", e.target.value); loadColours(e.target.value); }} style={{ width: "100%", marginBottom: 8 }}>
-              <option value="">Select…</option>{gradeNames.map((g) => <option key={g}>{g}</option>)}
-            </select>
+            <SearchSelect value={r.grade} onChange={(v) => { setRow(i, "grade", v); loadColours(v); }} options={gradeNames} placeholder="Search product…" />
+            <div style={{ height: 8 }} />
             <label>Colour Code</label>
-            <select value={r.colourCode} onChange={(e) => setRow(i, "colourCode", e.target.value)} style={{ width: "100%", marginBottom: 8 }}>
-              <option value="">Select…</option>{(colourMap[r.grade] || []).map((c, j) => <option key={j} value={c.colourCode || c.colour}>{c.colour}{c.colourCode ? ` (${c.colourCode})` : ""}</option>)}
-            </select>
+            <SearchSelect value={r.colourCode} onChange={(v) => setRow(i, "colourCode", v)} options={(colourMap[r.grade] || []).map((c) => c.colourCode || c.colour)} placeholder="Search colour…" disabled={!r.grade} />
+            <div style={{ height: 8 }} />
             <label>Qty</label>
             <input inputMode="numeric" value={r.qty} onChange={(e) => setRow(i, "qty", e.target.value.replace(/\D/g, ""))} style={{ width: "100%" }} />
             {rows.length > 1 && <button onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} style={{ marginTop: 8, background: "#fdecec", color: "#c03636", border: "none", borderRadius: 8, padding: "6px 12px", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Remove</button>}

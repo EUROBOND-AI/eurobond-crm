@@ -313,7 +313,7 @@ table.grid tbody tr.row-click:hover { background: #eef1ff; }
 .f-nav a { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10.5px; font-weight: 800; color: var(--muted); width: 62px; }
 .f-nav a.active { color: var(--navy); }
 .f-fab {
-  position: absolute; right: 18px; bottom: 52px; z-index: 30;
+  position: absolute; right: 18px; bottom: 88px; z-index: 30;
   width: 56px; height: 56px; border-radius: 50%; background: var(--navy); color: #fff; border: none;
   display: grid; place-items: center; box-shadow: 0 10px 24px rgba(11, 60, 140, 0.45);
 }
