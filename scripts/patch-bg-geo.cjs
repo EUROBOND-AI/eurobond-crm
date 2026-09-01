@@ -32,6 +32,7 @@ try {
     "import android.app.AlarmManager;",
     "import android.app.PendingIntent;",
     "import android.content.Context;",
+    "import android.os.PowerManager;",
     "import java.io.OutputStream;",
     "import java.net.HttpURLConnection;",
     "import java.net.URL;",
@@ -125,8 +126,15 @@ try {
             try { flag |= PendingIntent.FLAG_IMMUTABLE; } catch (Throwable t) {}
             PendingIntent pi = PendingIntent.getService(getApplicationContext(), 4802, i, flag);
             long next = System.currentTimeMillis() + 120000; // ~2 min
-            try { am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next, pi); }
-            catch (Exception e) { am.set(AlarmManager.RTC_WAKEUP, next, pi); }
+            // setAlarmClock() is NOT throttled by Doze — it always fires on time, even in
+            // deep sleep. This is the key to points flowing when the phone is idle for hours.
+            try {
+                PendingIntent show = PendingIntent.getService(getApplicationContext(), 4803, i, flag);
+                am.setAlarmClock(new AlarmManager.AlarmClockInfo(next, show), pi);
+            } catch (Exception e) {
+                try { am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next, pi); }
+                catch (Exception e2) { am.set(AlarmManager.RTC_WAKEUP, next, pi); }
+            }
         } catch (Exception e) {}
     }
 
@@ -156,6 +164,12 @@ try {
         if (intent != null && "EB_ALARM_TICK".equals(intent.getAction())) {
             Notification n = getNotification();
             if (n != null) { try { startForeground(NOTIFICATION_ID, n); } catch (Exception e) {} }
+            // Wake the CPU so GPS can get a fix in deep Doze; auto-releases after 30s.
+            try {
+                PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+                PowerManager.WakeLock wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "eurobond:tick");
+                wl.acquire(30000);
+            } catch (Exception e) {}
             ebPollOnce();       // grab a fresh location on the alarm tick
             ebScheduleAlarm();  // re-arm for the next tick
             return START_STICKY;
