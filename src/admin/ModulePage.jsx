@@ -24,9 +24,19 @@ export default function ModulePage({ cfgKey }) {
     }).catch(() => {});
   }, [cfgKey]);
 
+  /* HOD-only names (role/designation contains "hod") for HOD dropdowns */
+  const hodNames = useMemo(
+    () => allUsers.filter((u) => `${u.role || ""} ${u.designation || ""}`.toLowerCase().includes("hod")).map((u) => u.name),
+    [allUsers]
+  );
+
   const formFields = useMemo(
-    () => (cfg.form || []).map((f) => (f.optionsSource === "users" ? { ...f, options: userNames } : f)),
-    [cfg, userNames]
+    () => (cfg.form || []).map((f) => {
+      if (f.optionsSource === "users") return { ...f, options: userNames };
+      if (f.optionsSource === "hods") return { ...f, options: hodNames };
+      return f;
+    }),
+    [cfg, userNames, hodNames]
   );
 
   useEffect(() => { setTab(cfg.tabs?.[0]?.key); }, [cfgKey]);

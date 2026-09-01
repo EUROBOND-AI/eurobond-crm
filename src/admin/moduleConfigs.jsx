@@ -215,6 +215,7 @@ export const MODULES = {
     tabs: [{ key: "Sales", label: "Sales Target (₹)" }, { key: "Specs", label: "Specs Target (Sq.Mtr)" }],
     tabField: "targetType",
     columns: [
+      { key: "code", label: "Emp Code" },
       { key: "hod", label: "HOD" },
       { key: "user", label: "Team Member", render: link },
       { key: "period", label: "Period" },
@@ -225,7 +226,8 @@ export const MODULES = {
     ],
     form: [
       { name: "user", label: "Team Member", type: "select", optionsSource: "users", required: true },
-      { name: "hod", label: "HOD", type: "select", optionsSource: "users" },
+      { name: "code", label: "Employee Code" },
+      { name: "hod", label: "HOD", type: "select", optionsSource: "hods" },
       { name: "targetType", label: "Target Type", type: "select", options: ["Sales", "Specs"], required: true },
       { name: "period", label: "Month (e.g. Aug 2026)", required: true },
       { name: "target", label: "Target (₹ for Sales, Sq.Mtr for Specs)", type: "number", required: true },
