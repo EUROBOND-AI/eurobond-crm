@@ -1962,100 +1962,119 @@ const pcColor = (pc) => (pc >= 100 ? "#1f9d55" : pc >= 60 ? "#e8a020" : "#d64545
 
 function FieldTarget() {
   const [targets, setTargets] = useState(null);
-  const [entries, setEntries] = useState([]);
-  const [showAdd, setShowAdd] = useState(false);
+  const [filter, setFilter] = useState("Month");   // Month / Quarter / Year / All
   const isSpec = `${CU().role || ""} ${CU().designation || ""}`.toLowerCase().includes("spec");
 
-  const load = () => {
-    Promise.all([api.list("target", false), api.list("salesEntry", false)])
-      .then(([t, e]) => {
-        setTargets((t.records || []).map((r) => r.data).filter((x) => x.user === CU().name));
-        setEntries((e.records || []).map((r) => ({ _id: r.id, ...r.data })).filter((x) => x.createdBy === CU().name));
-      })
+  useEffect(() => {
+    api.list("target", false)
+      .then((t) => setTargets((t.records || []).map((r) => r.data).filter((x) => x.user === CU().name)))
       .catch(() => setTargets([]));
-  };
-  useEffect(load, []);
+  }, []);
 
-  /* period ("July 2026") ki naa entries totals */
-  const achFor = (t) => {
-    const per = (t.period || "").toLowerCase().replace(/\s+/g, " ").trim();
-    const inPeriod = entries.filter((e) => {
-      if (!e.date) return false;
-      const d = new Date(e.date);
-      const label = d.toLocaleString("en-IN", { month: "long", year: "numeric" }).toLowerCase();
-      const label2 = d.toLocaleString("en-IN", { month: "short", year: "numeric" }).toLowerCase();
-      return per.includes(label) || per.includes(label2) || label.includes(per);
-    });
-    const src = inPeriod.length ? inPeriod : entries;   // period match kakapothe anni
-    return {
-      sqft: src.reduce((s, e) => s + Number(e.sqft || 0), 0),
-      amount: src.reduce((s, e) => s + Number(e.amount || 0), 0),
-    };
+  return <TargetView targets={targets} filter={filter} setFilter={setFilter} isSpec={isSpec} title="My Target" />;
+}
+
+/* shared target view — used by the field user AND the HOD (per member) */
+function TargetView({ targets, filter, setFilter, isSpec, title }) {
+  /* which financial quarter a "Aug 2026" month falls in (Apr-Jun=Q1 ... Jan-Mar=Q4) */
+  const monthIdx = (period) => {
+    const m = new Date(("1 " + (period || "")).replace(/(\w+)\s+(\d{4})/, "$1 1, $2"));
+    return isNaN(m) ? -1 : m.getMonth();
   };
+  const yearOf = (period) => { const y = (period || "").match(/\d{4}/); return y ? y[0] : ""; };
+  const now = new Date();
+  const curMonth = now.toLocaleString("en-IN", { month: "short", year: "numeric" }).toLowerCase();
+  const curYear = String(now.getFullYear());
+  const curQ = Math.floor(((now.getMonth() + 9) % 12) / 3); // FY quarter 0..3
+
+  const matches = (t) => {
+    const p = (t.period || "").toLowerCase();
+    if (filter === "All") return true;
+    if (filter === "Month") return p.includes(curMonth.split(" ")[0]) && p.includes(curYear);
+    if (filter === "Year") return yearOf(t.period) === curYear;
+    if (filter === "Quarter") { const mi = monthIdx(t.period); if (mi < 0) return false; const q = Math.floor(((mi + 9) % 12) / 3); return q === curQ && yearOf(t.period) === curYear; }
+    return true;
+  };
+
+  const filtered = (targets || []).filter(matches);
+  /* split by type so Sales (₹) and Specs (Sq.Mtr) don't mix */
+  const sumFor = (type) => {
+    const list = filtered.filter((t) => String(t.targetType || "").toLowerCase() === type);
+    const tgt = list.reduce((s, t) => s + Number(t.target || 0), 0);
+    const ach = list.reduce((s, t) => s + Number(t.achieved || 0), 0);
+    const pc = tgt > 0 ? Math.round((ach / tgt) * 100) : 0;
+    return { tgt, ach, pc, count: list.length };
+  };
+  const salesSum = sumFor("sales");
+  const specsSum = sumFor("specs");
+  const showSales = salesSum.count > 0 || !isSpec;
+  const showSpecs = specsSum.count > 0 || isSpec;
+
+  const Box = ({ label, value, color }) => (
+    <div style={{ flex: 1, background: "#fff", borderRadius: 12, padding: "12px 8px", textAlign: "center", boxShadow: "var(--shadow)" }}>
+      <div style={{ fontSize: 10.5, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: .3 }}>{label}</div>
+      <div style={{ fontSize: 16, fontWeight: 800, color: color || "var(--navy)", marginTop: 3 }}>{value}</div>
+    </div>
+  );
+
+  const Summary = ({ s, unit }) => (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+        <Box label="Target" value={(unit === "₹" ? "₹" : "") + s.tgt.toLocaleString("en-IN") + (unit === "Sq.Mtr" ? " Sq.Mtr" : "")} />
+        <Box label="Achieved" value={(unit === "₹" ? "₹" : "") + s.ach.toLocaleString("en-IN") + (unit === "Sq.Mtr" ? " Sq.Mtr" : "")} />
+        <Box label="Achievement" value={s.pc + "%"} color={pcColor(s.pc)} />
+      </div>
+      <div className="bar"><i style={{ width: Math.min(100, s.pc) + "%", background: pcColor(s.pc) }} /></div>
+    </div>
+  );
 
   return (
     <>
-      <ScreenHead title="Target" back={false}
-        right={null} />
+      <ScreenHead title={title || "Target"} back={false} right={null} />
       <div className="f-list-pad" style={{ paddingTop: 14 }}>
+        {/* filter chips */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+          {["Month", "Quarter", "Year", "All"].map((f) => (
+            <button key={f} onClick={() => setFilter(f)} style={{ flex: 1, padding: "8px 0", borderRadius: 9, border: "none", fontWeight: 700, fontSize: 12.5, cursor: "pointer", background: filter === f ? "var(--navy)" : "#eef1ff", color: filter === f ? "#fff" : "var(--navy)" }}>{f}</button>
+          ))}
+        </div>
+
         {targets === null ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>Loading…</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ textAlign: "center", color: "var(--muted)", padding: 26, fontSize: 13 }}>
+            <Target size={32} style={{ opacity: 0.4, marginBottom: 8 }} />
+            <div style={{ fontWeight: 700 }}>No targets for this {filter.toLowerCase()}</div>
+          </div>
         ) : (
           <>
-            {targets.length === 0 && (
-              <div style={{ textAlign: "center", color: "var(--muted)", padding: 26, fontSize: 13 }}>
-                <Target size={32} style={{ opacity: 0.4, marginBottom: 8 }} />
-                <div style={{ fontWeight: 700 }}>No targets assigned yet</div>
-              </div>
-            )}
-            {targets.map((t, i) => {
+            {showSales && salesSum.count > 0 && (<><div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 8, color: "var(--navy)" }}>Sales (₹)</div><Summary s={salesSum} unit="₹" /></>)}
+            {showSpecs && specsSum.count > 0 && (<><div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 8, color: "var(--navy)" }}>Specs (Sq.Mtr)</div><Summary s={specsSum} unit="Sq.Mtr" /></>)}
+
+            {/* per-period breakdown */}
+            <div style={{ fontWeight: 800, fontSize: 13, margin: "6px 0 8px", color: "var(--muted)" }}>Breakdown</div>
+            {filtered.map((t, i) => {
               const isSalesT = String(t.targetType || "").toLowerCase() === "sales";
-              const tgt = Number(t.target || t.targetSqft || t.targetAmount || 0);
-              /* admin enters the achieved value directly now */
-              const achVal = Number(t.achieved || 0);
-              const mainPc = tgt > 0 ? Math.round((achVal / tgt) * 100) : 0;
+              const tgt = Number(t.target || 0), ach = Number(t.achieved || 0);
+              const pc = tgt > 0 ? Math.round((ach / tgt) * 100) : 0;
+              const u = isSalesT ? "₹" : "";
               return (
-                <div key={i} className="f-metric card-3d" style={{ marginBottom: 12, borderLeft: `5px solid ${pcColor(mainPc)}` }}>
-                  <h5><Target size={15} /> {t.period || "Target"}
-                    <span className="pct" style={{ background: pcColor(mainPc), color: "#fff", padding: "2px 9px", borderRadius: 8 }}>{mainPc}%</span>
-                  </h5>
-                  {tgt > 0 && (
-                    <div>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 700 }}>
-                        <span>{isSalesT ? "Sales Amount" : "Sq.Mtr " + (isSpec ? "Approved" : "Sold")}</span>
-                        <span style={{ color: pcColor(mainPc) }}>
-                          {isSalesT ? "₹" : ""}{achVal.toLocaleString("en-IN")} / {isSalesT ? "₹" : ""}{tgt.toLocaleString("en-IN")}{isSalesT ? "" : " Sq.Mtr"}
-                        </span>
-                      </div>
-                      <div className="bar"><i style={{ width: Math.min(100, mainPc) + "%", background: pcColor(mainPc) }} /></div>
-                    </div>
-                  )}
-                  <small>{t.periodType ? t.periodType + " · " : ""}{t.period || ""} {t.note ? "· " + t.note : ""}</small>
+                <div key={i} className="card-3d" style={{ marginBottom: 10, borderLeft: `5px solid ${pcColor(pc)}`, background: "#fff", borderRadius: 12, padding: "11px 13px", boxShadow: "var(--shadow)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontWeight: 800, fontSize: 13 }}>{t.period} · {isSalesT ? "Sales" : "Specs"}</span>
+                    <span style={{ background: pcColor(pc), color: "#fff", padding: "2px 9px", borderRadius: 8, fontSize: 12, fontWeight: 800 }}>{pc}%</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 700, marginTop: 6 }}>
+                    <span style={{ color: pcColor(pc) }}>{u}{ach.toLocaleString("en-IN")} / {u}{tgt.toLocaleString("en-IN")}{isSalesT ? "" : " Sq.Mtr"}</span>
+                  </div>
+                  <div className="bar"><i style={{ width: Math.min(100, pc) + "%", background: pcColor(pc) }} /></div>
+                  {t.note && <small style={{ color: "var(--muted)" }}>{t.note}</small>}
                 </div>
               );
             })}
-
-            <div style={{ fontWeight: 800, fontSize: 14, margin: "16px 0 8px", fontFamily: "Bricolage Grotesque" }}>
-              My {isSpec ? "Approval" : "Sales"} Entries ({entries.length})
-            </div>
-            {entries.length === 0 ? (
-              <div style={{ color: "var(--muted)", fontSize: 12.5, textAlign: "center", padding: 14 }}>Use "+ Add" to record your entries</div>
-            ) : entries.slice().reverse().map((e, i) => (
-              <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "11px 13px", marginBottom: 8, boxShadow: "var(--shadow)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 13 }}>{e.project}</div>
-                  <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{e.date} {e.invoice && <span onClick={() => openAppPhoto(e.invoice)} style={{ color: "var(--accent)", cursor: "pointer", fontWeight: 700 }}>· Invoice</span>}</div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontWeight: 800, fontSize: 13 }}>{Number(e.sqft || 0).toLocaleString("en-IN")} sq.ft</div>
-                  {e.amount > 0 && <div style={{ fontSize: 11.5, color: "var(--muted)" }}>₹{Number(e.amount).toLocaleString("en-IN")}</div>}
-                </div>
-              </div>
-            ))}
           </>
         )}
       </div>
-      {showAdd && <AddSaleEntry isSpec={isSpec} onClose={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); load(); }} />}
     </>
   );
 }
@@ -2326,45 +2345,68 @@ function FieldTeamPerformance() {
   const [data, setData] = useState(null);
   const [q, setQ] = useState("");
   const [sortBy, setSortBy] = useState("performance");
+  const [filter, setFilter] = useState("Month");
   const isSpecHod = `${CU().role || ""} ${CU().designation || ""}`.toLowerCase().includes("spec");
 
+  const now = new Date();
+  const curMonth = now.toLocaleString("en-IN", { month: "short", year: "numeric" }).toLowerCase().split(" ")[0];
+  const curYear = String(now.getFullYear());
+  const curQ = Math.floor(((now.getMonth() + 9) % 12) / 3);
+  const monthIdx = (period) => { const m = new Date(("1 " + (period || "")).replace(/(\w+)\s+(\d{4})/, "$1 1, $2")); return isNaN(m) ? -1 : m.getMonth(); };
+  const inFilter = (t) => {
+    const p = (t.period || "").toLowerCase();
+    if (filter === "All") return true;
+    if (filter === "Month") return p.includes(curMonth) && p.includes(curYear);
+    if (filter === "Year") return p.includes(curYear);
+    if (filter === "Quarter") { const mi = monthIdx(t.period); if (mi < 0) return false; return Math.floor(((mi + 9) % 12) / 3) === curQ && p.includes(curYear); }
+    return true;
+  };
+
   useEffect(() => {
-    Promise.all([api.listUsers(), api.list("target", false), api.list("salesEntry", false)])
-      .then(([u, t, e]) => {
+    Promise.all([api.listUsers(), api.list("target", false)])
+      .then(([u, t]) => {
         const me = CU().name;
         const myRole = (CU().role || "").toLowerCase();
         const allUsers = (u.users || []).filter((x) => x.status == 1);
         let team;
         if (/^hod /.test(myRole)) {
-          /* HOD → direct reports + everyone under this HOD's Sub HODs (full team) */
           const subHods = allUsers.filter((x) => x.manager === me && /^sub hod/.test((x.role || "").toLowerCase())).map((x) => x.name);
           team = allUsers.filter((x) => x.manager === me || subHods.includes(x.manager));
         } else {
-          /* Sub HOD (or others) → only their directly assigned team */
           team = allUsers.filter((x) => x.manager === me);
         }
         const targets = (t.records || []).map((r) => r.data);
-        const entries = (e.records || []).map((r) => r.data);
-        setData(team.map((m) => {
-          const tg = targets.filter((x) => x.user === m.name);
-          const en = entries.filter((x) => x.createdBy === m.name);
-          const tgtS = tg.reduce((s, x) => s + Number(x.targetSqft || x.target || 0), 0);
-          const tgtA = tg.reduce((s, x) => s + Number(x.targetAmount || 0), 0);
-          const achS = en.reduce((s, x) => s + Number(x.sqft || 0), 0);
-          const achA = en.reduce((s, x) => s + Number(x.amount || 0), 0);
-          const pc = isSpecHod
-            ? (tgtS > 0 ? Math.round((achS / tgtS) * 100) : 0)
-            : (tgtA > 0 ? Math.round((achA / tgtA) * 100) : (tgtS > 0 ? Math.round((achS / tgtS) * 100) : 0));
-          return { m, tgtS, tgtA, achS, achA, pc };
-        }));
+        setData({ team, targets });
       })
-      .catch(() => setData([]));
+      .catch(() => setData({ team: [], targets: [] }));
   }, []);
+
+  const rows = useMemo(() => {
+    if (!data) return null;
+    return data.team.map((m) => {
+      const tg = data.targets.filter((x) => x.user === m.name && inFilter(x));
+      const salesT = tg.filter((x) => String(x.targetType || "").toLowerCase() === "sales");
+      const specsT = tg.filter((x) => String(x.targetType || "").toLowerCase() === "specs");
+      const tgtA = salesT.reduce((s, x) => s + Number(x.target || 0), 0);
+      const achA = salesT.reduce((s, x) => s + Number(x.achieved || 0), 0);
+      const tgtS = specsT.reduce((s, x) => s + Number(x.target || 0), 0);
+      const achS = specsT.reduce((s, x) => s + Number(x.achieved || 0), 0);
+      const pc = isSpecHod
+        ? (tgtS > 0 ? Math.round((achS / tgtS) * 100) : 0)
+        : (tgtA > 0 ? Math.round((achA / tgtA) * 100) : (tgtS > 0 ? Math.round((achS / tgtS) * 100) : 0));
+      return { m, tgtS, tgtA, achS, achA, pc };
+    });
+  }, [data, filter]);
 
   return (
     <>
       <ScreenHead title="Team Performance" />
       <div className="f-list-pad" style={{ paddingTop: 14 }}>
+        <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+          {["Month", "Quarter", "Year", "All"].map((f) => (
+            <button key={f} onClick={() => setFilter(f)} style={{ flex: 1, padding: "8px 0", borderRadius: 9, border: "none", fontWeight: 700, fontSize: 12.5, cursor: "pointer", background: filter === f ? "var(--navy)" : "#eef1ff", color: filter === f ? "#fff" : "var(--navy)" }}>{f}</button>
+          ))}
+        </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
           <div style={{ position: "relative", flex: 1 }}>
             <Search size={15} color="var(--muted)" style={{ position: "absolute", left: 11, top: 11 }} />
@@ -2376,15 +2418,14 @@ function FieldTeamPerformance() {
             <option value="name">Name</option>
           </select>
         </div>
-        {data === null ? (
+        {rows === null ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>Loading…</div>
-        ) : data.length === 0 ? (
+        ) : rows.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>
             <Users size={32} style={{ opacity: 0.4, marginBottom: 8 }} />
             <div style={{ fontWeight: 700 }}>No team members mapped to you</div>
-            <div style={{ fontSize: 12, marginTop: 4 }}>Ask admin to set your name in the "Manager" field for your team members.</div>
           </div>
-        ) : data
+        ) : rows
           .filter(({ m }) => !q.trim() || m.name.toLowerCase().includes(q.toLowerCase()))
           .sort((a, b) => sortBy === "name" ? a.m.name.localeCompare(b.m.name) : sortBy === "lowest" ? a.pc - b.pc : b.pc - a.pc)
           .map(({ m, tgtS, tgtA, achS, achA, pc }, i) => (
@@ -2394,9 +2435,10 @@ function FieldTeamPerformance() {
               <span style={{ background: pcColor(pc), color: "#fff", fontWeight: 800, fontSize: 12, padding: "3px 10px", borderRadius: 9 }}>{pc}%</span>
             </div>
             <div className="bar" style={{ marginTop: 8 }}><i style={{ width: Math.min(100, pc) + "%", background: pcColor(pc) }} /></div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "var(--muted)", marginTop: 6, fontWeight: 600 }}>
-              <span>{isSpecHod ? "Approved" : "Sold"}: {achS.toLocaleString("en-IN")} / {tgtS.toLocaleString("en-IN")} sq.ft</span>
-              {!isSpecHod && tgtA > 0 && <span>₹{achA.toLocaleString("en-IN")} / ₹{tgtA.toLocaleString("en-IN")}</span>}
+            <div style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 11.5, color: "var(--muted)", marginTop: 6, fontWeight: 600 }}>
+              {tgtA > 0 && <span>Sales: ₹{achA.toLocaleString("en-IN")} / ₹{tgtA.toLocaleString("en-IN")}</span>}
+              {tgtS > 0 && <span>Specs: {achS.toLocaleString("en-IN")} / {tgtS.toLocaleString("en-IN")} Sq.Mtr</span>}
+              {tgtA === 0 && tgtS === 0 && <span>No target for this period</span>}
             </div>
           </div>
         ))}
