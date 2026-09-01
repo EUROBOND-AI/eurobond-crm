@@ -409,6 +409,7 @@ export default function ModulePage({ cfgKey }) {
           actions={cfg.actions !== false}
           selectable
           onBulkDelete={handleBulkDelete}
+          onBulkForward={cfgKey === "projectProjection" ? (ids) => setFwdRow({ bulk: ids.map((id) => rows.find((r) => r._id === id)).filter(Boolean) }) : null}
           onRowClick={cfgKey === "projectProjection" ? (r) => setProjView(r) : (cfg.approveFlow || cfg.isSpecThread) ? (r) => setChatRow(r) : null}
           onDelete={handleDelete}
           onEdit={(cfg.form && cfgKey !== "projectProjection") ? (r) => { setEditing(r); setShowForm(true); } : null}
@@ -631,6 +632,7 @@ function AdminProjectView({ rec, onClose }) {
 
 /* Admin forward project to a user */
 function AdminProjectForward({ rec, onClose, onSent }) {
+  const projects = rec.bulk ? rec.bulk : [rec];
   const [users, setUsers] = useState([]);
   const [sel, setSel] = useState([]);
   const [note, setNote] = useState("");
@@ -641,16 +643,18 @@ function AdminProjectForward({ rec, onClose, onSent }) {
     if (!sel.length) { alert("Select at least one person"); return; }
     setBusy(true);
     try {
-      const fwd = [...(rec.forwards || []), ...sel.map((to) => ({ to, note, by: "Admin", at: new Date().toLocaleString("en-IN") }))];
-      await api.update("projectProjection", rec._id, { ...rec, forwards: fwd });
-      for (const to of sel) { try { await api.create("notification", { title: "Project Forwarded", message: `Admin forwarded "${rec.projectName}"${note ? ": " + note : ""}`, to, link: "/app/m/projectProjection", at: new Date().toISOString() }); } catch {} }
+      for (const pr of projects) {
+        const fwd = [...(pr.forwards || []), ...sel.map((to) => ({ to, note, by: "Admin", at: new Date().toLocaleString("en-IN") }))];
+        await api.update("projectProjection", pr._id, { ...pr, forwards: fwd });
+        for (const to of sel) { try { await api.create("notification", { title: "Project Forwarded", message: `Admin forwarded "${pr.projectName}"${note ? ": " + note : ""}`, to, link: "/app/m/projectProjection", at: new Date().toISOString() }); } catch {} }
+      }
       onSent();
     } catch (e) { alert(e.message); setBusy(false); }
   };
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.5)", zIndex: 9999, display: "grid", placeItems: "center", padding: 18 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 14, maxWidth: 440, width: "100%", maxHeight: "88vh", overflowY: "auto", padding: 20 }}>
-        <h3 style={{ marginTop: 0 }}>Forward Project</h3>
+        <h3 style={{ marginTop: 0 }}>Forward {projects.length > 1 ? projects.length + " Projects" : "Project"}</h3>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
           <label style={{ fontWeight: 700, fontSize: 13 }}>Select people ({sel.length})</label>
           <button className="btn" style={{ padding: "2px 8px", fontSize: 11 }} onClick={() => setSel(sel.length === users.length ? [] : [...users])}>{sel.length === users.length ? "Clear all" : "Select all"}</button>

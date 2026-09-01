@@ -105,16 +105,8 @@ export const MODULES = {
       { key: "statusRemark", label: "Remark" },
       { key: "status", label: "Status", render: pill },
     ],
-    form: [
-      { name: "name", label: "Project Name", required: true },
-      { name: "firm", label: "Firm / Builder Name" },
-      { name: "projectType", label: "Project Type", type: "select", options: ["Residential", "Commercial", "Institutional", "Industrial", "Other"] },
-      { name: "city", label: "City" },
-      { name: "value", label: "Approx Value (₹)", type: "number" },
-      { name: "details", label: "Project Details", type: "textarea", full: true },
-      { name: "specPerson", label: "Specification Help — tag spec person (optional)", type: "select", optionsSource: "specUsers" },
-      { name: "specHelp", label: "What specification help is needed?", type: "textarea", full: true },
-    ],
+    form: false,
+    appOnlyCreate: true,
   },
 
   leave: {

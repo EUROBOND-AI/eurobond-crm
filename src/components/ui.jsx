@@ -62,7 +62,7 @@ export function EmptyState() {
 }
 
 // Generic filterable table used across every module
-export function DataTable({ columns, rows, onDelete, onEdit, onView, onRowClick, onBulkDelete, selectable, actions = true, extraActions }) {
+export function DataTable({ columns, rows, onDelete, onEdit, onView, onRowClick, onBulkDelete, onBulkForward, selectable, actions = true, extraActions }) {
   const [filters, setFilters] = useState({});
   const [sel, setSel] = useState(new Set());
   const filtered = useMemo(
@@ -86,6 +86,7 @@ export function DataTable({ columns, rows, onDelete, onEdit, onView, onRowClick,
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", background: "linear-gradient(135deg,#eef1ff,#f4ecff)", borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
           <span style={{ fontWeight: 800, fontSize: 13, color: "var(--accent)" }}>{sel.size} selected</span>
           {onBulkDelete && <button className="btn btn-danger" style={{ padding: "5px 12px", fontSize: 12 }} onClick={() => { onBulkDelete([...sel]); setSel(new Set()); }}>Delete Selected</button>}
+          {onBulkForward && <button className="btn" style={{ padding: "5px 12px", fontSize: 12, background: "#efe7fb", color: "#8854d0" }} onClick={() => onBulkForward([...sel])}>Forward Selected</button>}
           <button className="btn btn-ghost" style={{ padding: "5px 12px", fontSize: 12 }} onClick={() => setSel(new Set())}>Clear</button>
         </div>
       )}
