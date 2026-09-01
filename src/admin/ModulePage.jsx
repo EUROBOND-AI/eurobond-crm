@@ -45,7 +45,7 @@ export default function ModulePage({ cfgKey }) {
     let alive = true;
     setLoading(true); setErr("");
     api.list(cfgKey)
-      .then((d) => { if (alive) setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data }))); })
+      .then((d) => { if (alive) setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length }))); })
       .catch((e) => { if (alive) setErr(e.message); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
@@ -101,6 +101,7 @@ export default function ModulePage({ cfgKey }) {
   const [rejectDoc, setRejectDoc] = useState("");
   const [chatRow, setChatRow] = useState(null);
   const [projView, setProjView] = useState(null);
+  const [fwdRow, setFwdRow] = useState(null);
   const [hiddenCols, setHiddenCols] = useState([]);
   const [showColCfg, setShowColCfg] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
@@ -108,7 +109,7 @@ export default function ModulePage({ cfgKey }) {
   const reload = () => {
     setRefreshing(true); setErr("");
     api.list(cfgKey)
-      .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data }))))
+      .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length }))))
       .catch((e) => setErr(e.message))
       .finally(() => setRefreshing(false));
   };
@@ -353,7 +354,12 @@ export default function ModulePage({ cfgKey }) {
         <div style={{ padding: 24, background: "#fdecec", color: "#c03636", borderRadius: 12, fontWeight: 600 }}>{err}</div>
       ) : (
         <DataTable
-          extraActions={cfg.approveFlow ? (r) => (
+          extraActions={cfgKey === "projectProjection" ? (r) => (
+            <span style={{ display: "inline-flex", gap: 4, marginRight: 6 }}>
+              <button className="btn" style={{ padding: "3px 8px", fontSize: 11, background: "#e4e8ff", color: "#3949ab" }} onClick={(e) => { e.stopPropagation(); setProjView(r); }}>View</button>
+              <button className="btn" style={{ padding: "3px 8px", fontSize: 11, background: "#efe7fb", color: "#8854d0" }} onClick={(e) => { e.stopPropagation(); setFwdRow(r); }}>Forward</button>
+            </span>
+          ) : cfg.approveFlow ? (r) => (
             <span style={{ display: "inline-flex", gap: 4, marginRight: 6 }}>
               {(cfg.approveFlow || []).filter((st) => st !== r.status).map((st) => (
                 <button key={st} className="btn"
@@ -371,12 +377,13 @@ export default function ModulePage({ cfgKey }) {
           onBulkDelete={handleBulkDelete}
           onRowClick={cfgKey === "projectProjection" ? (r) => setProjView(r) : (cfg.approveFlow || cfg.isSpecThread) ? (r) => setChatRow(r) : null}
           onDelete={handleDelete}
-          onEdit={cfg.form ? (r) => { setEditing(r); setShowForm(true); } : null}
+          onEdit={(cfg.form && cfgKey !== "projectProjection") ? (r) => { setEditing(r); setShowForm(true); } : null}
         />
       )}
 
       {chatRow && <AdminChatModal row={chatRow} cfgKey={cfgKey} onClose={() => setChatRow(null)} onSent={(updated) => { setRows(rows.map((x) => (x._id === updated._id ? updated : x))); setChatRow(updated); }} />}
       {projView && <AdminProjectView rec={projView} onClose={() => setProjView(null)} />}
+      {fwdRow && <AdminProjectForward rec={fwdRow} onClose={() => setFwdRow(null)} onSent={() => setFwdRow(null)} />}
 
       {rejectFor && (
         <div className="modal-mask" onClick={() => setRejectFor(null)}>
@@ -583,6 +590,42 @@ function AdminProjectView({ rec, onClose }) {
         ))}
 
         {d.photo && <><h4 style={{ margin: "14px 0 6px" }}>Photo</h4><img src={d.photo} alt="" style={{ maxWidth: "100%", borderRadius: 10 }} /></>}
+      </div>
+    </div>
+  );
+}
+
+/* Admin forward project to a user */
+function AdminProjectForward({ rec, onClose, onSent }) {
+  const [users, setUsers] = useState([]);
+  const [to, setTo] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { api.listUsers().then((d) => setUsers((d.users || []).filter((u) => u.status == 1).map((u) => u.name))).catch(() => {}); }, []);
+  const send = async () => {
+    if (!to) { alert("Select a person"); return; }
+    setBusy(true);
+    try {
+      const fwd = [...(rec.forwards || []), { to, note, by: "Admin", at: new Date().toLocaleString("en-IN") }];
+      await api.update("projectProjection", rec._id, { ...rec, forwards: fwd });
+      try { await api.create("notification", { title: "Project Forwarded", message: `Admin forwarded "${rec.projectName}"${note ? ": " + note : ""}`, to, link: "/app/m/projectProjection", at: new Date().toISOString() }); } catch {}
+      onSent();
+    } catch (e) { alert(e.message); setBusy(false); }
+  };
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.5)", zIndex: 9999, display: "grid", placeItems: "center", padding: 18 }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 14, maxWidth: 420, width: "100%", padding: 20 }}>
+        <h3 style={{ marginTop: 0 }}>Forward Project</h3>
+        <label style={{ fontWeight: 700, fontSize: 13 }}>Forward to</label>
+        <select value={to} onChange={(e) => setTo(e.target.value)} style={{ width: "100%", padding: 10, borderRadius: 9, border: "1.5px solid #d7dcef", marginBottom: 10 }}>
+          <option value="">Select…</option>{users.map((u) => <option key={u}>{u}</option>)}
+        </select>
+        <label style={{ fontWeight: 700, fontSize: 13 }}>Note (optional)</label>
+        <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} style={{ width: "100%", padding: 10, borderRadius: 9, border: "1.5px solid #d7dcef", marginBottom: 12 }} />
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn" onClick={onClose} style={{ flex: 1 }}>Cancel</button>
+          <button className="btn btn-primary" onClick={send} disabled={busy || !to} style={{ flex: 1 }}>{busy ? "Sending…" : "Forward"}</button>
+        </div>
       </div>
     </div>
   );

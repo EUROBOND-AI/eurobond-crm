@@ -1969,6 +1969,7 @@ function FieldProjectList() {
             </div>
             <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 4 }}>
               {[r.projectType, r.city, r.expectedMonth].filter(Boolean).join(" · ") || r.createdAt}
+              {(r.followups || []).length > 0 && <span style={{ marginLeft: 6, color: "var(--accent)", fontWeight: 700 }}>· {(r.followups || []).length} entries</span>}
             </div>
             <div style={{ display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap" }}>
               <button onClick={() => setViewRec(r)} style={pBtn("#3949ab")}>View</button>

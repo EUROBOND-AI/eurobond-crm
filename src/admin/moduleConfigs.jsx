@@ -80,13 +80,15 @@ export const MODULES = {
     ],
     tabField: "status",
     columns: [
-      { key: "id", label: "Project Id", render: link }, { key: "createdAt", label: "Created At" },
+      { key: "createdAt", label: "Created At" },
+      { key: "visitDate", label: "Visit Date" },
       { key: "createdBy", label: "Created By" },
       { key: "projectName", label: "Project Name" },
       { key: "projectType", label: "Type" }, { key: "city", label: "City" },
       { key: "expectedMonth", label: "Expected" },
       { key: "specPerson", label: "Spec Person" },
       { key: "salesPerson", label: "Sales Person" },
+      { key: "entriesCount", label: "Entries" },
       { key: "status", label: "Status", render: pill },
     ],
     form: [
