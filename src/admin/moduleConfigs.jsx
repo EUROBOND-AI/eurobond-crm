@@ -180,7 +180,7 @@ export const MODULES = {
     idPrefix: "S2S", app: true, appLabel: "Sales to Spec", isSpecThread: true,
     filters: ["hod", "createdBy", "specPerson"], dateFilter: true, showButton: true,
     tabs: [{ key: "Pending", label: "Pending" }, { key: "Process", label: "Process" }, { key: "Approved", label: "Approved" }],
-    tabField: "status", approveFlow: ["Approved", "Rejected"],
+    tabField: "status",
     columns: [
       { key: "id", label: "Id", render: link }, { key: "createdAt", label: "Created At" },
       { key: "createdBy", label: "Sales Person", render: link }, { key: "projectName", label: "Project / Site" },
@@ -196,7 +196,7 @@ export const MODULES = {
     idPrefix: "SP2S", app: true, appLabel: "Spec to Sales", isSpecThread: true,
     filters: ["hod", "createdBy", "salesPerson"], dateFilter: true, showButton: true,
     tabs: [{ key: "Pending", label: "Pending" }, { key: "Process", label: "Process" }, { key: "Win", label: "Win" }],
-    tabField: "status", approveFlow: ["Win", "Rejected"],
+    tabField: "status",
     columns: [
       { key: "id", label: "Id", render: link }, { key: "createdAt", label: "Created At" },
       { key: "createdBy", label: "Spec Person", render: link }, { key: "projectName", label: "Project / Site" },

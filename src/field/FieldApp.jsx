@@ -2283,26 +2283,22 @@ function FieldProjectNew() {
       const projId = r.id;
       /* route to the mentioned person's module + notify */
       if (!isSpec && f.specPerson) {
-        try {
-          await api.create("salesToSpec", {
-            projId, projectName: f.projectName, salesPerson: CU().name, specPerson: f.specPerson,
-            items: rows, contacts, city: f.city, projectType: f.projectType, expectedMonth: f.expectedMonth,
-            helpNeeded: f.helpNeeded, photo: f.photo, status: "Pending",
-            createdBy: CU().name, createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
-          });
-        } catch {}
+        await api.create("salesToSpec", {
+          projId, projectName: f.projectName, salesPerson: CU().name, specPerson: f.specPerson,
+          items: rows, contacts, city: f.city, projectType: f.projectType, expectedMonth: f.expectedMonth,
+          helpNeeded: f.helpNeeded, photo: f.photo, status: "Pending",
+          createdBy: CU().name, createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+        });
         try { await api.create("notification", { title: "New Project for Specs", message: `${CU().name} sent project "${f.projectName}"`, to: f.specPerson, link: "/app/m/salesToSpec", at: new Date().toISOString() }); } catch {}
       }
       if (isSpec && f.salesPerson) {
-        try {
-          await api.create("specToSales", {
-            projId, projectName: f.projectName, specPerson: CU().name, salesPerson: f.salesPerson,
-            items: rows, contacts, city: f.city, projectType: f.projectType, expectedMonth: f.expectedMonth,
-            category: f.category, categoryFirm: f.categoryFirm,
-            helpNeeded: f.helpNeeded, photo: f.photo, status: "Pending",
-            createdBy: CU().name, createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
-          });
-        } catch {}
+        await api.create("specToSales", {
+          projId, projectName: f.projectName, specPerson: CU().name, salesPerson: f.salesPerson,
+          items: rows, contacts, city: f.city, projectType: f.projectType, expectedMonth: f.expectedMonth,
+          category: f.category, categoryFirm: f.categoryFirm,
+          helpNeeded: f.helpNeeded, photo: f.photo, status: "Pending",
+          createdBy: CU().name, createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+        });
         try { await api.create("notification", { title: "New Project from Specs", message: `${CU().name} sent project "${f.projectName}"`, to: f.salesPerson, link: "/app/m/specToSales", at: new Date().toISOString() }); } catch {}
       }
       setOk(true); setTimeout(() => nav("/app/m/projectProjection"), 900);

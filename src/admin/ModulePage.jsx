@@ -394,18 +394,6 @@ export default function ModulePage({ cfgKey }) {
               {distinct("assignedTo").map((a) => <option key={a}>{a}</option>)}
             </select>
           )}
-          {cfgKey === "salesToSpec" && distinct("specPerson").length > 0 && (
-            <select value={fAssign} onChange={(e) => setFAssign(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
-              <option value="">All Spec Persons</option>
-              {distinct("specPerson").map((s) => <option key={s}>{s}</option>)}
-            </select>
-          )}
-          {cfgKey === "specToSales" && distinct("salesPerson").length > 0 && (
-            <select value={fAssign} onChange={(e) => setFAssign(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
-              <option value="">All Sales Persons</option>
-              {distinct("salesPerson").map((s) => <option key={s}>{s}</option>)}
-            </select>
-          )}
           {["projectProjection", "salesToSpec", "specToSales"].includes(cfgKey) && (
             <button className="btn btn-primary" style={{ padding: "8px 20px", fontWeight: 700 }} onClick={() => setShown(true)}>Show</button>
           )}
