@@ -3085,6 +3085,183 @@ function MenuDrawer({ open, close }) {
 
 const APP_MODS = Object.fromEntries(Object.entries(MODULES).filter(([, c]) => c.app));
 
+/* ---- App Sales-to-Spec / Spec-to-Sales: View / Reply / Remention ---- */
+function FieldSpecThreadList({ mod }) {
+  const isS2S = mod === "salesToSpec";   // sales->spec (spec person replies Approved)
+  const [rows, setRows] = useState(null);
+  const [filter, setFilter] = useState("All");
+  const [viewRec, setViewRec] = useState(null);
+  const [replyRec, setReplyRec] = useState(null);
+  const [rementRec, setRementRec] = useState(null);
+  const me = CU().name;
+
+  const load = () => api.list(mod, false).then((d) => {
+    const list = (d.records || []).map((r) => ({ _id: r.id, ...r.data }))
+      .filter((r) => r.createdBy === me || r.specPerson === me || r.salesPerson === me);
+    setRows(list);
+  }).catch(() => setRows([]));
+  useEffect(() => { load(); }, [mod]);
+
+  const STATUSES = isS2S ? ["All", "Pending", "Process", "Approved"] : ["All", "Pending", "Process", "Win"];
+  const filtered = (rows || []).filter((r) => filter === "All" || (r.status || "Pending") === filter);
+  const sColor = (s) => s === "Approved" || s === "Win" ? "#1f9d55" : s === "Process" ? "#e08600" : "#3949ab";
+
+  return (
+    <>
+      <ScreenHead title={isS2S ? "Sales to Spec" : "Spec to Sales"} />
+      <div className="f-list-pad" style={{ paddingTop: 14 }}>
+        <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+          {STATUSES.map((s) => (
+            <button key={s} onClick={() => setFilter(s)} style={{ padding: "7px 13px", borderRadius: 8, border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer", background: filter === s ? "var(--navy)" : "#eef1ff", color: filter === s ? "#fff" : "var(--navy)" }}>{s}</button>
+          ))}
+        </div>
+        {rows === null ? <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>Loading…</div>
+        : filtered.length === 0 ? <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>Nothing here yet.</div>
+        : filtered.map((r, i) => {
+          const iAmReceiver = isS2S ? (r.specPerson === me) : (r.salesPerson === me);
+          return (
+          <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "var(--shadow)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontWeight: 800, fontSize: 14 }}>{r.projectName || r.project || "Project"}</span>
+              <span style={{ background: sColor(r.status), color: "#fff", padding: "2px 10px", borderRadius: 8, fontSize: 11.5, fontWeight: 800 }}>{r.status || "Pending"}</span>
+            </div>
+            <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 4 }}>
+              {isS2S ? `From ${r.salesPerson || r.createdBy} → ${r.specPerson}` : `From ${r.specPerson || r.createdBy} → ${r.salesPerson}`}
+              {r.city ? " · " + r.city : ""}
+            </div>
+            <div style={{ display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap" }}>
+              <button onClick={() => setViewRec(r)} style={pBtn("#3949ab")}>View</button>
+              {iAmReceiver && <button onClick={() => setReplyRec(r)} style={pBtn("#1f9d55")}>Reply</button>}
+              {iAmReceiver && <button onClick={() => setRementRec(r)} style={pBtn("#8854d0")}>Remention</button>}
+            </div>
+          </div>
+          );
+        })}
+      </div>
+      {viewRec && <ProjectView rec={viewRec} onClose={() => setViewRec(null)} />}
+      {replyRec && <SpecReply rec={replyRec} mod={mod} isS2S={isS2S} onClose={() => setReplyRec(null)} onSaved={() => { setReplyRec(null); load(); }} />}
+      {rementRec && <SpecRemention rec={rementRec} mod={mod} isS2S={isS2S} onClose={() => setRementRec(null)} onSaved={() => { setRementRec(null); load(); }} />}
+    </>
+  );
+}
+
+function SpecReply({ rec, mod, isS2S, onClose, onSaved }) {
+  /* S2S: In-process / Approved(grade+colour). SP2S: In-process / Win(sqm+sales) */
+  const [status, setStatus] = useState("Process");
+  const [remark, setRemark] = useState("");
+  const [grade, setGrade] = useState(rec.colourApproved ? "" : "");
+  const [colour, setColour] = useState(rec.colourApproved || "");
+  const [gradeNames, setGradeNames] = useState([]);
+  const [colourMap, setColourMap] = useState({});
+  const [sqm, setSqm] = useState(rec.sqmApproved || "");
+  const [sales, setSales] = useState(rec.salesDone || "");
+  const [busy, setBusy] = useState(false);
+  const doneLabel = isS2S ? "Approved" : "Win";
+
+  useEffect(() => { api.productNames && api.productNames().then((d) => setGradeNames(d.names || [])).catch(() => {}); }, []);
+  const loadColours = async (name) => { if (!name || colourMap[name]) return; try { const d = await api.productsByName(name); setColourMap((m) => ({ ...m, [name]: d.rows || [] })); } catch {} };
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      const patch = { ...rec, status };
+      patch.replies = [...(rec.replies || []), { by: CU().name, status, remark, at: new Date().toLocaleString("en-IN") }];
+      if (status === "Approved") { patch.colourApproved = colour; }
+      if (status === "Win") { patch.sqmApproved = sqm; patch.salesDone = sales; }
+      if (remark) patch.lastRemark = remark;
+      await api.update(mod, rec._id, patch);
+      /* notify the original sender */
+      const notifyTo = isS2S ? (rec.salesPerson || rec.createdBy) : (rec.specPerson || rec.createdBy);
+      try { await api.create("notification", { title: `Reply: ${status}`, message: `${CU().name} marked "${rec.projectName}" as ${status}${remark ? " - " + remark : ""}`, to: notifyTo, link: `/app/m/${mod}`, at: new Date().toISOString() }); } catch {}
+      /* also reflect the status back on the project projection record */
+      if (rec.projId) { try { await api.update("projectProjection", rec.projId, { specReplyStatus: status }); } catch {} }
+      onSaved();
+    } catch (e) { alert(e.message); setBusy(false); }
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.55)", zIndex: 9999, display: "grid", placeItems: "center", padding: 16 }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, maxWidth: 410, width: "100%", maxHeight: "88vh", overflowY: "auto", padding: 18 }}>
+        <h3 style={{ marginTop: 0 }}>Reply</h3>
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          {["Process", doneLabel].map((s) => (
+            <button key={s} onClick={() => setStatus(s)} style={{ flex: 1, padding: 10, borderRadius: 9, border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer", background: status === s ? (s === "Process" ? "#e08600" : "#1f9d55") : "#eef1ff", color: status === s ? "#fff" : "var(--navy)" }}>{s === "Process" ? "In Process" : s}</button>
+          ))}
+        </div>
+        {status === "Process" && (<>
+          <label style={{ fontWeight: 700, fontSize: 13 }}>Remark</label>
+          <textarea value={remark} onChange={(e) => setRemark(e.target.value)} rows={3} style={{ width: "100%", marginBottom: 10 }} />
+        </>)}
+        {status === "Approved" && (<>
+          <label style={{ fontWeight: 700, fontSize: 13 }}>Grade Name (Product)</label>
+          <SearchSelect value={grade} onChange={(v) => { setGrade(v); loadColours(v); }} options={gradeNames} placeholder="Search product…" />
+          <div style={{ height: 8 }} />
+          <label style={{ fontWeight: 700, fontSize: 13 }}>Colour Approved</label>
+          <SearchSelect value={colour} onChange={setColour} options={(colourMap[grade] || []).map((c) => c.colourCode || c.colour)} placeholder="Search colour…" disabled={!grade} />
+          <div style={{ height: 8 }} />
+          <label style={{ fontWeight: 700, fontSize: 13 }}>Remark (optional)</label>
+          <textarea value={remark} onChange={(e) => setRemark(e.target.value)} rows={2} style={{ width: "100%", marginBottom: 10 }} />
+        </>)}
+        {status === "Win" && (<>
+          <label style={{ fontWeight: 700, fontSize: 13 }}>Sq Meter</label>
+          <input inputMode="numeric" value={sqm} onChange={(e) => setSqm(e.target.value.replace(/\D/g, ""))} style={{ width: "100%", marginBottom: 8 }} />
+          <label style={{ fontWeight: 700, fontSize: 13 }}>Sales Done (₹)</label>
+          <input inputMode="numeric" value={sales} onChange={(e) => setSales(e.target.value.replace(/\D/g, ""))} style={{ width: "100%", marginBottom: 8 }} />
+          <label style={{ fontWeight: 700, fontSize: 13 }}>Remark (optional)</label>
+          <textarea value={remark} onChange={(e) => setRemark(e.target.value)} rows={2} style={{ width: "100%", marginBottom: 10 }} />
+        </>)}
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: 11, borderRadius: 10, border: "1.5px solid #d7dcef", background: "#fff", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
+          <button onClick={save} disabled={busy} style={{ flex: 1, padding: 11, borderRadius: 10, border: "none", background: "var(--navy)", color: "#fff", fontWeight: 800, cursor: "pointer" }}>{busy ? "Sending…" : "Send"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SpecRemention({ rec, mod, isS2S, onClose, onSaved }) {
+  const [users, setUsers] = useState([]);
+  const [to, setTo] = useState("");
+  const [busy, setBusy] = useState(false);
+  const roleWord = isS2S ? "spec" : "sales";
+  useEffect(() => {
+    api.listUsers().then((d) => {
+      const us = (d.users || []).filter((u) => u.status == 1);
+      setUsers(us.filter((u) => `${u.role || ""} ${u.designation || ""}`.toLowerCase().includes(roleWord)).map((u) => u.name));
+    }).catch(() => {});
+  }, []);
+  const save = async () => {
+    if (!to) { alert("Select a person"); return; }
+    setBusy(true);
+    try {
+      /* move to the new person + remove from current (change the tagged field) */
+      const patch = { ...rec };
+      if (isS2S) patch.specPerson = to; else patch.salesPerson = to;
+      patch.rementionHistory = [...(rec.rementionHistory || []), { from: CU().name, to, at: new Date().toLocaleString("en-IN") }];
+      await api.update(mod, rec._id, patch);
+      /* reflect on project projection */
+      if (rec.projId) { try { await api.update("projectProjection", rec.projId, isS2S ? { specPerson: to } : { salesPerson: to }); } catch {} }
+      try { await api.create("notification", { title: "Project Re-mentioned to you", message: `${CU().name} moved "${rec.projectName}" to you`, to, link: `/app/m/${mod}`, at: new Date().toISOString() }); } catch {}
+      onSaved();
+    } catch (e) { alert(e.message); setBusy(false); }
+  };
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.55)", zIndex: 9999, display: "grid", placeItems: "center", padding: 16 }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, maxWidth: 400, width: "100%", padding: 18 }}>
+        <h3 style={{ marginTop: 0 }}>Re-mention</h3>
+        <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 10 }}>Move this to another {isS2S ? "specification" : "sales"} person. It will be removed from you.</div>
+        <label style={{ fontWeight: 700, fontSize: 13 }}>{isS2S ? "Specification" : "Sales"} Person</label>
+        <SearchSelect value={to} onChange={setTo} options={users} placeholder="Search person…" />
+        <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: 11, borderRadius: 10, border: "1.5px solid #d7dcef", background: "#fff", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
+          <button onClick={save} disabled={busy || !to} style={{ flex: 1, padding: 11, borderRadius: 10, border: "none", background: "var(--navy)", color: "#fff", fontWeight: 800, cursor: "pointer" }}>{busy ? "Moving…" : "Re-mention"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 function FieldModule({ mod }) {
   const cfg = APP_MODS[mod];
   const nav = useNavigate();
@@ -5365,7 +5542,7 @@ export default function FieldApp() {
             <Route path="customer/edit" element={<FieldFollowUpNew editData={CUST_EDIT.data} add={async (f) => { try { const id = CUST_EDIT.data?._id; if (id) { await api.update("followup", id, f); setFollowups((x) => x.map((c) => (c._id === id ? { _id: id, ...f } : c))); } CUST_EDIT.data = null; } catch (err) { alert(err.message); } }} />} />
             <Route path="project/new" element={<FieldProjectNew />} />
             {Object.keys(APP_MODS).map((m) => (
-              <Route key={m} path={`m/${m}`} element={m === "enquiry" ? <FieldEnquiry /> : m === "quotation" ? <FieldQuotationList /> : m === "projectProjection" ? <FieldProjectList /> : <FieldModule mod={m} />} />
+              <Route key={m} path={`m/${m}`} element={m === "enquiry" ? <FieldEnquiry /> : m === "quotation" ? <FieldQuotationList /> : m === "projectProjection" ? <FieldProjectList /> : (m === "salesToSpec" || m === "specToSales") ? <FieldSpecThreadList mod={m} /> : <FieldModule mod={m} />} />
             ))}
             {Object.keys(APP_MODS).map((m) => (
               <Route key={m + "n"} path={`m/${m}/new`} element={

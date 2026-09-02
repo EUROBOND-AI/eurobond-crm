@@ -66,7 +66,7 @@ export default function ModulePage({ cfgKey }) {
     [cfg, userNames, hodNames]
   );
 
-  useEffect(() => { setTab(cfg.tabs?.[0]?.key); }, [cfgKey]);
+  useEffect(() => { setTab(cfg.tabs?.[0]?.key); setShown(false); }, [cfgKey]);
 
   useEffect(() => {
     let alive = true;
@@ -93,6 +93,9 @@ export default function ModulePage({ cfgKey }) {
   }, [cfgKey]);
   const [fTo, setFTo] = useState("");
   const [shown, setShown] = useState(false);   // projectProjection: show data only after "Show" clicked
+  const [fSpec, setFSpec] = useState("");
+  const [fSales, setFSales] = useState("");
+  const [fStatus, setFStatus] = useState("");
 
   const knownTabs = (cfg.tabs || []).map((t) => t.key);
   const firstTab = cfg.tabs?.[0]?.key;
@@ -101,6 +104,9 @@ export default function ModulePage({ cfgKey }) {
     let list = scopeRows(rows, allUsers);
     if (fUser) list = list.filter((r) => (r.createdBy || "") === fUser);
     if (fHod) list = list.filter((r) => (r.hod || "") === fHod);
+    if (fSpec) list = list.filter((r) => (r.specPerson || "") === fSpec);
+    if (fSales) list = list.filter((r) => (r.salesPerson || "") === fSales);
+    if (fStatus) list = list.filter((r) => (r.status || "") === fStatus);
     /* date range (From/To) — r.date leda r.createdAt meeda */
     const parseD = (r) => {
       const raw = r.date || r.createdAt || "";
@@ -120,7 +126,7 @@ export default function ModulePage({ cfgKey }) {
       // records with unknown/old status appear under the first tab
       return tab === firstTab && !knownTabs.includes(st);
     });
-  }, [rows, tab, cfg, fUser, fHod, fCity, fZone, fLead, fAssign, fFrom, fTo, allUsers]);
+  }, [rows, tab, cfg, fUser, fHod, fSpec, fSales, fStatus, fCity, fZone, fLead, fAssign, fFrom, fTo, allUsers]);
 
   const distinct = (key) => [...new Set(rows.map((r) => r[key]).filter(Boolean))];
   const hasCol = (key) => cfg.columns.some((c) => c.key === key);
@@ -344,6 +350,24 @@ export default function ModulePage({ cfgKey }) {
             <select value={fHod} onChange={(e) => setFHod(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
               <option value="">All HOD</option>
               {distinct("hod").map((h) => <option key={h}>{h}</option>)}
+            </select>
+          )}
+          {["salesToSpec"].includes(cfgKey) && distinct("specPerson").length > 0 && (
+            <select value={fSpec} onChange={(e) => setFSpec(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
+              <option value="">All Spec Persons</option>
+              {distinct("specPerson").map((s) => <option key={s}>{s}</option>)}
+            </select>
+          )}
+          {["specToSales"].includes(cfgKey) && distinct("salesPerson").length > 0 && (
+            <select value={fSales} onChange={(e) => setFSales(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
+              <option value="">All Sales Persons</option>
+              {distinct("salesPerson").map((s) => <option key={s}>{s}</option>)}
+            </select>
+          )}
+          {["projectProjection", "salesToSpec", "specToSales"].includes(cfgKey) && distinct("status").length > 0 && (
+            <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
+              <option value="">All Status</option>
+              {distinct("status").map((s) => <option key={s}>{s}</option>)}
             </select>
           )}
           {hasCol("city") && distinct("city").length > 0 && (
