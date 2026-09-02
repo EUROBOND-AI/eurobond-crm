@@ -1920,7 +1920,7 @@ function FieldFollowUpNew({ add, editData }) {
 }
 
 /* ------------------------------------------------ SIMPLE FORM SCREENS ------------------------------------------------ */
-const PROJ_TYPES = ["Architect", "Consultant", "Builder", "Contractor", "Industrial"];
+const PROJ_TYPES = ["Commercial", "Residential", "Govt", "Hospitality", "Healthcare", "Corporate"];
 const EXPECTED_MONTHS = (() => {
   const out = []; const start = new Date(2026, 7, 1); // Aug 2026
   for (let i = 0; i < 76; i++) { const d = new Date(start.getFullYear(), start.getMonth() + i, 1); out.push(d.toLocaleString("en-US", { month: "short" }) + "-" + String(d.getFullYear()).slice(2)); }
@@ -1936,6 +1936,7 @@ function FieldProjectList() {
   const [viewRec, setViewRec] = useState(null);
   const [fupRec, setFupRec] = useState(null);
   const [statRec, setStatRec] = useState(null);
+  const [mentionRec, setMentionRec] = useState(null);
   const [fwdRec, setFwdRec] = useState(null);
   const isSpec = `${CU().role || ""} ${CU().designation || ""}`.toLowerCase().includes("spec");
 
@@ -1973,10 +1974,11 @@ function FieldProjectList() {
               {(r.followups || []).length > 0 && <span style={{ marginLeft: 6, color: "var(--accent)", fontWeight: 700 }}>· {(r.followups || []).length} entries</span>}
             </div>
             <div style={{ display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap" }}>
-              <button onClick={() => setViewRec(r)} style={pBtn("#3949ab")}>View</button>
-              <button onClick={() => { PROJ_EDIT.data = r; nav("/app/project/new"); }} style={pBtn("#0b3c8c")}>Edit</button>
-              <button onClick={() => setFupRec(r)} style={pBtn("#1f9d55")}>Followup</button>
-              <button onClick={() => setStatRec(r)} style={pBtn("#e08600")}>Status</button>
+              <button onClick={() => setViewRec(r)} style={pBtn("#3949ab")}>👁 View</button>
+              <button onClick={() => { PROJ_EDIT.data = r; nav("/app/project/new"); }} style={pBtn("#0b3c8c")}>✏️ Edit</button>
+              <button onClick={() => setFupRec(r)} style={pBtn("#1f9d55")}>📝 Followup</button>
+              <button onClick={() => setStatRec(r)} style={pBtn("#e08600")}>📊 Status</button>
+              <button onClick={() => setMentionRec(r)} style={pBtn("#8854d0")}>🔗 Mention</button>
             </div>
           </div>
         ))}
@@ -1984,6 +1986,7 @@ function FieldProjectList() {
       {viewRec && <ProjectView rec={viewRec} onClose={() => setViewRec(null)} />}
       {fupRec && <ProjectFollowup rec={fupRec} onClose={() => setFupRec(null)} onSaved={() => { setFupRec(null); load(); }} />}
       {statRec && <ProjectStatus rec={statRec} onClose={() => setStatRec(null)} onSaved={() => { setStatRec(null); load(); }} />}
+      {mentionRec && <ProjectMention rec={mentionRec} isSpec={isSpec} onClose={() => setMentionRec(null)} onSaved={() => { setMentionRec(null); load(); }} />}
       {fwdRec && <ProjectForward rec={fwdRec} onClose={() => setFwdRec(null)} onSaved={() => { setFwdRec(null); load(); }} />}
     </>
   );
@@ -2082,28 +2085,48 @@ function ProjectFollowup({ rec, onClose, onSaved }) {
 }
 
 function ProjectStatus({ rec, onClose, onSaved }) {
+  const isSpec = `${CU().role || ""} ${CU().designation || ""}`.toLowerCase().includes("spec");
   const [status, setStatus] = useState(rec.status === "Open" ? "Win" : rec.status || "Win");
   const [remark, setRemark] = useState(rec.statusRemark || "");
   const [winSqm, setWinSqm] = useState(rec.winSqm || "");
   const [winSales, setWinSales] = useState(rec.winSales || "");
+  const [grade, setGrade] = useState(rec.winGrade || "");
+  const [colour, setColour] = useState(rec.winColour || "");
+  const [gradeNames, setGradeNames] = useState([]);
+  const [colourMap, setColourMap] = useState({});
   const [busy, setBusy] = useState(false);
+  useEffect(() => { if (isSpec) api.productNames && api.productNames().then((d) => setGradeNames(d.names || [])).catch(() => {}); }, []);
+  const loadColours = async (name) => { if (!name || colourMap[name]) return; try { const d = await api.productsByName(name); setColourMap((m) => ({ ...m, [name]: d.rows || [] })); } catch {} };
   const save = async () => {
     setBusy(true);
     try {
-      await api.update("projectProjection", rec._id, { ...rec, status, statusRemark: remark, winSqm: status === "Win" ? winSqm : "", winSales: status === "Win" ? winSales : "" });
+      const win = status === "Win";
+      await api.update("projectProjection", rec._id, {
+        ...rec, status, statusRemark: remark,
+        winSqm: win && !isSpec ? winSqm : "", winSales: win && !isSpec ? winSales : "",
+        winGrade: win && isSpec ? grade : "", winColour: win && isSpec ? colour : "",
+      });
       onSaved();
     } catch (e) { alert(e.message); setBusy(false); }
   };
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.55)", zIndex: 9999, display: "grid", placeItems: "center", padding: 16 }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, maxWidth: 400, width: "100%", padding: 18 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, maxWidth: 400, width: "100%", maxHeight: "88vh", overflowY: "auto", padding: 18 }}>
         <h3 style={{ marginTop: 0 }}>Update Status</h3>
         <div style={{ display: "flex", gap: 7, marginBottom: 12 }}>
           {["Win", "Lost", "Hold"].map((s) => (
             <button key={s} onClick={() => setStatus(s)} style={{ flex: 1, padding: 10, borderRadius: 9, border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer", background: status === s ? (s === "Win" ? "#1f9d55" : s === "Lost" ? "#c03636" : "#e08600") : "#eef1ff", color: status === s ? "#fff" : "var(--navy)" }}>{s}</button>
           ))}
         </div>
-        {status === "Win" && (<>
+        {status === "Win" && isSpec && (<>
+          <label style={{ fontWeight: 800, fontSize: 13 }}>Grade Name (Product)</label>
+          <SearchSelect value={grade} onChange={(v) => { setGrade(v); loadColours(v); }} options={gradeNames} placeholder="Search product…" />
+          <div style={{ height: 8 }} />
+          <label style={{ fontWeight: 800, fontSize: 13 }}>Colour Code</label>
+          <SearchSelect value={colour} onChange={setColour} options={(colourMap[grade] || []).map((c) => c.colourCode || c.colour)} placeholder="Search colour…" disabled={!grade} />
+          <div style={{ height: 8 }} />
+        </>)}
+        {status === "Win" && !isSpec && (<>
           <label style={{ fontWeight: 800, fontSize: 13 }}>Sq.Mtr</label>
           <input inputMode="numeric" value={winSqm} onChange={(e) => setWinSqm(e.target.value.replace(/\D/g, ""))} style={{ width: "100%", marginBottom: 10 }} />
           <label style={{ fontWeight: 800, fontSize: 13 }}>Sales Done (₹)</label>
@@ -2116,6 +2139,57 @@ function ProjectStatus({ rec, onClose, onSaved }) {
         <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
           <button onClick={onClose} style={{ flex: 1, padding: 11, borderRadius: 10, border: "1.5px solid #d7dcef", background: "#fff", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
           <button onClick={save} disabled={busy} style={{ flex: 1, padding: 11, borderRadius: 10, border: "none", background: "var(--navy)", color: "#fff", fontWeight: 800, cursor: "pointer" }}>{busy ? "Saving…" : "Save"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+function ProjectMention({ rec, isSpec, onClose, onSaved }) {
+  const [users, setUsers] = useState([]);
+  const [to, setTo] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const roleWord = isSpec ? "sales" : "spec";
+  const targetMod = isSpec ? "specToSales" : "salesToSpec";
+  useEffect(() => {
+    api.listUsers().then((d) => {
+      const us = (d.users || []).filter((u) => u.status == 1);
+      setUsers(us.filter((u) => `${u.role || ""} ${u.designation || ""}`.toLowerCase().includes(roleWord)).map((u) => u.name));
+    }).catch(() => {});
+  }, []);
+  const save = async () => {
+    if (!to) { alert("Select a person"); return; }
+    setBusy(true);
+    try {
+      const rowData = {
+        projId: rec._id, projectName: rec.projectName, items: rec.items || [], contacts: rec.contacts || [],
+        city: rec.city, projectType: rec.projectType, expectedMonth: rec.expectedMonth,
+        helpNeeded: note || rec.helpNeeded || "", photo: rec.photo || "", status: "Pending",
+        createdBy: CU().name, createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+      };
+      if (isSpec) { rowData.specPerson = CU().name; rowData.salesPerson = to; }
+      else { rowData.salesPerson = CU().name; rowData.specPerson = to; }
+      await api.create(targetMod, rowData);
+      const patch = isSpec ? { salesPerson: to } : { specPerson: to };
+      try { await api.update("projectProjection", rec._id, { ...rec, ...patch }); } catch {}
+      try { await api.create("notification", { title: "Project Mentioned to you", message: `${CU().name} mentioned "${rec.projectName}" to you`, to, link: `/app/m/${targetMod}`, at: new Date().toISOString() }); } catch {}
+      onSaved();
+    } catch (e) { alert(e.message); setBusy(false); }
+  };
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.55)", zIndex: 9999, display: "grid", placeItems: "center", padding: 16 }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, maxWidth: 400, width: "100%", padding: 18 }}>
+        <h3 style={{ marginTop: 0 }}>🔗 Mention to {isSpec ? "Sales" : "Specification"} Person</h3>
+        <label style={{ fontWeight: 700, fontSize: 13 }}>{isSpec ? "Sales" : "Specification"} Person</label>
+        <SearchSelect value={to} onChange={setTo} options={users} placeholder="Search person..." />
+        <div style={{ height: 10 }} />
+        <label style={{ fontWeight: 700, fontSize: 13 }}>Note (optional)</label>
+        <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} style={{ width: "100%", marginBottom: 12 }} />
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: 11, borderRadius: 10, border: "1.5px solid #d7dcef", background: "#fff", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
+          <button onClick={save} disabled={busy || !to} style={{ flex: 1, padding: 11, borderRadius: 10, border: "none", background: "var(--navy)", color: "#fff", fontWeight: 800, cursor: "pointer" }}>{busy ? "Sending..." : "Mention"}</button>
         </div>
       </div>
     </div>
@@ -3145,9 +3219,9 @@ function FieldSpecThreadList({ mod }) {
               {r.city ? " · " + r.city : ""}
             </div>
             <div style={{ display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap" }}>
-              <button onClick={() => setViewRec(r)} style={pBtn("#3949ab")}>View</button>
-              {iAmReceiver && <button onClick={() => setReplyRec(r)} style={pBtn("#1f9d55")}>Reply</button>}
-              {iAmReceiver && <button onClick={() => setRementRec(r)} style={pBtn("#8854d0")}>Remention</button>}
+              <button onClick={() => setViewRec(r)} style={pBtn("#3949ab")}>👁 View</button>
+              {iAmReceiver && <button onClick={() => setReplyRec(r)} style={pBtn("#1f9d55")}>💬 Reply</button>}
+              {iAmReceiver && <button onClick={() => setRementRec(r)} style={pBtn("#8854d0")}>🔁 Remention</button>}
             </div>
           </div>
           );
