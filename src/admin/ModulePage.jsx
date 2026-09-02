@@ -4,6 +4,7 @@ import { MODULES } from "./moduleConfigs.jsx";
 import { PageHead, Tabs, DataTable, ToolButtons, FormModal, StatCard } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
 import { scopeRows } from "../lib/scope.js";
+import { AdminSearchSelect } from "./QuotationAdmin.jsx";
 
 /* flatten arrays into readable text for admin table columns */
 function projContactsText(contacts) {
@@ -369,7 +370,7 @@ export default function ModulePage({ cfgKey }) {
               {distinct("assignedTo").map((a) => <option key={a}>{a}</option>)}
             </select>
           )}
-          {cfgKey === "projectProjection" && (
+          {["projectProjection", "salesToSpec", "specToSales"].includes(cfgKey) && (
             <button className="btn btn-primary" style={{ padding: "8px 20px", fontWeight: 700 }} onClick={() => setShown(true)}>Show</button>
           )}
         </div>
@@ -390,8 +391,8 @@ export default function ModulePage({ cfgKey }) {
         <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Loading…</div>
       ) : err ? (
         <div style={{ padding: 24, background: "#fdecec", color: "#c03636", borderRadius: 12, fontWeight: 600 }}>{err}</div>
-      ) : (cfgKey === "projectProjection" && !shown) ? (
-        <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Set filters and click <b>Show</b> to view projects.</div>
+      ) : (["projectProjection", "salesToSpec", "specToSales"].includes(cfgKey) && !shown) ? (
+        <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Set filters and click <b>Show</b> to view.</div>
       ) : (
         <DataTable
           extraActions={cfgKey === "projectProjection" ? (r) => (
@@ -640,6 +641,7 @@ function AdminProjectView({ rec, onClose }) {
 function AdminProjectForward({ rec, onClose, onSent }) {
   const projects = rec.bulk ? rec.bulk : [rec];
   const [users, setUsers] = useState([]);
+  const [uq, setUq] = useState("");
   const [sel, setSel] = useState([]);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -665,8 +667,9 @@ function AdminProjectForward({ rec, onClose, onSent }) {
           <label style={{ fontWeight: 700, fontSize: 13 }}>Select people ({sel.length})</label>
           <button className="btn" style={{ padding: "2px 8px", fontSize: 11 }} onClick={() => setSel(sel.length === users.length ? [] : [...users])}>{sel.length === users.length ? "Clear all" : "Select all"}</button>
         </div>
+        <input value={uq} onChange={(e) => setUq(e.target.value)} placeholder="Search person…" style={{ width: "100%", padding: "8px 11px", borderRadius: 9, border: "1.5px solid #d7dcef", fontSize: 13, marginBottom: 8 }} />
         <div style={{ maxHeight: 220, overflowY: "auto", border: "1px solid #e3e8f5", borderRadius: 9, padding: 8, marginBottom: 12 }}>
-          {users.map((u) => (
+          {users.filter((u) => !uq.trim() || u.toLowerCase().includes(uq.toLowerCase())).map((u) => (
             <label key={u} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 4px", fontSize: 13, cursor: "pointer" }}>
               <input type="checkbox" checked={sel.includes(u)} onChange={() => toggle(u)} /> {u}
             </label>

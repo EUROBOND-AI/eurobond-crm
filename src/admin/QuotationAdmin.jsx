@@ -527,7 +527,7 @@ function downloadQuotePdf(q) {
 
 /* Admin direct quotation create — grade/colour cascade from products master */
 /* Searchable dropdown — type to filter + select */
-function AdminSearchSelect({ value, onChange, options, placeholder, disabled, getLabel }) {
+export function AdminSearchSelect({ value, onChange, options, placeholder, disabled, getLabel }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const label = getLabel ? getLabel(value) : value;
