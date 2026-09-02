@@ -2023,9 +2023,8 @@ function ProjectView({ rec, onClose }) {
           </div>
         ))}
         {(rec.items || []).length > 0 && <div style={{ fontWeight: 800, fontSize: 12.5, margin: "12px 0 6px", color: "var(--navy)" }}>Products</div>}
-        {(rec.items || []).map((it, i) => it.grade && <div key={i} style={{ fontSize: 12, color: "var(--muted)" }}>{it.grade} · {it.colourCode} · Qty {it.qty}</div>)}
-        {(rec.approvedItems || []).length > 0 && <div style={{ fontWeight: 800, fontSize: 12.5, margin: "12px 0 6px", color: "#1f7a44" }}>Approved Products {rec.sqmApproved ? `· ${rec.sqmApproved} Sq.Mtr` : ""}</div>}
-        {(rec.approvedItems || []).map((it, i) => <div key={i} style={{ fontSize: 12, color: "#1f7a44", fontWeight: 600 }}>✓ {it.grade} · {it.colourCode} {it.qty ? "· " + it.qty + " Sq.Mtr" : ""} {it.approvedBy ? "(by " + it.approvedBy + ")" : ""}</div>)}
+        {(rec.items || []).map((it, i) => it.grade && <div key={i} style={{ fontSize: 12, color: it.approved ? "#1f7a44" : "var(--muted)", fontWeight: it.approved ? 600 : 400 }}>{it.approved ? "✓ " : ""}{it.grade} · {it.colourCode} · {it.qty}{it.approved ? " Sq.Mtr" : ""}{it.approved && it.approvedBy ? " (by " + it.approvedBy + ")" : ""}</div>)}
+        {rec.sqmApproved && <div style={{ fontSize: 12, color: "#1f7a44", fontWeight: 700, marginTop: 3 }}>Total Approved: {rec.sqmApproved} Sq.Mtr</div>}
         {rec.photo && <><div style={{ fontWeight: 800, fontSize: 12.5, margin: "12px 0 6px", color: "var(--navy)" }}>Photo</div><img src={rec.photo} alt="" style={{ width: "100%", borderRadius: 10, maxHeight: 220, objectFit: "cover" }} /></>}
         {rec.specReplyStatus && (
           <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 9, padding: 10, margin: "10px 0", fontSize: 12.5 }}>
@@ -2109,7 +2108,7 @@ function ProjectStatus({ rec, onClose, onSaved }) {
         winGrade: win && isSpec ? grade : "", winColour: win && isSpec ? colour : "",
       };
       if (win && isSpec && grade) {
-        patch.approvedItems = [...(rec.approvedItems || []), { grade, colourCode: colour, qty: winSqm || "", approvedBy: CU().name }];
+        patch.items = [...(rec.items || []).filter((it) => it.grade), { grade, colourCode: colour, qty: winSqm || "", approved: true, approvedBy: CU().name }];
         patch.sqmApproved = winSqm || rec.sqmApproved || "";
       }
       await api.update("projectProjection", rec._id, patch);
@@ -2288,7 +2287,15 @@ function FieldProjectNew() {
         ...f, contacts, items: rows, createdBy: CU().name, isSpec,
         status: "Open", createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
       };
-      const r = await api.create("projectProjection", payload);
+      let r;
+      if (ed && ed._id) {
+        /* EDIT mode — update the existing project, don't create a duplicate */
+        await api.update("projectProjection", ed._id, { ...ed, ...payload });
+        r = { id: ed._id };
+        setOk(true); setTimeout(() => nav("/app/m/projectProjection"), 900);
+        return;
+      }
+      r = await api.create("projectProjection", payload);
       const projId = r.id;
       /* route to the mentioned person's module + notify */
       if (!isSpec && f.specPerson) {
@@ -3276,7 +3283,8 @@ function SpecReply({ rec, mod, isS2S, onClose, onSaved }) {
           if (proj) {
             const merged = { ...proj.data, specReplyStatus: status, replyBy: CU().name, replyRemark: remark || "" };
             if (status === "Approved") {
-              merged.approvedItems = [...(proj.data.approvedItems || []), { grade, colourCode: colour, qty: sqm || "", approvedBy: CU().name }];
+              /* add approved grade/colour straight into the project's products list */
+              merged.items = [...(proj.data.items || []).filter((it) => it.grade), { grade, colourCode: colour, qty: sqm || "", approved: true, approvedBy: CU().name }];
               merged.sqmApproved = sqm;
             }
             await api.update("projectProjection", rec.projId, merged);
