@@ -2024,6 +2024,8 @@ function ProjectView({ rec, onClose }) {
         ))}
         {(rec.items || []).length > 0 && <div style={{ fontWeight: 800, fontSize: 12.5, margin: "12px 0 6px", color: "var(--navy)" }}>Products</div>}
         {(rec.items || []).map((it, i) => it.grade && <div key={i} style={{ fontSize: 12, color: "var(--muted)" }}>{it.grade} · {it.colourCode} · Qty {it.qty}</div>)}
+        {(rec.approvedItems || []).length > 0 && <div style={{ fontWeight: 800, fontSize: 12.5, margin: "12px 0 6px", color: "#1f7a44" }}>Approved Products {rec.sqmApproved ? `· ${rec.sqmApproved} Sq.Mtr` : ""}</div>}
+        {(rec.approvedItems || []).map((it, i) => <div key={i} style={{ fontSize: 12, color: "#1f7a44", fontWeight: 600 }}>✓ {it.grade} · {it.colourCode} {it.qty ? "· " + it.qty + " Sq.Mtr" : ""} {it.approvedBy ? "(by " + it.approvedBy + ")" : ""}</div>)}
         {rec.photo && <><div style={{ fontWeight: 800, fontSize: 12.5, margin: "12px 0 6px", color: "var(--navy)" }}>Photo</div><img src={rec.photo} alt="" style={{ width: "100%", borderRadius: 10, maxHeight: 220, objectFit: "cover" }} /></>}
         {rec.specReplyStatus && (
           <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 9, padding: 10, margin: "10px 0", fontSize: 12.5 }}>
@@ -2101,11 +2103,16 @@ function ProjectStatus({ rec, onClose, onSaved }) {
     setBusy(true);
     try {
       const win = status === "Win";
-      await api.update("projectProjection", rec._id, {
+      const patch = {
         ...rec, status, statusRemark: remark,
         winSqm: win && !isSpec ? winSqm : "", winSales: win && !isSpec ? winSales : "",
         winGrade: win && isSpec ? grade : "", winColour: win && isSpec ? colour : "",
-      });
+      };
+      if (win && isSpec && grade) {
+        patch.approvedItems = [...(rec.approvedItems || []), { grade, colourCode: colour, qty: winSqm || "", approvedBy: CU().name }];
+        patch.sqmApproved = winSqm || rec.sqmApproved || "";
+      }
+      await api.update("projectProjection", rec._id, patch);
       onSaved();
     } catch (e) { alert(e.message); setBusy(false); }
   };
@@ -2125,6 +2132,8 @@ function ProjectStatus({ rec, onClose, onSaved }) {
           <label style={{ fontWeight: 800, fontSize: 13 }}>Colour Code</label>
           <SearchSelect value={colour} onChange={setColour} options={(colourMap[grade] || []).map((c) => c.colourCode || c.colour)} placeholder="Search colour…" disabled={!grade} />
           <div style={{ height: 8 }} />
+          <label style={{ fontWeight: 800, fontSize: 13 }}>Sq.Mtr Approved</label>
+          <input inputMode="numeric" value={winSqm} onChange={(e) => setWinSqm(e.target.value.replace(/\D/g, ""))} style={{ width: "100%", marginBottom: 10 }} />
         </>)}
         {status === "Win" && !isSpec && (<>
           <label style={{ fontWeight: 800, fontSize: 13 }}>Sq.Mtr</label>
@@ -3251,16 +3260,29 @@ function SpecReply({ rec, mod, isS2S, onClose, onSaved }) {
     try {
       const patch = { ...rec, status };
       patch.replies = [...(rec.replies || []), { by: CU().name, status, remark, at: new Date().toLocaleString("en-IN") }];
-      if (status === "Approved") { patch.colourApproved = colour; }
+      if (status === "Approved") { patch.colourApproved = colour; patch.gradeApproved = grade; patch.sqmApproved = sqm; }
       if (status === "Win") { patch.sqmApproved = sqm; patch.salesDone = sales; }
       if (remark) patch.lastRemark = remark;
       await api.update(mod, rec._id, patch);
       /* notify the original sender */
       const notifyTo = isS2S ? (rec.salesPerson || rec.createdBy) : (rec.specPerson || rec.createdBy);
       try { await api.create("notification", { title: `Reply: ${status}`, message: `${CU().name} marked "${rec.projectName}" as ${status}${remark ? " - " + remark : ""}`, to: notifyTo, link: `/app/m/${mod}`, at: new Date().toISOString() }); } catch {}
-      /* also reflect the status back on the project projection record so the sender
-         sees it in their Project Projection Status */
-      if (rec.projId) { try { await api.update("projectProjection", rec.projId, { specReplyStatus: status, replyBy: CU().name, replyRemark: remark || "" }); } catch {} }
+      /* reflect status + approved product back on the project projection.
+         MERGE with the existing project so we don't wipe createdBy/name/etc. */
+      if (rec.projId) {
+        try {
+          const pd = await api.list("projectProjection", false);
+          const proj = (pd.records || []).find((x) => String(x.id) === String(rec.projId));
+          if (proj) {
+            const merged = { ...proj.data, specReplyStatus: status, replyBy: CU().name, replyRemark: remark || "" };
+            if (status === "Approved") {
+              merged.approvedItems = [...(proj.data.approvedItems || []), { grade, colourCode: colour, qty: sqm || "", approvedBy: CU().name }];
+              merged.sqmApproved = sqm;
+            }
+            await api.update("projectProjection", rec.projId, merged);
+          }
+        } catch {}
+      }
       onSaved();
     } catch (e) { alert(e.message); setBusy(false); }
   };
@@ -3285,6 +3307,8 @@ function SpecReply({ rec, mod, isS2S, onClose, onSaved }) {
           <label style={{ fontWeight: 700, fontSize: 13 }}>Colour Approved</label>
           <SearchSelect value={colour} onChange={setColour} options={(colourMap[grade] || []).map((c) => c.colourCode || c.colour)} placeholder="Search colour…" disabled={!grade} />
           <div style={{ height: 8 }} />
+          <label style={{ fontWeight: 700, fontSize: 13 }}>Sq Meter Approved</label>
+          <input inputMode="numeric" value={sqm} onChange={(e) => setSqm(e.target.value.replace(/\D/g, ""))} style={{ width: "100%", marginBottom: 8 }} />
           <label style={{ fontWeight: 700, fontSize: 13 }}>Remark (optional)</label>
           <textarea value={remark} onChange={(e) => setRemark(e.target.value)} rows={2} style={{ width: "100%", marginBottom: 10 }} />
         </>)}
