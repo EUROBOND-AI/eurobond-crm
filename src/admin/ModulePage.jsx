@@ -112,7 +112,7 @@ export default function ModulePage({ cfgKey }) {
     if (fCity) list = list.filter((r) => (r.city || "") === fCity);
     if (fZone) list = list.filter((r) => (r.zone || "") === fZone);
     if (fLead) list = list.filter((r) => (r.leadSource || "") === fLead);
-    if (fAssign) list = list.filter((r) => (r.assignedTo || "") === fAssign);
+    if (fAssign) list = list.filter((r) => (r.assignedTo || "") === fAssign || (r.specPerson || "") === fAssign || (r.salesPerson || "") === fAssign);
     if (!cfg.tabField || cfg.noTabFilter) return list;
     return list.filter((r) => {
       const st = String(r[cfg.tabField] ?? "");
@@ -340,7 +340,7 @@ export default function ModulePage({ cfgKey }) {
               {distinct("createdBy").map((u) => <option key={u}>{u}</option>)}
             </select>
           )}
-          {cfgKey === "projectProjection" && distinct("hod").length > 0 && (
+          {["projectProjection", "salesToSpec", "specToSales"].includes(cfgKey) && distinct("hod").length > 0 && (
             <select value={fHod} onChange={(e) => setFHod(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
               <option value="">All HOD</option>
               {distinct("hod").map((h) => <option key={h}>{h}</option>)}
@@ -368,6 +368,18 @@ export default function ModulePage({ cfgKey }) {
             <select value={fAssign} onChange={(e) => setFAssign(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
               <option value="">All Assignees</option>
               {distinct("assignedTo").map((a) => <option key={a}>{a}</option>)}
+            </select>
+          )}
+          {cfgKey === "salesToSpec" && distinct("specPerson").length > 0 && (
+            <select value={fAssign} onChange={(e) => setFAssign(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
+              <option value="">All Spec Persons</option>
+              {distinct("specPerson").map((s) => <option key={s}>{s}</option>)}
+            </select>
+          )}
+          {cfgKey === "specToSales" && distinct("salesPerson").length > 0 && (
+            <select value={fAssign} onChange={(e) => setFAssign(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
+              <option value="">All Sales Persons</option>
+              {distinct("salesPerson").map((s) => <option key={s}>{s}</option>)}
             </select>
           )}
           {["projectProjection", "salesToSpec", "specToSales"].includes(cfgKey) && (
@@ -663,18 +675,24 @@ function AdminProjectForward({ rec, onClose, onSent }) {
     <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.5)", zIndex: 9999, display: "grid", placeItems: "center", padding: 18 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 14, maxWidth: 440, width: "100%", maxHeight: "88vh", overflowY: "auto", padding: 20 }}>
         <h3 style={{ marginTop: 0 }}>Forward {projects.length > 1 ? projects.length + " Projects" : "Project"}</h3>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-          <label style={{ fontWeight: 700, fontSize: 13 }}>Select people ({sel.length})</label>
-          <button className="btn" style={{ padding: "2px 8px", fontSize: 11 }} onClick={() => setSel(sel.length === users.length ? [] : [...users])}>{sel.length === users.length ? "Clear all" : "Select all"}</button>
-        </div>
-        <input value={uq} onChange={(e) => setUq(e.target.value)} placeholder="Search person…" style={{ width: "100%", padding: "8px 11px", borderRadius: 9, border: "1.5px solid #d7dcef", fontSize: 13, marginBottom: 8 }} />
-        <div style={{ maxHeight: 220, overflowY: "auto", border: "1px solid #e3e8f5", borderRadius: 9, padding: 8, marginBottom: 12 }}>
-          {users.filter((u) => !uq.trim() || u.toLowerCase().includes(uq.toLowerCase())).map((u) => (
-            <label key={u} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 4px", fontSize: 13, cursor: "pointer" }}>
-              <input type="checkbox" checked={sel.includes(u)} onChange={() => toggle(u)} /> {u}
-            </label>
-          ))}
-        </div>
+        <label style={{ fontWeight: 700, fontSize: 13, display: "block", marginBottom: 6 }}>Forward to ({sel.length} selected)</label>
+        <input value={uq} onChange={(e) => setUq(e.target.value)} placeholder="Search & pick people…" style={{ width: "100%", padding: "8px 11px", borderRadius: 9, border: "1.5px solid #d7dcef", fontSize: 13, marginBottom: 6 }} />
+        {uq.trim() && (
+          <div style={{ maxHeight: 180, overflowY: "auto", border: "1px solid #e3e8f5", borderRadius: 9, marginBottom: 8 }}>
+            {users.filter((u) => u.toLowerCase().includes(uq.toLowerCase()) && !sel.includes(u)).map((u) => (
+              <div key={u} onClick={() => { toggle(u); setUq(""); }} style={{ padding: "9px 12px", fontSize: 13, cursor: "pointer", borderBottom: "1px solid #f4f6fc" }}>{u}</div>
+            ))}
+          </div>
+        )}
+        {sel.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+            {sel.map((u) => (
+              <span key={u} style={{ background: "#eef1ff", color: "var(--navy)", borderRadius: 16, padding: "5px 10px", fontSize: 12.5, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                {u} <span onClick={() => toggle(u)} style={{ cursor: "pointer", color: "#c03636" }}>✕</span>
+              </span>
+            ))}
+          </div>
+        )}
         <label style={{ fontWeight: 700, fontSize: 13 }}>Note (optional)</label>
         <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} style={{ width: "100%", padding: 10, borderRadius: 9, border: "1.5px solid #d7dcef", marginBottom: 12 }} />
         <div style={{ display: "flex", gap: 8 }}>
