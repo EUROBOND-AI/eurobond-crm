@@ -91,6 +91,7 @@ export default function ModulePage({ cfgKey }) {
     // eslint-disable-next-line
   }, [cfgKey]);
   const [fTo, setFTo] = useState("");
+  const [shown, setShown] = useState(false);   // projectProjection: show data only after "Show" clicked
 
   const knownTabs = (cfg.tabs || []).map((t) => t.key);
   const firstTab = cfg.tabs?.[0]?.key;
@@ -368,6 +369,9 @@ export default function ModulePage({ cfgKey }) {
               {distinct("assignedTo").map((a) => <option key={a}>{a}</option>)}
             </select>
           )}
+          {cfgKey === "projectProjection" && (
+            <button className="btn btn-primary" style={{ padding: "8px 20px", fontWeight: 700 }} onClick={() => setShown(true)}>Show</button>
+          )}
         </div>
       )}
 
@@ -386,6 +390,8 @@ export default function ModulePage({ cfgKey }) {
         <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Loading…</div>
       ) : err ? (
         <div style={{ padding: 24, background: "#fdecec", color: "#c03636", borderRadius: 12, fontWeight: 600 }}>{err}</div>
+      ) : (cfgKey === "projectProjection" && !shown) ? (
+        <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Set filters and click <b>Show</b> to view projects.</div>
       ) : (
         <DataTable
           extraActions={cfgKey === "projectProjection" ? (r) => (
