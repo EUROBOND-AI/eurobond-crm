@@ -1920,7 +1920,7 @@ function FieldFollowUpNew({ add, editData }) {
 }
 
 /* ------------------------------------------------ SIMPLE FORM SCREENS ------------------------------------------------ */
-const PROJ_TYPES = ["Commercial", "Residential", "Govt", "Hospitality", "Healthcare", "Corporate", "Architect", "Consultant", "Builder", "Contractor", "Industrial"];
+const PROJ_TYPES = ["Architect", "Consultant", "Builder", "Contractor", "Industrial"];
 const EXPECTED_MONTHS = (() => {
   const out = []; const start = new Date(2026, 7, 1); // Aug 2026
   for (let i = 0; i < 76; i++) { const d = new Date(start.getFullYear(), start.getMonth() + i, 1); out.push(d.toLocaleString("en-US", { month: "short" }) + "-" + String(d.getFullYear()).slice(2)); }
@@ -1966,6 +1966,7 @@ function FieldProjectList() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontWeight: 800, fontSize: 14 }}>{r.projectName || r.name || "Project"}</span>
               <span style={{ background: sColor(r.status), color: "#fff", padding: "2px 10px", borderRadius: 8, fontSize: 11.5, fontWeight: 800 }}>{r.status || "Open"}</span>
+              {r.specReplyStatus && <span style={{ background: r.specReplyStatus === "Approved" || r.specReplyStatus === "Win" ? "#1f9d55" : "#e08600", color: "#fff", padding: "2px 9px", borderRadius: 8, fontSize: 11, fontWeight: 800, marginLeft: 5 }}>Reply: {r.specReplyStatus}</span>}
             </div>
             <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 4 }}>
               {[r.projectType, r.city, r.expectedMonth].filter(Boolean).join(" · ") || r.createdAt}
@@ -2021,6 +2022,20 @@ function ProjectView({ rec, onClose }) {
         {(rec.items || []).length > 0 && <div style={{ fontWeight: 800, fontSize: 12.5, margin: "12px 0 6px", color: "var(--navy)" }}>Products</div>}
         {(rec.items || []).map((it, i) => it.grade && <div key={i} style={{ fontSize: 12, color: "var(--muted)" }}>{it.grade} · {it.colourCode} · Qty {it.qty}</div>)}
         {rec.photo && <><div style={{ fontWeight: 800, fontSize: 12.5, margin: "12px 0 6px", color: "var(--navy)" }}>Photo</div><img src={rec.photo} alt="" style={{ width: "100%", borderRadius: 10, maxHeight: 220, objectFit: "cover" }} /></>}
+        {rec.specReplyStatus && (
+          <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 9, padding: 10, margin: "10px 0", fontSize: 12.5 }}>
+            <div style={{ fontWeight: 800, color: "#1f7a44" }}>Reply from {rec.replyBy || "team"}: {rec.specReplyStatus}</div>
+            {rec.replyRemark && <div style={{ marginTop: 3 }}>{rec.replyRemark}</div>}
+          </div>
+        )}
+        {(rec.replies || []).length > 0 && <div style={{ fontWeight: 800, fontSize: 12.5, margin: "10px 0 6px", color: "var(--navy)" }}>Reply / Remarks History</div>}
+        {(rec.replies || []).slice().reverse().map((rp, i) => (
+          <div key={i} style={{ borderLeft: "3px solid #1f9d55", background: "#f7fdf9", borderRadius: 7, padding: "6px 10px", marginBottom: 5, fontSize: 12 }}>
+            <div style={{ fontWeight: 700 }}>{rp.by} · {rp.status}</div>
+            {rp.remark && <div>{rp.remark}</div>}
+            <div style={{ fontSize: 10.5, color: "var(--muted)" }}>{rp.at}</div>
+          </div>
+        ))}
         <div style={{ fontWeight: 800, fontSize: 12.5, margin: "12px 0 6px", color: "var(--navy)" }}>Followup History ({fups.length})</div>
         {fups.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No followups yet.</div> : fups.slice().reverse().map((fu, i) => (
           <div key={i} style={{ borderLeft: "3px solid var(--accent)", background: "#f7f9ff", borderRadius: 8, padding: "7px 10px", marginBottom: 6 }}>
@@ -3173,8 +3188,9 @@ function SpecReply({ rec, mod, isS2S, onClose, onSaved }) {
       /* notify the original sender */
       const notifyTo = isS2S ? (rec.salesPerson || rec.createdBy) : (rec.specPerson || rec.createdBy);
       try { await api.create("notification", { title: `Reply: ${status}`, message: `${CU().name} marked "${rec.projectName}" as ${status}${remark ? " - " + remark : ""}`, to: notifyTo, link: `/app/m/${mod}`, at: new Date().toISOString() }); } catch {}
-      /* also reflect the status back on the project projection record */
-      if (rec.projId) { try { await api.update("projectProjection", rec.projId, { specReplyStatus: status }); } catch {} }
+      /* also reflect the status back on the project projection record so the sender
+         sees it in their Project Projection Status */
+      if (rec.projId) { try { await api.update("projectProjection", rec.projId, { specReplyStatus: status, replyBy: CU().name, replyRemark: remark || "" }); } catch {} }
       onSaved();
     } catch (e) { alert(e.message); setBusy(false); }
   };
