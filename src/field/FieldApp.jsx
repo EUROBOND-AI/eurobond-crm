@@ -367,12 +367,17 @@ function FieldLogin({ onLogin }) {
   };
 
   return (
-    <div className="phone-body" style={{ display: "grid", placeItems: "center", padding: 24 }}>
-      <div style={{ width: "100%", maxWidth: 320 }}>
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}>
-          <img src={logoImg} alt="Eurobond" style={{ height: 42 }} />
+    <div className="phone-body" style={{ display: "grid", placeItems: "center", padding: 24, background: "linear-gradient(160deg, #0b3c8c 0%, #06255a 100%)" }}>
+      <div style={{ width: "100%", maxWidth: 340 }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 18 }}>
+          <div style={{ background: "#fff", borderRadius: 20, padding: "18px 26px", boxShadow: "0 12px 40px rgba(0,0,0,.25)", marginBottom: 14 }}>
+            <img src={logoImg} alt="Eurobond" style={{ height: 46 }} />
+          </div>
+          <div style={{ color: "#fff", fontWeight: 800, fontSize: 15, letterSpacing: 0.5, fontFamily: "Bricolage Grotesque" }}>BONDS THAT LAST</div>
+          <div style={{ color: "#9fc0ff", fontWeight: 600, fontSize: 12.5, marginTop: 3, fontStyle: "italic" }}>Bond never leaves you — always tracking with you 📍</div>
         </div>
-        <p style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, marginBottom: 26 }}>
+        <div style={{ background: "#fff", borderRadius: 18, padding: 22, boxShadow: "0 12px 40px rgba(0,0,0,.2)" }}>
+        <p style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, marginBottom: 22 }}>
           {step === 1 ? "Login with your mobile number — OTP will be sent to your registered email" : `Enter the OTP sent to ${maskedEmail || "your email"}`}
         </p>
         <div className="f-form" style={{ padding: 0 }}>
@@ -416,6 +421,7 @@ function FieldLogin({ onLogin }) {
             </>
           )}
           </div>
+        </div>
         </div>
       </div>
   );
@@ -2102,8 +2108,9 @@ function ProjectStatus({ rec, onClose, onSaved }) {
     setBusy(true);
     try {
       const win = status === "Win";
+      const { _id, ...recData } = rec;
       const patch = {
-        ...rec, status, statusRemark: remark,
+        ...recData, status, statusRemark: remark,
         winSqm: win && !isSpec ? winSqm : "", winSales: win && !isSpec ? winSales : "",
         winGrade: win && isSpec ? grade : "", winColour: win && isSpec ? colour : "",
       };

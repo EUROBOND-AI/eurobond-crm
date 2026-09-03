@@ -346,7 +346,7 @@ export default function ModulePage({ cfgKey }) {
               {distinct("createdBy").map((u) => <option key={u}>{u}</option>)}
             </select>
           )}
-          {["projectProjection", "salesToSpec", "specToSales"].includes(cfgKey) && distinct("hod").length > 0 && (
+          {["projectProjection", "salesToSpec", "specToSales", "target"].includes(cfgKey) && distinct("hod").length > 0 && (
             <select value={fHod} onChange={(e) => setFHod(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
               <option value="">All HOD</option>
               {distinct("hod").map((h) => <option key={h}>{h}</option>)}
@@ -364,7 +364,7 @@ export default function ModulePage({ cfgKey }) {
               {distinct("salesPerson").map((s) => <option key={s}>{s}</option>)}
             </select>
           )}
-          {["projectProjection", "salesToSpec", "specToSales"].includes(cfgKey) && distinct("status").length > 0 && (
+          {["projectProjection", "salesToSpec", "specToSales", "target"].includes(cfgKey) && distinct("status").length > 0 && (
             <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
               <option value="">All Status</option>
               {distinct("status").map((s) => <option key={s}>{s}</option>)}
@@ -394,7 +394,7 @@ export default function ModulePage({ cfgKey }) {
               {distinct("assignedTo").map((a) => <option key={a}>{a}</option>)}
             </select>
           )}
-          {["projectProjection", "salesToSpec", "specToSales"].includes(cfgKey) && (
+          {["projectProjection", "salesToSpec", "specToSales", "target"].includes(cfgKey) && (
             <button className="btn btn-primary" style={{ padding: "8px 20px", fontWeight: 700 }} onClick={() => setShown(true)}>Show</button>
           )}
         </div>
@@ -415,7 +415,7 @@ export default function ModulePage({ cfgKey }) {
         <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Loading…</div>
       ) : err ? (
         <div style={{ padding: 24, background: "#fdecec", color: "#c03636", borderRadius: 12, fontWeight: 600 }}>{err}</div>
-      ) : (["projectProjection", "salesToSpec", "specToSales"].includes(cfgKey) && !shown) ? (
+      ) : (["projectProjection", "salesToSpec", "specToSales", "target"].includes(cfgKey) && !shown) ? (
         <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Set filters and click <b>Show</b> to view.</div>
       ) : (
         <DataTable
@@ -441,7 +441,7 @@ export default function ModulePage({ cfgKey }) {
           selectable
           onBulkDelete={handleBulkDelete}
           onBulkForward={cfgKey === "projectProjection" ? (ids) => setFwdRow({ bulk: ids.map((id) => rows.find((r) => r._id === id)).filter(Boolean) }) : null}
-          onRowClick={cfgKey === "projectProjection" ? (r) => setProjView(r) : (cfg.approveFlow || cfg.isSpecThread) ? (r) => setChatRow(r) : null}
+          onRowClick={["projectProjection", "salesToSpec", "specToSales"].includes(cfgKey) ? (r) => setProjView(r) : (cfg.approveFlow || cfg.isSpecThread) ? (r) => setChatRow(r) : null}
           onDelete={handleDelete}
           onEdit={(cfg.form && cfgKey !== "projectProjection") ? (r) => { setEditing(r); setShowForm(true); } : null}
         />

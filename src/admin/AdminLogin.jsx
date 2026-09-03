@@ -27,6 +27,7 @@ export default function AdminLogin() {
         /* Individual — app account (mobile + password) */
         await api.login(u.trim(), p);
       }
+      try { sessionStorage.setItem("eb_admin_session", "1"); } catch {}
       nav("/admin/dashboards/expense");
     } catch (e) {
       setErr(e.message || "Login failed");
