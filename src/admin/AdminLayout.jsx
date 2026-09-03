@@ -104,6 +104,15 @@ function ModuleSearch({ nav }) {
     { title: "Customers", path: "sfa/customers" }, { title: "Quotation", path: "sfa/quotation" },
     { title: "Products", path: "master/products" }, { title: "Attendance", path: "sfa/attendance" },
     { title: "Attendance Sheet", path: "sfa/attendance-sheet" }, { title: "Users", path: "master/users" },
+    { title: "Check-in", path: "sfa/checkin" }, { title: "Tour Report", path: "sfa/tour-report" },
+    { title: "Expense", path: "sfa/expense" }, { title: "Leave", path: "sfa/leave" },
+    { title: "Enquiry", path: "sfa/enquiry" }, { title: "Project Projection", path: "sfa/project-projection" },
+    { title: "Targets", path: "sfa/target" }, { title: "Sales to Spec", path: "sfa/sales-to-spec" },
+    { title: "Spec to Sales", path: "sfa/spec-to-sales" }, { title: "Holidays", path: "master/holidays" },
+    { title: "Areas", path: "master/areas" }, { title: "Announcement", path: "master/announcement" },
+    { title: "Notification", path: "master/notification" }, { title: "App Users", path: "master/app-users" },
+    { title: "Admin Users", path: "master/admin-users" }, { title: "Role & Permission", path: "master/roles" },
+    { title: "Dashboard", path: "dashboards/expense" },
   ];
   const all = [...Object.values(MODULES).map((m) => ({ title: m.title, path: m.path })), ...extra];
   const ql = q.trim().toLowerCase();

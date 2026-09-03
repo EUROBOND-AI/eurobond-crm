@@ -97,6 +97,7 @@ export default function ModulePage({ cfgKey }) {
   const [fSales, setFSales] = useState("");
   const [fStatus, setFStatus] = useState("");
   const [projSide, setProjSide] = useState("Sales");   // projectProjection: Sales vs Specs view
+  const [fStateM, setFStateM] = useState("");
 
   const knownTabs = (cfg.tabs || []).map((t) => t.key);
   const firstTab = cfg.tabs?.[0]?.key;
@@ -108,6 +109,7 @@ export default function ModulePage({ cfgKey }) {
     if (fSpec) list = list.filter((r) => (r.specPerson || "") === fSpec);
     if (fSales) list = list.filter((r) => (r.salesPerson || "") === fSales);
     if (fStatus) list = list.filter((r) => (r.status || "") === fStatus);
+    if (fStateM) list = list.filter((r) => (r.state || "") === fStateM);
     if (cfgKey === "projectProjection") list = list.filter((r) => projSide === "Specs" ? r.isSpec : !r.isSpec);
     /* date range (From/To) — r.date leda r.createdAt meeda */
     const parseD = (r) => {
@@ -128,7 +130,7 @@ export default function ModulePage({ cfgKey }) {
       // records with unknown/old status appear under the first tab
       return tab === firstTab && !knownTabs.includes(st);
     });
-  }, [rows, tab, cfg, fUser, fHod, fSpec, fSales, fStatus, projSide, fCity, fZone, fLead, fAssign, fFrom, fTo, allUsers]);
+  }, [rows, tab, cfg, fUser, fHod, fSpec, fSales, fStatus, fStateM, projSide, fCity, fZone, fLead, fAssign, fFrom, fTo, allUsers]);
 
   const distinct = (key) => {
     let src = rows;
@@ -379,6 +381,12 @@ export default function ModulePage({ cfgKey }) {
             <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
               <option value="">All Status</option>
               {distinct("status").map((s) => <option key={s}>{s}</option>)}
+            </select>
+          )}
+          {(cfgKey === "enquiry" || cfgKey === "customers") && distinct("state").length > 0 && (
+            <select value={fStateM} onChange={(e) => setFStateM(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
+              <option value="">All States</option>
+              {distinct("state").map((s) => <option key={s}>{s}</option>)}
             </select>
           )}
           {hasCol("city") && distinct("city").length > 0 && (

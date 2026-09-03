@@ -8,6 +8,7 @@ export default function CheckinPage() {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [zone, setZone] = useState("");
   const [city, setCity] = useState("");
+  const [stateF, setStateF] = useState("");
   const [sessions, setSessions] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [leaves, setLeaves] = useState([]);
@@ -28,7 +29,7 @@ export default function CheckinPage() {
       .finally(() => setLoading(false));
   };
 
-  const inScope = allUsers.filter((u) => (!zone || u.zone === zone) && (!city || u.city === city));
+  const inScope = allUsers.filter((u) => (!zone || u.zone === zone) && (!stateF || u.state === stateF) && (!city || u.city === city));
   const checkedIds = new Set(sessions.map((s) => String(s.user_id)));
   const loginUsers = inScope.filter((u) => checkedIds.has(String(u.id)));
   const pendingUsers = inScope.filter((u) => !checkedIds.has(String(u.id)));
@@ -66,6 +67,10 @@ export default function CheckinPage() {
         <select value={zone} onChange={(e) => setZone(e.target.value)} style={sel}>
           <option value="">All Zones</option>
           {[...new Set(allUsers.map((u) => u.zone).filter(Boolean))].map((z) => <option key={z}>{z}</option>)}
+        </select>
+        <select value={stateF} onChange={(e) => setStateF(e.target.value)} style={sel}>
+          <option value="">All States</option>
+          {[...new Set(allUsers.map((u) => u.state).filter(Boolean))].map((s) => <option key={s}>{s}</option>)}
         </select>
         <select value={city} onChange={(e) => setCity(e.target.value)} style={sel}>
           <option value="">All Cities</option>

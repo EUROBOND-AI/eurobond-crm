@@ -22,7 +22,7 @@ export default function AttendanceSheet() {
   const now = new Date();
   const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`);
   const [zoneF, setZoneF] = useState("All Zones");
-  const [cityF, setCityF] = useState("All Cities");
+  const [hodF, setHodF] = useState("All HOD");
   const [userF, setUserF] = useState("All Users");
   const [dFrom, setDFrom] = useState("");
   const [dTo, setDTo] = useState("");
@@ -99,7 +99,7 @@ export default function AttendanceSheet() {
   };
 
   const zones = useMemo(() => ["All Zones", ...[...new Set((users || []).map((u) => u.zone).filter(Boolean))].sort()], [users]);
-  const cities = useMemo(() => ["All Cities", ...[...new Set((users || []).map((u) => u.city).filter(Boolean))].sort()], [users]);
+  const hods = useMemo(() => ["All HOD", ...[...new Set((users || []).map((u) => u.manager).filter(Boolean))].sort()], [users]);
   const userNames = useMemo(() => ["All Users", ...(users || []).map((u) => u.name).sort()], [users]);
 
   /* From/To range: month lopala day columns limit */
@@ -114,7 +114,7 @@ export default function AttendanceSheet() {
     if (!users) return null;
     let filtered = users;
     if (zoneF !== "All Zones") filtered = filtered.filter((u) => u.zone === zoneF);
-    if (cityF !== "All Cities") filtered = filtered.filter((u) => u.city === cityF);
+    if (hodF !== "All HOD") filtered = filtered.filter((u) => u.manager === hodF);
     if (userF !== "All Users") filtered = filtered.filter((u) => u.name === userF);
     return filtered.map((u) => {
       const cells = [];
@@ -129,7 +129,7 @@ export default function AttendanceSheet() {
       }
       return { u, cells, totals: { p, t, wfh, l, ho, s, a, present: p + t + wfh, total: p + t + wfh + l + ho + s } };
     });
-  }, [users, sessMap, leaveMap, holidaySet, month, zoneF, cityF, userF]);
+  }, [users, sessMap, leaveMap, holidaySet, month, zoneF, hodF, userF]);
 
   const exportCsv = () => {
     if (!grid) return;
@@ -164,7 +164,7 @@ export default function AttendanceSheet() {
           <input type="date" value={dFrom} onChange={(e) => setDFrom(e.target.value)} title="From date" style={selS} />
           <input type="date" value={dTo} onChange={(e) => setDTo(e.target.value)} title="To date" style={selS} />
           <select value={zoneF} onChange={(e) => setZoneF(e.target.value)} style={selS}>{zones.map((z) => <option key={z}>{z}</option>)}</select>
-          <select value={cityF} onChange={(e) => setCityF(e.target.value)} style={selS}>{cities.map((c) => <option key={c}>{c}</option>)}</select>
+          <select value={hodF} onChange={(e) => setHodF(e.target.value)} style={selS}>{hods.map((c) => <option key={c}>{c}</option>)}</select>
           <select value={userF} onChange={(e) => setUserF(e.target.value)} style={selS}>{userNames.map((n) => <option key={n}>{n}</option>)}</select>
           <button className="btn btn-ghost" onClick={load} disabled={busy} style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <RefreshCw size={14} className={busy ? "spin" : ""} /> Refresh
