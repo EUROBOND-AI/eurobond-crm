@@ -193,22 +193,6 @@ export default function AdminLayout() {
     return () => { clearTimeout(timer); evs.forEach((e) => window.removeEventListener(e, reset)); };
   }, []);
 
-  if (expired) {
-    return (
-      <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.6)", zIndex: 99999, display: "grid", placeItems: "center", padding: 20 }}>
-        <div style={{ background: "#fff", borderRadius: 16, maxWidth: 360, width: "100%", padding: 26, textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}>
-          <div style={{ fontSize: 40, marginBottom: 8 }}>🔒</div>
-          <h2 style={{ margin: "0 0 6px" }}>Session Expired</h2>
-          <p style={{ color: "#64708a", fontSize: 13.5, marginBottom: 18 }}>You've been logged out for security. Please log in again to continue.</p>
-          <button className="btn btn-primary" style={{ width: "100%", padding: "12px", fontWeight: 800, fontSize: 15 }}
-            onClick={() => { try { sessionStorage.removeItem("eb_admin_session"); } catch {} auth.clear(); window.location.href = "/admin/login"; }}>
-            Login — Click here
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   if (!auth.isLoggedIn) return <Navigate to="/admin/login" replace />;
   const admin = auth.user || { name: "User" };
 
@@ -314,11 +298,24 @@ export default function AdminLayout() {
             </div>
           </div>
         )}
-        <main className="content">
+        <main className="content" style={expired ? { filter: "blur(6px)", pointerEvents: "none", userSelect: "none" } : undefined}>
           <Outlet />
           <FooterNote />
         </main>
       </div>
+      {expired && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.35)", backdropFilter: "blur(3px)", zIndex: 99999, display: "grid", placeItems: "center", padding: 20 }}>
+          <div style={{ background: "#fff", borderRadius: 16, maxWidth: 360, width: "100%", padding: 26, textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}>
+            <div style={{ fontSize: 40, marginBottom: 8 }}>🔒</div>
+            <h2 style={{ margin: "0 0 6px" }}>Session Expired</h2>
+            <p style={{ color: "#64708a", fontSize: 13.5, marginBottom: 18 }}>You've been logged out for security. Please log in again to continue.</p>
+            <button className="btn btn-primary" style={{ width: "100%", padding: "12px", fontWeight: 800, fontSize: 15 }}
+              onClick={() => { try { sessionStorage.removeItem("eb_admin_session"); } catch {} auth.clear(); window.location.href = "/admin/login"; }}>
+              Login — Click here
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

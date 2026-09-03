@@ -130,7 +130,11 @@ export default function ModulePage({ cfgKey }) {
     });
   }, [rows, tab, cfg, fUser, fHod, fSpec, fSales, fStatus, projSide, fCity, fZone, fLead, fAssign, fFrom, fTo, allUsers]);
 
-  const distinct = (key) => [...new Set(rows.map((r) => r[key]).filter(Boolean))];
+  const distinct = (key) => {
+    let src = rows;
+    if (cfgKey === "projectProjection") src = rows.filter((r) => projSide === "Specs" ? r.isSpec : !r.isSpec);
+    return [...new Set(src.map((r) => r[key]).filter(Boolean))];
+  };
   const hasCol = (key) => cfg.columns.some((c) => c.key === key);
 
   const [refreshing, setRefreshing] = useState(false);
