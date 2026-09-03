@@ -152,7 +152,12 @@ export default function ModulePage({ cfgKey }) {
       .finally(() => setRefreshing(false));
   };
 
-  const shownColumns = useMemo(() => cfg.columns.filter((c) => !hiddenCols.includes(c.key)), [cfg, hiddenCols]);
+  const shownColumns = useMemo(() => {
+    let cols = cfg.columns.filter((c) => !hiddenCols.includes(c.key));
+    /* project projection: category columns only in Specs view */
+    if (cfgKey === "projectProjection" && projSide === "Sales") cols = cols.filter((c) => c.key !== "category" && c.key !== "categoryFirm");
+    return cols;
+  }, [cfg, hiddenCols, cfgKey, projSide]);
 
   const viewReport = () => {
     const w = window.open("", "_blank");
@@ -413,6 +418,7 @@ export default function ModulePage({ cfgKey }) {
         <Tabs
           tabs={cfg.tabs.map((t) => ({
             ...t,
+            label: (cfgKey === "projectProjection" && projSide === "Specs" && t.key === "Win") ? "Approved" : t.label,
             count: (cfg.tabField && !cfg.noTabFilter && !["projectProjection", "salesToSpec", "specToSales"].includes(cfgKey)) ? rows.filter((r) => String(r[cfg.tabField]) === t.key).length : null,
           }))}
           active={tab}

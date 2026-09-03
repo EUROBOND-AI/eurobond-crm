@@ -83,6 +83,8 @@ export const MODULES = {
     columns: [
       { key: "createdAt", label: "Created At" },
       { key: "visitDate", label: "Visit Date" },
+      { key: "category", label: "Category" },
+      { key: "categoryFirm", label: "Category Firm" },
       { key: "createdBy", label: "Created By" },
       { key: "projectName", label: "Project Name" },
       { key: "projectType", label: "Type" },
