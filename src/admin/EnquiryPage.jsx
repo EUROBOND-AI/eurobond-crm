@@ -35,6 +35,7 @@ export default function EnquiryPage() {
   const [srcOpen, setSrcOpen] = useState(false);
   const [fromDate, setFromDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [stateF, setStateF] = useState("");
   const today = new Date().toISOString().slice(0, 10);
   const [applied, setApplied] = useState({ from: today, to: today, sources: [...LEAD_SOURCES], shown: false });   // data shows only after Show is clicked
   const [tab, setTab] = useState("Enquiries");   // status tabs
@@ -97,6 +98,7 @@ export default function EnquiryPage() {
     /* date range (applied via Show) */
     if (applied.from) l = l.filter((r) => { const d = enqDate(r); return d && d >= applied.from; });
     if (applied.to) l = l.filter((r) => { const d = enqDate(r); return d && d <= applied.to; });
+    if (stateF) l = l.filter((r) => (r.state || "") === stateF);
     if (search) {
       const q = search.toLowerCase();
       l = l.filter((r) => Object.values(r).some((v) => String(v ?? "").toLowerCase().includes(q)));
@@ -106,7 +108,7 @@ export default function EnquiryPage() {
       if (vv) l = l.filter((r) => String(r[k] ?? "").toLowerCase().includes(vv));
     });
     return l;
-  }, [rows, search, colSearch, applied, tab, users]);
+  }, [rows, search, colSearch, applied, tab, users, stateF]);
 
   const applyShow = () => { setApplied({ from: fromDate, to: toDate, sources: [...sourceSel], shown: true }); setPage(1); };
 
@@ -239,6 +241,13 @@ export default function EnquiryPage() {
         <div>
           <label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>To Date</label>
           <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5 }} />
+        </div>
+        <div>
+          <label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>State</label>
+          <select value={stateF} onChange={(e) => setStateF(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5 }}>
+            <option value="">All States</option>
+            {[...new Set((rows || []).map((r) => r.state).filter(Boolean))].sort().map((s) => <option key={s}>{s}</option>)}
+          </select>
         </div>
         <button className="btn" style={{ background: "#22a45d", color: "#fff", borderColor: "transparent" }} onClick={applyShow}>Show</button>
         <button className="btn btn-soft" onClick={exportCsv}>Export to Excel</button>
@@ -407,14 +416,14 @@ function AssignModal({ users, reassign, count, onClose, onAssign }) {
           {list.length === 0 ? <div style={{ color: "var(--muted)", fontSize: 13, padding: 12, textAlign: "center" }}>No sales person found</div>
             : list.map((u) => {
               const name = u.name || u.data?.name || "User";
-              const code = u.empCode || u.data?.empCode || u.id;
+              const code = u.code || u.data?.code || u.empCode || u.data?.empCode || "";
               const uid = u.id || u.data?.id;
               return (
                 <div key={uid} onClick={() => onAssign(uid, name, reassign)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderRadius: 10, border: "1px solid #eef1f8", cursor: "pointer" }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = "#f4f6fc")} onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 13 }}>{name}</div>
-                    <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{code}{(u.grade || u.data?.grade) ? ` · ${u.grade || u.data?.grade}` : ""}</div>
+                    <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{code ? "Emp Code: " + code : ""}</div>
                   </div>
                   <span style={{ fontSize: 12, color: "var(--accent)", fontWeight: 700 }}>{reassign ? "Re-Assign" : "Assign"} →</span>
                 </div>
