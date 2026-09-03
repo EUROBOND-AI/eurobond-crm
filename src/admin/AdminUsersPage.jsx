@@ -13,11 +13,12 @@ export default function AdminUsersPage() {
   const [rows, setRows] = useState(null);
   const [form, setForm] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [appUsers, setAppUsers] = useState([]);
 
   const load = () => api.list("adminUser", false)
     .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data }))))
     .catch(() => setRows([]));
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); api.listUsers().then((d) => setAppUsers((d.users || []).filter((u) => u.status == 1))).catch(() => {}); }, []);
 
   const save = async () => {
     if (!form.name || !form.username || (!form.password && !(form.id || form._id))) { alert("Full name, username and password are required."); return; }
@@ -88,14 +89,33 @@ export default function AdminUsersPage() {
               <button className="btn btn-ghost" style={{ padding: 4 }} onClick={() => setForm(null)}><X size={16} /></button>
             </div>
             <div style={{ display: "grid", gap: 12 }}>
-              <div><label style={fl}>Full Name *</label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={fi} /></div>
-              <div><label style={fl}>Username *</label><input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value.replace(/\s/g, "") })} placeholder="e.g. karthik.g" autoCapitalize="none" style={fi} /></div>
-              <div><label style={fl}>Email ID</label><input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} style={fi} /></div>
               <div><label style={fl}>Role *</label>
-                <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} style={fi}>
+                <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value, username: "", name: "", email: "" })} style={fi}>
                   {ROLES.map((r) => <option key={r}>{r}</option>)}
                 </select>
               </div>
+              <div><label style={fl}>User (App account) *</label>
+                <select value={form.username} onChange={(e) => {
+                  const u = appUsers.find((x) => (x.mobile || x.code || x.name) === e.target.value);
+                  setForm({ ...form, username: e.target.value, name: u ? u.name : "", email: u ? (u.email || "") : "" });
+                }} style={fi}>
+                  <option value="">Select user…</option>
+                  {appUsers
+                    .filter((u) => {
+                      /* match app-user role to the admin role loosely (HOD/Sub HOD/Sales/Specs) */
+                      const r = (form.role || "").toLowerCase(), ur = `${u.role || ""} ${u.designation || ""}`.toLowerCase();
+                      if (r.includes("admin")) return true;
+                      if (r.includes("hod") && r.includes("sub")) return ur.includes("sub hod");
+                      if (r.includes("hod")) return ur.includes("hod") && !ur.includes("sub");
+                      if (r.includes("sales")) return ur.includes("sales");
+                      if (r.includes("spec")) return ur.includes("spec");
+                      return true;
+                    })
+                    .map((u) => <option key={u.name} value={u.mobile || u.code || u.name}>{u.name} ({u.mobile || u.code})</option>)}
+                </select>
+              </div>
+              <div><label style={fl}>Full Name</label><input value={form.name} readOnly style={{ ...fi, background: "#f4f6fc" }} /></div>
+              <div><label style={fl}>Email ID</label><input value={form.email} readOnly style={{ ...fi, background: "#f4f6fc" }} /></div>
               <div><label style={fl}>Password *</label><input type="text" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={form._id || form.id ? "Enter to change password" : "Set a password"} style={fi} /></div>
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 18 }}>

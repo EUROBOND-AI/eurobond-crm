@@ -121,6 +121,10 @@ export default function UsersPage() {
         title="App Users & Team"
         actions={<div style={{ display: "flex", gap: 8 }}>
           <button className="btn btn-ghost" onClick={exportUsers}><Download size={14} /> Export</button>
+          <button className="btn btn-ghost" onClick={() => {
+            const csv = "Full Name,Mobile,Email,Role,Manager,Zone,State,City,Code\nJohn Doe,9876543210,john@example.com,Sales Person,HOD Name,South,Telangana,Hyderabad,EMP001";
+            const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = "app-users-format.csv"; a.click();
+          }}><Download size={14} /> Download Format</button>
           <label className="btn btn-ghost" style={{ cursor: "pointer" }}><Upload size={14} /> Import
             <input type="file" accept=".csv" hidden onChange={(e) => importUsers(e.target.files[0])} />
           </label>

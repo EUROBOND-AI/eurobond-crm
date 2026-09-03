@@ -3,7 +3,7 @@ import { Plus, RefreshCw, Save, Trash2 } from "lucide-react";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 
-const MODULES = ["Dashboard", "Attendance", "Attendance Sheet", "Checkin", "Expense", "Leave", "Enquiry", "Customers", "Quotation", "Project Projection", "Targets", "Sales Entries", "Sales to Spec", "Spec to Sales", "Task", "Holidays", "Areas", "Products", "Announcement", "GK-IT Support", "Notification", "App Users", "Admin Users", "Role & Permission"];
+const MODULES = ["Dashboard", "Attendance", "Attendance Sheet", "Checkin", "Tour Report", "Expense", "Leave", "Enquiry", "Customers", "Quotation", "Project Projection", "Targets", "Sales to Spec", "Spec to Sales", "Task", "Holidays", "Areas", "Products", "Announcement", "Notification", "App Users", "Admin Users", "Role & Permission"];
 const PERMS = ["Add", "Approve", "Delete", "Export", "Import", "Modify", "View"];
 /* Fixed roles — same as User creation (no add/delete) */
 /* Admin is not listed — Admin always has full access to everything (no toggles needed).
