@@ -370,24 +370,29 @@ function FieldLogin({ onLogin }) {
     <div className="phone-body" style={{ display: "grid", placeItems: "center", padding: 24, background: "#fff" }}>
       <div style={{ width: "100%", maxWidth: 340 }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 16 }}>
-          {/* logo on top */}
           <img src={logoImg} alt="Eurobond" style={{ height: 44, marginBottom: 6 }} />
-          {/* EUROBOND below logo (smaller) */}
-          <div style={{ fontWeight: 900, fontSize: 24, letterSpacing: 2, color: "#0b3c8c", fontFamily: "Bricolage Grotesque" }}>EUROBOND</div>
-          {/* smooth S-curve route with 2 pins (like the reference) */}
-          <svg width="150" height="150" viewBox="0 0 150 150" style={{ margin: "6px 0" }}>
-            <path d="M62 30 C 105 62, 40 78, 78 108 C 92 120, 86 118, 88 118" stroke="#123f8f" strokeWidth="5" fill="none" strokeLinecap="round" />
-            <g transform="translate(62,30)"><path d="M0 -15 C 9 -15, 9 -1, 0 7 C -9 -1, -9 -15, 0 -15 Z" fill="#123f8f"/><circle cx="0" cy="-8" r="3.2" fill="#fff"/></g>
-            <g transform="translate(88,118)"><path d="M0 -15 C 9 -15, 9 -1, 0 7 C -9 -1, -9 -15, 0 -15 Z" fill="#123f8f"/><circle cx="0" cy="-8" r="3.2" fill="#fff"/></g>
+          <div style={{ fontWeight: 900, fontSize: 24, letterSpacing: 2, color: "#0b3c8c", fontFamily: "Bricolage Grotesque", marginBottom: 6 }}>EUROBOND</div>
+          {/* route with 2 big pins; text next to each pin */}
+          <svg width="290" height="150" viewBox="0 0 290 150" style={{ maxWidth: "100%" }}>
+            {/* wavy route line */}
+            <path d="M70 32 C 120 55, 40 72, 90 92 C 130 108, 100 116, 120 118" stroke="#123f8f" strokeWidth="5.5" fill="none" strokeLinecap="round" />
+            {/* top pin (big) + small circle base */}
+            <g transform="translate(70,32)">
+              <path d="M0 -20 C 12 -20, 12 -2, 0 9 C -12 -2, -12 -20, 0 -20 Z" fill="#123f8f"/>
+              <circle cx="0" cy="-11" r="4.5" fill="#fff"/>
+              <ellipse cx="0" cy="11" rx="7" ry="2.5" fill="#123f8f" opacity="0.25"/>
+            </g>
+            {/* top text */}
+            <text x="95" y="30" fontFamily="Bricolage Grotesque" fontWeight="800" fontSize="18" fill="#123f8f">Wherever You <tspan fill="#c0392b">GO</tspan></text>
+            {/* bottom pin (big) + small circle base */}
+            <g transform="translate(120,118)">
+              <path d="M0 -20 C 12 -20, 12 -2, 0 9 C -12 -2, -12 -20, 0 -20 Z" fill="#123f8f"/>
+              <circle cx="0" cy="-11" r="4.5" fill="#fff"/>
+              <ellipse cx="0" cy="11" rx="7" ry="2.5" fill="#123f8f" opacity="0.25"/>
+            </g>
+            {/* bottom text */}
+            <text x="145" y="118" fontFamily="Bricolage Grotesque" fontWeight="800" fontSize="18" fill="#123f8f">Always <tspan fill="#c0392b">Tracking</tspan></text>
           </svg>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "2px 0 6px", width: "100%" }}>
-            <div style={{ flex: 1, height: 1.5, background: "#0b3c8c", opacity: 0.25 }} />
-            <div style={{ width: 6, height: 6, borderRadius: 3, background: "#c0392b" }} />
-            <div style={{ flex: 1, height: 1.5, background: "#0b3c8c", opacity: 0.25 }} />
-          </div>
-          <div style={{ textAlign: "center", fontWeight: 800, fontSize: 18, color: "#123f8f", lineHeight: 1.3, fontFamily: "Bricolage Grotesque" }}>
-            Wherever You <span style={{ color: "#c0392b" }}>GO</span>,<br />Always <span style={{ color: "#c0392b" }}>Tracking</span>.
-          </div>
         </div>
         <div style={{ background: "#fff", borderRadius: 18, padding: 22, boxShadow: "0 8px 30px rgba(11,60,140,.12)", border: "1px solid #eef1f8" }}>
         <p style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, marginBottom: 22 }}>
