@@ -331,8 +331,8 @@ export default function ModulePage({ cfgKey }) {
             onRefresh={reload}
             refreshing={refreshing}
             onExport={exportCsv}
-            onImport={cfg.form ? importCsv : null}
-            onDownloadFormat={cfg.form ? downloadFormat : null}
+            onImport={(cfg.form || cfg.importable) && cfg.importable ? importCsv : null}
+            onDownloadFormat={cfg.form && cfg.importable ? downloadFormat : null}
             onHeaderConfig={() => setShowColCfg(true)}
             onLogs={() => setShowLogs(true)}
             onReport={viewReport}
@@ -423,7 +423,7 @@ export default function ModulePage({ cfgKey }) {
           tabs={cfg.tabs.map((t) => ({
             ...t,
             label: (cfgKey === "projectProjection" && projSide === "Specs" && t.key === "Win") ? "Approved" : t.label,
-            count: (cfg.tabField && !cfg.noTabFilter && !["projectProjection", "salesToSpec", "specToSales"].includes(cfgKey)) ? rows.filter((r) => String(r[cfg.tabField]) === t.key).length : null,
+            count: (cfg.tabField && !cfg.noTabFilter && !["projectProjection", "salesToSpec", "specToSales", "target"].includes(cfgKey)) ? rows.filter((r) => String(r[cfg.tabField]) === t.key).length : null,
           }))}
           active={tab}
           onChange={setTab}

@@ -159,12 +159,11 @@ export function ToolButtons({ onAdd, addLabel = "Add", onRefresh, onExport, onIm
       <button className="btn btn-soft" onClick={onRefresh} disabled={refreshing}>
         <RefreshCw size={14} className={refreshing ? "spin" : ""} /> {refreshing ? "Refreshing…" : "Refresh"}
       </button>
-      <button className="btn btn-ghost" onClick={onLogs}><FileText size={14} /> Logs</button>
+      {onReport && <button className="btn btn-ghost" onClick={onReport}><FileText size={14} /> View Report</button>}
       {onAdd && <button className="btn btn-primary" onClick={onAdd}><Plus size={14} /> {addLabel}</button>}
       {onImport && <button className="btn btn-soft" onClick={onImport}><Upload size={14} /> Import</button>}
       {onDownloadFormat && <button className="btn btn-ghost" onClick={onDownloadFormat}><Upload size={14} /> Download Format</button>}
       {onExport && <button className="btn btn-soft" onClick={onExport}><FileText size={14} /> Export</button>}
-      <button className="btn btn-soft" onClick={onReport}><FileText size={14} /> View Report</button>
     </>
   );
 }

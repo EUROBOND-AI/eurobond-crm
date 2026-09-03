@@ -18,7 +18,7 @@ export const MODULES = {
 
   enquiry: {
     path: "sfa/enquiry", title: "Enquiry List", crumb: "Enquiry", addLabel: "Add Enquiry",
-    idPrefix: "ENQ", app: true, appLabel: "Enquiry",
+    idPrefix: "ENQ", app: true, appLabel: "Enquiry", importable: true,
     filters: ["createdBy", "leadSource", "city", "assignedTo"],
     tabs: [
       { key: "Review Pending", label: "Review Pending" }, { key: "Inprocess", label: "Inprocess" },
@@ -49,7 +49,7 @@ export const MODULES = {
 
   quotation: {
     path: "sfa/quotation", title: "Quotation List", crumb: "Quotation", addLabel: "Add Quotation",
-    idPrefix: "QUOT", app: true, appLabel: "Quotation",
+    idPrefix: "QUOT", app: true, appLabel: "Quotation", importable: true,
     tabs: [{ key: "Pending", label: "Pending" }, { key: "Win", label: "Win" }, { key: "Lost", label: "Lost" }],
     tabField: "status",
     columns: [
@@ -72,7 +72,7 @@ export const MODULES = {
 
   projectProjection: {
     path: "sfa/project-projection", title: "Project Projection", crumb: "Project Projection", addLabel: "Add Project",
-    idPrefix: "PPJ", app: true, appLabel: "Project Projection",
+    idPrefix: "PPJ", app: true, appLabel: "Project Projection", importable: true,
     filters: ["hod", "createdBy"],
     dateFilter: true, showButton: true,
     tabs: [
