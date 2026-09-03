@@ -73,6 +73,19 @@ export default function TourReport() {
   }, [areaFiltered]);
 
   const allAreas = useMemo(() => [...new Set(areaRows.map((r) => r.area))].sort(), [areaRows]);
+
+  /* area-wise month table: for each area, per-month Ex/Out counts + total */
+  const areaTable = useMemo(() => {
+    const areas = [...new Set(areaFiltered.map((r) => r.area))].sort();
+    return areas.map((area) => {
+      const cells = MONTHS.map((m) => {
+        const inC = areaFiltered.filter((r) => r.area === area && r.month === m);
+        return { ex: inC.filter((r) => /ex/i.test(r.type)).length, out: inC.filter((r) => /out/i.test(r.type)).length, total: inC.length };
+      });
+      const total = cells.reduce((s, c) => s + c.total, 0);
+      return { area, cells, total };
+    });
+  }, [areaFiltered]);
   const states = [...new Set(users.map((u) => u.state).filter(Boolean))].sort();
   const hods = users.filter((u) => `${u.role || ""} ${u.designation || ""}`.toLowerCase().includes("hod")).map((u) => u.name);
   const userNames = users.map((u) => u.name);
@@ -83,8 +96,11 @@ export default function TourReport() {
     const totalEx = monthTable.rows.reduce((s, r) => s + r.ex, 0);
     const totalOut = monthTable.rows.reduce((s, r) => s + r.out, 0);
     const foot = `\nTotal,${totalEx},${totalOut},${monthTable.grand},100%`;
+    /* area-wise section */
+    let areaCsv = "\n\nAreawise Tour Count\nArea," + MONTHS.join(",") + ",Area Count\n";
+    areaCsv += areaTable.map((row) => row.area + "," + row.cells.map((c) => c.total === 0 ? "" : `${c.ex}/${c.out}`).join(",") + "," + row.total).join("\n");
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([head + body + foot], { type: "text/csv" }));
+    a.href = URL.createObjectURL(new Blob([head + body + foot + areaCsv], { type: "text/csv" }));
     a.download = `tour-report-${fy}-${fy + 1}.csv`; a.click();
   };
 
@@ -138,6 +154,43 @@ export default function TourReport() {
                 <tr style={{ borderTop: "2px solid #d7dcef", background: "#f7f9ff", fontWeight: 800 }}>
                   <td style={tdc}>Total</td><td style={tdc}>{totalEx}</td><td style={tdc}>{totalOut}</td><td style={tdc}>{monthTable.grand}</td><td style={tdc}>100%</td>
                 </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 style={{ margin: "22px 0 6px" }}>Areawise Tour Count</h3>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>
+            Count format: <span style={{ color: "#1f6fe5", fontWeight: 700 }}>Ex Station (blue)</span> / <span style={{ color: "#c0392b", fontWeight: 700 }}>Out-Station (red)</span>
+          </div>
+          <div style={{ overflowX: "auto", background: "#fff", borderRadius: 12, boxShadow: "var(--shadow)" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+              <thead>
+                <tr style={{ background: "#f0f2fa" }}>
+                  <th style={{ ...thc, position: "sticky", left: 0, background: "#f0f2fa" }}>Area</th>
+                  {MONTHS.map((m) => <th key={m} style={thc}>{m}</th>)}
+                  <th style={thc}>Area Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                {areaTable.length === 0 ? (
+                  <tr><td colSpan={14} style={{ ...tdc, textAlign: "center", color: "var(--muted)" }}>No area data.</td></tr>
+                ) : areaTable.map((row) => (
+                  <tr key={row.area} style={{ borderTop: "1px solid #eef0f6" }}>
+                    <td style={{ ...tdc, position: "sticky", left: 0, background: "#fff", fontWeight: 700, whiteSpace: "nowrap" }}>{row.area}</td>
+                    {row.cells.map((c, i) => (
+                      <td key={i} style={{ ...tdc, textAlign: "center" }}>
+                        {c.total === 0 ? "" : (
+                          <span>
+                            {c.ex > 0 && <span style={{ color: "#1f6fe5", fontWeight: 700 }}>{c.ex}</span>}
+                            {c.ex > 0 && c.out > 0 && <span style={{ color: "#8894a8" }}>/</span>}
+                            {c.out > 0 && <span style={{ color: "#c0392b", fontWeight: 700 }}>{c.out}</span>}
+                          </span>
+                        )}
+                      </td>
+                    ))}
+                    <td style={{ ...tdc, textAlign: "center", fontWeight: 800 }}>{row.total}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
