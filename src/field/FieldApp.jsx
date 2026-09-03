@@ -370,18 +370,22 @@ function FieldLogin({ onLogin }) {
     <div className="phone-body" style={{ display: "grid", placeItems: "center", padding: 24, background: "#fff" }}>
       <div style={{ width: "100%", maxWidth: 340 }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 16 }}>
-          <div style={{ fontWeight: 900, fontSize: 30, letterSpacing: 2, color: "#0b3c8c", fontFamily: "Bricolage Grotesque" }}>EUROBOND</div>
-          <svg width="150" height="150" viewBox="0 0 150 150" style={{ margin: "4px 0" }}>
-            <path d="M55 28 C 95 55, 30 80, 70 105 C 95 120, 88 122, 95 122" stroke="#0b3c8c" strokeWidth="5" fill="none" strokeLinecap="round" />
-            <g transform="translate(55,28)"><path d="M0 -14 C 8 -14, 8 -2, 0 6 C -8 -2, -8 -14, 0 -14 Z" fill="#0b3c8c"/><circle cx="0" cy="-8" r="3" fill="#fff"/></g>
-            <g transform="translate(95,122)"><path d="M0 -14 C 8 -14, 8 -2, 0 6 C -8 -2, -8 -14, 0 -14 Z" fill="#0b3c8c"/><circle cx="0" cy="-8" r="3" fill="#fff"/></g>
+          {/* logo on top */}
+          <img src={logoImg} alt="Eurobond" style={{ height: 44, marginBottom: 6 }} />
+          {/* EUROBOND below logo (smaller) */}
+          <div style={{ fontWeight: 900, fontSize: 24, letterSpacing: 2, color: "#0b3c8c", fontFamily: "Bricolage Grotesque" }}>EUROBOND</div>
+          {/* smooth S-curve route with 2 pins (like the reference) */}
+          <svg width="150" height="150" viewBox="0 0 150 150" style={{ margin: "6px 0" }}>
+            <path d="M62 30 C 105 62, 40 78, 78 108 C 92 120, 86 118, 88 118" stroke="#123f8f" strokeWidth="5" fill="none" strokeLinecap="round" />
+            <g transform="translate(62,30)"><path d="M0 -15 C 9 -15, 9 -1, 0 7 C -9 -1, -9 -15, 0 -15 Z" fill="#123f8f"/><circle cx="0" cy="-8" r="3.2" fill="#fff"/></g>
+            <g transform="translate(88,118)"><path d="M0 -15 C 9 -15, 9 -1, 0 7 C -9 -1, -9 -15, 0 -15 Z" fill="#123f8f"/><circle cx="0" cy="-8" r="3.2" fill="#fff"/></g>
           </svg>
           <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "2px 0 6px", width: "100%" }}>
-            <div style={{ flex: 1, height: 1.5, background: "#0b3c8c", opacity: 0.3 }} />
+            <div style={{ flex: 1, height: 1.5, background: "#0b3c8c", opacity: 0.25 }} />
             <div style={{ width: 6, height: 6, borderRadius: 3, background: "#c0392b" }} />
-            <div style={{ flex: 1, height: 1.5, background: "#0b3c8c", opacity: 0.3 }} />
+            <div style={{ flex: 1, height: 1.5, background: "#0b3c8c", opacity: 0.25 }} />
           </div>
-          <div style={{ textAlign: "center", fontWeight: 800, fontSize: 18, color: "#0b3c8c", lineHeight: 1.3, fontFamily: "Bricolage Grotesque" }}>
+          <div style={{ textAlign: "center", fontWeight: 800, fontSize: 18, color: "#123f8f", lineHeight: 1.3, fontFamily: "Bricolage Grotesque" }}>
             Wherever You <span style={{ color: "#c0392b" }}>GO</span>,<br />Always <span style={{ color: "#c0392b" }}>Tracking</span>.
           </div>
         </div>
