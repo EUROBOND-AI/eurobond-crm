@@ -382,7 +382,7 @@ function FieldLogin({ onLogin }) {
               <ellipse cx="0" cy="11" rx="7" ry="2.5" fill="#123f8f" opacity="0.25"/>
             </g>
             {/* top text */}
-            <text x="95" y="30" fontFamily="Bricolage Grotesque" fontWeight="800" fontSize="18" fill="#123f8f">Wherever You <tspan fill="#c0392b">GO</tspan></text>
+            <text x="95" y="30" fontFamily="Bricolage Grotesque" fontWeight="800" fontSize="18" fill="#1c2340">Wherever You <tspan fill="#c0392b">GO</tspan></text>
             {/* bottom pin (big) + small circle base */}
             <g transform="translate(120,118)">
               <path d="M0 -20 C 12 -20, 12 -2, 0 9 C -12 -2, -12 -20, 0 -20 Z" fill="#123f8f"/>
@@ -390,7 +390,7 @@ function FieldLogin({ onLogin }) {
               <ellipse cx="0" cy="11" rx="7" ry="2.5" fill="#123f8f" opacity="0.25"/>
             </g>
             {/* bottom text */}
-            <text x="145" y="118" fontFamily="Bricolage Grotesque" fontWeight="800" fontSize="18" fill="#123f8f">Always <tspan fill="#c0392b">Tracking</tspan></text>
+            <text x="145" y="118" fontFamily="Bricolage Grotesque" fontWeight="800" fontSize="18" fill="#1c2340">Always <tspan fill="#c0392b">Tracking</tspan></text>
           </svg>
         </div>
         <div style={{ background: "#fff", borderRadius: 18, padding: 22, boxShadow: "0 8px 30px rgba(11,60,140,.12)", border: "1px solid #eef1f8" }}>

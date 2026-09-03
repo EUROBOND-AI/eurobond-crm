@@ -96,6 +96,7 @@ export default function ModulePage({ cfgKey }) {
   const [fSpec, setFSpec] = useState("");
   const [fSales, setFSales] = useState("");
   const [fStatus, setFStatus] = useState("");
+  const [projSide, setProjSide] = useState("Sales");   // projectProjection: Sales vs Specs view
 
   const knownTabs = (cfg.tabs || []).map((t) => t.key);
   const firstTab = cfg.tabs?.[0]?.key;
@@ -107,6 +108,7 @@ export default function ModulePage({ cfgKey }) {
     if (fSpec) list = list.filter((r) => (r.specPerson || "") === fSpec);
     if (fSales) list = list.filter((r) => (r.salesPerson || "") === fSales);
     if (fStatus) list = list.filter((r) => (r.status || "") === fStatus);
+    if (cfgKey === "projectProjection") list = list.filter((r) => projSide === "Specs" ? r.isSpec : !r.isSpec);
     /* date range (From/To) — r.date leda r.createdAt meeda */
     const parseD = (r) => {
       const raw = r.date || r.createdAt || "";
@@ -126,7 +128,7 @@ export default function ModulePage({ cfgKey }) {
       // records with unknown/old status appear under the first tab
       return tab === firstTab && !knownTabs.includes(st);
     });
-  }, [rows, tab, cfg, fUser, fHod, fSpec, fSales, fStatus, fCity, fZone, fLead, fAssign, fFrom, fTo, allUsers]);
+  }, [rows, tab, cfg, fUser, fHod, fSpec, fSales, fStatus, projSide, fCity, fZone, fLead, fAssign, fFrom, fTo, allUsers]);
 
   const distinct = (key) => [...new Set(rows.map((r) => r[key]).filter(Boolean))];
   const hasCol = (key) => cfg.columns.some((c) => c.key === key);
@@ -394,6 +396,13 @@ export default function ModulePage({ cfgKey }) {
               {distinct("assignedTo").map((a) => <option key={a}>{a}</option>)}
             </select>
           )}
+          {cfgKey === "projectProjection" && (
+            <div style={{ display: "inline-flex", background: "#eef1ff", borderRadius: 9, padding: 3 }}>
+              {["Sales", "Specs"].map((s) => (
+                <button key={s} onClick={() => setProjSide(s)} style={{ padding: "6px 16px", borderRadius: 7, border: "none", fontWeight: 700, fontSize: 13, cursor: "pointer", background: projSide === s ? "var(--navy)" : "transparent", color: projSide === s ? "#fff" : "var(--navy)" }}>{s}</button>
+              ))}
+            </div>
+          )}
           {["projectProjection", "salesToSpec", "specToSales", "target"].includes(cfgKey) && (
             <button className="btn btn-primary" style={{ padding: "8px 20px", fontWeight: 700 }} onClick={() => setShown(true)}>Show</button>
           )}
@@ -404,7 +413,7 @@ export default function ModulePage({ cfgKey }) {
         <Tabs
           tabs={cfg.tabs.map((t) => ({
             ...t,
-            count: cfg.tabField && !cfg.noTabFilter ? rows.filter((r) => String(r[cfg.tabField]) === t.key).length : null,
+            count: (cfg.tabField && !cfg.noTabFilter && !["projectProjection", "salesToSpec", "specToSales"].includes(cfgKey)) ? rows.filter((r) => String(r[cfg.tabField]) === t.key).length : null,
           }))}
           active={tab}
           onChange={setTab}
