@@ -367,16 +367,25 @@ function FieldLogin({ onLogin }) {
   };
 
   return (
-    <div className="phone-body" style={{ display: "grid", placeItems: "center", padding: 24, background: "linear-gradient(160deg, #0b3c8c 0%, #06255a 100%)" }}>
+    <div className="phone-body" style={{ display: "grid", placeItems: "center", padding: 24, background: "#fff" }}>
       <div style={{ width: "100%", maxWidth: 340 }}>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 18 }}>
-          <div style={{ background: "#fff", borderRadius: 20, padding: "18px 26px", boxShadow: "0 12px 40px rgba(0,0,0,.25)", marginBottom: 14 }}>
-            <img src={logoImg} alt="Eurobond" style={{ height: 46 }} />
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 16 }}>
+          <div style={{ fontWeight: 900, fontSize: 30, letterSpacing: 2, color: "#0b3c8c", fontFamily: "Bricolage Grotesque" }}>EUROBOND</div>
+          <svg width="150" height="150" viewBox="0 0 150 150" style={{ margin: "4px 0" }}>
+            <path d="M55 28 C 95 55, 30 80, 70 105 C 95 120, 88 122, 95 122" stroke="#0b3c8c" strokeWidth="5" fill="none" strokeLinecap="round" />
+            <g transform="translate(55,28)"><path d="M0 -14 C 8 -14, 8 -2, 0 6 C -8 -2, -8 -14, 0 -14 Z" fill="#0b3c8c"/><circle cx="0" cy="-8" r="3" fill="#fff"/></g>
+            <g transform="translate(95,122)"><path d="M0 -14 C 8 -14, 8 -2, 0 6 C -8 -2, -8 -14, 0 -14 Z" fill="#0b3c8c"/><circle cx="0" cy="-8" r="3" fill="#fff"/></g>
+          </svg>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "2px 0 6px", width: "100%" }}>
+            <div style={{ flex: 1, height: 1.5, background: "#0b3c8c", opacity: 0.3 }} />
+            <div style={{ width: 6, height: 6, borderRadius: 3, background: "#c0392b" }} />
+            <div style={{ flex: 1, height: 1.5, background: "#0b3c8c", opacity: 0.3 }} />
           </div>
-          <div style={{ color: "#fff", fontWeight: 800, fontSize: 15, letterSpacing: 0.5, fontFamily: "Bricolage Grotesque" }}>BONDS THAT LAST</div>
-          <div style={{ color: "#9fc0ff", fontWeight: 600, fontSize: 12.5, marginTop: 3, fontStyle: "italic" }}>Bond never leaves you — always tracking with you 📍</div>
+          <div style={{ textAlign: "center", fontWeight: 800, fontSize: 18, color: "#0b3c8c", lineHeight: 1.3, fontFamily: "Bricolage Grotesque" }}>
+            Wherever You <span style={{ color: "#c0392b" }}>GO</span>,<br />Always <span style={{ color: "#c0392b" }}>Tracking</span>.
+          </div>
         </div>
-        <div style={{ background: "#fff", borderRadius: 18, padding: 22, boxShadow: "0 12px 40px rgba(0,0,0,.2)" }}>
+        <div style={{ background: "#fff", borderRadius: 18, padding: 22, boxShadow: "0 8px 30px rgba(11,60,140,.12)", border: "1px solid #eef1f8" }}>
         <p style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, marginBottom: 22 }}>
           {step === 1 ? "Login with your mobile number — OTP will be sent to your registered email" : `Enter the OTP sent to ${maskedEmail || "your email"}`}
         </p>
