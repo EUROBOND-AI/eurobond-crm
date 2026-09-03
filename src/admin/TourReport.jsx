@@ -41,13 +41,16 @@ export default function TourReport() {
     });
   }, [sessions, fState, fHod, fUser]);
 
-  /* explode areas: one session may have 2-3 areas -> each counts once */
+  /* explode areas: one session may have 2-3 areas -> each counts once.
+     ONLY tour visits (Ex Station / Out-Station) — Local visits are excluded. */
   const areaRows = useMemo(() => {
     const out = [];
     filtered.forEach((s) => {
+      const type = s.visit_type || "";
+      if (!/ex|out/i.test(type)) return;   // skip Local / WFH — only tours
       const areas = String(s.visit_name || "").split(",").map((a) => a.trim()).filter(Boolean);
       const list = areas.length ? areas : ["(no area)"];
-      list.forEach((area) => out.push({ area, month: monthKey(s.work_date), type: s.visit_type || "Local", user: s.name || s.user }));
+      list.forEach((area) => out.push({ area, month: monthKey(s.work_date), type, user: s.name || s.user }));
     });
     return out;
   }, [filtered]);
@@ -91,11 +94,11 @@ export default function TourReport() {
   const userNames = users.map((u) => u.name);
 
   const exportExcel = () => {
-    const head = "Month,Ex Station,Out-Station,Tour Count,%\n";
-    const body = monthTable.rows.map((r) => `${r.month},${r.ex},${r.out},${r.count},${((r.count / monthTable.grand) * 100).toFixed(1)}%`).join("\n");
+    const head = "Month,Ex Station,Out-Station,Tour Count\n";
+    const body = monthTable.rows.map((r) => `${r.month},${r.ex},${r.out},${r.count}`).join("\n");
     const totalEx = monthTable.rows.reduce((s, r) => s + r.ex, 0);
     const totalOut = monthTable.rows.reduce((s, r) => s + r.out, 0);
-    const foot = `\nTotal,${totalEx},${totalOut},${monthTable.grand},100%`;
+    const foot = `\nTotal,${totalEx},${totalOut},${monthTable.grand}`;
     /* area-wise section */
     let areaCsv = "\n\nAreawise Tour Count\nArea," + MONTHS.join(",") + ",Area Count\n";
     areaCsv += areaTable.map((row) => row.area + "," + row.cells.map((c) => c.total === 0 ? "" : `${c.ex}/${c.out}`).join(",") + "," + row.total).join("\n");
@@ -141,18 +144,18 @@ export default function TourReport() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr style={{ background: "#f0f2fa" }}>
-                  {["Month", "Ex Station", "Out-Station", "Tour Count", "%"].map((h) => <th key={h} style={thc}>{h}</th>)}
+                  {["Month", "Ex Station", "Out-Station", "Tour Count"].map((h) => <th key={h} style={thc}>{h}</th>)}
                 </tr>
               </thead>
               <tbody>
                 {monthTable.rows.map((r) => (
                   <tr key={r.month} style={{ borderTop: "1px solid #eef0f6" }}>
                     <td style={tdc}><b>{r.month}</b></td><td style={tdc}>{r.ex}</td><td style={tdc}>{r.out}</td>
-                    <td style={tdc}>{r.count}</td><td style={tdc}>{((r.count / monthTable.grand) * 100).toFixed(1)}%</td>
+                    <td style={tdc}>{r.count}</td>
                   </tr>
                 ))}
                 <tr style={{ borderTop: "2px solid #d7dcef", background: "#f7f9ff", fontWeight: 800 }}>
-                  <td style={tdc}>Total</td><td style={tdc}>{totalEx}</td><td style={tdc}>{totalOut}</td><td style={tdc}>{monthTable.grand}</td><td style={tdc}>100%</td>
+                  <td style={tdc}>Total</td><td style={tdc}>{totalEx}</td><td style={tdc}>{totalOut}</td><td style={tdc}>{monthTable.grand}</td>
                 </tr>
               </tbody>
             </table>
