@@ -12,6 +12,7 @@ import UserReportCard from "./admin/UserReportCard.jsx";
 import EnquiryDashboard from "./admin/EnquiryDashboard.jsx";
 import ModulePage from "./admin/ModulePage.jsx";
 import CheckinPage from "./admin/CheckinPage.jsx";
+import TourReport from "./admin/TourReport.jsx";
 import RolePermission from "./admin/RolePermission.jsx";
 import TeamAccess from "./admin/TeamAccess.jsx";
 import AppSettings from "./admin/AppSettings.jsx";
@@ -68,6 +69,7 @@ export default function App() {
         <Route path="dashboards/user-report" element={<UserReportCard />} />
         <Route path="dashboards/enquiry" element={<EnquiryDashboard />} />
         <Route path="sfa/checkin" element={<CheckinPage />} />
+        <Route path="sfa/tour-report" element={<TourReport />} />
         <Route path="master/roles" element={<RolePermission />} />
         <Route path="master/team-access" element={<TeamAccess />} />
         <Route path="master/app-settings" element={<AppSettings />} />
