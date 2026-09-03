@@ -370,8 +370,7 @@ function FieldLogin({ onLogin }) {
     <div className="phone-body" style={{ display: "grid", placeItems: "center", padding: 24, background: "#fff" }}>
       <div style={{ width: "100%", maxWidth: 340 }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 16 }}>
-          <img src={logoImg} alt="Eurobond" style={{ height: 44, marginBottom: 6 }} />
-          <div style={{ fontWeight: 900, fontSize: 24, letterSpacing: 2, color: "#0b3c8c", fontFamily: "Bricolage Grotesque", marginBottom: 6 }}>EUROBOND</div>
+          <img src={logoImg} alt="Eurobond" style={{ height: 56, marginBottom: 10 }} />
           {/* route with 2 big pins; text next to each pin */}
           <svg width="290" height="150" viewBox="0 0 290 150" style={{ maxWidth: "100%" }}>
             {/* wavy route line */}
