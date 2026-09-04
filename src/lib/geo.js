@@ -193,6 +193,23 @@ export async function startTracker(onPoint, onError) {
   const BG = Cap && Cap.Plugins && Cap.Plugins.BackgroundGeolocation;
   const isNative = Cap && typeof Cap.isNativePlatform === "function" && Cap.isNativePlatform();
 
+  /* Start a dedicated persistent foreground service that keeps the whole process
+     alive — this is what survives app swipe-close on MIUI/ColorOS/OneUI. It runs
+     alongside the GPS watcher (does not touch GPS logic). */
+  if (isNative && Cap.Plugins && Cap.Plugins.ForegroundService) {
+    try {
+      const FGS = Cap.Plugins.ForegroundService;
+      await FGS.startForegroundService({
+        id: 74190,
+        title: "Eurobond CRM",
+        body: "Attendance tracking is running",
+        smallIcon: "ic_stat_notify",
+        silent: false,
+        notificationChannelId: "eurobond_crm",
+      });
+    } catch (e) { /* fall back to the bg-geolocation service alone */ }
+  }
+
   if (isNative && BG) {
     try {
       const id = await BG.addWatcher(
@@ -232,6 +249,8 @@ export async function stopTracker() {
   const BG = Cap && Cap.Plugins && Cap.Plugins.BackgroundGeolocation;
   if (_tracker.watcherId && BG) { try { await BG.removeWatcher({ id: _tracker.watcherId }); } catch {} _tracker.watcherId = null; }
   if (_tracker.webWatchId != null && navigator.geolocation) { try { navigator.geolocation.clearWatch(_tracker.webWatchId); } catch {} _tracker.webWatchId = null; }
+  /* stop the persistent foreground service when attendance ends */
+  try { if (Cap && Cap.Plugins && Cap.Plugins.ForegroundService) await Cap.Plugins.ForegroundService.stopForegroundService(); } catch {}
 }
 
 export function watchLocation(onPoint, onError) {
