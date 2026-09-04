@@ -177,6 +177,24 @@ try {
         keepAliveHandler.removeCallbacks(keepAlive);
         keepAliveHandler.postDelayed(keepAlive, 2000);
         ebScheduleAlarm();
+        // Also keep a near-term backup alarm so if the notification is swiped away
+        // while the app is closed, the service is re-created within a few seconds.
+        try {
+            AlarmManager am2 = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+            Intent bi = new Intent(getApplicationContext(), BackgroundGeolocationService.class);
+            bi.setAction("EB_ALARM_TICK");
+            int bflag = PendingIntent.FLAG_UPDATE_CURRENT;
+            try { bflag |= PendingIntent.FLAG_IMMUTABLE; } catch (Throwable t) {}
+            PendingIntent bp = PendingIntent.getService(getApplicationContext(), 4901, bi, bflag);
+            long bnext = System.currentTimeMillis() + 5000;
+            try {
+                PendingIntent bshow = PendingIntent.getService(getApplicationContext(), 4902, bi, bflag);
+                am2.setAlarmClock(new AlarmManager.AlarmClockInfo(bnext, bshow), bp);
+            } catch (Exception e) {
+                try { am2.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, bnext, bp); }
+                catch (Exception e2) { am2.set(AlarmManager.RTC_WAKEUP, bnext, bp); }
+            }
+        } catch (Exception e) {}
         return START_STICKY;
     }
 
