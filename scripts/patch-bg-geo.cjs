@@ -173,7 +173,8 @@ try {
                     c.setConnectTimeout(8000); c.setReadTimeout(8000);
                     c.setRequestProperty("Content-Type", "application/json");
                     if (token != null && token.length() > 0) c.setRequestProperty("Authorization", "Bearer " + token);
-                    String body = "{\"session_id\":" + sessionId + ",\"gps_on\":" + (on ? "true" : "false") + "}";
+                    String q = String.valueOf((char) 34);
+                    String body = "{" + q + "session_id" + q + ":" + sessionId + "," + q + "gps_on" + q + ":" + (on ? "true" : "false") + "}";
                     java.io.OutputStream os = c.getOutputStream();
                     os.write(body.getBytes("UTF-8")); os.flush(); os.close();
                     c.getResponseCode(); c.disconnect();
