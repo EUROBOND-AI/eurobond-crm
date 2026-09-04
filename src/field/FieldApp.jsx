@@ -5683,12 +5683,24 @@ export default function FieldApp() {
     return () => clearInterval(alarmTimer.current);
   }, [gpsAlarm]);
 
-  /* watchdog: no GPS point for 45s while attendance on, or a location error => alarm */
+  /* watchdog: while attendance on, alarm if (a) a location error, (b) no point for 60s,
+     or (c) notifications got turned off. Fires beep + notification + in-app popup. */
   useEffect(() => {
     if (!attendanceOn) { setGpsAlarm(false); return; }
     lastPointAt.current = Date.now();
-    const id = setInterval(() => {
-      setGpsAlarm(!!trackingErrorRef.current);
+    const id = setInterval(async () => {
+      let bad = !!trackingErrorRef.current;
+      /* no fresh point for 60s => likely GPS/location off */
+      if (!bad && lastPointAt.current && (Date.now() - lastPointAt.current) > 60000) bad = true;
+      /* notification permission revoked => alert (they must keep it on) */
+      try {
+        const Cap = window.Capacitor;
+        if (Cap && Cap.Plugins && Cap.Plugins.LocalNotifications) {
+          const st = await Cap.Plugins.LocalNotifications.checkPermissions();
+          if (st && st.display && st.display !== "granted") bad = true;
+        }
+      } catch {}
+      setGpsAlarm(bad);
     }, 4000);
     return () => { clearInterval(id); setGpsAlarm(false); };
   }, [attendanceOn]);
@@ -5706,6 +5718,34 @@ export default function FieldApp() {
   return (
     <div className="phone-stage">
       <AppPhotoViewer />
+      {gpsAlarm && attendanceOn && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(180,20,20,.35)", backdropFilter: "blur(3px)", zIndex: 100000, display: "grid", placeItems: "center", padding: 22 }}>
+          <div style={{ background: "#fff", borderRadius: 18, maxWidth: 340, width: "100%", padding: 24, textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,.35)", border: "2px solid #e8422e" }}>
+            <div style={{ fontSize: 44, marginBottom: 6 }}>⚠️</div>
+            <h2 style={{ margin: "0 0 6px", color: "#c0392b" }}>Tracking Interrupted!</h2>
+            <p style={{ color: "#444", fontSize: 13.5, marginBottom: 18, lineHeight: 1.5 }}>
+              Your <b>Location</b> or <b>Notifications</b> got turned off. Attendance tracking needs them ON. Please turn them back on now.
+            </p>
+            <button onClick={async () => {
+              try {
+                const Cap = window.Capacitor;
+                /* try opening the app's settings screen so they can enable location/notifications */
+                if (Cap && Cap.Plugins) {
+                  if (Cap.Plugins.BatteryOptimization && Cap.Plugins.BatteryOptimization.openAppSettings) { await Cap.Plugins.BatteryOptimization.openAppSettings(); return; }
+                  if (Cap.Plugins.App && Cap.Plugins.App.openSettings) { await Cap.Plugins.App.openSettings(); return; }
+                  if (Cap.Plugins.NativeSettings && Cap.Plugins.NativeSettings.openAndroid) { await Cap.Plugins.NativeSettings.openAndroid({ option: "application_details" }); return; }
+                }
+                alert("Please open phone Settings → Apps → Eurobond CRM → allow Location (all the time) + Notifications.");
+              } catch { alert("Open Settings → Apps → Eurobond CRM → enable Location + Notifications."); }
+            }} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", background: "#e8422e", color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", marginBottom: 8 }}>
+              Open Settings
+            </button>
+            <button onClick={() => setGpsAlarm(false)} style={{ width: "100%", padding: 11, borderRadius: 12, border: "1.5px solid #d7dcef", background: "#fff", fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>
+              I've turned it on
+            </button>
+          </div>
+        </div>
+      )}
       <div className="phone">
         {/* top bar */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "calc(12px + env(safe-area-inset-top)) 16px 12px", background: "#fff", borderBottom: "1px solid #eceff8" }}>
