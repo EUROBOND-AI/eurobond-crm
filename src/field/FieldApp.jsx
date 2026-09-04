@@ -5689,19 +5689,19 @@ export default function FieldApp() {
     if (!attendanceOn) { setGpsAlarm(false); return; }
     lastPointAt.current = Date.now();
     const id = setInterval(async () => {
-      let bad = !!trackingErrorRef.current;
-      /* no fresh point for 60s => likely GPS/location off */
-      if (!bad && lastPointAt.current && (Date.now() - lastPointAt.current) > 60000) bad = true;
-      /* notification permission revoked => alert (they must keep it on) */
+      let bad = false;
+      /* check the ACTUAL location-enabled state — this is the real trigger */
       try {
         const Cap = window.Capacitor;
-        if (Cap && Cap.Plugins && Cap.Plugins.LocalNotifications) {
-          const st = await Cap.Plugins.LocalNotifications.checkPermissions();
-          if (st && st.display && st.display !== "granted") bad = true;
+        if (Cap && Cap.Plugins && Cap.Plugins.Geolocation) {
+          const perm = await Cap.Plugins.Geolocation.checkPermissions();
+          if (perm && perm.location && perm.location !== "granted" && perm.location !== "prompt") bad = true;
         }
       } catch {}
+      /* a hard location error from the tracker also counts */
+      if (!bad && trackingErrorRef.current) bad = true;
       setGpsAlarm(bad);
-    }, 4000);
+    }, 5000);
     return () => { clearInterval(id); setGpsAlarm(false); };
   }, [attendanceOn]);
 
@@ -5724,21 +5724,24 @@ export default function FieldApp() {
             <div style={{ fontSize: 44, marginBottom: 6 }}>⚠️</div>
             <h2 style={{ margin: "0 0 6px", color: "#c0392b" }}>Tracking Interrupted!</h2>
             <p style={{ color: "#444", fontSize: 13.5, marginBottom: 18, lineHeight: 1.5 }}>
-              Your <b>Location</b> or <b>Notifications</b> got turned off. Attendance tracking needs them ON. Please turn them back on now.
+              Your <b>Location</b> is OFF. Attendance tracking needs it ON. Tap below to turn it on.
             </p>
             <button onClick={async () => {
               try {
                 const Cap = window.Capacitor;
-                /* try opening the app's settings screen so they can enable location/notifications */
                 if (Cap && Cap.Plugins) {
-                  if (Cap.Plugins.BatteryOptimization && Cap.Plugins.BatteryOptimization.openAppSettings) { await Cap.Plugins.BatteryOptimization.openAppSettings(); return; }
+                  /* 1) directly ask the OS to turn location ON (shows the "Turn on" dialog) */
+                  try { if (Cap.Plugins.Geolocation && Cap.Plugins.Geolocation.requestPermissions) { await Cap.Plugins.Geolocation.requestPermissions(); } } catch {}
+                  try {
+                    if (Cap.Plugins.BackgroundGeolocation && Cap.Plugins.BackgroundGeolocation.openSettings) { await Cap.Plugins.BackgroundGeolocation.openSettings(); }
+                  } catch {}
+                  /* 2) open the phone's Location settings screen directly */
+                  if (Cap.Plugins.NativeSettings && Cap.Plugins.NativeSettings.openAndroid) { await Cap.Plugins.NativeSettings.openAndroid({ option: "location" }); return; }
                   if (Cap.Plugins.App && Cap.Plugins.App.openSettings) { await Cap.Plugins.App.openSettings(); return; }
-                  if (Cap.Plugins.NativeSettings && Cap.Plugins.NativeSettings.openAndroid) { await Cap.Plugins.NativeSettings.openAndroid({ option: "application_details" }); return; }
                 }
-                alert("Please open phone Settings → Apps → Eurobond CRM → allow Location (all the time) + Notifications.");
-              } catch { alert("Open Settings → Apps → Eurobond CRM → enable Location + Notifications."); }
-            }} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", background: "#e8422e", color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", marginBottom: 8 }}>
-              Open Settings
+              } catch { alert("Turn ON your phone's Location (GPS) to continue tracking."); }
+            }} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", background: "#20bf6b", color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", marginBottom: 8 }}>
+              📍 Turn ON Location
             </button>
             <button onClick={() => setGpsAlarm(false)} style={{ width: "100%", padding: 11, borderRadius: 12, border: "1.5px solid #d7dcef", background: "#fff", fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>
               I've turned it on
