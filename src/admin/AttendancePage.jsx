@@ -323,8 +323,13 @@ export default function AttendancePage() {
                 <td>{s.end_reading ? <img src={s.end_reading} alt="Reading Out" onClick={() => setPhotoView({ url: s.end_reading, label: "Reading Out (Odometer)" })} style={thumb} /> : <span style={{ color: "var(--muted)" }}>—</span>}</td>
                 <td>
                   {(() => {
-                    const on = s.app_status === "Live";
-                    const closed = s.app_status === "GPS Off" || s.app_status === "App Closed";
+                    /* prefer the instant gps_on flag the phone pushes the moment location
+                       is toggled; fall back to app_status if the flag isn't set yet */
+                    const isRunning = String(s.status || "").toUpperCase() === "RUNNING" || !s.end_time;
+                    let on;
+                    if (s.gps_on != null && s.gps_on !== "") on = (Number(s.gps_on) === 1) && isRunning;
+                    else on = s.app_status === "Live";
+                    const closed = !on && isRunning;
                     return (
                       <span title={on ? "GPS ON (live)" : closed ? "GPS OFF" : "Completed"} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                         <span style={{

@@ -115,8 +115,9 @@ try {
                 try {
                     LocationManager lm = (LocationManager) ctx.getSystemService(Context.LOCATION_SERVICE);
                     boolean on = lm != null && (lm.isProviderEnabled(LocationManager.GPS_PROVIDER) || lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER));
+                    ebPostGpsStatus(on);   // tell the server instantly (admin sees it live)
                     if (!on) { ebAlertLocationOff(); }
-                    else { ebStopAlarmSound(); /* location back ON -> stop the song + clear notif */
+                    else { ebStopAlarmSound();
                         try { NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE); if (nm != null) nm.cancel(74191); } catch (Exception e) {}
                     }
                 } catch (Exception e) {}
@@ -153,6 +154,32 @@ try {
 
     private void ebStopAlarmSound() {
         try { if (ebAlarmRingtone != null && ebAlarmRingtone.isPlaying()) ebAlarmRingtone.stop(); } catch (Exception e) {}
+    }
+    /* POST the current GPS on/off state to the server so admin sees it instantly. */
+    private void ebPostGpsStatus(final boolean on) {
+        new Thread(new Runnable() {
+            @Override public void run() {
+                try {
+                    SharedPreferences prefs = getApplicationContext().getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE);
+                    String sessionId = prefs.getString("eb_session_id", null);
+                    String token = prefs.getString("eb_token", null);
+                    String uploadUrl = prefs.getString("eb_upload_url", null);
+                    if (sessionId == null || uploadUrl == null) return;
+                    String base = uploadUrl.replace("action=points", "action=gpsstatus");
+                    java.net.URL u = new java.net.URL(base);
+                    java.net.HttpURLConnection c = (java.net.HttpURLConnection) u.openConnection();
+                    c.setRequestMethod("POST");
+                    c.setDoOutput(true);
+                    c.setConnectTimeout(8000); c.setReadTimeout(8000);
+                    c.setRequestProperty("Content-Type", "application/json");
+                    if (token != null && token.length() > 0) c.setRequestProperty("Authorization", "Bearer " + token);
+                    String body = "{\"session_id\":" + sessionId + ",\"gps_on\":" + (on ? "true" : "false") + "}";
+                    java.io.OutputStream os = c.getOutputStream();
+                    os.write(body.getBytes("UTF-8")); os.flush(); os.close();
+                    c.getResponseCode(); c.disconnect();
+                } catch (Exception e) {}
+            }
+        }).start();
     }
     /* If the user disables notifications for the app (to dodge tracking), alert them
        with the same loud sound + a notification pushed on a different channel. */
