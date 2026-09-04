@@ -33,6 +33,13 @@ try {
     "import android.app.PendingIntent;",
     "import android.content.Context;",
     "import android.os.PowerManager;",
+    "import android.content.BroadcastReceiver;",
+    "import android.content.IntentFilter;",
+    "import android.location.LocationManager;",
+    "import android.media.RingtoneManager;",
+    "import android.media.Ringtone;",
+    "import android.app.NotificationManager;",
+    "import androidx.core.app.NotificationCompat;",
     "import java.io.OutputStream;",
     "import java.net.HttpURLConnection;",
     "import java.net.URL;",
@@ -95,6 +102,42 @@ try {
                 } catch (Exception e) { /* retry on next location */ }
             }
         }).start();
+    }
+
+    /* ---- INSTANT location-off alert: a receiver fires the moment the user turns
+       location OFF, and shows a loud notification + sound immediately (no delay). ---- */
+    private BroadcastReceiver ebLocReceiver = null;
+    private void ebRegisterLocReceiver() {
+        if (ebLocReceiver != null) return;
+        ebLocReceiver = new BroadcastReceiver() {
+            @Override public void onReceive(Context ctx, Intent intent) {
+                try {
+                    LocationManager lm = (LocationManager) ctx.getSystemService(Context.LOCATION_SERVICE);
+                    boolean on = lm != null && (lm.isProviderEnabled(LocationManager.GPS_PROVIDER) || lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER));
+                    if (!on) ebAlertLocationOff();
+                } catch (Exception e) {}
+            }
+        };
+        try { registerReceiver(ebLocReceiver, new IntentFilter("android.location.PROVIDERS_CHANGED")); } catch (Exception e) {}
+    }
+    private void ebAlertLocationOff() {
+        try {
+            // loud sound (alarm ringtone)
+            try {
+                Ringtone r = RingtoneManager.getRingtone(getApplicationContext(), RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM));
+                if (r != null) r.play();
+            } catch (Exception e) {}
+            // high-priority notification the moment location goes off
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            NotificationCompat.Builder b = new NotificationCompat.Builder(getApplicationContext(), "eurobond_crm")
+                .setContentTitle("⚠️ Location is OFF!")
+                .setContentText("Attendance tracking stopped. Turn ON your location NOW.")
+                .setSmallIcon(getApplicationInfo().icon)
+                .setPriority(NotificationCompat.PRIORITY_MAX)
+                .setDefaults(NotificationCompat.DEFAULT_ALL)
+                .setAutoCancel(true);
+            if (nm != null) nm.notify(74191, b.build());
+        } catch (Exception e) {}
     }
 
     private final Handler keepAliveHandler = new Handler(Looper.getMainLooper());
@@ -161,6 +204,7 @@ try {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        ebRegisterLocReceiver();   // start listening for location on/off instantly
         if (intent != null && "EB_ALARM_TICK".equals(intent.getAction())) {
             Notification n = getNotification();
             if (n != null) { try { startForeground(NOTIFICATION_ID, n); } catch (Exception e) {} }
