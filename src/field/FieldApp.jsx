@@ -1854,7 +1854,7 @@ function FieldFollowUpNew({ add, editData }) {
         setContacts((cs) => { const c = [...cs]; c[0] = { ...c[0], name: fld.name || c[0].name, mobile: fld.mobile || c[0].mobile, whatsapp: fld.mobile || c[0].whatsapp, email: fld.email || c[0].email }; return c; });
         alert("Card scanned — details auto-filled. Please verify before saving.");
       } else {
-        alert(r?.error || "Could not read the card. Please fill manually.");
+        alert(r?.error ? (r.error + (r.detail ? "\n\n" + r.detail : "")) : "Could not read the card. Please fill manually.");
       }
     } catch (e) { alert("Scan failed: " + e.message); }
     setScanBusy(false);
