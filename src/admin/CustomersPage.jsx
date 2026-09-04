@@ -28,7 +28,7 @@ export default function CustomersPage() {
   const [sel, setSel] = useState(new Set());
   const [fwdOpen, setFwdOpen] = useState(null);
   const [users, setUsers] = useState([]);
-  const CUST_COLS = ["Customer", "Category", "Contact", "Mobile", "Email", "Projects", "Place", "Address", "Entries", "By"];
+  const CUST_COLS = ["Customer", "Category", "Contact", "Mobile", "Email", "Projects", "State", "Place", "Address", "Entries", "By", "HOD"];
   const [hiddenCols, setHiddenCols] = useState(() => { try { return new Set(JSON.parse(localStorage.getItem("cust_hidden_cols") || "[]")); } catch { return new Set(); } });
   const [cfgOpen, setCfgOpen] = useState(false);
   const toggleCol = (c) => setHiddenCols((s) => { const n = new Set(s); n.has(c) ? n.delete(c) : n.add(c); localStorage.setItem("cust_hidden_cols", JSON.stringify([...n])); return n; });
@@ -136,7 +136,6 @@ export default function CustomersPage() {
             onExport={exportCsv}
             onImport={() => document.getElementById("cust-import-file").click()}
             onHeaderConfig={() => setCfgOpen(true)}
-            onLogs={() => alert("Logs — customer entries come from field app follow-ups.")}
             onReport={exportCsv}
           />
         }
@@ -204,12 +203,12 @@ export default function CustomersPage() {
                     checked={list.length > 0 && list.every((r) => sel.has(r.mobile || r.name))}
                     onChange={(e) => setSel(e.target.checked ? new Set(list.map((r) => r.mobile || r.name)) : new Set())} />
                 </th>
-                {["Customer", "Category", "Contact", "Mobile", "Email", "Projects", "Place", "Address", "Entries", "By"].filter(colVisible).concat(["Action"]).map((h) => (
+                {["Customer", "Category", "Contact", "Mobile", "Email", "Projects", "State", "Place", "Address", "Entries", "By", "HOD"].filter(colVisible).concat(["Action"]).map((h) => (
                   <th key={h} style={{ padding: "11px 14px", fontWeight: 800, fontSize: 12, color: "#4a5578", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
               <tr style={{ background: "#fafbff" }}>
-                {[[null], ["name", "Customer"], ["category", "Category"], ["contactName", "Contact"], ["mobile", "Mobile"], ["email", "Email"], [null, "Projects"], ["place", "Place"], ["address", "Address"], [null, "Entries"], ["by", "By"], [null, "Action"]].filter(([, col]) => !col || col === "Action" || colVisible(col)).map(([k], i) => (
+                {[[null], ["name", "Customer"], ["category", "Category"], ["contactName", "Contact"], ["mobile", "Mobile"], ["email", "Email"], [null, "Projects"], ["state", "State"], ["place", "Place"], ["address", "Address"], [null, "Entries"], ["by", "By"], [null, "HOD"], [null, "Action"]].filter(([, col]) => !col || col === "Action" || colVisible(col)).map(([k], i) => (
                   <th key={i} style={{ padding: "6px 10px" }}>
                     {k && <input value={colSearch[k] || ""} onChange={(e) => setColSearch((c) => ({ ...c, [k]: e.target.value }))} placeholder="Search…"
                       style={{ width: "100%", padding: "5px 8px", borderRadius: 7, border: "1px solid var(--line)", fontSize: 11.5, background: "#fff", fontWeight: 400 }} />}
@@ -236,10 +235,12 @@ export default function CustomersPage() {
                   {colVisible("Mobile") && <td style={{ padding: "11px 14px" }}>{r.mobile ? <span style={{ color: "var(--accent)" }}><Phone size={12} /> {r.mobile}</span> : "—"}</td>}
                   {colVisible("Email") && <td style={{ padding: "11px 14px" }}>{r.email || (Array.isArray(r.contacts) && r.contacts[0] && r.contacts[0].email) || "—"}</td>}
                   {colVisible("Projects") && <td style={{ padding: "11px 14px", maxWidth: 180 }}>{r.projectName || (Array.isArray(r.projects) ? r.projects.join(", ") : "") || "—"}</td>}
+                  {colVisible("State") && <td style={{ padding: "11px 14px" }}>{r.state || "—"}</td>}
                   {colVisible("Place") && <td style={{ padding: "11px 14px" }}>{r.place ? <span><MapPin size={12} /> {r.place}</span> : "—"}</td>}
                   {colVisible("Address") && <AddressCell text={r.address} />}
                   {colVisible("Entries") && <td style={{ padding: "11px 14px", textAlign: "center", fontWeight: 700 }}>{r.followups}</td>}
                   {colVisible("By") && <td style={{ padding: "11px 14px", color: "var(--muted)" }}>{r.by || "—"}</td>}
+                  {colVisible("HOD") && <td style={{ padding: "11px 14px", color: "var(--muted)" }}>{r.hod || (users.find((u) => u.name === r.by)?.manager) || "—"}</td>}
                   <td style={{ padding: "11px 14px" }}>
                     <div style={{ display: "flex", gap: 6 }}>
                       <button className="btn btn-ghost" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => setView(r)}><Eye size={12} /> View</button>
