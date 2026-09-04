@@ -101,7 +101,14 @@ export default function EnquiryPage() {
     if (stateF) l = l.filter((r) => (r.state || "") === stateF);
     if (search) {
       const q = search.toLowerCase();
-      l = l.filter((r) => Object.values(r).some((v) => String(v ?? "").toLowerCase().includes(q)));
+      l = l.filter((r) => {
+        if (Object.values(r).some((v) => String(v ?? "").toLowerCase().includes(q))) return true;
+        /* also match the assigned person's employee code + name from users */
+        const who = r.assignedTo || r.passto || r.createdBy || r.by;
+        const u = users.find((x) => x.name === who);
+        if (u && (String(u.code || "").toLowerCase().includes(q) || String(u.empCode || "").toLowerCase().includes(q))) return true;
+        return false;
+      });
     }
     Object.entries(colSearch).forEach(([k, v]) => {
       const vv = String(v || "").toLowerCase();
