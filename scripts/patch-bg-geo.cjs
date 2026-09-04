@@ -256,20 +256,27 @@ try {
         fs.writeFileSync(manifest, mf, "utf8");
         console.log("[patch-bg-geo] added alarm permissions to AndroidManifest ✓");
       }
-      /* ---- KEY: make the tracking service survive app swipe-close ----
-         android:stopWithTask="false" keeps the foreground service running even after
-         the user swipes the app away from recent apps. Without this, Android kills it. */
-      mf = fs.readFileSync(manifest, "utf8");
-      if (mf.includes("BackgroundGeolocationService") && !mf.match(/BackgroundGeolocationService[^>]*stopWithTask/)) {
-        mf = mf.replace(
-          /(<service[^>]*android:name="[^"]*BackgroundGeolocationService")/,
-          '$1 android:stopWithTask="false"'
-        );
-        fs.writeFileSync(manifest, mf, "utf8");
-        console.log("[patch-bg-geo] service now survives app swipe-close (stopWithTask=false) ✓");
-      }
     }
   } catch (e) { console.log("[patch-bg-geo] manifest note:", e.message); }
+
+  /* ---- KEY: make the tracking service survive app swipe-close ----
+     The service is declared in the PLUGIN's own manifest, so patch that file.
+     android:stopWithTask="false" keeps the foreground service (and its
+     notification) running even after the user swipes the app from recents.
+     This runs independently so it applies even on re-runs. */
+  try {
+    const pluginManifest = path.join(__dirname, "..", "node_modules", "@capacitor-community", "background-geolocation", "android", "src", "main", "AndroidManifest.xml");
+    if (fs.existsSync(pluginManifest)) {
+      let pm = fs.readFileSync(pluginManifest, "utf8");
+      if (!pm.includes('android:stopWithTask')) {
+        pm = pm.replace(/android:foregroundServiceType="location"\s*\/>/, 'android:foregroundServiceType="location"\n            android:stopWithTask="false" />');
+        fs.writeFileSync(pluginManifest, pm, "utf8");
+        console.log("[patch-bg-geo] plugin service now survives app swipe-close (stopWithTask=false) ✓");
+      } else {
+        console.log("[patch-bg-geo] plugin service already has stopWithTask ✓");
+      }
+    }
+  } catch (e) { console.log("[patch-bg-geo] plugin manifest note:", e.message); }
 
   // ---- set the tracking-notification icon to the Eurobond logo (string resource only,
   //      no code logic touched) ----
