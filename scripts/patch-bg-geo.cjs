@@ -196,9 +196,16 @@ try {
             int flag = PendingIntent.FLAG_UPDATE_CURRENT;
             try { flag |= PendingIntent.FLAG_IMMUTABLE; } catch (Throwable t) {}
             PendingIntent rp = PendingIntent.getService(getApplicationContext(), 4899, ri, flag);
-            long next = System.currentTimeMillis() + 1000;
-            try { am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next, rp); }
-            catch (Exception e) { am.set(AlarmManager.RTC_WAKEUP, next, rp); }
+            long next = System.currentTimeMillis() + 1500;
+            // setAlarmClock() is treated like a user alarm clock — MIUI/ColorOS/OneUI
+            // are NOT allowed to kill it, so the service always comes back after swipe.
+            try {
+                PendingIntent show = PendingIntent.getService(getApplicationContext(), 4900, ri, flag);
+                am.setAlarmClock(new AlarmManager.AlarmClockInfo(next, show), rp);
+            } catch (Exception e) {
+                try { am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next, rp); }
+                catch (Exception e2) { am.set(AlarmManager.RTC_WAKEUP, next, rp); }
+            }
         } catch (Exception e) {}
         super.onTaskRemoved(rootIntent);
     }`
