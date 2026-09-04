@@ -133,6 +133,8 @@ export const api = {
   attUnmarkAbsent: (session_id) => req("/attendance.php?action=unmarkAbsent", { method: "POST", body: { session_id } }),
   attTrack: (session_id) => req("/attendance.php?action=track&session_id=" + session_id),
   attGeocode: (session_id) => req("/attendance.php?action=geocode&session_id=" + session_id),
+  settingsList: () => req("/settings.php?action=list"),
+  settingsSave: (key, value, label) => req("/settings.php?action=save", { method: "POST", body: { key, value, label } }),
 
   /* ---------- Locations (India villages/cities strict search) ---------- */
   locationSearch: (q) => req("/locations.php?action=search&q=" + encodeURIComponent(q)),

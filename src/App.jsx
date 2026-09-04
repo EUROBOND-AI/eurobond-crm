@@ -13,6 +13,7 @@ import EnquiryDashboard from "./admin/EnquiryDashboard.jsx";
 import ModulePage from "./admin/ModulePage.jsx";
 import CheckinPage from "./admin/CheckinPage.jsx";
 import TourReport from "./admin/TourReport.jsx";
+import ApiKeysPage from "./admin/ApiKeysPage.jsx";
 import RolePermission from "./admin/RolePermission.jsx";
 import TeamAccess from "./admin/TeamAccess.jsx";
 import AppSettings from "./admin/AppSettings.jsx";
@@ -80,6 +81,7 @@ export default function App() {
         <Route path="sfa/quotation" element={<QuotationAdmin />} />
         <Route path="master/products" element={<ProductsPage />} />
         <Route path="master/holidays" element={<HolidaysPage />} />
+        <Route path="master/api-keys" element={<ApiKeysPage />} />
         <Route path="sfa/enquiry" element={<EnquiryPage />} />
         <Route path="sfa/expense" element={<ExpenseApprovals />} />
         <Route path="sfa/attendance-sheet" element={<AttendanceSheet />} />

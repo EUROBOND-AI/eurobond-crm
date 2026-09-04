@@ -59,6 +59,7 @@ const NAV = [
           { label: "Areas", to: "/admin/master/areas" },
           { label: "Products", to: "/admin/master/products" },
           { label: "Resources & Links", to: "/admin/master/resources" },
+          { label: "API Keys & Settings", to: "/admin/master/api-keys" },
         ],
       },
     ],
