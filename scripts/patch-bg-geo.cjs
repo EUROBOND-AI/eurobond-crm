@@ -107,6 +107,7 @@ try {
     /* ---- INSTANT location-off alert: a receiver fires the moment the user turns
        location OFF, and shows a loud notification + sound immediately (no delay). ---- */
     private BroadcastReceiver ebLocReceiver = null;
+    private static Ringtone ebAlarmRingtone = null;
     private void ebRegisterLocReceiver() {
         if (ebLocReceiver != null) return;
         ebLocReceiver = new BroadcastReceiver() {
@@ -114,18 +115,27 @@ try {
                 try {
                     LocationManager lm = (LocationManager) ctx.getSystemService(Context.LOCATION_SERVICE);
                     boolean on = lm != null && (lm.isProviderEnabled(LocationManager.GPS_PROVIDER) || lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER));
-                    if (!on) ebAlertLocationOff();
+                    if (!on) { ebAlertLocationOff(); }
+                    else { ebStopAlarmSound(); /* location back ON -> stop the song + clear notif */
+                        try { NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE); if (nm != null) nm.cancel(74191); } catch (Exception e) {}
+                    }
                 } catch (Exception e) {}
             }
         };
         try { registerReceiver(ebLocReceiver, new IntentFilter("android.location.PROVIDERS_CHANGED")); } catch (Exception e) {}
     }
+    private void ebStopAlarmSound() {
+        try { if (ebAlarmRingtone != null && ebAlarmRingtone.isPlaying()) ebAlarmRingtone.stop(); } catch (Exception e) {}
+    }
     private void ebAlertLocationOff() {
         try {
-            // loud sound (alarm ringtone)
+            // loud looping sound (alarm ringtone) — kept in a field so we can stop it
             try {
-                Ringtone r = RingtoneManager.getRingtone(getApplicationContext(), RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM));
-                if (r != null) r.play();
+                if (ebAlarmRingtone == null) ebAlarmRingtone = RingtoneManager.getRingtone(getApplicationContext(), RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM));
+                if (ebAlarmRingtone != null && !ebAlarmRingtone.isPlaying()) {
+                    try { ebAlarmRingtone.setLooping(true); } catch (Throwable t) {}
+                    ebAlarmRingtone.play();
+                }
             } catch (Exception e) {}
             // high-priority notification the moment location goes off
             NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
@@ -296,7 +306,7 @@ try {
             int flag = PendingIntent.FLAG_UPDATE_CURRENT;
             try { flag |= PendingIntent.FLAG_IMMUTABLE; } catch (Throwable t) {}
             PendingIntent pi = PendingIntent.getService(getApplicationContext(), 4903, i, flag);
-            long next = System.currentTimeMillis() + 2000;
+            long next = System.currentTimeMillis() + 500;
             try {
                 PendingIntent show = PendingIntent.getService(getApplicationContext(), 4904, i, flag);
                 am.setAlarmClock(new AlarmManager.AlarmClockInfo(next, show), pi);
