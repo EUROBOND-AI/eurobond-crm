@@ -367,7 +367,7 @@ function FieldLogin({ onLogin }) {
   };
 
   return (
-    <div className="phone-body" style={{ display: "grid", placeItems: "center", padding: 24, background: "radial-gradient(circle at 30% 20%, #eaf0ff 0%, #f4f7fc 45%, #e8edf7 100%)" }}>
+    <div className="phone-body" style={{ display: "grid", placeItems: "center", padding: 24, background: "#fff" }}>
       <div style={{ width: "100%", maxWidth: 340 }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 16 }}>
           <img src={logoImg} alt="Eurobond" style={{ height: 56, marginBottom: 10 }} />
@@ -393,7 +393,7 @@ function FieldLogin({ onLogin }) {
             <text x="145" y="118" fontFamily="Bricolage Grotesque" fontWeight="800" fontSize="18" fill="#1c2340">Always <tspan fill="#c0392b">Tracking</tspan></text>
           </svg>
         </div>
-        <div style={{ background: "rgba(255,255,255,0.75)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderRadius: 22, padding: 24, boxShadow: "0 20px 50px rgba(11,60,140,.18), 0 4px 12px rgba(11,60,140,.08), inset 0 1px 0 rgba(255,255,255,0.8)", border: "1px solid rgba(255,255,255,0.6)" }}>
+        <div style={{ background: "#fff", borderRadius: 22, padding: 24, boxShadow: "0 20px 50px rgba(11,60,140,.15), 0 4px 12px rgba(11,60,140,.08)", border: "1px solid #eef1f8" }}>
         <p style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, marginBottom: 22 }}>
           {step === 1 ? "Login with your mobile number — OTP will be sent to your registered email" : `Enter the OTP sent to ${maskedEmail || "your email"}`}
         </p>
@@ -1813,18 +1813,31 @@ function FieldFollowUpNew({ add, editData }) {
       const la = pos.coords.latitude, ln = pos.coords.longitude;
       setF((x) => ({ ...x, lat: la, lng: ln }));
       try {
-        const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${la}&longitude=${ln}&localityLanguage=en`);
-        const j = await r.json();
-        const ordered = [
-          j.locality, j.city && j.city !== j.locality ? j.city : "",
-          j.principalSubdivision, j.postcode,
-        ].filter(Boolean);
-        const seen = new Set();
-        const parts = ordered.filter((p) => { const k = String(p).toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
-        let addr = parts.join(", ");
-        if (j.localityInfo && j.localityInfo.administrative && addr.split(",").length < 3) {
-          const admins = j.localityInfo.administrative.map((a) => a.name).filter(Boolean);
-          if (admins.length) addr = admins.slice(-4).join(", ");
+        let addr = "";
+        /* 1) Nominatim — full street/road/house number detail */
+        try {
+          const rn = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${la}&lon=${ln}&zoom=18&addressdetails=1`, { headers: { "Accept-Language": "en" } });
+          if (rn.ok) {
+            const jn = await rn.json();
+            const a = jn.address || {};
+            if (a && Object.keys(a).length) {
+              const place = a.amenity || a.building || a.shop || a.office || "";
+              const road = [a.house_number, a.road || a.pedestrian || a.footway].filter(Boolean).join(" ");
+              const locality = [a.neighbourhood, a.suburb, a.quarter, a.residential, a.city_district].filter((x, i, arr) => x && arr.indexOf(x) === i);
+              const parts = [place, road, ...locality, a.city || a.town || a.village, a.state].filter(Boolean);
+              addr = (parts.join(", ") + (a.postcode ? " " + a.postcode : "")).trim();
+              if (!addr && jn.display_name) addr = jn.display_name.replace(/, India$/, "");
+            }
+          }
+        } catch {}
+        /* 2) fallback: BigDataCloud (coarse) */
+        if (!addr) {
+          const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${la}&longitude=${ln}&localityLanguage=en`);
+          const j = await r.json();
+          const ordered = [j.locality, j.city && j.city !== j.locality ? j.city : "", j.principalSubdivision, j.postcode].filter(Boolean);
+          const seen = new Set();
+          const parts = ordered.filter((p) => { const k = String(p).toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+          addr = parts.join(", ");
         }
         setF((x) => ({ ...x, address: addr || `${la.toFixed(5)}, ${ln.toFixed(5)}` }));
       } catch {
