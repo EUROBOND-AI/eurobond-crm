@@ -104,9 +104,14 @@ export default function EnquiryPage() {
       l = l.filter((r) => {
         if (Object.values(r).some((v) => String(v ?? "").toLowerCase().includes(q))) return true;
         /* also match the assigned person's employee code + name from users */
-        const who = r.assignedTo || r.passto || r.createdBy || r.by;
-        const u = users.find((x) => x.name === who);
-        if (u && (String(u.code || "").toLowerCase().includes(q) || String(u.empCode || "").toLowerCase().includes(q))) return true;
+        const names = [r.assignedTo, r.passto, r.createdBy, r.by].filter(Boolean);
+        for (const who of names) {
+          const u = users.find((x) => x.name === who || x.name === String(who).trim());
+          if (u) {
+            const codes = [u.code, u.empCode, u.data?.code, u.data?.empCode].filter(Boolean).map((c) => String(c).toLowerCase());
+            if (codes.some((c) => c.includes(q))) return true;
+          }
+        }
         return false;
       });
     }
@@ -129,10 +134,10 @@ export default function EnquiryPage() {
 
   const doAssign = async (userId, userName, isReassign) => {
     if (!window.confirm(`${isReassign ? "Re-Assign" : "Assign"} to ${userName}?`)) return;
-    const ids = assignFor === "bulk" ? [...selected] : [assignFor._id];
+    const ids = assignFor === "bulk" ? [...selected] : [assignFor._id || assignFor.id];
     try {
       for (const id of ids) {
-        const row = (rows || []).find((r) => r._id === id);
+        const row = (rows || []).find((r) => (r._id || r.id) === id);
         if (!row) continue;
         await api.update("enquiry", id, {
           ...row, assignedTo: userName, assignedToId: userId,
