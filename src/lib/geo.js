@@ -199,15 +199,20 @@ export async function startTracker(onPoint, onError) {
   if (isNative && Cap.Plugins && Cap.Plugins.ForegroundService) {
     try {
       const FGS = Cap.Plugins.ForegroundService;
-      try { await FGS.requestPermissions(); } catch {}
+      try { await FGS.requestPermissions(); } catch (pe) {}
       await FGS.startForegroundService({
         id: 74190,
         title: "Eurobond CRM",
         body: "Attendance tracking is running",
         smallIcon: "ic_stat_notify",
-        serviceType: 8,   // ServiceType.Location — REQUIRED on Android 10+ or the service fails to start
+        serviceType: 8,   // ServiceType.Location — REQUIRED on Android 10+
       });
-    } catch (e) { /* fall back to the bg-geolocation service alone */ }
+      _tracker.diag.fgs = "started";
+    } catch (e) {
+      _tracker.diag.fgs = "FAILED: " + (e && e.message ? e.message : String(e));
+    }
+  } else {
+    _tracker.diag.fgs = isNative ? "plugin-not-found" : "web";
   }
 
   if (isNative && BG) {

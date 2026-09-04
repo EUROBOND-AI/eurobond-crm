@@ -287,6 +287,28 @@ try {
     }
   } catch (e) { console.log("[patch-bg-geo] plugin manifest note:", e.message); }
 
+  /* ---- foreground-service plugin: declare its service with foregroundServiceType
+     so Android 10+/14+ actually starts it (otherwise startForegroundService fails). ---- */
+  try {
+    const fgsManifest = path.join(__dirname, "..", "node_modules", "@capawesome-team", "capacitor-android-foreground-service", "android", "src", "main", "AndroidManifest.xml");
+    if (fs.existsSync(fgsManifest)) {
+      let fm = fs.readFileSync(fgsManifest, "utf8");
+      if (!fm.includes("AndroidForegroundService")) {
+        const serviceXml = '    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\n' +
+          '    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />\n' +
+          '    <application>\n' +
+          '        <service android:name="io.capawesome.capacitorjs.plugins.foregroundservice.AndroidForegroundService"\n' +
+          '            android:foregroundServiceType="location" android:exported="false" android:stopWithTask="false" />\n' +
+          '    </application>\n';
+        fm = fm.replace(/<\/manifest>/, serviceXml + "</manifest>");
+        fs.writeFileSync(fgsManifest, fm, "utf8");
+        console.log("[patch-bg-geo] foreground-service plugin: declared service with location type ✓");
+      } else {
+        console.log("[patch-bg-geo] foreground-service plugin already has service declaration ✓");
+      }
+    }
+  } catch (e) { console.log("[patch-bg-geo] fgs manifest note:", e.message); }
+
   // ---- set the tracking-notification icon to the Eurobond logo (string resource only,
   //      no code logic touched) ----
   try {
