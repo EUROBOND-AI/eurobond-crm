@@ -263,6 +263,22 @@ export const MODULES = {
 
   /* ===================== BACKEND ONLY ===================== */
 
+  resources: {
+    path: "master/resources", title: "Resources & Links", crumb: "Resources", addLabel: "Add Resource",
+    idPrefix: "RES", app: true, appLabel: "Resources",
+    columns: [
+      { key: "subject", label: "Subject Name" },
+      { key: "linkType", label: "Type", render: pill },
+      { key: "link", label: "Link" },
+      { key: "createdAt", label: "Added On" },
+    ],
+    form: [
+      { name: "subject", label: "Subject Name", required: true },
+      { name: "linkType", label: "Type", type: "select", options: ["Video", "Catalogue", "PDF", "Website", "Other"], required: true },
+      { name: "link", label: "Link (URL)", required: true },
+    ],
+  },
+
   holidays: {
     path: "master/holidays", title: "Holiday List", crumb: "Holiday", addLabel: "Add Holiday",
     columns: [{ key: "date", label: "Date" }, { key: "name", label: "Holiday Name" }, { key: "type", label: "Type" }],

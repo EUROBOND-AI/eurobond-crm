@@ -58,6 +58,7 @@ const NAV = [
           { label: "Holidays", to: "/admin/master/holidays" },
           { label: "Areas", to: "/admin/master/areas" },
           { label: "Products", to: "/admin/master/products" },
+          { label: "Resources & Links", to: "/admin/master/resources" },
         ],
       },
     ],
@@ -112,6 +113,7 @@ function ModuleSearch({ nav }) {
     { title: "Areas", path: "master/areas" }, { title: "Announcement", path: "master/announcement" },
     { title: "Notification", path: "master/notification" }, { title: "App Users", path: "master/app-users" },
     { title: "Admin Users", path: "master/admin-users" }, { title: "Role & Permission", path: "master/roles" },
+    { title: "Resources & Links", path: "master/resources" },
     { title: "Dashboard", path: "dashboards/expense" },
   ];
   const all = [...Object.values(MODULES).map((m) => ({ title: m.title, path: m.path })), ...extra];

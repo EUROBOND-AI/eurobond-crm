@@ -2262,6 +2262,41 @@ function ProjectForward({ rec, onClose, onSaved }) {
   );
 }
 
+/* Resources & Links — everyone sees; tap a subject to open the link */
+function FieldResources() {
+  const [rows, setRows] = useState(null);
+  const [q, setQ] = useState("");
+  useEffect(() => { api.list("resources", false).then((d) => setRows((d.records || []).map((r) => r.data))).catch(() => setRows([])); }, []);
+  const icon = (t) => t === "Video" ? "▶️" : t === "Catalogue" ? "📚" : t === "PDF" ? "📄" : t === "Website" ? "🌐" : "🔗";
+  const open = (link) => { let u = link || ""; if (u && !/^https?:\/\//i.test(u)) u = "https://" + u; window.open(u, "_blank"); };
+  const filtered = (rows || []).filter((r) => !q.trim() || (r.subject || "").toLowerCase().includes(q.toLowerCase()));
+  return (
+    <>
+      <ScreenHead title="Resources & Links" />
+      <div className="f-list-pad" style={{ paddingTop: 14 }}>
+        <div style={{ position: "relative", marginBottom: 12 }}>
+          <Search size={15} color="var(--muted)" style={{ position: "absolute", left: 11, top: 11 }} />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" style={{ width: "100%", padding: "9px 12px 9px 33px", borderRadius: 11, border: "1.5px solid #d7dcef", fontSize: 13, background: "#fff" }} />
+        </div>
+        {rows === null ? (
+          <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>Loading…</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>No resources yet.</div>
+        ) : filtered.map((r, i) => (
+          <div key={i} onClick={() => open(r.link)} style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", borderRadius: 12, padding: "13px 14px", marginBottom: 8, boxShadow: "var(--shadow)", cursor: "pointer" }}>
+            <span style={{ fontSize: 22 }}>{icon(r.linkType)}</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>{r.subject}</div>
+              <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{r.linkType}</div>
+            </div>
+            <ChevronRight size={18} color="var(--muted)" />
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 function FieldProjectNew() {
   const nav = useNavigate();
   const isSpec = `${CU().role || ""} ${CU().designation || ""}`.toLowerCase().includes("spec");
@@ -3168,6 +3203,7 @@ function MenuDrawer({ open, close }) {
       ["Leave Approval", <CalendarDays size={16} />, "/app/leave-approval", "leaveApproval"],
       ["Attendance", <CalendarCheck size={16} />, "/app/attendance", "attendance"],
       ["Task", <ClipboardList size={16} />, "/app/m/task", "task"],
+      ["Resources & Links", <FileText size={16} />, "/app/resources", "resources"],
     ] },
   ];
   const groups = rawGroups.map((g) => ({ ...g, items: g.items.filter(([, , , key]) => canSee(key)) })).filter((g) => g.items.length);
@@ -5683,6 +5719,7 @@ export default function FieldApp() {
             <Route path="followup/quick" element={<FieldFollowUpQuick add={async (f) => { const r = await api.create("followup", f); setFollowups((x) => [{ _id: r.id, ...f }, ...x]); }} />} />
             <Route path="customer/edit" element={<FieldFollowUpNew editData={CUST_EDIT.data} add={async (f) => { try { const id = CUST_EDIT.data?._id; if (id) { await api.update("followup", id, f); setFollowups((x) => x.map((c) => (c._id === id ? { _id: id, ...f } : c))); } CUST_EDIT.data = null; } catch (err) { alert(err.message); } }} />} />
             <Route path="project/new" element={<FieldProjectNew />} />
+            <Route path="resources" element={<FieldResources />} />
             {Object.keys(APP_MODS).map((m) => (
               <Route key={m} path={`m/${m}`} element={m === "enquiry" ? <FieldEnquiry /> : m === "quotation" ? <FieldQuotationList /> : m === "projectProjection" ? <FieldProjectList /> : (m === "salesToSpec" || m === "specToSales") ? <FieldSpecThreadList mod={m} /> : <FieldModule mod={m} />} />
             ))}
