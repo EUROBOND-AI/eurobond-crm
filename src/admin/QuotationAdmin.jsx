@@ -41,7 +41,7 @@ export default function QuotationAdmin() {
     if (!applied && !anyColSearch) return [];   // nothing until Show is clicked
     if (applied) {
       if (applied.status) l = l.filter((r) => (r.status || "Pending") === applied.status);
-      if (applied.person) l = l.filter((r) => (r.createdBy || "").toLowerCase().includes(applied.person.toLowerCase()));
+      if (applied.person) l = l.filter((r) => (r.createdBy || "") === applied.person);
       if (applied.from) l = l.filter((r) => { const d = (r.createdAt2 || r._created || "").slice(0, 10); return !d || d >= applied.from; });
       if (applied.to) l = l.filter((r) => { const d = (r.createdAt2 || r._created || "").slice(0, 10); return !d || d <= applied.to; });
     }
@@ -129,7 +129,10 @@ export default function QuotationAdmin() {
             <option value="">All</option><option>Pending</option><option>Approved</option><option>Win</option>
           </select></div>
         <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>Created By</label>
-          <input value={fPerson} onChange={(e) => setFPerson(e.target.value)} placeholder="Sales person" style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5, width: 140 }} /></div>
+          <select value={fPerson} onChange={(e) => setFPerson(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5 }}>
+            <option value="">All Sales Persons</option>
+            {[...new Set((rows || []).map((r) => r.createdBy).filter(Boolean))].sort().map((p) => <option key={p}>{p}</option>)}
+          </select></div>
         <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>From Date</label>
           <input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5 }} /></div>
         <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>To Date</label>
