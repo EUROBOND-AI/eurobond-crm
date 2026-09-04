@@ -226,6 +226,31 @@ try {
             }
         } catch (Exception e) {}
         super.onTaskRemoved(rootIntent);
+    }
+
+    @Override
+    public void onDestroy() {
+        // If the service is destroyed for ANY reason (notification swiped while the app
+        // is closed, OEM cleaner, low memory), schedule an immediate restart via an
+        // alarm-clock alarm that MIUI/ColorOS cannot suppress. Keeps tracking + the
+        // notification coming back even after the app is fully closed.
+        try {
+            AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+            Intent i = new Intent(getApplicationContext(), BackgroundGeolocationService.class);
+            i.setAction("EB_ALARM_TICK");
+            int flag = PendingIntent.FLAG_UPDATE_CURRENT;
+            try { flag |= PendingIntent.FLAG_IMMUTABLE; } catch (Throwable t) {}
+            PendingIntent pi = PendingIntent.getService(getApplicationContext(), 4903, i, flag);
+            long next = System.currentTimeMillis() + 2000;
+            try {
+                PendingIntent show = PendingIntent.getService(getApplicationContext(), 4904, i, flag);
+                am.setAlarmClock(new AlarmManager.AlarmClockInfo(next, show), pi);
+            } catch (Exception e) {
+                try { am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next, pi); }
+                catch (Exception e2) { am.set(AlarmManager.RTC_WAKEUP, next, pi); }
+            }
+        } catch (Exception e) {}
+        super.onDestroy();
     }`
   );
 
