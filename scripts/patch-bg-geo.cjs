@@ -189,23 +189,17 @@ try {
             NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             boolean enabled = nm == null || nm.areNotificationsEnabled();
             if (!enabled) {
+                // notifications are OFF so we can't show one — a single alert tone is the only way
                 try {
-                    if (ebAlarmRingtone == null) ebAlarmRingtone = RingtoneManager.getRingtone(getApplicationContext(), RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM));
-                    if (ebAlarmRingtone != null && !ebAlarmRingtone.isPlaying()) { try { ebAlarmRingtone.setLooping(true); } catch (Throwable t) {} ebAlarmRingtone.play(); }
+                    Ringtone r = RingtoneManager.getRingtone(getApplicationContext(), RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION));
+                    if (r != null) r.play();
                 } catch (Exception e) {}
             }
         } catch (Exception e) {}
     }
     private void ebAlertLocationOff() {
         try {
-            // loud looping sound (alarm ringtone) — kept in a field so we can stop it
-            try {
-                if (ebAlarmRingtone == null) ebAlarmRingtone = RingtoneManager.getRingtone(getApplicationContext(), RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM));
-                if (ebAlarmRingtone != null && !ebAlarmRingtone.isPlaying()) {
-                    try { ebAlarmRingtone.setLooping(true); } catch (Throwable t) {}
-                    ebAlarmRingtone.play();
-                }
-            } catch (Exception e) {}
+            // sound comes WITH the notification itself (DEFAULT_ALL) — no separate looping song
             // high-priority notification the moment location goes off
             NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             NotificationCompat.Builder b = new NotificationCompat.Builder(getApplicationContext(), "eurobond_crm")
