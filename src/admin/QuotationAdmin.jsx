@@ -281,8 +281,8 @@ function QuoteAdminView({ q, onClose, onPdf }) {
               : <img src={q.winInvoice} alt="Invoice" style={{ width: "100%", borderRadius: 10, marginTop: 6 }} />}
           </div>
         )}
-        <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-          <button className="btn btn-primary" onClick={onPdf}>Download PDF</button>
+        <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "center" }}>
+          <button className="btn btn-primary" style={{ padding: "10px 30px" }} onClick={onPdf}>⬇ Download PDF</button>
         </div>
       </div>
     </div>

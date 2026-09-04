@@ -299,6 +299,14 @@ export default function CustomersPage() {
               {view.by && <div><b>Created By:</b> {view.by}</div>}
             </div>
 
+            <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+              <button className="btn btn-primary" onClick={() => {
+                /* pre-fill quotation with this customer, open the quotation admin */
+                try { localStorage.setItem("eb_quote_prefill", JSON.stringify({ customer: view.name, mobile: view.mobile, email: view.email, state: view.state, city: view.place, address: view.address })); } catch {}
+                window.location.href = "/admin/sfa/quotation?prefill=1";
+              }}>📄 Add Quotation</button>
+            </div>
+
             {Array.isArray(view.updates) && view.updates.length > 0 && (
               <div style={{ marginTop: 16 }}>
                 <div style={{ fontWeight: 800, fontSize: 13, color: "var(--muted)", marginBottom: 8 }}>📋 Follow-up History</div>
