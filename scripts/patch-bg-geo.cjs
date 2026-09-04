@@ -187,6 +187,19 @@ try {
         keepAliveHandler.removeCallbacks(keepAlive);
         keepAliveHandler.postDelayed(keepAlive, 500);
         ebScheduleAlarm();
+        // Also schedule a full service restart ~1s after the app is swiped away, so
+        // even if Android tears the service down it comes right back and keeps tracking.
+        try {
+            AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+            Intent ri = new Intent(getApplicationContext(), BackgroundGeolocationService.class);
+            ri.setAction("EB_ALARM_TICK");
+            int flag = PendingIntent.FLAG_UPDATE_CURRENT;
+            try { flag |= PendingIntent.FLAG_IMMUTABLE; } catch (Throwable t) {}
+            PendingIntent rp = PendingIntent.getService(getApplicationContext(), 4899, ri, flag);
+            long next = System.currentTimeMillis() + 1000;
+            try { am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next, rp); }
+            catch (Exception e) { am.set(AlarmManager.RTC_WAKEUP, next, rp); }
+        } catch (Exception e) {}
         super.onTaskRemoved(rootIntent);
     }`
   );
@@ -242,6 +255,18 @@ try {
         mf = mf.replace(/<uses-permission/, toAdd.join("\n    ") + "\n    <uses-permission");
         fs.writeFileSync(manifest, mf, "utf8");
         console.log("[patch-bg-geo] added alarm permissions to AndroidManifest ✓");
+      }
+      /* ---- KEY: make the tracking service survive app swipe-close ----
+         android:stopWithTask="false" keeps the foreground service running even after
+         the user swipes the app away from recent apps. Without this, Android kills it. */
+      mf = fs.readFileSync(manifest, "utf8");
+      if (mf.includes("BackgroundGeolocationService") && !mf.match(/BackgroundGeolocationService[^>]*stopWithTask/)) {
+        mf = mf.replace(
+          /(<service[^>]*android:name="[^"]*BackgroundGeolocationService")/,
+          '$1 android:stopWithTask="false"'
+        );
+        fs.writeFileSync(manifest, mf, "utf8");
+        console.log("[patch-bg-geo] service now survives app swipe-close (stopWithTask=false) ✓");
       }
     }
   } catch (e) { console.log("[patch-bg-geo] manifest note:", e.message); }

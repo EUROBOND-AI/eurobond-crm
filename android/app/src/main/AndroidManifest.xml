@@ -40,7 +40,7 @@
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
         <service
-            android:name="com.equimaps.capacitor_background_geolocation.BackgroundGeolocationService"
+            android:name="com.equimaps.capacitor_background_geolocation.BackgroundGeolocationService" android:stopWithTask="false"
             android:enabled="true"
             android:exported="true"
             android:foregroundServiceType="location" />
