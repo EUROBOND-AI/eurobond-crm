@@ -124,6 +124,33 @@ try {
         };
         try { registerReceiver(ebLocReceiver, new IntentFilter("android.location.PROVIDERS_CHANGED")); } catch (Exception e) {}
     }
+    /* Always keep a foreground "Tracking on" notification — uses the plugin's own
+       notification when available, otherwise builds a native one so the notification
+       ALWAYS comes back after the app is closed / swiped. */
+    private void ebEnsureForeground() {
+        try {
+            Notification n = getNotification();
+            if (n != null) { startForeground(NOTIFICATION_ID, n); return; }
+            // fallback: build our own so the process stays foreground + notification shows
+            Intent open = getPackageManager().getLaunchIntentForPackage(getPackageName());
+            PendingIntent pi = null;
+            if (open != null) {
+                open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                int fl = PendingIntent.FLAG_UPDATE_CURRENT;
+                try { fl |= PendingIntent.FLAG_IMMUTABLE; } catch (Throwable t) {}
+                pi = PendingIntent.getActivity(getApplicationContext(), 74193, open, fl);
+            }
+            NotificationCompat.Builder b = new NotificationCompat.Builder(getApplicationContext(), "eurobond_crm")
+                .setContentTitle("Eurobond CRM")
+                .setContentText("Tracking on")
+                .setSmallIcon(getResources().getIdentifier("ic_stat_notify", "drawable", getPackageName()))
+                .setOngoing(true)
+                .setPriority(NotificationCompat.PRIORITY_LOW);
+            if (pi != null) b.setContentIntent(pi);
+            startForeground(NOTIFICATION_ID, b.build());
+        } catch (Exception e) {}
+    }
+
     private void ebStopAlarmSound() {
         try { if (ebAlarmRingtone != null && ebAlarmRingtone.isPlaying()) ebAlarmRingtone.stop(); } catch (Exception e) {}
     }
@@ -241,8 +268,7 @@ try {
     public int onStartCommand(Intent intent, int flags, int startId) {
         ebRegisterLocReceiver();   // start listening for location on/off instantly
         if (intent != null && "EB_ALARM_TICK".equals(intent.getAction())) {
-            Notification n = getNotification();
-            if (n != null) { try { startForeground(NOTIFICATION_ID, n); } catch (Exception e) {} }
+            ebEnsureForeground();   // always keep the "Tracking on" notification visible
             // Wake the CPU so GPS can get a fix in deep Doze; auto-releases after 30s.
             try {
                 PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
@@ -280,8 +306,7 @@ try {
 
     @Override
     public void onTaskRemoved(Intent rootIntent) {
-        Notification n = getNotification();
-        if (n != null) { try { startForeground(NOTIFICATION_ID, n); } catch (Exception e) {} }
+        ebEnsureForeground();
         keepAliveHandler.removeCallbacks(keepAlive);
         keepAliveHandler.postDelayed(keepAlive, 500);
         ebScheduleAlarm();
