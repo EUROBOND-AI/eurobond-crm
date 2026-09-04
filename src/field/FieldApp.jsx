@@ -5690,15 +5690,21 @@ export default function FieldApp() {
     lastPointAt.current = Date.now();
     const id = setInterval(async () => {
       let bad = false;
-      /* check the ACTUAL location-enabled state — this is the real trigger */
       try {
         const Cap = window.Capacitor;
-        if (Cap && Cap.Plugins && Cap.Plugins.Geolocation) {
-          const perm = await Cap.Plugins.Geolocation.checkPermissions();
-          if (perm && perm.location && perm.location !== "granted" && perm.location !== "prompt") bad = true;
+        if (Cap && Cap.Plugins) {
+          /* location off */
+          if (Cap.Plugins.Geolocation) {
+            const perm = await Cap.Plugins.Geolocation.checkPermissions();
+            if (perm && perm.location && perm.location !== "granted" && perm.location !== "prompt") bad = true;
+          }
+          /* notifications off (people disable these to dodge tracking) */
+          if (!bad && Cap.Plugins.LocalNotifications) {
+            const st = await Cap.Plugins.LocalNotifications.checkPermissions();
+            if (st && st.display && st.display !== "granted") bad = true;
+          }
         }
       } catch {}
-      /* a hard location error from the tracker also counts */
       if (!bad && trackingErrorRef.current) bad = true;
       setGpsAlarm(bad);
     }, 5000);

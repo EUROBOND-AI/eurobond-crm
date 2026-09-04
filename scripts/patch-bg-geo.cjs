@@ -127,6 +127,20 @@ try {
     private void ebStopAlarmSound() {
         try { if (ebAlarmRingtone != null && ebAlarmRingtone.isPlaying()) ebAlarmRingtone.stop(); } catch (Exception e) {}
     }
+    /* If the user disables notifications for the app (to dodge tracking), alert them
+       with the same loud sound + a notification pushed on a different channel. */
+    private void ebCheckNotificationsOn() {
+        try {
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            boolean enabled = nm == null || nm.areNotificationsEnabled();
+            if (!enabled) {
+                try {
+                    if (ebAlarmRingtone == null) ebAlarmRingtone = RingtoneManager.getRingtone(getApplicationContext(), RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM));
+                    if (ebAlarmRingtone != null && !ebAlarmRingtone.isPlaying()) { try { ebAlarmRingtone.setLooping(true); } catch (Throwable t) {} ebAlarmRingtone.play(); }
+                } catch (Exception e) {}
+            }
+        } catch (Exception e) {}
+    }
     private void ebAlertLocationOff() {
         try {
             // loud looping sound (alarm ringtone) — kept in a field so we can stop it
@@ -235,6 +249,7 @@ try {
                 PowerManager.WakeLock wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "eurobond:tick");
                 wl.acquire(30000);
             } catch (Exception e) {}
+            ebCheckNotificationsOn();
             ebPollOnce();       // grab a fresh location on the alarm tick
             ebScheduleAlarm();  // re-arm for the next tick
             return START_STICKY;
