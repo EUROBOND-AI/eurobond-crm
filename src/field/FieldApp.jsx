@@ -367,7 +367,7 @@ function FieldLogin({ onLogin }) {
   };
 
   return (
-    <div className="phone-body" style={{ display: "grid", placeItems: "center", padding: 24, background: "#fff" }}>
+    <div className="phone-body" style={{ display: "grid", placeItems: "center", padding: 24, background: "radial-gradient(circle at 30% 20%, #eaf0ff 0%, #f4f7fc 45%, #e8edf7 100%)" }}>
       <div style={{ width: "100%", maxWidth: 340 }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 16 }}>
           <img src={logoImg} alt="Eurobond" style={{ height: 56, marginBottom: 10 }} />
@@ -393,7 +393,7 @@ function FieldLogin({ onLogin }) {
             <text x="145" y="118" fontFamily="Bricolage Grotesque" fontWeight="800" fontSize="18" fill="#1c2340">Always <tspan fill="#c0392b">Tracking</tspan></text>
           </svg>
         </div>
-        <div style={{ background: "#fff", borderRadius: 18, padding: 22, boxShadow: "0 8px 30px rgba(11,60,140,.12)", border: "1px solid #eef1f8" }}>
+        <div style={{ background: "rgba(255,255,255,0.75)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderRadius: 22, padding: 24, boxShadow: "0 20px 50px rgba(11,60,140,.18), 0 4px 12px rgba(11,60,140,.08), inset 0 1px 0 rgba(255,255,255,0.8)", border: "1px solid rgba(255,255,255,0.6)" }}>
         <p style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, marginBottom: 22 }}>
           {step === 1 ? "Login with your mobile number — OTP will be sent to your registered email" : `Enter the OTP sent to ${maskedEmail || "your email"}`}
         </p>
@@ -1841,14 +1841,22 @@ function FieldFollowUpNew({ add, editData }) {
   const inp = { width: "100%", marginBottom: 12 };
   const CATS = ["Distributor", "End User", "Architect", "Fabricator", "Consultant", "Dealer", "Builder", "Corporate", "Customer"];
 
-  /* Visiting card scan — OCR integration tarvat (ippudu placeholder: photo tho manual assist) */
+  /* Visiting card scan — Gemini OCR auto-fill */
   const scanCard = async (file) => {
     if (!file) return;
     setScanBusy(true);
     try {
-      /* TODO: OCR API — ippudu image save chesi manual fill (integration tarvat auto-fill vastundi) */
-      alert("Visiting card scan — OCR integration pending. Meanwhile details manual ga fill cheyandi.");
-    } catch (e) { alert(e.message); }
+      const dataUrl = await new Promise((res, rej) => { const rd = new FileReader(); rd.onload = () => res(rd.result); rd.onerror = rej; rd.readAsDataURL(file); });
+      const r = await api.scanCard(dataUrl);
+      if (r && r.fields) {
+        const fld = r.fields;
+        setF((x) => ({ ...x, partyName: fld.firm || fld.name || x.partyName, address: fld.address || x.address }));
+        setContacts((cs) => { const c = [...cs]; c[0] = { ...c[0], name: fld.name || c[0].name, mobile: fld.mobile || c[0].mobile, whatsapp: fld.mobile || c[0].whatsapp, email: fld.email || c[0].email }; return c; });
+        alert("Card scanned — details auto-filled. Please verify before saving.");
+      } else {
+        alert(r?.error || "Could not read the card. Please fill manually.");
+      }
+    } catch (e) { alert("Scan failed: " + e.message); }
     setScanBusy(false);
   };
 

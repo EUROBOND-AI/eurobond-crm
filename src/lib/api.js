@@ -136,6 +136,7 @@ export const api = {
   settingsList: () => req("/settings.php?action=list"),
   settingsSave: (key, value, label) => req("/settings.php?action=save", { method: "POST", body: { key, value, label } }),
   healthCheck: () => req("/health.php?action=check"),
+  scanCard: (image) => req("/scan_card.php", { method: "POST", body: { image } }),
 
   /* ---------- Locations (India villages/cities strict search) ---------- */
   locationSearch: (q) => req("/locations.php?action=search&q=" + encodeURIComponent(q)),
