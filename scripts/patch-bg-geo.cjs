@@ -131,11 +131,22 @@ try {
             NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             NotificationCompat.Builder b = new NotificationCompat.Builder(getApplicationContext(), "eurobond_crm")
                 .setContentTitle("⚠️ Location is OFF!")
-                .setContentText("Attendance tracking stopped. Turn ON your location NOW.")
-                .setSmallIcon(getApplicationInfo().icon)
+                .setContentText("Attendance tracking stopped. Tap to turn ON location.")
+                .setSmallIcon(getResources().getIdentifier("ic_stat_notify", "drawable", getPackageName()))
                 .setPriority(NotificationCompat.PRIORITY_MAX)
                 .setDefaults(NotificationCompat.DEFAULT_ALL)
                 .setAutoCancel(true);
+            // tapping opens the app so the in-app "Turn ON Location" flow runs
+            try {
+                Intent open = getPackageManager().getLaunchIntentForPackage(getPackageName());
+                if (open != null) {
+                    open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                    int fl = PendingIntent.FLAG_UPDATE_CURRENT;
+                    try { fl |= PendingIntent.FLAG_IMMUTABLE; } catch (Throwable t) {}
+                    PendingIntent pi = PendingIntent.getActivity(getApplicationContext(), 74192, open, fl);
+                    b.setContentIntent(pi);
+                }
+            } catch (Exception e) {}
             if (nm != null) nm.notify(74191, b.build());
         } catch (Exception e) {}
     }

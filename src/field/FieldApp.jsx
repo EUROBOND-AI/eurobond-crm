@@ -5729,15 +5729,20 @@ export default function FieldApp() {
             <button onClick={async () => {
               try {
                 const Cap = window.Capacitor;
-                if (Cap && Cap.Plugins) {
-                  /* 1) directly ask the OS to turn location ON (shows the "Turn on" dialog) */
-                  try { if (Cap.Plugins.Geolocation && Cap.Plugins.Geolocation.requestPermissions) { await Cap.Plugins.Geolocation.requestPermissions(); } } catch {}
+                if (Cap && Cap.Plugins && Cap.Plugins.Geolocation) {
+                  /* getCurrentPosition with high accuracy triggers Android's own
+                     "Turn on location" dialog — user taps Turn On and it enables
+                     WITHOUT leaving the app. */
+                  try { await Cap.Plugins.Geolocation.requestPermissions(); } catch {}
                   try {
-                    if (Cap.Plugins.BackgroundGeolocation && Cap.Plugins.BackgroundGeolocation.openSettings) { await Cap.Plugins.BackgroundGeolocation.openSettings(); }
-                  } catch {}
-                  /* 2) open the phone's Location settings screen directly */
-                  if (Cap.Plugins.NativeSettings && Cap.Plugins.NativeSettings.openAndroid) { await Cap.Plugins.NativeSettings.openAndroid({ option: "location" }); return; }
-                  if (Cap.Plugins.App && Cap.Plugins.App.openSettings) { await Cap.Plugins.App.openSettings(); return; }
+                    await Cap.Plugins.Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 8000 });
+                    /* if we got here, location is ON — clear the alarm immediately */
+                    setGpsAlarm(false);
+                    return;
+                  } catch (ge) {
+                    /* dialog dismissed or still off — fall back to opening location settings */
+                    if (Cap.Plugins.App && Cap.Plugins.App.openSettings) { await Cap.Plugins.App.openSettings(); }
+                  }
                 }
               } catch { alert("Turn ON your phone's Location (GPS) to continue tracking."); }
             }} style={{ width: "100%", padding: 14, borderRadius: 12, border: "none", background: "#20bf6b", color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", marginBottom: 8 }}>
