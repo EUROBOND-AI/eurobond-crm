@@ -409,7 +409,7 @@ function AssignModal({ users, reassign, count, onClose, onAssign }) {
   const ql = q.trim().toLowerCase();
   const list = ql ? users.filter((u) => {
     const name = (u.name || u.data?.name || "").toLowerCase();
-    const code = (u.empCode || u.data?.empCode || u.id || "").toString().toLowerCase();
+    const code = (u.code || u.data?.code || u.empCode || u.data?.empCode || "").toString().toLowerCase();
     return name.includes(ql) || code.includes(ql);
   }) : users;
 

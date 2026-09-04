@@ -241,8 +241,7 @@ function ExpenseReview({ r, onClose, onDone }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <h3 style={{ margin: 0 }}>Expense Statement — {r.user}</h3>
           <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn btn-soft" disabled={busy} onClick={downloadPdf}>⬇ PDF (Format)</button>
-            <button className="btn btn-soft" disabled={busy} onClick={downloadPdfBills}>⬇ PDF + Bills</button>
+            <button className="btn btn-soft" disabled={busy} onClick={downloadPdf}>⬇ PDF</button>
             <button className="btn btn-ghost" style={{ padding: 4 }} onClick={onClose}>✕</button>
           </div>
         </div>

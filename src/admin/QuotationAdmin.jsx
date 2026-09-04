@@ -386,10 +386,10 @@ function quotePageHtml(q) {
   const tc = q.tc || {};
   const rowsHtml = items.map((it, i) => `<tr>
     <td style="text-align:center;border:1px solid #999;padding:7px;width:8%">${i + 1}</td>
-    <td style="text-align:left;border:1px solid #999;padding:7px;width:38%">${it.grade || ""}${it.thickness ? `<span style="font-size:10px;color:#666;display:block">(${it.thickness})</span>` : ""}${it.fins ? " (Running Feet)" : ""}</td>
+    <td style="text-align:center;border:1px solid #999;padding:7px;width:38%">${it.grade || ""}${it.thickness ? `<span style="font-size:10px;color:#666;display:block">(${it.thickness})</span>` : ""}${it.fins ? " (Running Feet)" : ""}</td>
     <td style="text-align:center;border:1px solid #999;padding:7px;width:22%">${it.colourCode ? it.colourCode + " · " : ""}${it.colour || ""}</td>
-    <td style="text-align:right;border:1px solid #999;padding:7px;width:16%">${!it.fins && it.ratePerSqm ? "INR - " + it.ratePerSqm : "—"}</td>
-    <td style="text-align:right;border:1px solid #999;padding:7px;width:16%">INR - ${it.rate}</td>
+    <td style="text-align:center;border:1px solid #999;padding:7px;width:16%">${!it.fins && it.ratePerSqm ? "INR - " + it.ratePerSqm : "—"}</td>
+    <td style="text-align:center;border:1px solid #999;padding:7px;width:16%">INR - ${it.rate}</td>
   </tr>`).join("");
   return `<div class="page" style="position:relative;width:794px;min-height:1123px;padding:158px 68px 128px;font-family:Arial;font-size:13px;color:#1a1a1a;box-sizing:border-box;background-image:url('${LETTERHEAD}');background-size:794px 1123px;background-repeat:no-repeat">
     <div style="display:flex;justify-content:space-between"><b>DATE: ${q.createdAt || new Date().toLocaleDateString("en-GB")}</b><b>${q.quoteNo || q.id}</b></div>
@@ -423,8 +423,8 @@ function quoteHtml(q) {
     <td style="text-align:center;border:1px solid #999;padding:8px">${i + 1}</td>
     <td style="text-align:left;border:1px solid #999;padding:8px">${it.grade || ""}${it.thickness ? `<br><span style="font-size:10px;color:#666">(${it.thickness})</span>` : ""}${it.fins ? " (Running Feet)" : ""}</td>
     <td style="text-align:center;border:1px solid #999;padding:8px">${it.colourCode ? it.colourCode + " · " : ""}${it.colour || ""}</td>
-    <td style="text-align:right;border:1px solid #999;padding:8px">${!it.fins && it.ratePerSqm ? "INR - " + it.ratePerSqm : "—"}</td>
-    <td style="text-align:right;border:1px solid #999;padding:8px">INR - ${it.rate}</td>
+    <td style="text-align:center;border:1px solid #999;padding:8px">${!it.fins && it.ratePerSqm ? "INR - " + it.ratePerSqm : "—"}</td>
+    <td style="text-align:center;border:1px solid #999;padding:8px">INR - ${it.rate}</td>
   </tr>`).join("");
   return `<html><head><meta charset="utf-8"><title>${q.quoteNo || q.id}</title></head>
   <body style="font-family:Arial;color:#1a1a1a;font-size:13px;max-width:800px;margin:auto;padding:20px">

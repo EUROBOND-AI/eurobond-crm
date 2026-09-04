@@ -1351,7 +1351,7 @@ function ExpenseFormatView({ list, reload }) {
 
   const downloadPdf = async () => {
     setBusy(true);
-    try { await buildExpensePdf(fmt); }
+    try { await buildExpensePdf(fmt, true); }
     catch (e) { alert("PDF failed: " + e.message); }
     setBusy(false);
   };

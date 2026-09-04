@@ -21,6 +21,7 @@ const APP_MODULES = [
   { key: "leaveApproval", label: "Leave Approval" },
   { key: "attendance", label: "Attendance" },
   { key: "siteProjectForm", label: "Site Project" },
+  { key: "resources", label: "Resources & Links" },
   { key: "task", label: "Task" },
 ];
 /* Admin excluded — Admin always sees all app modules. These are the roles admin configures. */

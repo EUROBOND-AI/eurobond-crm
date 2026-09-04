@@ -116,6 +116,9 @@ function ModuleSearch({ nav }) {
     { title: "Notification", path: "master/notification" }, { title: "App Users", path: "master/app-users" },
     { title: "Admin Users", path: "master/admin-users" }, { title: "Role & Permission", path: "master/roles" },
     { title: "Resources & Links", path: "master/resources" },
+    { title: "API Keys & Settings", path: "master/api-keys" },
+    { title: "System Health", path: "master/health" },
+    { title: "Tour Report", path: "sfa/tour-report" },
     { title: "Dashboard", path: "dashboards/expense" },
   ];
   const all = [...Object.values(MODULES).map((m) => ({ title: m.title, path: m.path })), ...extra];
