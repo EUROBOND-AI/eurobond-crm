@@ -19,7 +19,7 @@ async function urlToDataUrl(url) {
 }
 
 /* Build the expense statement PDF — compact company format + Eurobond logo + bill pages */
-export async function buildExpensePdf(fmt) {
+export async function buildExpensePdf(fmt, formatOnly = false) {
   const { jsPDF } = await import("jspdf");
   const items = fmt.items || [];
   const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
@@ -97,8 +97,8 @@ export async function buildExpensePdf(fmt) {
   pdf.text("Traveller Signature : " + (fmt.user || ""), 78, y);
   pdf.text("Approved By", 165, y);
 
-  /* bill pages */
-  for (const it of items) {
+  /* bill pages (skipped when formatOnly = true) */
+  for (const it of (formatOnly ? [] : items)) {
     if (it.photo && !String(it.photo).match(/\.pdf$/i)) {
       try {
         pdf.addPage();
