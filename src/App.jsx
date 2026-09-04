@@ -14,6 +14,7 @@ import ModulePage from "./admin/ModulePage.jsx";
 import CheckinPage from "./admin/CheckinPage.jsx";
 import TourReport from "./admin/TourReport.jsx";
 import ApiKeysPage from "./admin/ApiKeysPage.jsx";
+import HealthPage from "./admin/HealthPage.jsx";
 import RolePermission from "./admin/RolePermission.jsx";
 import TeamAccess from "./admin/TeamAccess.jsx";
 import AppSettings from "./admin/AppSettings.jsx";
@@ -82,6 +83,7 @@ export default function App() {
         <Route path="master/products" element={<ProductsPage />} />
         <Route path="master/holidays" element={<HolidaysPage />} />
         <Route path="master/api-keys" element={<ApiKeysPage />} />
+        <Route path="master/health" element={<HealthPage />} />
         <Route path="sfa/enquiry" element={<EnquiryPage />} />
         <Route path="sfa/expense" element={<ExpenseApprovals />} />
         <Route path="sfa/attendance-sheet" element={<AttendanceSheet />} />

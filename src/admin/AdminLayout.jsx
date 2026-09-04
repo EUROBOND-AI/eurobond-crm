@@ -60,6 +60,7 @@ const NAV = [
           { label: "Products", to: "/admin/master/products" },
           { label: "Resources & Links", to: "/admin/master/resources" },
           { label: "API Keys & Settings", to: "/admin/master/api-keys" },
+          { label: "System Health", to: "/admin/master/health" },
         ],
       },
     ],

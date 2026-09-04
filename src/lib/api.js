@@ -135,6 +135,7 @@ export const api = {
   attGeocode: (session_id) => req("/attendance.php?action=geocode&session_id=" + session_id),
   settingsList: () => req("/settings.php?action=list"),
   settingsSave: (key, value, label) => req("/settings.php?action=save", { method: "POST", body: { key, value, label } }),
+  healthCheck: () => req("/health.php?action=check"),
 
   /* ---------- Locations (India villages/cities strict search) ---------- */
   locationSearch: (q) => req("/locations.php?action=search&q=" + encodeURIComponent(q)),
