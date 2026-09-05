@@ -152,6 +152,17 @@ try {
         } catch (Exception e) {}
     }
 
+    /* Android 8+ blocks starting a background service from an alarm/PendingIntent.
+       getForegroundService() is the only way the service comes back once the app
+       is fully closed — this is what makes the notification return every time. */
+    private PendingIntent ebServicePI(int req, Intent i, int flag) {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                return PendingIntent.getForegroundService(getApplicationContext(), req, i, flag);
+            }
+        } catch (Throwable t) {}
+        return PendingIntent.getService(getApplicationContext(), req, i, flag);
+    }
     private void ebStopAlarmSound() {
         try { if (ebAlarmRingtone != null && ebAlarmRingtone.isPlaying()) ebAlarmRingtone.stop(); } catch (Exception e) {}
     }
@@ -261,12 +272,12 @@ try {
             i.setAction("EB_ALARM_TICK");
             int flag = PendingIntent.FLAG_UPDATE_CURRENT;
             try { flag |= PendingIntent.FLAG_IMMUTABLE; } catch (Throwable t) {}
-            PendingIntent pi = PendingIntent.getService(getApplicationContext(), 4802, i, flag);
+            PendingIntent pi = ebServicePI(4802, i, flag);
             long next = System.currentTimeMillis() + 120000; // ~2 min
             // setAlarmClock() is NOT throttled by Doze — it always fires on time, even in
             // deep sleep. This is the key to points flowing when the phone is idle for hours.
             try {
-                PendingIntent show = PendingIntent.getService(getApplicationContext(), 4803, i, flag);
+                PendingIntent show = ebServicePI(4803, i, flag);
                 am.setAlarmClock(new AlarmManager.AlarmClockInfo(next, show), pi);
             } catch (Exception e) {
                 try { am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next, pi); }
@@ -323,10 +334,10 @@ try {
             bi.setAction("EB_ALARM_TICK");
             int bflag = PendingIntent.FLAG_UPDATE_CURRENT;
             try { bflag |= PendingIntent.FLAG_IMMUTABLE; } catch (Throwable t) {}
-            PendingIntent bp = PendingIntent.getService(getApplicationContext(), 4901, bi, bflag);
+            PendingIntent bp = ebServicePI(4901, bi, bflag);
             long bnext = System.currentTimeMillis() + 5000;
             try {
-                PendingIntent bshow = PendingIntent.getService(getApplicationContext(), 4902, bi, bflag);
+                PendingIntent bshow = ebServicePI(4902, bi, bflag);
                 am2.setAlarmClock(new AlarmManager.AlarmClockInfo(bnext, bshow), bp);
             } catch (Exception e) {
                 try { am2.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, bnext, bp); }
@@ -350,12 +361,12 @@ try {
             ri.setAction("EB_ALARM_TICK");
             int flag = PendingIntent.FLAG_UPDATE_CURRENT;
             try { flag |= PendingIntent.FLAG_IMMUTABLE; } catch (Throwable t) {}
-            PendingIntent rp = PendingIntent.getService(getApplicationContext(), 4899, ri, flag);
+            PendingIntent rp = ebServicePI(4899, ri, flag);
             long next = System.currentTimeMillis() + 1500;
             // setAlarmClock() is treated like a user alarm clock — MIUI/ColorOS/OneUI
             // are NOT allowed to kill it, so the service always comes back after swipe.
             try {
-                PendingIntent show = PendingIntent.getService(getApplicationContext(), 4900, ri, flag);
+                PendingIntent show = ebServicePI(4900, ri, flag);
                 am.setAlarmClock(new AlarmManager.AlarmClockInfo(next, show), rp);
             } catch (Exception e) {
                 try { am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next, rp); }
@@ -377,10 +388,10 @@ try {
             i.setAction("EB_ALARM_TICK");
             int flag = PendingIntent.FLAG_UPDATE_CURRENT;
             try { flag |= PendingIntent.FLAG_IMMUTABLE; } catch (Throwable t) {}
-            PendingIntent pi = PendingIntent.getService(getApplicationContext(), 4903, i, flag);
+            PendingIntent pi = ebServicePI(4903, i, flag);
             long next = System.currentTimeMillis() + 500;
             try {
-                PendingIntent show = PendingIntent.getService(getApplicationContext(), 4904, i, flag);
+                PendingIntent show = ebServicePI(4904, i, flag);
                 am.setAlarmClock(new AlarmManager.AlarmClockInfo(next, show), pi);
             } catch (Exception e) {
                 try { am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next, pi); }

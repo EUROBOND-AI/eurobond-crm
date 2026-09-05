@@ -42,16 +42,16 @@ export default function AdminLogin() {
 
   const ArtPanel = (
     <div className="admin-login-art" style={{
-      position: "relative", overflow: "hidden", background: dark,
+      position: "relative", overflow: "hidden", background: dark, height: "100%",
       display: "flex", flexDirection: "column", justifyContent: "center",
       padding: "48px 5vw", color: "#fff", transition: "all .55s cubic-bezier(.22,1,.36,1)",
     }}>
       <div style={{ position: "absolute", top: -120, right: -120, width: 380, height: 380, borderRadius: "50%", background: "radial-gradient(circle, rgba(124,110,240,0.55), transparent 70%)" }} />
       <div style={{ position: "absolute", bottom: -140, left: -80, width: 340, height: 340, borderRadius: "50%", background: "radial-gradient(circle, rgba(59,130,246,0.4), transparent 70%)" }} />
       {/* floating 3D glass cards */}
-      <div style={{ position: "absolute", top: "16%", right: "12%", width: 150, height: 96, borderRadius: 18, background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.22)", backdropFilter: "blur(8px)", transform: "perspective(700px) rotateY(-16deg) rotateX(8deg)", boxShadow: "0 24px 50px rgba(0,0,0,.35)" }} />
-      <div style={{ position: "absolute", bottom: "18%", right: "22%", width: 118, height: 76, borderRadius: 16, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.18)", backdropFilter: "blur(8px)", transform: "perspective(700px) rotateY(14deg) rotateX(-8deg)", boxShadow: "0 20px 44px rgba(0,0,0,.3)" }} />
-      <div style={{ position: "relative", zIndex: 2, maxWidth: 440, transform: "perspective(900px) rotateY(" + (isTeam ? "-5deg" : "5deg") + ")", transition: "transform .55s cubic-bezier(.22,1,.36,1)" }}>
+      <div style={{ position: "absolute", top: "16%", right: "12%", width: 150, height: 96, borderRadius: 18, background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.22)", backdropFilter: "blur(8px)", boxShadow: "0 24px 50px rgba(0,0,0,.35)" }} />
+      <div style={{ position: "absolute", bottom: "18%", right: "22%", width: 118, height: 76, borderRadius: 16, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.18)", backdropFilter: "blur(8px)", boxShadow: "0 20px 44px rgba(0,0,0,.3)" }} />
+      <div style={{ position: "relative", zIndex: 2, maxWidth: 440, transition: "transform .8s cubic-bezier(.22,1,.36,1)" }}>
         <h2 style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.1, margin: "0 0 18px", textShadow: "0 8px 24px rgba(0,0,0,.35)" }}>
           {isTeam ? <>Eurobond CRM<br />Command Center</> : <>Your Workspace<br />Your Numbers</>}
         </h2>
@@ -73,11 +73,10 @@ export default function AdminLogin() {
     <div style={{
       display: "flex", flexDirection: "column", justifyContent: "center",
       padding: "48px 8vw", background: isTeam ? "#fff" : "#f6f8ff",
-      transition: "background .55s ease", perspective: "1200px",
+      transition: "background .55s ease", 
     }}>
       <div style={{
-        transform: "perspective(1100px) rotateY(" + (isTeam ? "3deg" : "-3deg") + ") translateZ(0)",
-        transition: "transform .55s cubic-bezier(.22,1,.36,1)",
+        transition: "box-shadow .6s ease, border-color .6s ease",
         background: "#fff", borderRadius: 22, padding: "34px 30px",
         boxShadow: isTeam
           ? "0 30px 70px rgba(15,23,42,.12), 0 6px 18px rgba(15,23,42,.06)"
@@ -130,8 +129,19 @@ export default function AdminLogin() {
   );
 
   return (
-    <div style={{ minHeight: "100vh", display: "grid", gridTemplateColumns: "1fr 1fr", fontFamily: "Inter, system-ui, sans-serif" }} className="admin-login-shell">
-      {isTeam ? <>{FormPanel}{ArtPanel}</> : <>{ArtPanel}{FormPanel}</>}
+    <div style={{ minHeight: "100vh", position: "relative", overflow: "hidden", fontFamily: "Inter, system-ui, sans-serif", background: isTeam ? "#fff" : "#f6f8ff", transition: "background .8s ease" }} className="admin-login-shell">
+      {/* form sits on its half; the blue panel SLIDES slowly to the other half */}
+      <div style={{ position: "absolute", inset: 0, display: "grid", gridTemplateColumns: "1fr 1fr" }}>
+        <div style={{ gridColumn: isTeam ? 1 : 2, transition: "all .8s cubic-bezier(.22,1,.36,1)" }}>{FormPanel}</div>
+      </div>
+      <div className="admin-login-slide" style={{
+        position: "absolute", top: 0, bottom: 0, width: "50%",
+        left: isTeam ? "50%" : "0%",
+        transition: "left .8s cubic-bezier(.22,1,.36,1)",
+        boxShadow: "0 0 60px rgba(11,20,55,.35)",
+      }}>
+        {ArtPanel}
+      </div>
     </div>
   );
 }

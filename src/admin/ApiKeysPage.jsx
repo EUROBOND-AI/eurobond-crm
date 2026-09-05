@@ -73,8 +73,12 @@ export default function ApiKeysPage() {
         <input value={newCrm.label} onChange={(e) => setNewCrm({ ...newCrm, label: e.target.value })} placeholder="Partner / source name" style={{ ...ni, flex: 1, minWidth: 180 }} />
         <select value={newCrm.module} onChange={(e) => setNewCrm({ ...newCrm, module: e.target.value })} style={ni}>
           <option value="enquiry">Enquiry</option>
-          <option value="customer">Customer</option>
+          <option value="customer">Customers</option>
           <option value="projectProjection">Project Projection</option>
+          <option value="expense">Expense</option>
+          <option value="quotation">Quotation</option>
+          <option value="attendance">Attendance</option>
+          <option value="attendanceSheet">Attendance Sheet</option>
         </select>
         <button className="btn btn-primary" onClick={issueCrmKey}>+ Issue Key</button>
       </div>
