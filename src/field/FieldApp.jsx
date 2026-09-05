@@ -449,26 +449,33 @@ function FieldLogin({ onLogin }) {
 
 /* ---- Firebase Cloud Messaging: real push so alerts arrive instantly even when
    the app is fully closed. Registers the device and sends the token to the server. ---- */
+if (typeof window !== "undefined") window.ebEnablePush = () => registerPush();
 async function registerPush() {
   try {
     const Cap = typeof window !== "undefined" ? window.Capacitor : null;
     const PN = Cap && Cap.Plugins && Cap.Plugins.PushNotifications;
     if (!PN) return;                                    // web / plugin not installed
+    /* IMPORTANT: attach the listeners BEFORE register(), otherwise the
+       "registration" event fires first and the token is lost. */
+    await PN.addListener("registration", async (t) => {
+      const token = t && t.value;
+      if (!token) return;
+      try {
+        await api.savePushToken(token);            // always send (server upserts)
+        localStorage.setItem("eb_fcm_token", token);
+      } catch (e) {
+        /* not logged in yet / network — retry shortly */
+        setTimeout(() => { api.savePushToken(token).then(() => localStorage.setItem("eb_fcm_token", token)).catch(() => {}); }, 6000);
+      }
+    });
+    await PN.addListener("registrationError", (e) => {
+      try { localStorage.setItem("eb_fcm_error", JSON.stringify(e || {})); } catch {}
+    });
+
     let perm = await PN.checkPermissions();
     if (perm.receive !== "granted") perm = await PN.requestPermissions();
     if (perm.receive !== "granted") return;
     await PN.register();
-
-    PN.addListener("registration", async (t) => {
-      const token = t && t.value;
-      if (!token) return;
-      try {
-        if (localStorage.getItem("eb_fcm_token") === token) return;   // already saved
-        await api.savePushToken(token);
-        localStorage.setItem("eb_fcm_token", token);
-      } catch {}
-    });
-    PN.addListener("registrationError", () => {});
     /* app in foreground -> show it ourselves so it never gets missed */
     PN.addListener("pushNotificationReceived", (n) => {
       try {
@@ -5493,6 +5500,8 @@ export default function FieldApp() {
      - no session today         -> fresh, login option available (kotha roju) */
   useEffect(() => {
     if (!authed) return;
+    /* register for FCM push once we are logged in (the token save needs auth) */
+    try { registerPush(); } catch {}
     api.attToday().then((d) => {
       const s = d.session;
       if (s && s.status === "RUNNING") {
