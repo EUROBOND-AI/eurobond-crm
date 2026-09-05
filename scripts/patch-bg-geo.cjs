@@ -38,6 +38,8 @@ try {
     "import android.location.LocationManager;",
     "import android.media.RingtoneManager;",
     "import android.media.Ringtone;",
+    "import android.media.MediaPlayer;",
+    "import android.media.AudioManager;",
     "import android.app.NotificationManager;",
     "import androidx.core.app.NotificationCompat;",
     "import java.io.OutputStream;",
@@ -107,49 +109,71 @@ try {
     /* ---- INSTANT location-off alert: a receiver fires the moment the user turns
        location OFF, and shows a loud notification + sound immediately (no delay). ---- */
     private BroadcastReceiver ebLocReceiver = null;
-    private static Ringtone ebAlarmRingtone = null;
+    private static Ringtone ebAlarmRingtone = null;      // legacy field (unused now)
+    private static MediaPlayer ebAlarmPlayer = null;     // looping alarm until location is back
+    private final Handler ebAlertHandler = new Handler(Looper.getMainLooper());
+    private boolean ebAlertRunning = false;
+
+    private boolean ebLocationOn() {
+        try {
+            LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+            return lm != null && (lm.isProviderEnabled(LocationManager.GPS_PROVIDER) || lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER));
+        } catch (Exception e) { return true; }
+    }
+
+    /* Repeats every 3s while location is OFF: keeps the alarm looping and re-posts the
+       notification even if the user swipes it. Stops the instant location is back ON. */
+    private final Runnable ebAlertLoop = new Runnable() {
+        @Override public void run() {
+            if (ebLocationOn()) { ebStopAlert(); return; }
+            ebStartAlarmSound();
+            ebShowLocationOffNotification();
+            ebAlertHandler.postDelayed(this, 3000);
+        }
+    };
+
+    private void ebStartAlert() {
+        if (ebAlertRunning) return;
+        ebAlertRunning = true;
+        ebAlertHandler.removeCallbacks(ebAlertLoop);
+        ebAlertHandler.post(ebAlertLoop);
+    }
+    private void ebStopAlert() {
+        ebAlertRunning = false;
+        ebAlertHandler.removeCallbacks(ebAlertLoop);
+        ebStopAlarmSound();
+        try { NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE); if (nm != null) nm.cancel(74191); } catch (Exception e) {}
+    }
+
+    private void ebStartAlarmSound() {
+        try {
+            if (ebAlarmPlayer != null && ebAlarmPlayer.isPlaying()) return;
+            if (ebAlarmPlayer == null) {
+                ebAlarmPlayer = new MediaPlayer();
+                ebAlarmPlayer.setDataSource(getApplicationContext(), RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM));
+                try { ebAlarmPlayer.setAudioStreamType(AudioManager.STREAM_ALARM); } catch (Throwable t) {}
+                ebAlarmPlayer.setLooping(true);
+                ebAlarmPlayer.prepare();
+            }
+            ebAlarmPlayer.start();
+        } catch (Exception e) {}
+    }
+    private void ebStopAlarmSound() {
+        try { if (ebAlarmPlayer != null) { if (ebAlarmPlayer.isPlaying()) ebAlarmPlayer.stop(); ebAlarmPlayer.release(); ebAlarmPlayer = null; } } catch (Exception e) { ebAlarmPlayer = null; }
+    }
+
     private void ebRegisterLocReceiver() {
         if (ebLocReceiver != null) return;
         ebLocReceiver = new BroadcastReceiver() {
             @Override public void onReceive(Context ctx, Intent intent) {
-                try {
-                    LocationManager lm = (LocationManager) ctx.getSystemService(Context.LOCATION_SERVICE);
-                    boolean on = lm != null && (lm.isProviderEnabled(LocationManager.GPS_PROVIDER) || lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER));
-                    ebPostGpsStatus(on);   // tell the server instantly (admin sees it live)
-                    if (!on) { ebAlertLocationOff(); }
-                    else { ebStopAlarmSound();
-                        try { NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE); if (nm != null) nm.cancel(74191); } catch (Exception e) {}
-                    }
-                } catch (Exception e) {}
+                boolean on = ebLocationOn();
+                ebPostGpsStatus(on);           // admin sees it instantly
+                if (!on) ebStartAlert(); else ebStopAlert();
             }
         };
         try { registerReceiver(ebLocReceiver, new IntentFilter("android.location.PROVIDERS_CHANGED")); } catch (Exception e) {}
-    }
-    /* Always keep a foreground "Tracking on" notification — uses the plugin's own
-       notification when available, otherwise builds a native one so the notification
-       ALWAYS comes back after the app is closed / swiped. */
-    private void ebEnsureForeground() {
-        try {
-            Notification n = getNotification();
-            if (n != null) { startForeground(NOTIFICATION_ID, n); return; }
-            // fallback: build our own so the process stays foreground + notification shows
-            Intent open = getPackageManager().getLaunchIntentForPackage(getPackageName());
-            PendingIntent pi = null;
-            if (open != null) {
-                open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                int fl = PendingIntent.FLAG_UPDATE_CURRENT;
-                try { fl |= PendingIntent.FLAG_IMMUTABLE; } catch (Throwable t) {}
-                pi = PendingIntent.getActivity(getApplicationContext(), 74193, open, fl);
-            }
-            NotificationCompat.Builder b = new NotificationCompat.Builder(getApplicationContext(), "eurobond_crm")
-                .setContentTitle("Eurobond CRM")
-                .setContentText("Tracking on")
-                .setSmallIcon(getResources().getIdentifier("ic_stat_notify", "drawable", getPackageName()))
-                .setOngoing(true)
-                .setPriority(NotificationCompat.PRIORITY_LOW);
-            if (pi != null) b.setContentIntent(pi);
-            startForeground(NOTIFICATION_ID, b.build());
-        } catch (Exception e) {}
+        // also check right away in case location was already off
+        if (!ebLocationOn()) ebStartAlert();
     }
 
     /* Android 8+ blocks starting a background service from an alarm/PendingIntent.
@@ -163,9 +187,7 @@ try {
         } catch (Throwable t) {}
         return PendingIntent.getService(getApplicationContext(), req, i, flag);
     }
-    private void ebStopAlarmSound() {
-        try { if (ebAlarmRingtone != null && ebAlarmRingtone.isPlaying()) ebAlarmRingtone.stop(); } catch (Exception e) {}
-    }
+
     /* POST the current GPS on/off state to the server so admin sees it instantly. */
     private void ebPostGpsStatus(final boolean on) {
         new Thread(new Runnable() {
@@ -193,63 +215,73 @@ try {
             }
         }).start();
     }
-    /* If the user disables notifications for the app (to dodge tracking), alert them
-       with the same loud sound + a notification pushed on a different channel. */
+
+    /* If the user disables notifications for the app (to dodge tracking), still make noise. */
     private void ebCheckNotificationsOn() {
         try {
             NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             boolean enabled = nm == null || nm.areNotificationsEnabled();
-            if (!enabled) {
-                // notifications are OFF so we can't show one — a single alert tone is the only way
-                try {
-                    Ringtone r = RingtoneManager.getRingtone(getApplicationContext(), RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION));
-                    if (r != null) r.play();
-                } catch (Exception e) {}
-            }
+            if (!enabled && !ebLocationOn()) ebStartAlarmSound();
         } catch (Exception e) {}
     }
-    private void ebAlertLocationOff() {
+
+    private void ebShowLocationOffNotification() {
         try {
-            // sound comes WITH the notification itself (DEFAULT_ALL) — no separate looping song
-            // high-priority notification the moment location goes off
             NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-            // make sure a HIGH-importance channel exists so the sound plays outside the app
             try {
                 if (android.os.Build.VERSION.SDK_INT >= 26 && nm != null) {
                     android.app.NotificationChannel ch = new android.app.NotificationChannel(
                         "eb_alert_hi", "Eurobond Tracking Alerts", NotificationManager.IMPORTANCE_HIGH);
                     ch.setDescription("Alerts when location is turned off during attendance");
                     ch.enableVibration(true);
-                    try {
-                        android.media.AudioAttributes aa = new android.media.AudioAttributes.Builder()
-                            .setUsage(android.media.AudioAttributes.USAGE_ALARM)
-                            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
-                        ch.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM), aa);
-                    } catch (Throwable t) {}
                     nm.createNotificationChannel(ch);
                 }
             } catch (Exception e) {}
+            Intent open = getPackageManager().getLaunchIntentForPackage(getPackageName());
+            PendingIntent pi = null;
+            if (open != null) {
+                open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                int fl = PendingIntent.FLAG_UPDATE_CURRENT;
+                try { fl |= PendingIntent.FLAG_IMMUTABLE; } catch (Throwable t) {}
+                pi = PendingIntent.getActivity(getApplicationContext(), 74192, open, fl);
+            }
             NotificationCompat.Builder b = new NotificationCompat.Builder(getApplicationContext(), "eb_alert_hi")
-                .setContentTitle("⚠️ Location is OFF!")
-                .setContentText("Attendance tracking stopped. Tap to turn ON location.")
+                .setContentTitle("GPS is OFF")
+                .setContentText("Attendance tracking stopped. Turn ON your location now.")
                 .setSmallIcon(getResources().getIdentifier("ic_stat_notify", "drawable", getPackageName()))
                 .setPriority(NotificationCompat.PRIORITY_MAX)
-                .setDefaults(NotificationCompat.DEFAULT_ALL)
-                .setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM))
                 .setCategory(NotificationCompat.CATEGORY_ALARM)
-                .setAutoCancel(true);
-            // tapping opens the app so the in-app "Turn ON Location" flow runs
-            try {
-                Intent open = getPackageManager().getLaunchIntentForPackage(getPackageName());
-                if (open != null) {
-                    open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                    int fl = PendingIntent.FLAG_UPDATE_CURRENT;
-                    try { fl |= PendingIntent.FLAG_IMMUTABLE; } catch (Throwable t) {}
-                    PendingIntent pi = PendingIntent.getActivity(getApplicationContext(), 74192, open, fl);
-                    b.setContentIntent(pi);
-                }
-            } catch (Exception e) {}
+                .setOngoing(true)        // can't be swiped away while location is off
+                .setAutoCancel(false)
+                .setOnlyAlertOnce(true); // the looping alarm carries the sound
+            if (pi != null) b.setContentIntent(pi);
             if (nm != null) nm.notify(74191, b.build());
+        } catch (Exception e) {}
+    }
+
+    private void ebAlertLocationOff() { ebStartAlert(); }
+
+    private void ebEnsureForeground() {
+        try {
+            Notification n = getNotification();
+            if (n != null) { startForeground(NOTIFICATION_ID, n); return; }
+            // fallback: build our own so the process stays foreground + notification shows
+            Intent open = getPackageManager().getLaunchIntentForPackage(getPackageName());
+            PendingIntent pi = null;
+            if (open != null) {
+                open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                int fl = PendingIntent.FLAG_UPDATE_CURRENT;
+                try { fl |= PendingIntent.FLAG_IMMUTABLE; } catch (Throwable t) {}
+                pi = PendingIntent.getActivity(getApplicationContext(), 74193, open, fl);
+            }
+            NotificationCompat.Builder b = new NotificationCompat.Builder(getApplicationContext(), "eurobond_crm")
+                .setContentTitle("Eurobond CRM")
+                .setContentText("Tracking on")
+                .setSmallIcon(getResources().getIdentifier("ic_stat_notify", "drawable", getPackageName()))
+                .setOngoing(true)
+                .setPriority(NotificationCompat.PRIORITY_LOW);
+            if (pi != null) b.setContentIntent(pi);
+            startForeground(NOTIFICATION_ID, b.build());
         } catch (Exception e) {}
     }
 
@@ -267,7 +299,7 @@ try {
                 } catch (Exception e) {}
             }
             ebScheduleAlarm();   // keep a Doze-proof wakeup armed
-            keepAliveHandler.postDelayed(this, 2000);
+            keepAliveHandler.postDelayed(this, 1000);
         }
     };
 
