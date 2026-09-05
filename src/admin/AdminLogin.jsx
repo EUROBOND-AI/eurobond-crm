@@ -35,25 +35,75 @@ export default function AdminLogin() {
     }
   };
 
-  return (
-    <div style={{ minHeight: "100vh", display: "grid", gridTemplateColumns: "1fr 1fr", fontFamily: "Inter, system-ui, sans-serif" }} className="admin-login-shell">
-      <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", padding: "48px 8vw", background: "#fff" }}>
-        <Link to="/" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#64748b", fontSize: 13, fontWeight: 700, marginBottom: 40, textDecoration: "none" }}>
+  const isTeam = tab === "team";
+  /* dark = the blue 3D panel; it sits on the RIGHT for Backend Team and slides to the
+     LEFT (behind the form) for Individual, so each mode feels different. */
+  const dark = "linear-gradient(150deg, #0b1437 0%, #1e2a63 45%, #4f46e5 100%)";
+
+  const ArtPanel = (
+    <div className="admin-login-art" style={{
+      position: "relative", overflow: "hidden", background: dark,
+      display: "flex", flexDirection: "column", justifyContent: "center",
+      padding: "48px 5vw", color: "#fff", transition: "all .55s cubic-bezier(.22,1,.36,1)",
+    }}>
+      <div style={{ position: "absolute", top: -120, right: -120, width: 380, height: 380, borderRadius: "50%", background: "radial-gradient(circle, rgba(124,110,240,0.55), transparent 70%)" }} />
+      <div style={{ position: "absolute", bottom: -140, left: -80, width: 340, height: 340, borderRadius: "50%", background: "radial-gradient(circle, rgba(59,130,246,0.4), transparent 70%)" }} />
+      {/* floating 3D glass cards */}
+      <div style={{ position: "absolute", top: "16%", right: "12%", width: 150, height: 96, borderRadius: 18, background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.22)", backdropFilter: "blur(8px)", transform: "perspective(700px) rotateY(-16deg) rotateX(8deg)", boxShadow: "0 24px 50px rgba(0,0,0,.35)" }} />
+      <div style={{ position: "absolute", bottom: "18%", right: "22%", width: 118, height: 76, borderRadius: 16, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.18)", backdropFilter: "blur(8px)", transform: "perspective(700px) rotateY(14deg) rotateX(-8deg)", boxShadow: "0 20px 44px rgba(0,0,0,.3)" }} />
+      <div style={{ position: "relative", zIndex: 2, maxWidth: 440, transform: "perspective(900px) rotateY(" + (isTeam ? "-5deg" : "5deg") + ")", transition: "transform .55s cubic-bezier(.22,1,.36,1)" }}>
+        <h2 style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.1, margin: "0 0 18px", textShadow: "0 8px 24px rgba(0,0,0,.35)" }}>
+          {isTeam ? <>Eurobond CRM<br />Command Center</> : <>Your Workspace<br />Your Numbers</>}
+        </h2>
+        <p style={{ fontSize: 16, lineHeight: 1.6, color: "rgba(255,255,255,0.82)", margin: 0 }}>
+          {isTeam
+            ? "One backend for your entire field force — attendance & live GPS, enquiries, quotations, expenses, projects and team performance, all in real time."
+            : "Sign in with your app account to see exactly what belongs to you — your customers, your enquiries, your targets and your team's performance."}
+        </p>
+        <div style={{ display: "flex", gap: 26, marginTop: 40 }}>
+          <div><div style={{ fontSize: 26, fontWeight: 800 }}>400+</div><div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)" }}>Field users</div></div>
+          <div><div style={{ fontSize: 26, fontWeight: 800 }}>15+</div><div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)" }}>Modules</div></div>
+          <div><div style={{ fontSize: 26, fontWeight: 800 }}>24/7</div><div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)" }}>Live tracking</div></div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const FormPanel = (
+    <div style={{
+      display: "flex", flexDirection: "column", justifyContent: "center",
+      padding: "48px 8vw", background: isTeam ? "#fff" : "#f6f8ff",
+      transition: "background .55s ease", perspective: "1200px",
+    }}>
+      <div style={{
+        transform: "perspective(1100px) rotateY(" + (isTeam ? "3deg" : "-3deg") + ") translateZ(0)",
+        transition: "transform .55s cubic-bezier(.22,1,.36,1)",
+        background: "#fff", borderRadius: 22, padding: "34px 30px",
+        boxShadow: isTeam
+          ? "0 30px 70px rgba(15,23,42,.12), 0 6px 18px rgba(15,23,42,.06)"
+          : "0 30px 70px rgba(79,70,229,.22), 0 6px 18px rgba(79,70,229,.12)",
+        border: "1px solid " + (isTeam ? "#eef2f7" : "#e0e5ff"),
+      }}>
+        <Link to="/" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#64748b", fontSize: 13, fontWeight: 700, marginBottom: 22, textDecoration: "none" }}>
           <ArrowLeft size={15} /> Back to portal
         </Link>
 
-        <img src={logoImg} alt="Eurobond" style={{ height: 46, marginBottom: 24, alignSelf: "flex-start" }} />
+        <img src={logoImg} alt="Eurobond" style={{ height: 42, marginBottom: 18, display: "block" }} />
 
-        <h1 style={{ fontSize: 30, fontWeight: 800, letterSpacing: "-0.02em", color: "#0f172a", margin: "0 0 8px" }}>Welcome back</h1>
-        <p style={{ color: "#64748b", fontSize: 15, margin: "0 0 26px", lineHeight: 1.5 }}>Sign in to the Eurobond CRM backend.</p>
+        <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.02em", color: "#0f172a", margin: "0 0 6px" }}>
+          Hey, welcome back <span style={{ display: "inline-block" }}>👋</span>
+        </h1>
+        <p style={{ color: "#64748b", fontSize: 14.5, margin: "0 0 22px", lineHeight: 1.5 }}>
+          {isTeam ? "Sign in to the Eurobond CRM backend." : "Sign in with your app account."}
+        </p>
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 22, background: "#f1f5f9", padding: 5, borderRadius: 12 }}>
-          <button onClick={() => { setTab("team"); setErr(""); }} style={tabBtn(tab === "team")}><Users size={15} /> Backend Team</button>
-          <button onClick={() => { setTab("individual"); setErr(""); }} style={tabBtn(tab === "individual")}><User size={15} /> Individual</button>
+        <div style={{ display: "flex", gap: 8, marginBottom: 20, background: "#f1f5f9", padding: 5, borderRadius: 12 }}>
+          <button onClick={() => { setTab("team"); setErr(""); }} style={tabBtn(isTeam)}><Users size={15} /> Backend Team</button>
+          <button onClick={() => { setTab("individual"); setErr(""); }} style={tabBtn(!isTeam)}><User size={15} /> Individual</button>
         </div>
 
-        <label style={lbl}>{tab === "team" ? "Username" : "Mobile Number"}</label>
-        <input value={u} onChange={(e) => { setU(e.target.value); setErr(""); }} placeholder={tab === "team" ? "Your admin username" : "Your mobile / employee code"} autoCapitalize="none" style={inp} />
+        <label style={lbl}>{isTeam ? "Username" : "Mobile Number"}</label>
+        <input value={u} onChange={(e) => { setU(e.target.value); setErr(""); }} placeholder={isTeam ? "Your admin username" : "Your mobile / employee code"} autoCapitalize="none" style={inp} />
 
         <label style={lbl}>Password</label>
         <div style={{ position: "relative", marginBottom: 6 }}>
@@ -72,28 +122,16 @@ export default function AdminLogin() {
           {busy ? "Signing in…" : "Sign In"}
         </button>
 
-        <div style={{ marginTop: 22, display: "flex", alignItems: "center", gap: 8, color: "#94a3b8", fontSize: 12.5 }}>
-          <ShieldCheck size={15} /> {tab === "team" ? "Username + password — added under Admin Users." : "App account (mobile). You'll only see modules allowed for your role."}
+        <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 8, color: "#94a3b8", fontSize: 12.5 }}>
+          <ShieldCheck size={15} /> {isTeam ? "Username + password — added under Admin Users." : "App account (mobile). You'll only see your own data."}
         </div>
       </div>
+    </div>
+  );
 
-      <div className="admin-login-art" style={{ position: "relative", overflow: "hidden", background: "linear-gradient(150deg, #0b1437 0%, #1e2a63 45%, #4f46e5 100%)", display: "flex", flexDirection: "column", justifyContent: "center", padding: "48px 5vw", color: "#fff" }}>
-        <div style={{ position: "absolute", top: -120, right: -120, width: 380, height: 380, borderRadius: "50%", background: "radial-gradient(circle, rgba(124,110,240,0.55), transparent 70%)" }} />
-        <div style={{ position: "absolute", bottom: -140, left: -80, width: 340, height: 340, borderRadius: "50%", background: "radial-gradient(circle, rgba(59,130,246,0.4), transparent 70%)" }} />
-        <div style={{ position: "relative", zIndex: 2, maxWidth: 440 }}>
-          <h2 style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.1, margin: "0 0 18px" }}>
-            Eurobond CRM<br />Command Center
-          </h2>
-          <p style={{ fontSize: 16, lineHeight: 1.6, color: "rgba(255,255,255,0.82)", margin: 0 }}>
-            One backend for your entire field force — attendance & live GPS, enquiries, quotations, expenses, projects and team performance, all in real time.
-          </p>
-          <div style={{ display: "flex", gap: 26, marginTop: 40 }}>
-            <div><div style={{ fontSize: 26, fontWeight: 800 }}>400+</div><div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)" }}>Field users</div></div>
-            <div><div style={{ fontSize: 26, fontWeight: 800 }}>15+</div><div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)" }}>Modules</div></div>
-            <div><div style={{ fontSize: 26, fontWeight: 800 }}>24/7</div><div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)" }}>Live tracking</div></div>
-          </div>
-        </div>
-      </div>
+  return (
+    <div style={{ minHeight: "100vh", display: "grid", gridTemplateColumns: "1fr 1fr", fontFamily: "Inter, system-ui, sans-serif" }} className="admin-login-shell">
+      {isTeam ? <>{FormPanel}{ArtPanel}</> : <>{ArtPanel}{FormPanel}</>}
     </div>
   );
 }
