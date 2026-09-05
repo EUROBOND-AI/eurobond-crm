@@ -702,7 +702,8 @@ function GpsSetupModal({ onClose }) {
   const askLoc = async () => { try { await P.Geolocation.requestPermissions(); mark("loc"); } catch {} };
   const askBattery = async () => {
     try {
-      if (P.BatteryOptimization) {
+      const _plat = (window.Capacitor && typeof window.Capacitor.getPlatform === "function") ? window.Capacitor.getPlatform() : "";
+      if (_plat === "android" && P.BatteryOptimization) {
         const r = await P.BatteryOptimization.isBatteryOptimizationEnabled();
         if (r && r.enabled) await P.BatteryOptimization.requestIgnoreBatteryOptimization();
         else await P.BatteryOptimization.openBatteryOptimizationSettings();
@@ -713,7 +714,7 @@ function GpsSetupModal({ onClose }) {
   const openAppSettings = async () => {
     /* opens THIS app's system settings page — user taps Battery / Autostart there */
     try {
-      if (P.BatteryOptimization && P.BatteryOptimization.openBatteryOptimizationSettings) {
+      if (_plat === "android" && P.BatteryOptimization && P.BatteryOptimization.openBatteryOptimizationSettings) {
         await P.BatteryOptimization.openBatteryOptimizationSettings(); mark("oem");
       }
     } catch {}

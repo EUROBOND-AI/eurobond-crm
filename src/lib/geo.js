@@ -200,7 +200,8 @@ export async function startTracker(onPoint, onError) {
   /* Start a dedicated persistent foreground service that keeps the whole process
      alive — this is what survives app swipe-close on MIUI/ColorOS/OneUI. It runs
      alongside the GPS watcher (does not touch GPS logic). */
-  if (isNative && Cap.Plugins && Cap.Plugins.ForegroundService) {
+  const isAndroid = isNative && typeof Cap.getPlatform === "function" && Cap.getPlatform() === "android";
+  if (isAndroid && Cap.Plugins && Cap.Plugins.ForegroundService) {   // Android-only plugin
     try {
       const FGS = Cap.Plugins.ForegroundService;
       try { await FGS.requestPermissions(); } catch (pe) {}
@@ -259,7 +260,10 @@ export async function stopTracker() {
   if (_tracker.watcherId && BG) { try { await BG.removeWatcher({ id: _tracker.watcherId }); } catch {} _tracker.watcherId = null; }
   if (_tracker.webWatchId != null && navigator.geolocation) { try { navigator.geolocation.clearWatch(_tracker.webWatchId); } catch {} _tracker.webWatchId = null; }
   /* stop the persistent foreground service when attendance ends */
-  try { if (Cap && Cap.Plugins && Cap.Plugins.ForegroundService) await Cap.Plugins.ForegroundService.stopForegroundService(); } catch {}
+  try {
+    const plat = Cap && typeof Cap.getPlatform === "function" ? Cap.getPlatform() : "";
+    if (plat === "android" && Cap.Plugins && Cap.Plugins.ForegroundService) await Cap.Plugins.ForegroundService.stopForegroundService();
+  } catch {}
 }
 
 export function watchLocation(onPoint, onError) {
