@@ -564,6 +564,27 @@ try {
     }
   } catch (e) { console.log("[patch-bg-geo] firebase gradle note:", e.message); }
 
+  /* ---- FCM push notifications: use the Eurobond logo as the small icon and
+     route them to our high-importance channel (otherwise Android shows a
+     generic grey square). ---- */
+  try {
+    const appManifest = path.join(__dirname, "..", "android", "app", "src", "main", "AndroidManifest.xml");
+    if (fs.existsSync(appManifest)) {
+      let am = fs.readFileSync(appManifest, "utf8");
+      if (!am.includes("default_notification_icon")) {
+        const meta =
+          '        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_stat_notify" />\n' +
+          '        <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="eurobond_crm" />\n';
+        am = am.replace(/([ \t]*<\/application>)/, meta + "$1");
+        fs.writeFileSync(appManifest, am, "utf8");
+        console.log("[patch-bg-geo] FCM notifications now use the Eurobond logo icon ✓");
+      } else {
+        console.log("[patch-bg-geo] FCM notification icon already set ✓");
+      }
+    }
+  } catch (e) { console.log("[patch-bg-geo] fcm icon note:", e.message); }
+
+
 
   // ---- set the tracking-notification icon to the Eurobond logo (string resource only,
   //      no code logic touched) ----
