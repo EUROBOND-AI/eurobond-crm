@@ -217,18 +217,26 @@ try {
             try {
                 if (android.os.Build.VERSION.SDK_INT >= 26 && nm != null) {
                     android.app.NotificationChannel ch = new android.app.NotificationChannel(
-                        "eurobond_alert", "Eurobond Tracking Alerts", NotificationManager.IMPORTANCE_HIGH);
+                        "eb_alert_hi", "Eurobond Tracking Alerts", NotificationManager.IMPORTANCE_HIGH);
                     ch.setDescription("Alerts when location is turned off during attendance");
                     ch.enableVibration(true);
+                    try {
+                        android.media.AudioAttributes aa = new android.media.AudioAttributes.Builder()
+                            .setUsage(android.media.AudioAttributes.USAGE_ALARM)
+                            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
+                        ch.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM), aa);
+                    } catch (Throwable t) {}
                     nm.createNotificationChannel(ch);
                 }
             } catch (Exception e) {}
-            NotificationCompat.Builder b = new NotificationCompat.Builder(getApplicationContext(), "eurobond_alert")
+            NotificationCompat.Builder b = new NotificationCompat.Builder(getApplicationContext(), "eb_alert_hi")
                 .setContentTitle("⚠️ Location is OFF!")
                 .setContentText("Attendance tracking stopped. Tap to turn ON location.")
                 .setSmallIcon(getResources().getIdentifier("ic_stat_notify", "drawable", getPackageName()))
                 .setPriority(NotificationCompat.PRIORITY_MAX)
                 .setDefaults(NotificationCompat.DEFAULT_ALL)
+                .setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM))
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
                 .setAutoCancel(true);
             // tapping opens the app so the in-app "Turn ON Location" flow runs
             try {
@@ -273,7 +281,7 @@ try {
             int flag = PendingIntent.FLAG_UPDATE_CURRENT;
             try { flag |= PendingIntent.FLAG_IMMUTABLE; } catch (Throwable t) {}
             PendingIntent pi = ebServicePI(4802, i, flag);
-            long next = System.currentTimeMillis() + 120000; // ~2 min
+            long next = System.currentTimeMillis() + 60000; // ~60s — brings the notification back sooner
             // setAlarmClock() is NOT throttled by Doze — it always fires on time, even in
             // deep sleep. This is the key to points flowing when the phone is idle for hours.
             try {

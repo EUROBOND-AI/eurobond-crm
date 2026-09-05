@@ -15,7 +15,9 @@ export default function QuotationAdmin() {
   const [colSearch, setColSearch] = useState({});
   const [view, setView] = useState(null);
   const [mailFor, setMailFor] = useState(null);
-  const [showAdd, setShowAdd] = useState(false);
+  const [showAdd, setShowAdd] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get("prefill") === "1" && !!localStorage.getItem("eb_quote_prefill"); } catch { return false; }
+  });
   const [busy, setBusy] = useState(false);
   const [fStatus, setFStatus] = useState("");
   const [fPerson, setFPerson] = useState("");
@@ -561,7 +563,12 @@ export function AdminSearchSelect({ value, onChange, options, placeholder, disab
 }
 
 function AdminQuoteForm({ onClose, onSaved }) {
-  const [f, setF] = useState({ partyName: "", projectName: "", address: "", contactName: "", contactNumber: "", clientEmail: "" });
+  /* pre-fill from a customer if the user came here via Customers > Quotation */
+  const pf = (() => { try { const v = localStorage.getItem("eb_quote_prefill"); if (v) { localStorage.removeItem("eb_quote_prefill"); return JSON.parse(v); } } catch {} return null; })();
+  const [f, setF] = useState({
+    partyName: pf?.customer || pf?.party || "", projectName: "", address: pf?.address || "",
+    contactName: pf?.contactName || "", contactNumber: pf?.mobile || "", clientEmail: pf?.email || "",
+  });
   const [rows, setRows] = useState([{ grade: "", thickness: "", colour: "", colourCode: "", rate: "" }]);
   const [gradeNames, setGradeNames] = useState([]);
   const [colourMap, setColourMap] = useState({});
