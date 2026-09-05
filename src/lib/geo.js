@@ -4,6 +4,9 @@
 
 const R = 6371; // Earth radius in km
 
+/* keep this EXACTLY the same as API_BASE in src/lib/api.js */
+const API_BASE_FALLBACK = "https://eurobondsealant.com/crm-api";
+
 export function haversineKm(a, b) {
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
   const dLng = ((b.lng - a.lng) * Math.PI) / 180;
@@ -119,7 +122,8 @@ export function setTrackerSession(sessionId, intervalMs, uploadFn) {
     const Prefs = Cap && Cap.Plugins && Cap.Plugins.Preferences;
     if (Prefs) {
       const token = (typeof localStorage !== "undefined" && localStorage.getItem("eb_token")) || "";
-      const base = (typeof window !== "undefined" && window.__EB_API_BASE__) || "https://eurobondsealant.com/crm-api";
+      /* single source of truth — change API_BASE in src/lib/api.js only */
+      const base = (typeof window !== "undefined" && window.__EB_API_BASE__) || API_BASE_FALLBACK;
       if (sessionId) {
         Prefs.set({ key: "eb_session_id", value: String(sessionId) });
         Prefs.set({ key: "eb_token", value: token });

@@ -13,8 +13,9 @@ export const auth = {
   set(token, user) {
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(USER_KEY, JSON.stringify(user));
+    try { clearApiCache(); } catch {}
   },
-  clear() { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USER_KEY); },
+  clear() { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USER_KEY); try { clearApiCache(); } catch {} },
   /* built-in owner account (no server round-trip) — full access to every module */
   setOwner(user) {
     localStorage.setItem(TOKEN_KEY, "OWNER-LOCAL");
@@ -59,6 +60,18 @@ async function req(path, { method = "GET", body, isForm = false } = {}) {
 }
 
 /* ---------- Auth ---------- */
+/* short-lived in-memory cache for data that rarely changes (users, products).
+   Cuts repeat network calls when many screens ask for the same list. */
+const _memo = new Map();
+function memo(key, ttlMs, fn) {
+  const hit = _memo.get(key);
+  if (hit && Date.now() - hit.at < ttlMs) return hit.p;
+  const p = fn().catch((e) => { _memo.delete(key); throw e; });
+  _memo.set(key, { at: Date.now(), p });
+  return p;
+}
+export function clearApiCache() { _memo.clear(); }
+
 export const api = {
   async login(username, password) {
     const d = await req("/auth.php?action=login", { method: "POST", body: { username, password } });
@@ -86,7 +99,7 @@ export const api = {
   logout() { auth.clear(); },
 
   /* ---------- Users ---------- */
-  listUsers: () => req("/users.php"),
+  listUsers: () => memo("users", 60000, () => req("/users.php")),
   createUser: (u) => req("/users.php", { method: "POST", body: u }),
   updateUser: (id, u) => req("/users.php?id=" + id + "&action=update", { method: "POST", body: u }),
   deleteUser: (id) => req("/users.php?id=" + id + "&action=delete", { method: "POST" }),
@@ -95,7 +108,32 @@ export const api = {
   resetUserPass: (id, new_password) => req("/users.php?action=reset_pass", { method: "POST", body: { id, new_password } }),
 
   /* ---------- Generic records (all modules) ---------- */
-  list: (module, mine = false) => req(`/records.php?module=${module}${mine ? "&mine=1" : ""}`),
+  list: (module, mine = false, opts = {}) => {
+    const p = new URLSearchParams({ module });
+    if (mine) p.set("mine", "1");
+    if (opts.limit) p.set("limit", opts.limit);
+    if (opts.offset) p.set("offset", opts.offset);
+    if (opts.from) p.set("from", opts.from);
+    if (opts.to) p.set("to", opts.to);
+    return req(`/records.php?${p.toString()}`);
+  },
+  /* pull every page of a module (used by admin lists that need the full set) */
+  listAll: async (module, mine = false, opts = {}) => {
+    const pageSize = opts.limit || 1000;
+    let offset = 0, all = [], total = 0;
+    for (let i = 0; i < 20; i++) {              // hard stop at 20k rows
+      const p = new URLSearchParams({ module, limit: pageSize, offset });
+      if (mine) p.set("mine", "1");
+      if (opts.from) p.set("from", opts.from);
+      if (opts.to) p.set("to", opts.to);
+      const d = await req(`/records.php?${p.toString()}`);
+      all = all.concat(d.records || []);
+      total = d.total || all.length;
+      if (!d.hasMore) break;
+      offset += pageSize;
+    }
+    return { records: all, total };
+  },
   get: (module, id) => req(`/records.php?module=${module}&id=${id}`),
   create: (module, data) => req(`/records.php?module=${module}`, { method: "POST", body: { data } }),
   update: (module, id, data) => req(`/records.php?module=${module}&id=${id}&action=update`, { method: "POST", body: { data } }),
@@ -152,7 +190,7 @@ export const api = {
 
   /* ---------- Customers (from follow-ups) ---------- */
   sendMail: (payload) => req("/mail.php", { method: "POST", body: payload }),
-  productNames: () => req("/products.php?action=names"),
+  productNames: () => memo("productNames", 300000, () => req("/products.php?action=names")),
   productsByName: (name) => req("/products.php?action=byName&name=" + encodeURIComponent(name)),
   productSearch: (q) => req("/products.php?action=search&q=" + encodeURIComponent(q)),
   productsAll: () => req("/products.php?action=all"),
