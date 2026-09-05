@@ -20,13 +20,6 @@ export default function AdminLogin() {
     if (!u || !p) { setErr(tab === "team" ? "Please enter username and password" : "Please enter mobile and password"); return; }
     setBusy(true); setErr("");
     try {
-      /* built-in owner account — full access to every module incl. API Keys & System Health */
-      if (tab === "team" && u.trim().toLowerCase() === "karthi g" && p === "818695") {
-        auth.setOwner({ name: "Karthi G", username: "karthi.g", role: "Admin", owner: true });
-        try { sessionStorage.setItem("eb_admin_session", "1"); } catch {}
-        nav("/admin/dashboards/expense");
-        return;
-      }
       if (tab === "team") {
         /* Backend panel — username + password, validated against Admin Users (separate from app) */
         await api.adminLogin(u.trim(), p);
@@ -35,7 +28,7 @@ export default function AdminLogin() {
         await api.login(u.trim(), p);
       }
       try { sessionStorage.setItem("eb_admin_session", "1"); } catch {}
-      nav("/admin/dashboards/expense");
+      nav("/admin/dashboards/home");
     } catch (e) {
       setErr(e.message || "Login failed");
       setBusy(false);

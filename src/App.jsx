@@ -96,7 +96,7 @@ export default function App() {
         {Object.entries(MODULES).filter(([key]) => key !== "users" && key !== "quotation" && key !== "products" && key !== "enquiry" && key !== "expense").map(([key, cfg]) => (
           <Route key={key} path={cfg.path} element={<ModulePage cfgKey={key} />} />
         ))}
-        <Route path="*" element={<Navigate to="dashboards/expense" replace />} />
+        <Route path="*" element={<Navigate to="dashboards/home" replace />} />
       </Route>
       <Route path="/app/*" element={<FieldApp />} />
       <Route path="*" element={<Navigate to="/" replace />} />
