@@ -15,6 +15,9 @@ import CheckinPage from "./admin/CheckinPage.jsx";
 import TourReport from "./admin/TourReport.jsx";
 import ApiKeysPage from "./admin/ApiKeysPage.jsx";
 import HealthPage from "./admin/HealthPage.jsx";
+import CustomersDashboard from "./admin/CustomersDashboard.jsx";
+import TargetDashboard from "./admin/TargetDashboard.jsx";
+import ProjectDashboard from "./admin/ProjectDashboard.jsx";
 import RolePermission from "./admin/RolePermission.jsx";
 import TeamAccess from "./admin/TeamAccess.jsx";
 import AppSettings from "./admin/AppSettings.jsx";
@@ -70,6 +73,9 @@ export default function App() {
         <Route path="dashboards/expense" element={<ExpenseDashboard />} />
         <Route path="dashboards/user-report" element={<UserReportCard />} />
         <Route path="dashboards/enquiry" element={<EnquiryDashboard />} />
+        <Route path="dashboards/customers" element={<CustomersDashboard />} />
+        <Route path="dashboards/target" element={<TargetDashboard />} />
+        <Route path="dashboards/project" element={<ProjectDashboard />} />
         <Route path="sfa/checkin" element={<CheckinPage />} />
         <Route path="sfa/tour-report" element={<TourReport />} />
         <Route path="master/roles" element={<RolePermission />} />

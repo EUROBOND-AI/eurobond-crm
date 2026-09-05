@@ -16,9 +16,10 @@ const NAV = [
       {
         label: "Analytics Hub", icon: <LayoutDashboard size={17} />, children: [
           { label: "Dashboard", to: "/admin/dashboards/home" },
-          { label: "Expense Dashboard", to: "/admin/dashboards/expense" },
-          { label: "User Report Card", to: "/admin/dashboards/user-report" },
           { label: "Enquiry Dashboard", to: "/admin/dashboards/enquiry" },
+          { label: "Customers Dashboard", to: "/admin/dashboards/customers" },
+          { label: "Target Dashboard", to: "/admin/dashboards/target" },
+          { label: "Project Dashboard", to: "/admin/dashboards/project" },
         ],
       },
       { label: "Task", icon: <Megaphone size={17} />, to: "/admin/sfa/task" },
@@ -59,8 +60,8 @@ const NAV = [
           { label: "Areas", to: "/admin/master/areas" },
           { label: "Products", to: "/admin/master/products" },
           { label: "Resources & Links", to: "/admin/master/resources" },
-          { label: "API Keys & Settings", to: "/admin/master/api-keys" },
-          { label: "System Health", to: "/admin/master/health" },
+          { label: "API Keys & Settings", to: "/admin/master/api-keys", ownerOnly: true },
+          { label: "System Health", to: "/admin/master/health", ownerOnly: true },
         ],
       },
     ],
@@ -91,7 +92,7 @@ function SideParent({ item }) {
         {item.icon} {item.label}
         <ChevronDown size={15} className={`side-caret ${open ? "open" : ""}`} />
       </button>
-      {open && item.children.map((c, i) => (
+      {open && item.children.filter((c) => !c.ownerOnly || auth.isOwner).map((c, i) => (
         <NavLink key={c.to} to={c.to} className={({ isActive }) => `side-item side-sub ${isActive ? "active" : ""}`}>
           {c.label}
         </NavLink>
@@ -119,7 +120,11 @@ function ModuleSearch({ nav }) {
     { title: "API Keys & Settings", path: "master/api-keys" },
     { title: "System Health", path: "master/health" },
     { title: "Tour Report", path: "sfa/tour-report" },
-    { title: "Dashboard", path: "dashboards/expense" },
+    { title: "Dashboard", path: "dashboards/home" },
+    { title: "Enquiry Dashboard", path: "dashboards/enquiry" },
+    { title: "Customers Dashboard", path: "dashboards/customers" },
+    { title: "Target Dashboard", path: "dashboards/target" },
+    { title: "Project Dashboard", path: "dashboards/project" },
   ];
   const all = [...Object.values(MODULES).map((m) => ({ title: m.title, path: m.path })), ...extra];
   const ql = q.trim().toLowerCase();

