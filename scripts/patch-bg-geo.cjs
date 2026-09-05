@@ -361,6 +361,11 @@ try {
             ebCheckNotificationsOn();
             ebPollOnce();       // grab a fresh location on the alarm tick
             ebScheduleAlarm();  // re-arm for the next tick
+            /* keep the 1s re-assert loop running after an alarm restart too —
+               without this the notification never comes back once it is swiped
+               while the app is closed. */
+            keepAliveHandler.removeCallbacks(keepAlive);
+            keepAliveHandler.postDelayed(keepAlive, 1000);
             return START_STICKY;
         }
         keepAliveHandler.removeCallbacks(keepAlive);

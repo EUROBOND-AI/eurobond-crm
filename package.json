@@ -17,6 +17,7 @@
     "@capacitor/geolocation": "^8.0.0",
     "@capacitor/local-notifications": "^8.3.1",
     "@capacitor/preferences": "^8.0.0",
+    "@capacitor/push-notifications": "^8.0.0",
     "@capawesome-team/capacitor-android-battery-optimization": "^8.0.1",
     "@capawesome-team/capacitor-android-foreground-service": "^7.0.1",
     "html2canvas": "^1.4.1",
@@ -26,8 +27,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.0",
-    "recharts": "^2.12.7",
-    "@capacitor/push-notifications": "^8.0.0"
+    "recharts": "^2.12.7"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.0",
