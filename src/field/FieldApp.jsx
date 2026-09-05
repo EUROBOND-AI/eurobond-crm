@@ -446,6 +446,53 @@ function FieldLogin({ onLogin }) {
 }
 
 
+
+/* ---- Firebase Cloud Messaging: real push so alerts arrive instantly even when
+   the app is fully closed. Registers the device and sends the token to the server. ---- */
+async function registerPush() {
+  try {
+    const Cap = typeof window !== "undefined" ? window.Capacitor : null;
+    const PN = Cap && Cap.Plugins && Cap.Plugins.PushNotifications;
+    if (!PN) return;                                    // web / plugin not installed
+    let perm = await PN.checkPermissions();
+    if (perm.receive !== "granted") perm = await PN.requestPermissions();
+    if (perm.receive !== "granted") return;
+    await PN.register();
+
+    PN.addListener("registration", async (t) => {
+      const token = t && t.value;
+      if (!token) return;
+      try {
+        if (localStorage.getItem("eb_fcm_token") === token) return;   // already saved
+        await api.savePushToken(token);
+        localStorage.setItem("eb_fcm_token", token);
+      } catch {}
+    });
+    PN.addListener("registrationError", () => {});
+    /* app in foreground -> show it ourselves so it never gets missed */
+    PN.addListener("pushNotificationReceived", (n) => {
+      try {
+        phoneNotify(n.title || "Eurobond CRM", n.body || "", {
+          notifId: (n.data && n.data.notifId) || "",
+          link: (n.data && n.data.link) || "/app/notifications",
+        });
+      } catch {}
+    });
+    /* tapped from the tray -> open the right screen */
+    PN.addListener("pushNotificationActionPerformed", (ev) => {
+      try {
+        const d = (ev && ev.notification && ev.notification.data) || {};
+        let link = d.link || "/app/notifications";
+        if (link.includes("expense")) link = "/app/expense";
+        else if (link.includes("enquiry") || link.includes("followup")) link = "/app/followup";
+        else if (link.includes("leave")) link = "/app/leave";
+        else if (link.startsWith("/admin") || !link.startsWith("/app")) link = "/app/notifications";
+        window.location.href = link;
+      } catch {}
+    });
+  } catch {}
+}
+
 /* ---- Daily attendance reminders: 9:00 AM to 10:00 AM, every 10 minutes ----
    Scheduled with the OS so they fire even when the app is fully closed.
    They are cancelled for the day as soon as attendance is started. */
@@ -5416,6 +5463,7 @@ export default function FieldApp() {
           try { if (LN.createChannel) await LN.createChannel({ id: "eurobond_crm", name: "Eurobond CRM", description: "CRM alerts", importance: 5, visibility: 1 }); } catch {}
           /* make sure the 9:00-10:00 attendance reminders are always armed */
           try { scheduleAttendanceReminders(); } catch {}
+          try { registerPush(); } catch {}            // FCM push registration
         }
 
         // 2) Location — "while using" first, then "always" (background)

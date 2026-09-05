@@ -181,6 +181,8 @@ export const api = {
   settingsSave: (key, value, label) => req("/settings.php?action=save", { method: "POST", body: { key, value, label } }),
   healthCheck: () => req("/health.php?action=check"),
   scanCard: (image) => req("/scan_card.php", { method: "POST", body: { image } }),
+  savePushToken: (token) => req("/push.php?action=save_token", { method: "POST", body: { token, platform: "android" } }),
+  pushTest: (name) => req("/push.php?action=test", { method: "POST", body: { to: name, title: "Eurobond CRM", body: "Test push — if you see this, push is working." } }),
   crmKeysList: () => req("/crm_api.php?action=keys"),
   crmKeyIssue: (label, module) => req("/crm_api.php?action=issue", { method: "POST", body: { label, module } }),
   crmKeyRevoke: (id) => req("/crm_api.php?action=revoke", { method: "POST", body: { id } }),

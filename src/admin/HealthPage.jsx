@@ -5,6 +5,7 @@ import { api } from "../lib/api.js";
 export default function HealthPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [pushTo, setPushTo] = useState("");
   const [errLog, setErrLog] = useState(() => { try { return JSON.parse(localStorage.getItem("eb_error_log") || "[]"); } catch { return []; } });
 
   const run = () => {
@@ -20,8 +21,15 @@ export default function HealthPage() {
   return (
     <div>
       <PageHead title="System Health & Diagnostics" crumb="System Health" />
-      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 16 }}>
+      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
         <button className="btn btn-primary" onClick={run} disabled={loading}>{loading ? "Checking…" : "🔄 Run Check"}</button>
+        <input value={pushTo} onChange={(e) => setPushTo(e.target.value)} placeholder="User name (exact)" style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13 }} />
+        <button className="btn" onClick={async () => {
+          try {
+            const r = await api.pushTest(pushTo.trim());
+            alert(`Push test\n\nTo: ${r.to}\nDevices registered: ${r.devices}\nService account: ${r.service_account ? "present" : "MISSING"}\nResult: ${r.note}`);
+          } catch (e) { alert("Push test failed: " + e.message); }
+        }}>📲 Send Test Push</button>
         {data && !data.error && <span style={{ color: "var(--muted)", fontSize: 12.5 }}>Server time: {data.server_time}</span>}
       </div>
 

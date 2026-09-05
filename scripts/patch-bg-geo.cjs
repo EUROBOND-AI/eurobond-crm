@@ -540,6 +540,31 @@ try {
     }
   } catch (e) { console.log("[patch-bg-geo] fgs manifest note:", e.message); }
 
+  /* ---- Firebase (FCM push): add the google-services Gradle plugin automatically
+     so you never have to edit gradle files by hand. Only applies when
+     android/app/google-services.json exists. ---- */
+  try {
+    const gsJson   = path.join(__dirname, "..", "android", "app", "google-services.json");
+    const rootG    = path.join(__dirname, "..", "android", "build.gradle");
+    const appG     = path.join(__dirname, "..", "android", "app", "build.gradle");
+    if (fs.existsSync(gsJson) && fs.existsSync(rootG) && fs.existsSync(appG)) {
+      let rg = fs.readFileSync(rootG, "utf8");
+      if (!rg.includes("com.google.gms:google-services")) {
+        rg = rg.replace(/(classpath\s+['"]com\.android\.tools\.build:gradle[^\n]*\n)/,
+          "$1        classpath 'com.google.gms:google-services:4.4.2'\n");
+        fs.writeFileSync(rootG, rg, "utf8");
+        console.log("[patch-bg-geo] added google-services classpath to android/build.gradle ✓");
+      }
+      let ag = fs.readFileSync(appG, "utf8");
+      if (!ag.includes("com.google.gms.google-services")) {
+        ag = ag.trimEnd() + "\n\napply plugin: 'com.google.gms.google-services'\n";
+        fs.writeFileSync(appG, ag, "utf8");
+        console.log("[patch-bg-geo] applied google-services plugin to app/build.gradle ✓");
+      }
+    }
+  } catch (e) { console.log("[patch-bg-geo] firebase gradle note:", e.message); }
+
+
   // ---- set the tracking-notification icon to the Eurobond logo (string resource only,
   //      no code logic touched) ----
   try {

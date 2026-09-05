@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "432129021844",
+    "project_id": "eurobond-crm",
+    "storage_bucket": "eurobond-crm.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:432129021844:android:c3ac70ff28b925c26be181",
+        "android_client_info": {
+          "package_name": "com.eurobond.crm"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAfps9y2emjqXHDCcmAxxFk4eIcBFkOQ_k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
