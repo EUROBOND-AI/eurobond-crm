@@ -261,11 +261,33 @@ try {
 
     private void ebAlertLocationOff() { ebStartAlert(); }
 
+    private boolean ebNotifWasVisible = false;
+
+    /* Is our tracking notification still on screen? (used to detect a swipe) */
+    private boolean ebNotifVisible() {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= 23) {
+                NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                if (nm == null) return true;
+                android.service.notification.StatusBarNotification[] act = nm.getActiveNotifications();
+                if (act == null) return true;
+                for (android.service.notification.StatusBarNotification sbn : act) {
+                    if (sbn.getId() == NOTIFICATION_ID) return true;
+                }
+                return false;
+            }
+        } catch (Throwable t) { return true; }
+        return true;
+    }
+
+    /* Keeps the "Tracking on" notification alive. It is re-asserted every second,
+       but stays SILENT while it is on screen. Only when the user swipes it away
+       does it come back WITH a sound, so they know tracking must stay on. */
     private void ebEnsureForeground() {
         try {
-            Notification n = getNotification();
-            if (n != null) { startForeground(NOTIFICATION_ID, n); return; }
-            // fallback: build our own so the process stays foreground + notification shows
+            boolean visible = ebNotifVisible();
+            boolean swipedAway = ebNotifWasVisible && !visible;   // it was there, now it's gone
+
             Intent open = getPackageManager().getLaunchIntentForPackage(getPackageName());
             PendingIntent pi = null;
             if (open != null) {
@@ -279,9 +301,14 @@ try {
                 .setContentText("Tracking on")
                 .setSmallIcon(getResources().getIdentifier("ic_stat_notify", "drawable", getPackageName()))
                 .setOngoing(true)
-                .setPriority(NotificationCompat.PRIORITY_LOW);
+                .setPriority(swipedAway ? NotificationCompat.PRIORITY_HIGH : NotificationCompat.PRIORITY_LOW)
+                /* silent on the every-second refresh; alerts only when it was swiped */
+                .setOnlyAlertOnce(!swipedAway);
+            if (swipedAway) b.setDefaults(NotificationCompat.DEFAULT_ALL);
             if (pi != null) b.setContentIntent(pi);
+
             startForeground(NOTIFICATION_ID, b.build());
+            ebNotifWasVisible = true;
         } catch (Exception e) {}
     }
 
