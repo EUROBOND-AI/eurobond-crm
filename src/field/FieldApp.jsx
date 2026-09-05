@@ -361,6 +361,7 @@ function FieldLogin({ onLogin }) {
         const Cap = window.Capacitor;
         if (Cap && Cap.Plugins && Cap.Plugins.LocalNotifications) await Cap.Plugins.LocalNotifications.requestPermissions();
         else if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
+        try { scheduleAttendanceReminders(); } catch {}   // 9:00-10:00 daily reminders
       } catch {}
       onLogin(user);
     } catch (e) { setErr(e.message || "Invalid OTP"); setBusy(false); }
@@ -442,6 +443,55 @@ function FieldLogin({ onLogin }) {
         </div>
       </div>
   );
+}
+
+
+/* ---- Daily attendance reminders: 9:00 AM to 10:00 AM, every 10 minutes ----
+   Scheduled with the OS so they fire even when the app is fully closed.
+   They are cancelled for the day as soon as attendance is started. */
+const ATT_REMINDER_IDS = [910001, 910002, 910003, 910004, 910005, 910006, 910007];
+async function scheduleAttendanceReminders() {
+  try {
+    const Cap = typeof window !== "undefined" ? window.Capacitor : null;
+    const LN = Cap && Cap.Plugins && Cap.Plugins.LocalNotifications;
+    if (!LN) return;
+    try { await LN.requestPermissions(); } catch {}
+    if (LN.createChannel) {
+      try {
+        await LN.createChannel({
+          id: "eurobond_reminder", name: "Attendance Reminders",
+          description: "Morning reminders to start attendance",
+          importance: 5, visibility: 1, sound: "default", vibration: true, lights: true,
+        });
+      } catch {}
+    }
+    /* clear any previously scheduled ones so we never stack duplicates */
+    try { await LN.cancel({ notifications: ATT_REMINDER_IDS.map((id) => ({ id })) }); } catch {}
+
+    const times = [[9, 0], [9, 10], [9, 20], [9, 30], [9, 40], [9, 50], [10, 0]];
+    const notifications = times.map(([h, m], i) => {
+      const at = new Date();
+      at.setHours(h, m, 0, 0);
+      if (at.getTime() <= Date.now()) at.setDate(at.getDate() + 1);   // next occurrence
+      return {
+        id: ATT_REMINDER_IDS[i],
+        title: "Attendance Reminder",
+        body: "Please start your attendance login for today.",
+        channelId: "eurobond_reminder",
+        smallIcon: "ic_stat_notify",
+        schedule: { at, allowWhileIdle: true, repeats: true, every: "day" },
+      };
+    });
+    await LN.schedule({ notifications });
+  } catch {}
+}
+/* stop today's reminders once the person has logged attendance */
+async function cancelAttendanceReminders() {
+  try {
+    const Cap = typeof window !== "undefined" ? window.Capacitor : null;
+    const LN = Cap && Cap.Plugins && Cap.Plugins.LocalNotifications;
+    if (LN) await LN.cancel({ notifications: ATT_REMINDER_IDS.map((id) => ({ id })) });
+  } catch {}
 }
 
 /* ------------------------------------------------ SHARED HEAD ------------------------------------------------ */
@@ -5364,6 +5414,8 @@ export default function FieldApp() {
             if (!st || st.display !== "granted") await LN.requestPermissions();
           } catch { try { await LN.requestPermissions(); } catch {} }
           try { if (LN.createChannel) await LN.createChannel({ id: "eurobond_crm", name: "Eurobond CRM", description: "CRM alerts", importance: 5, visibility: 1 }); } catch {}
+          /* make sure the 9:00-10:00 attendance reminders are always armed */
+          try { scheduleAttendanceReminders(); } catch {}
         }
 
         // 2) Location — "while using" first, then "always" (background)
@@ -5521,9 +5573,14 @@ export default function FieldApp() {
         seen = new Set(ids);
       }).catch(() => {});
     }
-    const notifTimer = setInterval(pollNotif, 60000);   // 60s — server load for 500 users
+    pollNotif();                                       // fire right away on mount
+    const notifTimer = setInterval(pollNotif, 15000);   // 15s — near-instant alerts
+    /* also poll the moment the app comes back to the foreground */
+    const onWake = () => { if (!document.hidden) pollNotif(); };
+    document.addEventListener("visibilitychange", onWake);
+    window.addEventListener("focus", onWake);
 
-    return () => { document.removeEventListener("visibilitychange", onVis); window.removeEventListener("focus", loadLists); if (capListener && capListener.remove) capListener.remove(); if (backListener && backListener.remove) backListener.remove(); clearInterval(notifTimer); };
+    return () => { document.removeEventListener("visibilitychange", onVis); document.removeEventListener("visibilitychange", onWake); window.removeEventListener("focus", loadLists); window.removeEventListener("focus", onWake); if (capListener && capListener.remove) capListener.remove(); if (backListener && backListener.remove) backListener.remove(); clearInterval(notifTimer); };
   }, [authed]);
 
   /* GPS start/stop driven by attendanceOn — saves to Hostinger */
@@ -5548,7 +5605,7 @@ export default function FieldApp() {
         // fresh start -> get current location, then create server session with it
         const startWith = (coords) => {
           api.attStart({ ...visitInfoRef.current, ...coords })
-            .then((d) => { if (!cancelled) { sessionRef.current = d.session_id; localStorage.setItem("eb_att_on", "1"); setTrackerSession(d.session_id, (loadGpsCfg().intervalSec ?? 900) * 1000, api.attPoints); } })
+            .then((d) => { if (!cancelled) { sessionRef.current = d.session_id; localStorage.setItem("eb_att_on", "1"); setTrackerSession(d.session_id, (loadGpsCfg().intervalSec ?? 900) * 1000, api.attPoints); try { cancelAttendanceReminders(); } catch {} } })
             .catch((e) => setTracking((t) => ({ ...t, error: e.message })));
         };
         if (navigator.geolocation) {
