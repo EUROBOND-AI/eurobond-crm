@@ -420,7 +420,7 @@ export default function ModulePage({ cfgKey }) {
               ))}
             </div>
           )}
-          {["projectProjection", "salesToSpec", "specToSales", "target", "leave"].includes(cfgKey) && (
+          {["projectProjection", "salesToSpec", "specToSales", "target", "leave", "expense"].includes(cfgKey) && (
             <button className="btn btn-primary" style={{ padding: "8px 20px", fontWeight: 700 }} onClick={() => setShown(true)}>Show</button>
           )}
         </div>
@@ -442,7 +442,7 @@ export default function ModulePage({ cfgKey }) {
         <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Loading…</div>
       ) : err ? (
         <div style={{ padding: 24, background: "#fdecec", color: "#c03636", borderRadius: 12, fontWeight: 600 }}>{err}</div>
-      ) : (["projectProjection", "salesToSpec", "specToSales", "target", "leave"].includes(cfgKey) && !shown) ? (
+      ) : (["projectProjection", "salesToSpec", "specToSales", "target", "leave", "expense"].includes(cfgKey) && !shown) ? (
         <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Set filters and click <b>Show</b> to view.</div>
       ) : (
         <DataTable

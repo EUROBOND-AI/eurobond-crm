@@ -4,6 +4,27 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App.jsx";
 import "./styles.css";
 
+/* Capture runtime errors + failed requests so admin > System Health can show them */
+(function captureErrors() {
+  const push = (type, msg, extra) => {
+    try {
+      const log = JSON.parse(localStorage.getItem("eb_error_log") || "[]");
+      log.push({ at: new Date().toISOString(), type, msg: String(msg || "").slice(0, 300), extra: String(extra || "").slice(0, 200), page: location.pathname });
+      localStorage.setItem("eb_error_log", JSON.stringify(log.slice(-40)));
+    } catch {}
+  };
+  window.addEventListener("error", (e) => push("JS Error", e.message, e.filename + ":" + e.lineno));
+  window.addEventListener("unhandledrejection", (e) => push("Promise Error", e.reason && e.reason.message ? e.reason.message : e.reason, ""));
+  const origFetch = window.fetch;
+  window.fetch = async function (...args) {
+    try {
+      const r = await origFetch.apply(this, args);
+      if (!r.ok) push("API Error " + r.status, String(args[0]).slice(0, 160), "");
+      return r;
+    } catch (err) { push("Network Error", err && err.message, String(args[0]).slice(0, 160)); throw err; }
+  };
+})();
+
 /* Global error boundary — shows a friendly message instead of a white screen */
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { error: null }; }

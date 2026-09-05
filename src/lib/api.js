@@ -137,6 +137,9 @@ export const api = {
   settingsSave: (key, value, label) => req("/settings.php?action=save", { method: "POST", body: { key, value, label } }),
   healthCheck: () => req("/health.php?action=check"),
   scanCard: (image) => req("/scan_card.php", { method: "POST", body: { image } }),
+  crmKeysList: () => req("/crm_api.php?action=keys"),
+  crmKeyIssue: (label, module) => req("/crm_api.php?action=issue", { method: "POST", body: { label, module } }),
+  crmKeyRevoke: (id) => req("/crm_api.php?action=revoke", { method: "POST", body: { id } }),
 
   /* ---------- Locations (India villages/cities strict search) ---------- */
   locationSearch: (q) => req("/locations.php?action=search&q=" + encodeURIComponent(q)),

@@ -133,9 +133,9 @@ export default function AttendanceSheet() {
 
   const exportCsv = () => {
     if (!grid) return;
-    const head = ["Name", "Code", "Zone", "City", ...Array.from({ length: daysInMonth }, (_, i) => i + 1), "Local", "Tour", "WFH", "Leave", "Holiday", "Sunday", "Absent", "Total"];
+    const head = ["Name", "Code", "HOD", "Zone", "City", ...Array.from({ length: daysInMonth }, (_, i) => i + 1), "Local", "Tour", "WFH", "Leave", "Holiday", "Sunday", "Absent", "Total"];
     const rows = grid.map(({ u, cells, totals }) =>
-      [u.name, u.code || "", u.zone || "", u.city || "", ...cells, totals.p, totals.t, totals.wfh, totals.l, totals.ho, totals.s, totals.a, totals.total]);
+      [u.name, u.code || "", u.manager || "", u.zone || "", u.city || "", ...cells, totals.p, totals.t, totals.wfh, totals.l, totals.ho, totals.s, totals.a, totals.total]);
     const csv = [head, ...rows].map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));

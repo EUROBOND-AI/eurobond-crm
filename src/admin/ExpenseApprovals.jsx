@@ -37,7 +37,8 @@ export default function ExpenseApprovals() {
 
   const statements = scopeRows(rows.filter((r) => r.isFormat), users, ["user", "createdBy", "createdByName"]);
   const tabs = ["Submitted", "Approved", "Rejected"];
-  const list = statements.filter((r) => {
+  /* data appears only after the user clicks Show */
+  const list = !applied ? [] : statements.filter((r) => {
     let ok = false;
     if (tab === "Submitted") ok = r.status === "Submitted";
     else if (tab === "Approved") ok = r.status === "Approved";

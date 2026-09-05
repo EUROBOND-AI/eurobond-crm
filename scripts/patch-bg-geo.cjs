@@ -202,7 +202,17 @@ try {
             // sound comes WITH the notification itself (DEFAULT_ALL) — no separate looping song
             // high-priority notification the moment location goes off
             NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-            NotificationCompat.Builder b = new NotificationCompat.Builder(getApplicationContext(), "eurobond_crm")
+            // make sure a HIGH-importance channel exists so the sound plays outside the app
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= 26 && nm != null) {
+                    android.app.NotificationChannel ch = new android.app.NotificationChannel(
+                        "eurobond_alert", "Eurobond Tracking Alerts", NotificationManager.IMPORTANCE_HIGH);
+                    ch.setDescription("Alerts when location is turned off during attendance");
+                    ch.enableVibration(true);
+                    nm.createNotificationChannel(ch);
+                }
+            } catch (Exception e) {}
+            NotificationCompat.Builder b = new NotificationCompat.Builder(getApplicationContext(), "eurobond_alert")
                 .setContentTitle("⚠️ Location is OFF!")
                 .setContentText("Attendance tracking stopped. Tap to turn ON location.")
                 .setSmallIcon(getResources().getIdentifier("ic_stat_notify", "drawable", getPackageName()))
@@ -227,18 +237,18 @@ try {
     private final Handler keepAliveHandler = new Handler(Looper.getMainLooper());
     private final Runnable keepAlive = new Runnable() {
         @Override public void run() {
-            Notification n = getNotification();
-            if (n != null) {
-                try { startForeground(NOTIFICATION_ID, n); } catch (Exception e) {}
-                for (Watcher w : watchers) {
-                    try {
-                        w.client.removeLocationUpdates(w.locationCallback);
-                        w.client.requestLocationUpdates(w.locationRequest, w.locationCallback, null);
-                    } catch (Exception e) {}
-                }
-                ebScheduleAlarm();   // keep a Doze-proof wakeup armed
-                keepAliveHandler.postDelayed(this, 2000);
+            // ALWAYS re-assert the foreground notification (native fallback when the
+            // plugin's own notification is gone after the app is closed/swiped), and
+            // ALWAYS re-post this loop so the notification comes back within ~2s.
+            ebEnsureForeground();
+            for (Watcher w : watchers) {
+                try {
+                    w.client.removeLocationUpdates(w.locationCallback);
+                    w.client.requestLocationUpdates(w.locationRequest, w.locationCallback, null);
+                } catch (Exception e) {}
             }
+            ebScheduleAlarm();   // keep a Doze-proof wakeup armed
+            keepAliveHandler.postDelayed(this, 2000);
         }
     };
 

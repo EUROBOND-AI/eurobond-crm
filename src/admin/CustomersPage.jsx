@@ -235,7 +235,7 @@ export default function CustomersPage() {
                   {colVisible("Mobile") && <td style={{ padding: "11px 14px" }}>{r.mobile ? <span style={{ color: "var(--accent)" }}><Phone size={12} /> {r.mobile}</span> : "—"}</td>}
                   {colVisible("Email") && <td style={{ padding: "11px 14px" }}>{r.email || (Array.isArray(r.contacts) && r.contacts[0] && r.contacts[0].email) || "—"}</td>}
                   {colVisible("Projects") && <td style={{ padding: "11px 14px", maxWidth: 180 }}>{r.projectName || (Array.isArray(r.projects) ? r.projects.join(", ") : "") || "—"}</td>}
-                  {colVisible("State") && <td style={{ padding: "11px 14px" }}>{r.state || "—"}</td>}
+                  {colVisible("State") && <td style={{ padding: "11px 14px" }}>{r.state || (users.find((u) => u.name === r.by)?.state) || "—"}</td>}
                   {colVisible("Place") && <td style={{ padding: "11px 14px" }}>{r.place ? <span><MapPin size={12} /> {r.place}</span> : "—"}</td>}
                   {colVisible("Address") && <AddressCell text={r.address} />}
                   {colVisible("Entries") && <td style={{ padding: "11px 14px", textAlign: "center", fontWeight: 700 }}>{r.followups}</td>}
@@ -244,6 +244,17 @@ export default function CustomersPage() {
                   <td style={{ padding: "11px 14px" }}>
                     <div style={{ display: "flex", gap: 6 }}>
                       <button className="btn btn-ghost" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => setView(r)}><Eye size={12} /> View</button>
+                      <button className="btn" style={{ padding: "4px 10px", fontSize: 12, background: "#e4e8ff", color: "#3949ab" }}
+                        onClick={() => {
+                          /* carry this customer into the quotation form (same fields as the app) */
+                          try {
+                            localStorage.setItem("eb_quote_prefill", JSON.stringify({
+                              customer: r.name, party: r.name, mobile: r.mobile, email: r.email,
+                              contactName: r.contactName, state: r.state, city: r.place, address: r.address,
+                            }));
+                          } catch {}
+                          window.location.href = "/admin/sfa/quotation?prefill=1";
+                        }}>📄 Quotation</button>
                       <button className="btn btn-soft" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => setFwdOpen({ mobiles: r.mobile ? [r.mobile] : [], names: [r.name] })}>➡ Forward</button>
                       <button className="btn btn-danger" style={{ padding: "4px 10px", fontSize: 12 }}
                         onClick={async () => {
