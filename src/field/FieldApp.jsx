@@ -187,7 +187,8 @@ function phoneNotify(title, body, extra = {}) {
         window.location.hash = "";
         let link = extra.link || "/app/notifications";
         if (link.includes("expense")) link = "/app/expense";
-        else if (link.includes("enquiry") || link.includes("followup")) link = "/app/followup";
+        else if (link.includes("enquiry")) link = "/app/m/enquiry";
+        else if (link.includes("followup")) link = "/app/followup";
         else if (link.includes("leave")) link = "/app/leave";
         else if (link.includes("customer")) link = "/app/customers";
         else if (link.startsWith("/admin") || !link.startsWith("/app")) link = "/app/notifications";
@@ -212,7 +213,8 @@ function useNotifTapHandler() {
         let link = ex.link || "/app/notifications";
         /* map admin dashboard links to the app's own screens */
         if (link.includes("expense")) link = "/app/expense";
-        else if (link.includes("enquiry") || link.includes("followup")) link = "/app/followup";
+        else if (link.includes("enquiry")) link = "/app/m/enquiry";
+        else if (link.includes("followup")) link = "/app/followup";
         else if (link.includes("leave")) link = "/app/leave";
         else if (link.includes("customer")) link = "/app/customers";
         else if (link.startsWith("/admin") || !link.startsWith("/app")) link = "/app/notifications";
@@ -491,7 +493,8 @@ async function registerPush() {
         const d = (ev && ev.notification && ev.notification.data) || {};
         let link = d.link || "/app/notifications";
         if (link.includes("expense")) link = "/app/expense";
-        else if (link.includes("enquiry") || link.includes("followup")) link = "/app/followup";
+        else if (link.includes("enquiry")) link = "/app/m/enquiry";
+        else if (link.includes("followup")) link = "/app/followup";
         else if (link.includes("leave")) link = "/app/leave";
         else if (link.startsWith("/admin") || !link.startsWith("/app")) link = "/app/notifications";
         window.location.href = link;
@@ -3805,7 +3808,8 @@ function FieldNotifications() {
     /* never open the admin panel from the field app — map admin links to app screens */
     let link = n.link || "";
     if (link.includes("expense")) link = "/app/expense";
-    else if (link.includes("enquiry") || link.includes("followup")) link = "/app/followup";
+    else if (link.includes("enquiry")) link = "/app/m/enquiry";
+    else if (link.includes("followup")) link = "/app/followup";
     else if (link.includes("leave")) link = "/app/leave";
     else if (link.includes("customer")) link = "/app/customers";
     else if (link.includes("quotation")) link = "/app";

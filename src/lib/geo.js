@@ -255,6 +255,17 @@ export async function startTracker(onPoint, onError) {
 export async function stopTracker() {
   _tracker.active = false;
   _tracker.onPoint = null;
+  _tracker.sessionId = null;
+  /* clear the stored session so the NATIVE service shuts itself down —
+     this is what stops the "Tracking on" notification and the location alarm
+     once attendance is stopped. */
+  try {
+    const P = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences;
+    if (P) {
+      await P.set({ key: "eb_session_id", value: "" });
+      await P.remove({ key: "eb_session_id" });
+    }
+  } catch {}
   const Cap = typeof window !== "undefined" ? window.Capacitor : null;
   const BG = Cap && Cap.Plugins && Cap.Plugins.BackgroundGeolocation;
   if (_tracker.watcherId && BG) { try { await BG.removeWatcher({ id: _tracker.watcherId }); } catch {} _tracker.watcherId = null; }

@@ -134,7 +134,14 @@ export default function ExpenseApprovals() {
                     {colVisible("Amount") && <td style={{ padding: "10px 14px", fontWeight: 700 }}>₹{(r.amount || 0).toLocaleString("en-IN")}</td>}
                     {colVisible("Submitted") && <td style={{ padding: "10px 14px" }}>{r.submittedAt || "—"}</td>}
                     {colVisible("Status") && <td style={{ padding: "10px 14px" }}><span style={{ fontWeight: 700, color: r.status === "Approved" ? "#0f7a44" : r.status === "Rejected" ? "#c03636" : "#2563eb" }}>{r.status}</span></td>}
-                    <td style={{ padding: "10px 14px" }}><button className="btn btn-primary" style={{ padding: "5px 12px" }} onClick={() => setView(r)}>Open</button></td>
+                    <td style={{ padding: "10px 14px", display: "flex", gap: 6 }}>
+                      <button className="btn btn-primary" style={{ padding: "5px 12px" }} onClick={() => setView(r)}>Open</button>
+                      <button className="btn btn-danger" style={{ padding: "5px 10px", fontSize: 12 }}
+                        onClick={async () => {
+                          if (!window.confirm("Delete this expense statement? This cannot be undone.")) return;
+                          try { await api.remove("expense", r._id || r.id); load(); } catch (e) { alert(e.message); }
+                        }}>Delete</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

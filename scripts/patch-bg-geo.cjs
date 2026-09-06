@@ -166,6 +166,7 @@ try {
         if (ebLocReceiver != null) return;
         ebLocReceiver = new BroadcastReceiver() {
             @Override public void onReceive(Context ctx, Intent intent) {
+                if (!ebSessionActive()) { ebStopAlert(); return; }   // attendance not running
                 boolean on = ebLocationOn();
                 ebPostGpsStatus(on);           // admin sees it instantly
                 if (!on) ebStartAlert(); else ebStopAlert();
@@ -173,7 +174,7 @@ try {
         };
         try { registerReceiver(ebLocReceiver, new IntentFilter("android.location.PROVIDERS_CHANGED")); } catch (Exception e) {}
         // also check right away in case location was already off
-        if (!ebLocationOn()) ebStartAlert();
+        if (ebSessionActive() && !ebLocationOn()) ebStartAlert();
     }
 
     /* Android 8+ blocks starting a background service from an alarm/PendingIntent.
@@ -261,6 +262,33 @@ try {
 
     private void ebAlertLocationOff() { ebStartAlert(); }
 
+    /* Tracking is only "active" while an attendance session id is stored.
+       When the person stops attendance we clear it, and the service shuts
+       itself down — no Tracking notification, no location alarm. */
+    private boolean ebSessionActive() {
+        try {
+            SharedPreferences p = getApplicationContext().getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE);
+            String sid = p.getString("eb_session_id", null);
+            return sid != null && sid.length() > 0 && !"null".equals(sid);
+        } catch (Exception e) { return false; }
+    }
+    private void ebShutdownTracking() {
+        try { ebStopAlert(); } catch (Exception e) {}
+        try { keepAliveHandler.removeCallbacks(keepAlive); } catch (Exception e) {}
+        try {
+            AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+            Intent i = new Intent(getApplicationContext(), BackgroundGeolocationService.class);
+            i.setAction("EB_ALARM_TICK");
+            int flag = PendingIntent.FLAG_UPDATE_CURRENT;
+            try { flag |= PendingIntent.FLAG_IMMUTABLE; } catch (Throwable t) {}
+            int[] codes = new int[]{4802, 4803, 4899, 4900, 4901, 4902, 4903, 4904};
+            for (int c : codes) { try { am.cancel(ebServicePI(c, i, flag)); } catch (Exception e) {} }
+        } catch (Exception e) {}
+        try { if (ebLocReceiver != null) { unregisterReceiver(ebLocReceiver); ebLocReceiver = null; } } catch (Exception e) {}
+        try { stopForeground(true); } catch (Exception e) {}
+        try { stopSelf(); } catch (Exception e) {}
+    }
+
     private boolean ebNotifWasVisible = false;
 
     /* Is our tracking notification still on screen? (used to detect a swipe) */
@@ -315,6 +343,7 @@ try {
     private final Handler keepAliveHandler = new Handler(Looper.getMainLooper());
     private final Runnable keepAlive = new Runnable() {
         @Override public void run() {
+            if (!ebSessionActive()) { ebShutdownTracking(); return; }
             // ALWAYS re-assert the foreground notification (native fallback when the
             // plugin's own notification is gone after the app is closed/swiped), and
             // ALWAYS re-post this loop so the notification comes back within ~2s.
@@ -376,6 +405,7 @@ try {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (!ebSessionActive()) { ebShutdownTracking(); return START_NOT_STICKY; }
         ebRegisterLocReceiver();   // start listening for location on/off instantly
         if (intent != null && "EB_ALARM_TICK".equals(intent.getAction())) {
             ebEnsureForeground();   // always keep the "Tracking on" notification visible

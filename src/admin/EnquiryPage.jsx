@@ -139,11 +139,16 @@ export default function EnquiryPage() {
       for (const id of ids) {
         const row = (rows || []).find((r) => (r._id || r.id) === id);
         if (!row) continue;
+        const assignee = (users || []).find((u) => (u.name || u.data?.name) === userName);
+        const hodName = assignee ? (assignee.manager || assignee.data?.manager || "") : "";
         await api.update("enquiry", id, {
           ...row, assignedTo: userName, assignedToId: userId,
-          passto: userName, status: "Assigned", assignDate: new Date().toLocaleDateString("en-GB"),
+          passto: userName, hod: hodName || row.hod || "",
+          status: "Assigned", assignDate: new Date().toLocaleDateString("en-GB"),
+          reassigned: isReassign ? true : !!row.reassigned,
+          reassignDate: isReassign ? new Date().toLocaleDateString("en-GB") : (row.reassignDate || ""),
         });
-        try { await api.create("notification", { title: isReassign ? "Enquiry Re-Assigned" : "New Enquiry Assigned", message: `${row.company || row.customer || "A lead"} enquiry assigned to you.`, forUser: userId, link: "/app/m/enquiry", at: new Date().toISOString() }); } catch {}
+        try { await api.create("notification", { title: isReassign ? "Enquiry Re-Assigned" : "New Enquiry Assigned", message: `${row.company || row.customer || "A lead"} enquiry assigned to you.`, to: userName, forUser: userId, link: "/app/m/enquiry", at: new Date().toISOString() }); } catch {}
       }
       setAssignFor(null); setReassign(false); setSelected(new Set()); load();
     } catch (e) { alert(e.message); }

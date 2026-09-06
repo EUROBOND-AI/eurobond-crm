@@ -82,6 +82,7 @@ export default function AttendancePage() {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [zone, setZone] = useState("");
+  const [hodF, setHodF] = useState("");
   const [city, setCity] = useState("");
   const [user, setUser] = useState("");
   const [viewSess, setViewSess] = useState(null);   // session being viewed on map
@@ -114,11 +115,12 @@ export default function AttendancePage() {
   };
 
   const zones = useMemo(() => [...new Set(sessions.map((s) => s.zone).filter(Boolean))], [sessions]);
+  const hods = useMemo(() => [...new Set(sessions.map((s) => s.manager).filter(Boolean))].sort(), [sessions]);
   const cities = useMemo(() => [...new Set(sessions.map((s) => s.city).filter(Boolean))], [sessions]);
   const users = useMemo(() => [...new Set(sessions.map((s) => s.name).filter(Boolean))], [sessions]);
 
   const filtered = sessions.filter((s) =>
-    (!zone || s.zone === zone) && (!city || s.city === city) && (!user || s.name === user)
+    (!zone || s.zone === zone) && (!hodF || s.manager === hodF) && (!city || s.city === city) && (!user || s.name === user)
   );
 
   const exportCsv = () => {
@@ -283,6 +285,10 @@ export default function AttendancePage() {
           <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} style={sel} />
           <button className="btn" style={{ background: "#22a45d", color: "#fff", borderColor: "transparent", marginLeft: 4 }} onClick={loadData}>{loading ? "Loading…" : "Show"}</button>
         </span>
+        <select value={hodF} onChange={(e) => setHodF(e.target.value)} style={sel}>
+          <option value="">All HOD</option>
+          {hods.map((h) => <option key={h}>{h}</option>)}
+        </select>
         <select value={zone} onChange={(e) => setZone(e.target.value)} style={sel}>
           <option value="">All Zones</option>
           {zones.map((z) => <option key={z}>{z}</option>)}

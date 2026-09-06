@@ -14,6 +14,12 @@ function projContactsText(contacts) {
     return `${c.category || ""}${c.firmName ? " - " + c.firmName : ""}${ppl ? " (" + ppl + ")" : ""}`;
   }).filter(Boolean).join(" | ");
 }
+/* Target rows: show Achievement % straight from target vs achieved */
+function targetPct(d) {
+  const t = Number(d && d.target) || 0, a = Number(d && d.achieved) || 0;
+  if (!t) return "";
+  return Math.round((a / t) * 100) + "%";
+}
 function projProductsText(items) {
   if (!items || !items.length) return "";
   return items.filter((it) => it.grade).map((it) => `${it.grade}${it.colourCode ? " / " + it.colourCode : ""}${it.qty ? " x" + it.qty : ""}`).join(", ");
@@ -72,7 +78,7 @@ export default function ModulePage({ cfgKey }) {
     let alive = true;
     setLoading(true); setErr("");
     api.list(cfgKey)
-      .then((d) => { if (alive) setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length, productsText: projProductsText(r.data.items), ...projCategoryCols(r.data.contacts) }))); })
+      .then((d) => { if (alive) setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length, productsText: projProductsText(r.data.items), ...projCategoryCols(r.data.contacts), achievementPct: targetPct(r.data) }))); })
       .catch((e) => { if (alive) setErr(e.message); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
@@ -110,7 +116,11 @@ export default function ModulePage({ cfgKey }) {
     if (fSales) list = list.filter((r) => (r.salesPerson || "") === fSales);
     if (fStatus) list = list.filter((r) => (r.status || "") === fStatus);
     if (fStateM) list = list.filter((r) => (r.state || "") === fStateM);
-    if (cfgKey === "projectProjection") list = list.filter((r) => projSide === "Specs" ? r.isSpec : !r.isSpec);
+    if (cfgKey === "projectProjection") {
+      list = list.filter((r) => projSide === "Specs" ? r.isSpec : !r.isSpec);
+      /* drop empty placeholder rows (no project name AND no creator) */
+      list = list.filter((r) => (r.projectName && String(r.projectName).trim()) || (r.name && String(r.name).trim()));
+    }
     /* date range (From/To) — r.date leda r.createdAt meeda */
     const parseD = (r) => {
       const raw = r.date || r.createdAt || "";
@@ -153,7 +163,7 @@ export default function ModulePage({ cfgKey }) {
   const reload = () => {
     setRefreshing(true); setErr("");
     api.list(cfgKey)
-      .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length, productsText: projProductsText(r.data.items), ...projCategoryCols(r.data.contacts) }))))
+      .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length, productsText: projProductsText(r.data.items), ...projCategoryCols(r.data.contacts), achievementPct: targetPct(r.data) }))))
       .catch((e) => setErr(e.message))
       .finally(() => setRefreshing(false));
   };
