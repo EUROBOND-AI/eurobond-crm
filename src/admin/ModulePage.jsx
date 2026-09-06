@@ -118,8 +118,6 @@ export default function ModulePage({ cfgKey }) {
     if (fStateM) list = list.filter((r) => (r.state || "") === fStateM);
     if (cfgKey === "projectProjection") {
       list = list.filter((r) => projSide === "Specs" ? r.isSpec : !r.isSpec);
-      /* drop empty placeholder rows (no project name AND no creator) */
-      list = list.filter((r) => (r.projectName && String(r.projectName).trim()) || (r.name && String(r.name).trim()));
     }
     /* date range (From/To) — r.date leda r.createdAt meeda */
     const parseD = (r) => {

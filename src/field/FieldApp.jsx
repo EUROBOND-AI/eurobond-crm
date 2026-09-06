@@ -3745,8 +3745,15 @@ function FieldModuleNew({ mod }) {
                   /* spec direct visit: projection record + sales person ki "Direct" entry */
                   const pj = await api.create("projectProjection", {
                     id: "PPJ-" + String(Date.now()).slice(-4),
-                    name: f.project, firm: f.firm || "", city: f.city || "", value: f.value || "",
-                    details: f.help || "", status: "Running", source: "Direct",
+                    /* new field names so it shows properly in the admin table
+                       (old keys were name/firm/details -> every column showed "--") */
+                    projectName: f.project, name: f.project,
+                    firmName: f.firm || "", firm: f.firm || "",
+                    city: f.city || "", value: f.value || "",
+                    helpNeeded: f.help || "", details: f.help || "",
+                    visitDate: new Date().toISOString().slice(0, 10),
+                    isSpec: true, salesPerson: f.salesPerson || "",
+                    status: "Open", source: "Direct",
                     ...(photoUrl ? { photo: photoUrl } : {}),
                     createdBy: CU().name,
                     createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
@@ -5801,6 +5808,38 @@ export default function FieldApp() {
     }
     return () => clearInterval(alarmTimer.current);
   }, [gpsAlarm]);
+
+  /* HARD STOP at 10:30 PM — runs on the phone itself, so attendance ends even
+     with no internet. Stops the tracker, clears the session and turns attendance
+     off (which also shuts the native service + Tracking notification down). */
+  useEffect(() => {
+    if (!attendanceOn) return;
+    const endMins = ATT_END_HOUR * 60 + ATT_END_MIN;      // 22:30
+    const check = async () => {
+      const d = new Date();
+      if (d.getHours() * 60 + d.getMinutes() < endMins) return;
+      const sid = sessionRef.current;
+      setAttendanceOn(false);
+      setDoneToday(true);
+      try { await stopTracker(); } catch {}
+      try { localStorage.removeItem("eb_att_on"); } catch {}
+      if (sid) { try { await api.attStop(sid, {}); } catch {} }   // best effort; server also auto-closes
+      sessionRef.current = null;
+      try {
+        const Cap = window.Capacitor;
+        if (Cap && Cap.Plugins && Cap.Plugins.LocalNotifications) {
+          await Cap.Plugins.LocalNotifications.schedule({
+            notifications: [{ id: 970001, title: "Attendance Auto Logout",
+              body: "Your attendance was closed automatically at 10:30 PM.",
+              channelId: "eurobond_crm", smallIcon: "ic_stat_notify" }],
+          });
+        }
+      } catch {}
+    };
+    check();
+    const t = setInterval(check, 30000);                  // check every 30s
+    return () => clearInterval(t);
+  }, [attendanceOn]);
 
   /* watchdog: while attendance on, alarm if (a) a location error, (b) no point for 60s,
      or (c) notifications got turned off. Fires beep + notification + in-app popup. */

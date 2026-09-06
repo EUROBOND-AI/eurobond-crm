@@ -99,7 +99,23 @@ try {
                     OutputStream os = c.getOutputStream();
                     os.write(body.toString().getBytes("UTF-8"));
                     os.flush(); os.close();
-                    c.getResponseCode();   // fire the request
+                    int rc = c.getResponseCode();
+                    /* if the server says this session is closed (10:30 PM auto-logout or
+                       manual stop), clear the stored session so the service shuts down. */
+                    try {
+                        java.io.InputStream is = (rc >= 200 && rc < 300) ? c.getInputStream() : c.getErrorStream();
+                        if (is != null) {
+                            java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                            byte[] buf = new byte[512]; int n;
+                            while ((n = is.read(buf)) > 0) bo.write(buf, 0, n);
+                            String body2 = new String(bo.toByteArray(), "UTF-8");
+                            is.close();
+                            if (body2.contains("\"stopped\"") || rc == 403) {
+                                SharedPreferences p2 = getApplicationContext().getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE);
+                                p2.edit().remove("eb_session_id").apply();
+                            }
+                        }
+                    } catch (Exception e2) {}
                     c.disconnect();
                 } catch (Exception e) { /* retry on next location */ }
             }
