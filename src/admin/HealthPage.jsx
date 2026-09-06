@@ -6,6 +6,7 @@ export default function HealthPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [pushTo, setPushTo] = useState("");
+  const [waTo, setWaTo] = useState("");
   const [errLog, setErrLog] = useState(() => { try { return JSON.parse(localStorage.getItem("eb_error_log") || "[]"); } catch { return []; } });
 
   const run = () => {
@@ -30,6 +31,13 @@ export default function HealthPage() {
             alert(`Push test\n\nTo: ${r.to}\nDevices registered: ${r.devices}\nService account: ${r.service_account ? "present" : "MISSING"}\nResult: ${r.note}`);
           } catch (e) { alert("Push test failed: " + e.message); }
         }}>📲 Send Test Push</button>
+        <input value={waTo} onChange={(e) => setWaTo(e.target.value)} placeholder="WhatsApp number" style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, width: 150 }} />
+        <button className="btn" onClick={async () => {
+          try {
+            const r = await api.waTest(waTo.trim(), "");
+            alert(`WhatsApp test\n\nResult: ${r.note}\nHTTP: ${r.last ? r.last.http_code : "-"}\n\n${r.last ? String(r.last.response).slice(0, 300) : ""}`);
+          } catch (e) { alert("WhatsApp test failed: " + e.message); }
+        }}>💬 Send Test WhatsApp</button>
         {data && !data.error && <span style={{ color: "var(--muted)", fontSize: 12.5 }}>Server time: {data.server_time}</span>}
       </div>
 
