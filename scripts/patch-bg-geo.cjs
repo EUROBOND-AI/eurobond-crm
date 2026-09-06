@@ -110,7 +110,7 @@ try {
                             while ((n = is.read(buf)) > 0) bo.write(buf, 0, n);
                             String body2 = new String(bo.toByteArray(), "UTF-8");
                             is.close();
-                            if (body2.contains("\"stopped\"") || rc == 403) {
+                            if (body2.contains(String.valueOf((char) 34) + "stopped" + String.valueOf((char) 34)) || rc == 403) {
                                 SharedPreferences p2 = getApplicationContext().getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE);
                                 p2.edit().remove("eb_session_id").apply();
                             }
