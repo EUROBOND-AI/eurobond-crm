@@ -6,16 +6,48 @@ import { api } from "../lib/api.js";
 const COLORS = ["#4b5cf0", "#20bf6b", "#f0932b", "#eb3b5a", "#8854d0"];
 
 export default function EnquiryDashboard() {
-  const [rows, setRows] = useState([]);
+  const [all, setAll] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+  const [fZone, setFZone] = useState("");
+  const [fHod, setFHod] = useState("");
+  const [fUser, setFUser] = useState("");
+  const [fFrom, setFFrom] = useState("");
+  const [fTo, setFTo] = useState("");
 
   useEffect(() => {
     api.list("enquiry")
-      .then((d) => setRows((d.records || []).map((r) => ({ ...r.data, _by: r.created_by_name || "—", _at: r.created_at }))))
+      .then((d) => setAll((d.records || []).map((r) => ({ ...r.data, _by: r.created_by_name || "—", _at: r.created_at }))))
       .catch((e) => setErr(e.message))
       .finally(() => setLoading(false));
+    api.listUsers().then((d) => setUsers((d.users || []).filter((u) => u.status == 1))).catch(() => {});
   }, []);
+
+  /* who belongs to which zone / HOD — resolved from the app users list */
+  const userMap = useMemo(() => {
+    const m = {};
+    users.forEach((u) => { if (u.name) m[u.name] = u; });
+    return m;
+  }, [users]);
+
+  const rows = useMemo(() => all.filter((r) => {
+    const person = r.passto || r.assignedTo || r._by || "";
+    const u = userMap[person];
+    if (fUser && person !== fUser) return false;
+    if (fHod && (r.hod || (u && u.manager) || "") !== fHod) return false;
+    if (fZone && (u ? (u.zone || "") : "") !== fZone) return false;
+    if (fFrom || fTo) {
+      const d = r._at ? new Date(r._at) : null;
+      if (fFrom && (!d || d < new Date(fFrom))) return false;
+      if (fTo && (!d || d > new Date(fTo + "T23:59:59"))) return false;
+    }
+    return true;
+  }), [all, userMap, fZone, fHod, fUser, fFrom, fTo]);
+
+  const zones = useMemo(() => [...new Set(users.map((u) => u.zone).filter(Boolean))].sort(), [users]);
+  const hods = useMemo(() => [...new Set(users.map((u) => u.manager).filter(Boolean))].sort(), [users]);
+  const selS = { padding: "8px 11px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 12.5, background: "#fff" };
 
   const stat = (s) => rows.filter((r) => r.status === s).length;
   const funnel = useMemo(() => ([
@@ -36,6 +68,24 @@ export default function EnquiryDashboard() {
   return (
     <>
       <PageHead crumb="Analytics / Enquiry" title="Enquiry Dashboard" />
+      {/* filters: zone / HOD / user / date */}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 16, background: "#fff", padding: 12, borderRadius: 12, boxShadow: "var(--shadow)" }}>
+        <select value={fZone} onChange={(e) => setFZone(e.target.value)} style={selS}>
+          <option value="">All Zones</option>{zones.map((z) => <option key={z}>{z}</option>)}
+        </select>
+        <select value={fHod} onChange={(e) => setFHod(e.target.value)} style={selS}>
+          <option value="">All HOD</option>{hods.map((h) => <option key={h}>{h}</option>)}
+        </select>
+        <select value={fUser} onChange={(e) => setFUser(e.target.value)} style={selS}>
+          <option value="">All Users</option>{users.map((u) => <option key={u.name}>{u.name}</option>)}
+        </select>
+        <input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} style={selS} />
+        <input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} style={selS} />
+        {(fZone || fHod || fUser || fFrom || fTo) && (
+          <button className="btn btn-ghost" onClick={() => { setFZone(""); setFHod(""); setFUser(""); setFFrom(""); setFTo(""); }}>Clear</button>
+        )}
+        <span style={{ marginLeft: "auto", fontSize: 12.5, color: "var(--muted)", fontWeight: 700 }}>{rows.length} enquiries</span>
+      </div>
       {loading ? <div style={{ padding: 40, color: "var(--muted)" }}>Loading…</div>
       : err ? <div style={{ padding: 20, background: "#fdecec", color: "#c03636", borderRadius: 10 }}>{err}</div>
       : rows.length === 0 ? (

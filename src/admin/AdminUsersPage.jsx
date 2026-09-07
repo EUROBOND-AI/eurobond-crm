@@ -89,29 +89,34 @@ export default function AdminUsersPage() {
               <button className="btn btn-ghost" style={{ padding: 4 }} onClick={() => setForm(null)}><X size={16} /></button>
             </div>
             <div style={{ display: "grid", gap: 12 }}>
-              <div><label style={fl}>Role *</label>
-                <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value, username: "", name: "", email: "" })} style={fi}>
-                  {ROLES.map((r) => <option key={r}>{r}</option>)}
-                </select>
-              </div>
+              {/* User first — picking a user auto-fills the role from their app account */}
               <div><label style={fl}>User (App account) *</label>
                 <select value={form.username} onChange={(e) => {
                   const u = appUsers.find((x) => (x.mobile || x.code || x.name) === e.target.value);
-                  setForm({ ...form, username: e.target.value, name: u ? u.name : "", email: u ? (u.email || "") : "" });
+                  /* map the app-user role/designation onto an admin role */
+                  let role = form.role;
+                  if (u) {
+                    const ur = `${u.role || ""} ${u.designation || ""}`.toLowerCase();
+                    const match = ROLES.find((r) => {
+                      const rl = r.toLowerCase();
+                      if (rl.includes("sub") && rl.includes("hod")) return ur.includes("sub hod");
+                      if (rl.includes("hod")) return ur.includes("hod") && !ur.includes("sub");
+                      if (rl.includes("admin")) return ur.includes("admin");
+                      if (rl.includes("sales")) return ur.includes("sales");
+                      if (rl.includes("spec")) return ur.includes("spec");
+                      return false;
+                    });
+                    if (match) role = match;
+                  }
+                  setForm({ ...form, username: e.target.value, name: u ? u.name : "", email: u ? (u.email || "") : "", role });
                 }} style={fi}>
                   <option value="">Select user…</option>
-                  {appUsers
-                    .filter((u) => {
-                      /* match app-user role to the admin role loosely (HOD/Sub HOD/Sales/Specs) */
-                      const r = (form.role || "").toLowerCase(), ur = `${u.role || ""} ${u.designation || ""}`.toLowerCase();
-                      if (r.includes("admin")) return true;
-                      if (r.includes("hod") && r.includes("sub")) return ur.includes("sub hod");
-                      if (r.includes("hod")) return ur.includes("hod") && !ur.includes("sub");
-                      if (r.includes("sales")) return ur.includes("sales");
-                      if (r.includes("spec")) return ur.includes("spec");
-                      return true;
-                    })
-                    .map((u) => <option key={u.name} value={u.mobile || u.code || u.name}>{u.name} ({u.mobile || u.code})</option>)}
+                  {appUsers.map((u) => <option key={u.name} value={u.mobile || u.code || u.name}>{u.name} ({u.mobile || u.code}){u.role ? " · " + u.role : ""}</option>)}
+                </select>
+              </div>
+              <div><label style={fl}>Role * <span style={{ fontWeight: 500, color: "var(--muted)" }}>(auto from app account, change if needed)</span></label>
+                <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} style={fi}>
+                  {ROLES.map((r) => <option key={r}>{r}</option>)}
                 </select>
               </div>
               <div><label style={fl}>Full Name</label><input value={form.name} readOnly style={{ ...fi, background: "#f4f6fc" }} /></div>

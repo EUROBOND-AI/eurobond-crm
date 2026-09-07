@@ -188,6 +188,7 @@ export const api = {
   crmKeysList: () => req("/crm_api.php?action=keys"),
   crmKeyIssue: (label, module) => req("/crm_api.php?action=issue", { method: "POST", body: { label, module } }),
   crmKeyRevoke: (id) => req("/crm_api.php?action=revoke", { method: "POST", body: { id } }),
+  crmKeyDelete: (id) => req("/crm_api.php?action=remove", { method: "POST", body: { id } }),
 
   /* ---------- Locations (India villages/cities strict search) ---------- */
   locationSearch: (q) => req("/locations.php?action=search&q=" + encodeURIComponent(q)),

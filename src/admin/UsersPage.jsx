@@ -96,9 +96,12 @@ export default function UsersPage() {
   };
 
   const zoneOpts = [...new Set(users.map((u) => u.zone).filter(Boolean))];
-  const cityOpts = form && form.state && stateCities.length
-    ? stateCities
-    : [...new Set(users.map((u) => u.city).filter(Boolean))];
+  /* City belongs to a State — until a State is picked there is nothing to choose,
+     so a city can never be saved (or added) under the wrong state. */
+  const cityOpts = !form || !form.state
+    ? []
+    : (stateCities.length ? stateCities
+       : [...new Set(users.filter((u) => u.state === form.state).map((u) => u.city).filter(Boolean))]);
   const stateOpts = [...new Set([...statesList, ...users.map((u) => u.state).filter(Boolean)])];
   /* Reporting managers: for a Sub HOD → only HODs; for a normal user → HODs + Sub HODs + Admin */
   const isSubHodForm = form && (form.isSubHod || /^Sub HOD/.test(form.role || ""));
@@ -217,9 +220,13 @@ export default function UsersPage() {
               <Field label="Designation" val={form.designation} on={(v) => setForm({ ...form, designation: v })} />
               <Field label="Date of Joining" type="date" val={form.doj || ""} on={(v) => setForm({ ...form, doj: v })} />
               <Field label="Date of Birth" type="date" val={form.dob || ""} on={(v) => setForm({ ...form, dob: v })} />
-              <SelectOrAdd label="State" val={form.state} on={(v) => setForm({ ...form, state: v })} options={stateOpts} />
+              <SelectOrAdd label="State" val={form.state} on={(v) => setForm({ ...form, state: v, city: "" })} options={stateOpts} />
               <SelectOrAdd label="Zone" val={form.zone} on={(v) => setForm({ ...form, zone: v })} options={zoneOpts} />
-              <SelectOrAdd label="City" val={form.city} on={(v) => setForm({ ...form, city: v })} options={cityOpts} />
+              {form.state
+                ? <SelectOrAdd label="City" val={form.city} on={(v) => setForm({ ...form, city: v })} options={cityOpts} />
+                : <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>City</label>
+                    <div style={{ padding: "9px 12px", borderRadius: 9, border: "1px dashed #dde2ef", fontSize: 12.5, color: "var(--muted)", background: "#f7f9ff" }}>Select a State first</div>
+                  </div>}
               <Field label="Near-by Range (meters)" type="number" val={form.nearby_range_m ?? 500} on={(v) => setForm({ ...form, nearby_range_m: v })} />
               {!form.isHod && !(/^HOD /.test(form.role || "")) && (
                 <SelectOrAdd label={form.isSubHod || /^Sub HOD/.test(form.role || "") ? "Reporting HOD" : "Reporting Manager"} val={form.manager} on={(v) => setForm({ ...form, manager: v })} options={managerOpts} />

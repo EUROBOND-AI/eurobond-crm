@@ -90,6 +90,11 @@ export default function ApiKeysPage() {
               <div style={{ display: "flex", gap: 6 }}>
                 <button className="btn" style={{ padding: "3px 9px", fontSize: 11 }} onClick={() => { try { navigator.clipboard.writeText(k.api_key); alert("Key copied"); } catch {} }}>Copy</button>
                 {!!Number(k.active) && <button className="btn btn-danger" style={{ padding: "3px 9px", fontSize: 11 }} onClick={() => revokeCrmKey(k.id)}>Revoke</button>}
+                <button className="btn" style={{ padding: "3px 9px", fontSize: 11, background: "#c0392b", color: "#fff", borderColor: "transparent" }}
+                  onClick={async () => {
+                    if (!window.confirm("Delete this API key permanently? This cannot be undone.")) return;
+                    try { await api.crmKeyDelete(k.id); loadCrm(); } catch (e) { alert(e.message); }
+                  }}>Delete</button>
               </div>
             </div>
             <div style={{ fontFamily: "monospace", fontSize: 12, marginTop: 6, wordBreak: "break-all", color: "#3949ab" }}>{k.api_key}</div>

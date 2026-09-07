@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Edit3, UserPlus, Trash2, Share2, X, Search } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Edit3, UserPlus, Trash2, Share2, X, Search, Ban, RefreshCw } from "lucide-react";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { scopeRows } from "../lib/scope.js";
@@ -33,6 +33,14 @@ export default function EnquiryPage() {
   const [search, setSearch] = useState("");
   const [sourceSel, setSourceSel] = useState([...LEAD_SOURCES]);   // Enquiry From dropdown
   const [srcOpen, setSrcOpen] = useState(false);
+  const srcRef = useRef(null);
+  /* close the "Enquiry From" dropdown when clicking anywhere outside it */
+  useEffect(() => {
+    if (!srcOpen) return;
+    const onDoc = (e) => { if (srcRef.current && !srcRef.current.contains(e.target)) setSrcOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [srcOpen]);
   const [fromDate, setFromDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [stateF, setStateF] = useState("");
@@ -229,7 +237,7 @@ export default function EnquiryPage() {
 
       {/* filters row: Enquiry From dropdown + date range + Show */}
       <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 14, background: "#fff", padding: 14, borderRadius: 12, boxShadow: "var(--shadow-3d)" }}>
-        <div style={{ position: "relative", minWidth: 240 }}>
+        <div ref={srcRef} style={{ position: "relative", minWidth: 240 }}>
           <label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>Enquiry From</label>
           <div onClick={() => setSrcOpen((v) => !v)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fff" }}>
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 200 }}>
@@ -298,7 +306,17 @@ export default function EnquiryPage() {
                       <button title="Edit" style={iconBtn("#22a45d")} onClick={() => setEditRow(r)}><Edit3 size={14} /></button>
                       <button title="Assign" style={iconBtn("#e8833a")} onClick={() => { setReassign(false); setAssignFor(r); }}><UserPlus size={14} /></button>
                       <button title="Delete" style={iconBtn("#e5484d")} onClick={() => del(r)}><Trash2 size={14} /></button>
-                      {(r.assignedTo || r.passto) && <button title="Re-Assign (Forward)" style={iconBtn("#6c5ce7")} onClick={() => { setReassign(true); setAssignFor(r); }}><Share2 size={14} /></button>}
+                      {(r.assignedTo || r.passto) && <button title="Re-Assign" style={iconBtn("#6c5ce7")} onClick={() => { setReassign(true); setAssignFor(r); }}><RefreshCw size={14} /></button>}
+                      <button title={String(r.status).toLowerCase() === "spam" ? "Remove from Spam" : "Mark as Spam"}
+                        style={iconBtn(String(r.status).toLowerCase() === "spam" ? "#8a8f9e" : "#c0392b")}
+                        onClick={async () => {
+                          const isSpam = String(r.status).toLowerCase() === "spam";
+                          if (!window.confirm(isSpam ? "Remove this enquiry from Spam?" : "Mark this enquiry as Spam?")) return;
+                          try {
+                            await api.update("enquiry", r._id || r.id, { ...r, status: isSpam ? (r.assignedTo || r.passto ? "Assigned" : "Pending") : "Spam" });
+                            load();
+                          } catch (e) { alert(e.message); }
+                        }}><Ban size={14} /></button>
                     </div>
                   </td>
                   <td style={td}>{(page - 1) * pageSize + i + 1}</td>

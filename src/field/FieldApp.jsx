@@ -507,6 +507,8 @@ async function registerPush() {
    Scheduled with the OS so they fire even when the app is fully closed.
    They are cancelled for the day as soon as attendance is started. */
 const ATT_REMINDER_IDS = [910001, 910002, 910003, 910004, 910005, 910006, 910007];
+/* logout reminders: 7:00 PM to 8:00 PM, every 10 minutes */
+const LOGOUT_REMINDER_IDS = [920001, 920002, 920003, 920004, 920005, 920006, 920007];
 async function scheduleAttendanceReminders() {
   try {
     const Cap = typeof window !== "undefined" ? window.Capacitor : null;
@@ -548,6 +550,40 @@ async function cancelAttendanceReminders() {
     const Cap = typeof window !== "undefined" ? window.Capacitor : null;
     const LN = Cap && Cap.Plugins && Cap.Plugins.LocalNotifications;
     if (LN) await LN.cancel({ notifications: ATT_REMINDER_IDS.map((id) => ({ id })) });
+  } catch {}
+}
+
+/* ---- Evening logout reminders: 7:00 PM to 8:00 PM, every 10 minutes.
+   Scheduled with the OS so they fire with the app closed, and cancelled
+   as soon as the person stops attendance for the day. ---- */
+async function scheduleLogoutReminders() {
+  try {
+    const Cap = typeof window !== "undefined" ? window.Capacitor : null;
+    const LN = Cap && Cap.Plugins && Cap.Plugins.LocalNotifications;
+    if (!LN) return;
+    try { await LN.cancel({ notifications: LOGOUT_REMINDER_IDS.map((id) => ({ id })) }); } catch {}
+    const times = [[19, 0], [19, 10], [19, 20], [19, 30], [19, 40], [19, 50], [20, 0]];
+    const notifications = times.map(([h, m], i) => {
+      const at = new Date();
+      at.setHours(h, m, 0, 0);
+      if (at.getTime() <= Date.now()) at.setDate(at.getDate() + 1);
+      return {
+        id: LOGOUT_REMINDER_IDS[i],
+        title: "Attendance Logout Reminder",
+        body: "Please complete your attendance logout for today.",
+        channelId: "eurobond_reminder",
+        smallIcon: "ic_stat_notify",
+        schedule: { at, allowWhileIdle: true, repeats: true, every: "day" },
+      };
+    });
+    await LN.schedule({ notifications });
+  } catch {}
+}
+async function cancelLogoutReminders() {
+  try {
+    const Cap = typeof window !== "undefined" ? window.Capacitor : null;
+    const LN = Cap && Cap.Plugins && Cap.Plugins.LocalNotifications;
+    if (LN) await LN.cancel({ notifications: LOGOUT_REMINDER_IDS.map((id) => ({ id })) });
   } catch {}
 }
 
@@ -5674,7 +5710,7 @@ export default function FieldApp() {
         // fresh start -> get current location, then create server session with it
         const startWith = (coords) => {
           api.attStart({ ...visitInfoRef.current, ...coords })
-            .then((d) => { if (!cancelled) { sessionRef.current = d.session_id; localStorage.setItem("eb_att_on", "1"); setTrackerSession(d.session_id, (loadGpsCfg().intervalSec ?? 900) * 1000, api.attPoints); try { cancelAttendanceReminders(); } catch {} } })
+            .then((d) => { if (!cancelled) { sessionRef.current = d.session_id; localStorage.setItem("eb_att_on", "1"); setTrackerSession(d.session_id, (loadGpsCfg().intervalSec ?? 900) * 1000, api.attPoints); try { cancelAttendanceReminders(); scheduleLogoutReminders(); } catch {} } })
             .catch((e) => setTracking((t) => ({ ...t, error: e.message })));
         };
         if (navigator.geolocation) {
@@ -5753,6 +5789,7 @@ export default function FieldApp() {
         if (sid) {
           if (pendingRef.current.length) { try { await api.attPoints(sid, pendingRef.current.splice(0)); } catch {} }
           try { await api.attStop(sid, stopExtraRef.current || {}); stopExtraRef.current = null; } catch {}
+          try { cancelLogoutReminders(); } catch {}
           localStorage.removeItem("eb_att_on");
           sessionRef.current = null;
         }
@@ -5821,6 +5858,7 @@ export default function FieldApp() {
       const sid = sessionRef.current;
       setAttendanceOn(false);
       setDoneToday(true);
+      try { cancelLogoutReminders(); } catch {}
       try { await stopTracker(); } catch {}
       try { localStorage.removeItem("eb_att_on"); } catch {}
       if (sid) { try { await api.attStop(sid, {}); } catch {} }   // best effort; server also auto-closes
