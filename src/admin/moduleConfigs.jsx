@@ -346,6 +346,15 @@ export const MODULES = {
     ],
   },
 
+  beatPlan: {
+    path: "sfa/beat-plan", title: "Beat Plan", crumb: "Beat Plan", addLabel: null, actions: true, deleteOnly: true,
+    columns: [
+      { key: "weekStart", label: "Week From" }, { key: "weekEnd", label: "Week To" },
+      { key: "createdBy", label: "Person" }, { key: "hod", label: "HOD" },
+      { key: "state", label: "State" }, { key: "planSummary", label: "Plan" },
+    ],
+    form: null,
+  },
   notification: {
     path: "support/notification", title: "Notifications", crumb: "Notification", addLabel: null,
     actions: true, deleteOnly: true, softDelete: true,   // hides from admin only — the user's copy stays

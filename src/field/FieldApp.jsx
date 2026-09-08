@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import { ebFlushQueue, ebQueueSize, watchLocation, startTracker, stopTracker, setTrackerHandler, setTrackerSession, isTrackerActive, showTrackingNotification, hideTrackingNotification, totalDistanceKm, haversineKm, fmtKm, fmtDuration } from "../lib/geo.js";
 import { api, auth, API_BASE } from "../lib/api.js";
+import BeatPlan, { BeatPlanConfirm } from "./BeatPlan.jsx";
+import MeetingCalendar from "./MeetingCalendar.jsx";
 import { buildExpensePdf } from "../lib/expensePdf.js";
 import { MODULES } from "../admin/moduleConfigs.jsx";
 
@@ -579,6 +581,27 @@ async function scheduleLogoutReminders() {
     await LN.schedule({ notifications });
   } catch {}
 }
+/* remind the person on the morning of a customer meeting */
+async function scheduleMeetingReminder(customerName, dateIso, note) {
+  try {
+    const Cap = typeof window !== "undefined" ? window.Capacitor : null;
+    const LN = Cap && Cap.Plugins && Cap.Plugins.LocalNotifications;
+    if (!LN || !dateIso) return;
+    const at = new Date(dateIso + "T09:30:00");
+    if (at.getTime() <= Date.now()) return;                 // already past
+    const id = 930000 + (Math.abs(hashCode(customerName + dateIso)) % 60000);
+    await LN.schedule({
+      notifications: [{
+        id, title: "Meeting Today",
+        body: `${customerName}${note ? " — " + note : ""}`,
+        channelId: "eurobond_reminder", smallIcon: "ic_stat_notify",
+        schedule: { at, allowWhileIdle: true },
+      }],
+    });
+  } catch {}
+}
+function hashCode(str) { let h = 0; for (let i = 0; i < String(str).length; i++) h = (h << 5) - h + String(str).charCodeAt(i) | 0; return h; }
+
 async function cancelLogoutReminders() {
   try {
     const Cap = typeof window !== "undefined" ? window.Capacitor : null;
@@ -640,7 +663,7 @@ function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expense
   const expMonth = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
 
   const metrics = [
-    { label: "Distance", icon: <Navigation size={15} />, big: fmtKm(tracking.km), note: attendanceOn ? "tracking live" : "today", to: "/app/attendance" },
+    { label: "Calendar", icon: <CalendarDays size={15} />, big: "📅", note: "meetings this month", to: "/app/calendar" },
     { label: "Customer", icon: <ClipboardList size={15} />, big: `${followups.length}`, note: "total customers", to: "/app/customers" },
     { label: "Leave", icon: <CalendarDays size={15} />, big: leavePending, note: "pending approvals", to: "/app/leave" },
     { label: "Expense", icon: <Wallet size={15} />, big: "₹" + expMonth.toLocaleString("en-IN"), note: "total claimed", to: "/app/expense" },
@@ -1944,6 +1967,8 @@ function FieldFollowUpNew({ add, editData }) {
     category: ed?.category || pf?.type || "Distributor", partyName: ed?.partyName || ed?.name || pf?.name || "", address: ed?.address || pf?.address || "", type: "Visit", notes: ed?.notes || pf?.notes || "", lat: ed?.lat || null, lng: ed?.lng || null,
     /* where this customer came from — carried over when an enquiry is converted */
     enquiryFrom: ed?.enquiryFrom || pf?.enquiryFrom || "",
+    nextMeetingDate: ed?.nextMeetingDate || "",
+    nextMeetingRemark: ed?.nextMeetingRemark || "",
     state: ed?.state || pf?.state || "",
   });
   const [projects, setProjects] = useState(ed?.projects?.length ? ed.projects : (ed?.projectName ? String(ed.projectName).split(",").map((x) => x.trim()) : [""]));   // multiple project names
@@ -2090,6 +2115,16 @@ function FieldFollowUpNew({ add, editData }) {
         <label>Remark</label>
         <textarea rows={2} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} style={inp} />
 
+        {/* a reminder is scheduled on the phone for the morning of that day */}
+        <label>Next Meeting Date</label>
+        <input type="date" value={f.nextMeetingDate || ""} onChange={(e) => setF({ ...f, nextMeetingDate: e.target.value })} style={inp} />
+        {f.nextMeetingDate ? (
+          <>
+            <label>Next Meeting Note</label>
+            <input value={f.nextMeetingRemark || ""} onChange={(e) => setF({ ...f, nextMeetingRemark: e.target.value })} placeholder="What is this meeting about?" style={inp} />
+          </>
+        ) : null}
+
         <button
           className="f-submit" style={{ width: "100%" }}
           disabled={!f.partyName}
@@ -2107,6 +2142,7 @@ function FieldFollowUpNew({ add, editData }) {
             });
             /* WhatsApp: visit ayyaru ani chinna message (PingMate integration tarvat) */
             sendVisitWhatsApp(primary.whatsapp || primary.mobile, f.partyName);
+            if (f.nextMeetingDate) scheduleMeetingReminder(f.partyName, f.nextMeetingDate, f.nextMeetingRemark);
             nav("/app/customers");
           }}
         >
@@ -3406,6 +3442,7 @@ function MenuDrawer({ open, close }) {
       ["Leave Approval", <CalendarDays size={16} />, "/app/leave-approval", "leaveApproval"],
       ["Attendance", <CalendarCheck size={16} />, "/app/attendance", "attendance"],
       ["Task", <ClipboardList size={16} />, "/app/m/task", "task"],
+      ["Beat Plan", <CalendarDays size={16} />, "/app/beat-plan", "beatPlan"],
       ["Resources & Links", <FileText size={16} />, "/app/resources", "resources"],
     ] },
   ];
@@ -5660,6 +5697,7 @@ export default function FieldApp() {
   const [authed, setAuthed] = useState(auth.isLoggedIn);
   const [menu, setMenu] = useState(false);
   const [visitPopup, setVisitPopup] = useState(false);
+  const [beatCheck, setBeatCheck] = useState(false);
   const [stopPopup, setStopPopup] = useState(false);
   const visitInfoRef = useRef({ type: "Local", name: "" });
   const todaySessionRef = useRef(null);       // {visit_type, transport} — stop-flow photo rules ki
@@ -6147,7 +6185,7 @@ export default function FieldApp() {
 
         <div className="phone-body">
           <Routes>
-            <Route index element={<FieldHome attendanceOn={attendanceOn} doneToday={doneToday} setAttendanceOn={setAttendanceOn} tracking={tracking} expenses={expenses} followups={followups} leaves={leaves} onStartAttendance={() => setVisitPopup(true)} onStopAttendance={() => setStopPopup(true)} />} />
+            <Route index element={<FieldHome attendanceOn={attendanceOn} doneToday={doneToday} setAttendanceOn={setAttendanceOn} tracking={tracking} expenses={expenses} followups={followups} leaves={leaves} onStartAttendance={() => setBeatCheck(true)} onStopAttendance={() => setStopPopup(true)} />} />
             <Route path="attendance" element={<FieldAttendance attendanceOn={attendanceOn} setAttendanceOn={setAttendanceOn} tracking={tracking} setTracking={setTracking} gpsAlarm={gpsAlarm} todaySession={todaySessionRef.current} sessionId={sessionRef.current} />} />
             <Route path="expense" element={<FieldExpense list={expenses} add={(e) => setExpenses((x) => [e, ...x])} reload={reloadExpenses} />} />
             <Route path="expense/new" element={<FieldExpenseNew add={async (e) => { try { const r = await api.create("expense", e); setExpenses((x) => [{ _id: r.id, ...e }, ...x]); } catch (err) { alert(err.message); } }} />} />
@@ -6181,6 +6219,8 @@ export default function FieldApp() {
               } catch (err) { alert(err.message); }
             }} />} />
             <Route path="project/new" element={<FieldProjectNew />} />
+            <Route path="beat-plan" element={<BeatPlan />} />
+            <Route path="calendar" element={<MeetingCalendar />} />
             <Route path="resources" element={<FieldResources />} />
             {Object.keys(APP_MODS).map((m) => (
               <Route key={m} path={`m/${m}`} element={m === "enquiry" ? <FieldEnquiry /> : m === "quotation" ? <FieldQuotationList /> : m === "projectProjection" ? <FieldProjectList /> : (m === "salesToSpec" || m === "specToSales") ? <FieldSpecThreadList mod={m} /> : <FieldModule mod={m} />} />
@@ -6215,6 +6255,12 @@ export default function FieldApp() {
         </div>
 
         <MenuDrawer open={menu} close={() => setMenu(false)} />
+        {beatCheck && (
+          <BeatPlanConfirm
+            onClose={() => setBeatCheck(false)}
+            onContinue={() => { setBeatCheck(false); setVisitPopup(true); }}
+          />
+        )}
         {visitPopup && (
           <AttendanceWizard
             mode="start"

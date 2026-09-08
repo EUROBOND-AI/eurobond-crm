@@ -15,6 +15,13 @@ function projContactsText(contacts) {
   }).filter(Boolean).join(" | ");
 }
 /* Target rows: show Achievement % straight from target vs achieved */
+/* one-line summary of a weekly beat plan, e.g. "Mon: Local · Tue: Out-station …" */
+function beatSummary(d) {
+  if (!d || !Array.isArray(d.days)) return "";
+  return d.days.filter((x) => x.type && x.type !== "Off")
+    .map((x) => `${String(x.day).slice(0, 3)}: ${x.type}${x.areas && x.areas.length ? " (" + x.areas.join(", ") + ")" : ""}`)
+    .join(" · ");
+}
 function targetPct(d) {
   const t = Number(d && d.target) || 0, a = Number(d && d.achieved) || 0;
   if (!t) return "";
@@ -78,7 +85,7 @@ export default function ModulePage({ cfgKey }) {
     let alive = true;
     setLoading(true); setErr("");
     api.list(cfgKey)
-      .then((d) => { if (alive) setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length, productsText: projProductsText(r.data.items), ...projCategoryCols(r.data.contacts), achievementPct: targetPct(r.data) }))); })
+      .then((d) => { if (alive) setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length, productsText: projProductsText(r.data.items), ...projCategoryCols(r.data.contacts), achievementPct: targetPct(r.data), planSummary: beatSummary(r.data) }))); })
       .catch((e) => { if (alive) setErr(e.message); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
@@ -163,7 +170,7 @@ export default function ModulePage({ cfgKey }) {
   const reload = () => {
     setRefreshing(true); setErr("");
     api.list(cfgKey)
-      .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length, productsText: projProductsText(r.data.items), ...projCategoryCols(r.data.contacts), achievementPct: targetPct(r.data) }))))
+      .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length, productsText: projProductsText(r.data.items), ...projCategoryCols(r.data.contacts), achievementPct: targetPct(r.data), planSummary: beatSummary(r.data) }))))
       .catch((e) => setErr(e.message))
       .finally(() => setRefreshing(false));
   };
@@ -440,7 +447,7 @@ export default function ModulePage({ cfgKey }) {
               ))}
             </div>
           )}
-          {["projectProjection", "salesToSpec", "specToSales", "target", "leave", "expense"].includes(cfgKey) && (
+          {["projectProjection", "salesToSpec", "specToSales", "target", "leave", "expense", "beatPlan"].includes(cfgKey) && (
             <button className="btn btn-primary" style={{ padding: "8px 20px", fontWeight: 700 }} onClick={() => setShown(true)}>Show</button>
           )}
         </div>
@@ -462,7 +469,7 @@ export default function ModulePage({ cfgKey }) {
         <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Loading…</div>
       ) : err ? (
         <div style={{ padding: 24, background: "#fdecec", color: "#c03636", borderRadius: 12, fontWeight: 600 }}>{err}</div>
-      ) : (["projectProjection", "salesToSpec", "specToSales", "target", "leave", "expense"].includes(cfgKey) && !shown) ? (
+      ) : (["projectProjection", "salesToSpec", "specToSales", "target", "leave", "expense", "beatPlan"].includes(cfgKey) && !shown) ? (
         <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Set filters and click <b>Show</b> to view.</div>
       ) : (
         <DataTable

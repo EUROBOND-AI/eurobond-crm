@@ -1,5 +1,7 @@
 import logoImg from "./assets/logo.jpg";
-import { Routes, Route, Link, Navigate } from "react-router-dom";
+import { useEffect, useRef } from "react";
+import { Routes, Route, Link, Navigate, useLocation } from "react-router-dom";
+import { api, auth } from "./lib/api.js";
 import { Monitor, Smartphone } from "lucide-react";
 import AdminLogin from "./admin/AdminLogin.jsx";
 import AdminLayout from "./admin/AdminLayout.jsx";
@@ -15,6 +17,7 @@ import CheckinPage from "./admin/CheckinPage.jsx";
 import TourReport from "./admin/TourReport.jsx";
 import ApiKeysPage from "./admin/ApiKeysPage.jsx";
 import HealthPage from "./admin/HealthPage.jsx";
+import ActivityLogs from "./admin/ActivityLogs.jsx";
 import CustomersDashboard from "./admin/CustomersDashboard.jsx";
 import TargetDashboard from "./admin/TargetDashboard.jsx";
 import ProjectDashboard from "./admin/ProjectDashboard.jsx";
@@ -59,7 +62,24 @@ function Portal() {
   );
 }
 
+/* record every screen the person opens, so admin can see real usage */
+function useActivityLogger() {
+  const loc = useLocation();
+  const last = useRef("");
+  useEffect(() => {
+    const path = loc.pathname;
+    if (!path || path === last.current) return;
+    last.current = path;
+    if (!auth.isLoggedIn) return;
+    const parts = path.split("/").filter(Boolean);
+    const source = parts[0] === "admin" ? "admin" : "app";
+    const module = parts[parts.length - 1] || parts[1] || "home";
+    api.activityLog(module, path, source).catch(() => {});
+  }, [loc.pathname]);
+}
+
 export default function App() {
+  useActivityLogger();
   const isNative = typeof window !== "undefined" && window.Capacitor && typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform();
   return (
     <Routes>
@@ -76,6 +96,7 @@ export default function App() {
         <Route path="dashboards/customers" element={<CustomersDashboard />} />
         <Route path="dashboards/target" element={<TargetDashboard />} />
         <Route path="dashboards/project" element={<ProjectDashboard />} />
+        <Route path="master/logs" element={<ActivityLogs />} />
         <Route path="sfa/checkin" element={<CheckinPage />} />
         <Route path="sfa/tour-report" element={<TourReport />} />
         <Route path="master/roles" element={<RolePermission />} />
