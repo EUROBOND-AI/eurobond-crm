@@ -7,6 +7,26 @@ const R = 6371; // Earth radius in km
 /* keep this EXACTLY the same as API_BASE in src/lib/api.js */
 const API_BASE_FALLBACK = "https://eurobondsealant.com/crm-api";
 
+/* ---- Offline queue: when there is no network the point is stored on the phone
+   and uploaded automatically once the connection is back, so the timeline has
+   no gaps in basements / low-signal areas. ---- */
+const EB_QUEUE_KEY = "eb_point_queue";
+function ebQueueRead() { try { return JSON.parse(localStorage.getItem(EB_QUEUE_KEY) || "[]"); } catch { return []; } }
+function ebQueueWrite(a) { try { localStorage.setItem(EB_QUEUE_KEY, JSON.stringify(a.slice(-500))); } catch {} }
+export function ebQueueSize() { return ebQueueRead().length; }
+export async function ebFlushQueue(sessionId, uploadFn) {
+  const q = ebQueueRead();
+  if (!q.length || !sessionId || !uploadFn) return 0;
+  const mine = q.filter((x) => String(x.sessionId) === String(sessionId));
+  const rest = q.filter((x) => String(x.sessionId) !== String(sessionId));
+  if (!mine.length) return 0;
+  try {
+    await uploadFn(sessionId, mine.map((x) => x.point));
+    ebQueueWrite(rest);                 // uploaded -> drop them
+    return mine.length;
+  } catch { return 0; }                 // still offline -> keep for next try
+}
+
 export function haversineKm(a, b) {
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
   const dLng = ((b.lng - a.lng) * Math.PI) / 180;
@@ -177,11 +197,23 @@ function _handleLocation(loc) {
        the upload entirely). Address here is best-effort only. */
     _tracker.diag.uploads++;
     _tracker.diag.lastUploadMs = Date.now();
+    const sid = _tracker.sessionId;
     try {
-      _tracker.uploadFn(_tracker.sessionId, [pt])
-        .then(() => { _tracker.diag.lastUploadOk = true; })
-        .catch((e) => { _tracker.diag.lastUploadOk = false; _tracker.diag.lastError = "upload: " + (e && e.message || "fail"); });
-    } catch (e) { _tracker.diag.lastUploadOk = false; _tracker.diag.lastError = "upload throw: " + (e && e.message || ""); }
+      _tracker.uploadFn(sid, [pt])
+        .then(() => {
+          _tracker.diag.lastUploadOk = true;
+          ebFlushQueue(sid, _tracker.uploadFn);        // network is back -> send anything held
+        })
+        .catch((e) => {
+          _tracker.diag.lastUploadOk = false;
+          _tracker.diag.lastError = "upload: " + (e && e.message || "fail");
+          const q = ebQueueRead(); q.push({ sessionId: sid, point: pt }); ebQueueWrite(q);   // hold it
+        });
+    } catch (e) {
+      _tracker.diag.lastUploadOk = false;
+      _tracker.diag.lastError = "upload throw: " + (e && e.message || "");
+      const q = ebQueueRead(); q.push({ sessionId: sid, point: pt }); ebQueueWrite(q);
+    }
   }
 }
 

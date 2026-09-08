@@ -116,6 +116,7 @@ export default function ModulePage({ cfgKey }) {
     if (fSales) list = list.filter((r) => (r.salesPerson || "") === fSales);
     if (fStatus) list = list.filter((r) => (r.status || "") === fStatus);
     if (fStateM) list = list.filter((r) => (r.state || "") === fStateM);
+    if (cfg.softDelete) list = list.filter((r) => !r.adminHidden);
     if (cfgKey === "projectProjection") {
       list = list.filter((r) => projSide === "Specs" ? r.isSpec : !r.isSpec);
     }
@@ -309,6 +310,16 @@ export default function ModulePage({ cfgKey }) {
   };
 
   const handleDelete = async (r) => {
+    /* soft delete: notifications are the SAME records the user sees in the app,
+       so removing them here would delete the user's copy too. Hide instead. */
+    if (cfg.softDelete) {
+      if (!confirm("Remove this from the admin list? (the user's copy stays)")) return;
+      try {
+        await api.update(cfgKey, r._id, { ...r, adminHidden: true });
+        setRows(rows.filter((x) => x._id !== r._id));
+      } catch (e) { alert("Could not remove: " + e.message); }
+      return;
+    }
     if (!confirm("Delete this record?")) return;
     try {
       await api.remove(cfgKey, r._id);

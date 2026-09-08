@@ -347,9 +347,11 @@ export const MODULES = {
   },
 
   notification: {
-    path: "support/notification", title: "Notifications", crumb: "Notification", addLabel: null, actions: false,
+    path: "support/notification", title: "Notifications", crumb: "Notification", addLabel: null,
+    actions: true, deleteOnly: true, softDelete: true,   // hides from admin only — the user's copy stays
     columns: [
-      { key: "createdAt", label: "Date" }, { key: "title", label: "Title" }, { key: "desc", label: "Message" },
+      { key: "createdAt", label: "Date" }, { key: "title", label: "Title" },
+      { key: "desc", label: "Message" }, { key: "to", label: "To" },
     ],
     form: null,
   },

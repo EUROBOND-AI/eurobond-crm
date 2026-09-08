@@ -7,7 +7,7 @@ import {
   PlaneTakeoff, FileText, CalendarDays, Briefcase, ListChecks, Map as MapIcon,
   Play, Square, Navigation, Smartphone, CheckCircle2, AlertCircle, Eye, EyeOff, Camera, Search, Filter, Pencil,
 } from "lucide-react";
-import { watchLocation, startTracker, stopTracker, setTrackerHandler, setTrackerSession, isTrackerActive, showTrackingNotification, hideTrackingNotification, totalDistanceKm, haversineKm, fmtKm, fmtDuration } from "../lib/geo.js";
+import { ebFlushQueue, ebQueueSize, watchLocation, startTracker, stopTracker, setTrackerHandler, setTrackerSession, isTrackerActive, showTrackingNotification, hideTrackingNotification, totalDistanceKm, haversineKm, fmtKm, fmtDuration } from "../lib/geo.js";
 import { api, auth } from "../lib/api.js";
 import { buildExpensePdf } from "../lib/expensePdf.js";
 import { MODULES } from "../admin/moduleConfigs.jsx";
@@ -396,7 +396,7 @@ function FieldLogin({ onLogin }) {
             <text x="145" y="118" fontFamily="Bricolage Grotesque" fontWeight="800" fontSize="18" fill="#1c2340">Always <tspan fill="#c0392b">Tracking</tspan></text>
           </svg>
         </div>
-        <div style={{ background: "#fff", borderRadius: 22, padding: 24, boxShadow: "0 20px 50px rgba(11,60,140,.15), 0 4px 12px rgba(11,60,140,.08)", border: "1px solid #eef1f8" }}>
+        <div style={{ background: "#fff", borderRadius: 20, padding: 18, boxShadow: "0 20px 50px rgba(11,60,140,.15), 0 4px 12px rgba(11,60,140,.08)", border: "1px solid #eef1f8" }}>
         <p style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, marginBottom: 22 }}>
           {step === 1 ? "Login with your mobile number — OTP will be sent to your registered email" : `Enter the OTP sent to ${maskedEmail || "your email"}`}
         </p>
@@ -409,10 +409,10 @@ function FieldLogin({ onLogin }) {
                 value={mobile}
                 onChange={(e) => { setMobile(e.target.value); setErr(""); }}
                 onKeyDown={(e) => e.key === "Enter" && sendOtp()}
-                style={{ width: "100%", marginBottom: 14, fontSize: 16, letterSpacing: 1 }}
+                style={{ width: "100%", marginBottom: 8, fontSize: 15, letterSpacing: 1, padding: "9px 11px" }}
               />
               {err && <div style={{ color: "#d64545", fontSize: 12.5, fontWeight: 700, margin: "6px 0" }}>{err}</div>}
-              <button className="f-submit" style={{ width: "100%", marginTop: 12, opacity: busy ? 0.7 : 1 }} disabled={busy} onClick={sendOtp}>
+              <button className="f-submit" style={{ width: "100%", marginTop: 6, padding: "11px 14px", fontSize: 14.5, opacity: busy ? 0.7 : 1 }} disabled={busy} onClick={sendOtp}>
                 {busy ? "Sending OTP…" : "Send OTP"}
               </button>
             </>
@@ -426,10 +426,10 @@ function FieldLogin({ onLogin }) {
                 value={otp}
                 onChange={(e) => { setOtp(e.target.value.replace(/\D/g, "")); setErr(""); }}
                 onKeyDown={(e) => e.key === "Enter" && verify()}
-                style={{ width: "100%", marginBottom: 12, fontSize: 22, letterSpacing: 8, textAlign: "center", fontWeight: 800 }}
+                style={{ width: "100%", marginBottom: 8, fontSize: 19, letterSpacing: 6, textAlign: "center", fontWeight: 800, padding: "9px 11px" }}
               />
               {err && <div style={{ color: "#d64545", fontSize: 12.5, fontWeight: 700, margin: "6px 0" }}>{err}</div>}
-              <button className="f-submit" style={{ width: "100%", marginTop: 6, opacity: busy ? 0.7 : 1 }} disabled={busy} onClick={verify}>
+              <button className="f-submit" style={{ width: "100%", marginTop: 4, padding: "11px 14px", fontSize: 14.5, opacity: busy ? 0.7 : 1 }} disabled={busy} onClick={verify}>
                 {busy ? "Verifying…" : "Verify & Login"}
               </button>
               <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, fontSize: 12 }}>
@@ -1568,7 +1568,7 @@ function ExpenseFormatView({ list, reload }) {
 
         {/* actions */}
         <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
-          <button className="f-submit" style={{ flex: 1, background: "#3949ab" }} disabled={busy} onClick={downloadPdf}>{busy ? "…" : "⬇ Download PDF + Bills"}</button>
+          <button className="f-submit" style={{ flex: 1, background: "#3949ab" }} disabled={busy} onClick={downloadPdf}>{busy ? "…" : "⬇ Download PDF"}</button>
           {editable && <button className="f-submit" style={{ flex: 1, background: "#0f7a44" }} disabled={busy} onClick={submit}>Submit to Admin</button>}
         </div>
         {fmt.status === "Submitted" && <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 12, marginTop: 10 }}>Submitted — waiting for admin approval.</div>}
@@ -1659,10 +1659,9 @@ function FieldLeave({ leaves, add }) {
   };
   const now = new Date();
   const mKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const approved = leaves.filter((l) => (l.status || "").toLowerCase() === "approved");
-
-  /* ee nela approved leaves total */
-  const monthLeaves = approved.filter((l) => (l.from || "").startsWith(mKey)).reduce((s, l) => s + days(l), 0);
+  /* count every leave applied this month (approved + pending) — rejected ones don't count */
+  const applied = leaves.filter((l) => !String(l.status || "").toLowerCase().startsWith("reject"));
+  const monthLeaves = applied.filter((l) => (l.from || "").startsWith(mKey)).reduce((s, l) => s + days(l), 0);
 
   const tiles = [
     { v: presents === null ? "…" : presents, k: "Presents", note: "this month" },
@@ -3843,6 +3842,8 @@ function FieldNotifications() {
     }).catch(() => setRows([]));
   }, []);
 
+  const [detail, setDetail] = useState(null);
+
   const open = (n) => {
     markRead(n._id);
     setRead(getReadIds());
@@ -3857,7 +3858,12 @@ function FieldNotifications() {
     else if (link.includes("customer")) link = "/app/customers";
     else if (link.includes("quotation")) link = "/app";
     else if (link.startsWith("/admin") || !link.startsWith("/app")) link = "";
-    if (link) nav(link);
+    /* Holiday / Announcement have no screen of their own — show the full text
+       in a popup so nothing gets cut off. */
+    const t = `${n.title || ""} ${n.message || ""}`.toLowerCase();
+    const isInfoOnly = !link && (t.includes("holiday") || t.includes("announcement") || t.includes("resource"));
+    if (isInfoOnly || !link) { setDetail(n); return; }
+    nav(link);
   };
 
   const dismiss = (id) => {
@@ -3912,15 +3918,35 @@ function FieldNotifications() {
           </div>
         ) : visible.map((n, i) => {
           const unread = !read.has(String(n._id));
-          return <SwipeNotif key={n._id || i} n={n} unread={unread} onOpen={() => open(n)} onDismiss={() => dismiss(n._id)} />;
+          return <SwipeNotif key={n._id || i} n={n} unread={unread} onOpen={() => open(n)} onInfo={() => setDetail(n)} onDismiss={() => dismiss(n._id)} />;
         })}
       </div>
+
+      {/* full-detail popup — used for Holiday / Announcement / Resource notices */}
+      {detail && (
+        <div onClick={() => setDetail(null)} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.45)", zIndex: 9000, display: "grid", placeItems: "center", padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 18, width: "100%", maxWidth: 380, maxHeight: "80vh", overflowY: "auto", boxShadow: "0 24px 60px rgba(0,0,0,.3)" }}>
+            <div style={{ padding: "16px 18px", borderBottom: "1px solid #eef1f8", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+              <h3 style={{ margin: 0, fontSize: 16, color: "var(--navy)" }}>{detail.title || "Notification"}</h3>
+              <button onClick={() => setDetail(null)} style={{ background: "none", border: "none", fontSize: 20, lineHeight: 1, cursor: "pointer", color: "#94a3b8" }}>×</button>
+            </div>
+            <div style={{ padding: "16px 18px" }}>
+              <p style={{ margin: 0, fontSize: 14, lineHeight: 1.65, color: "#334155", whiteSpace: "pre-wrap" }}>{detail.message || detail.body || "—"}</p>
+              {detail.date ? <div style={{ marginTop: 12, fontSize: 12.5, color: "var(--muted)" }}><b>Date:</b> {detail.date}</div> : null}
+              {detail.at ? <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--muted)" }}>{new Date(detail.at).toLocaleString("en-GB")}</div> : null}
+            </div>
+            <div style={{ padding: "0 18px 18px" }}>
+              <button className="f-submit" style={{ width: "100%" }} onClick={() => setDetail(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
 
 /* Swipe-left to dismiss (phone-style), tap to open */
-function SwipeNotif({ n, unread, onOpen, onDismiss }) {
+function SwipeNotif({ n, unread, onOpen, onInfo, onDismiss }) {
   const [dx, setDx] = useState(0);
   const startX = useRef(null);
   const moved = useRef(false);
@@ -3955,8 +3981,12 @@ function SwipeNotif({ n, unread, onOpen, onDismiss }) {
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
           {unread && <span style={{ width: 7, height: 7, borderRadius: 4, background: "#e5484d", flexShrink: 0 }} />}
           <div style={{ fontWeight: unread ? 700 : 600, fontSize: 13.5, flex: 1 }}>{n.title || "Notification"}</div>
+          {/* info: open the full text in a popup */}
+          <button onClick={(e) => { e.stopPropagation(); onInfo && onInfo(); }}
+            title="View details"
+            style={{ background: "#eef2ff", color: "#4f46e5", border: "none", borderRadius: 999, width: 24, height: 24, fontWeight: 800, fontSize: 13, cursor: "pointer", flexShrink: 0, lineHeight: 1 }}>i</button>
         </div>
-        <div style={{ color: "var(--muted)", fontSize: 12.5, marginTop: 3 }}>{n.message}</div>
+        <div style={{ color: "var(--muted)", fontSize: 12.5, marginTop: 3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{n.message}</div>
         {n.createdAt && <div style={{ color: "var(--muted)", fontSize: 11, marginTop: 5 }}>{n.createdAt}</div>}
       </div>
     </div>
@@ -5845,6 +5875,16 @@ export default function FieldApp() {
     }
     return () => clearInterval(alarmTimer.current);
   }, [gpsAlarm]);
+
+  /* push any points held while offline as soon as the network is back */
+  useEffect(() => {
+    if (!attendanceOn) return;
+    const flush = () => { try { ebFlushQueue(sessionRef.current, api.attPoints); } catch {} };
+    window.addEventListener("online", flush);
+    const t = setInterval(flush, 120000);
+    flush();
+    return () => { window.removeEventListener("online", flush); clearInterval(t); };
+  }, [attendanceOn]);
 
   /* HARD STOP at 10:30 PM — runs on the phone itself, so attendance ends even
      with no internet. Stops the tracker, clears the session and turns attendance

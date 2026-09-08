@@ -109,5 +109,19 @@ export async function buildExpensePdf(fmt, formatOnly = false) {
       } catch {}
     }
   }
-  pdf.save(`Expense-${(fmt.user || "statement").replace(/\s+/g, "-")}-${fmt.periodTo || ""}.pdf`);
+  const fileName = `Expense-${(fmt.user || "statement").replace(/\s+/g, "-")}-${fmt.periodTo || ""}.pdf`;
+  /* On the Android app pdf.save() silently does nothing (no download manager in the
+     WebView), so open the PDF in the system viewer / browser instead. */
+  const isNative = typeof window !== "undefined" && window.Capacitor
+    && typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform();
+  if (isNative) {
+    try {
+      const uri = pdf.output("datauristring");
+      const B = window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
+      if (B && B.open) { await B.open({ url: uri }); return; }
+      const w = window.open(uri, "_blank");
+      if (w) return;
+    } catch {}
+  }
+  pdf.save(fileName);
 }

@@ -15,6 +15,7 @@ export default function EnquiryDashboard() {
   const [fUser, setFUser] = useState("");
   const [fFrom, setFFrom] = useState("");
   const [fTo, setFTo] = useState("");
+  const [shown, setShown] = useState(false);
 
   useEffect(() => {
     api.list("enquiry")
@@ -81,12 +82,18 @@ export default function EnquiryDashboard() {
         </select>
         <input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} style={selS} />
         <input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} style={selS} />
-        {(fZone || fHod || fUser || fFrom || fTo) && (
-          <button className="btn btn-ghost" onClick={() => { setFZone(""); setFHod(""); setFUser(""); setFFrom(""); setFTo(""); }}>Clear</button>
+        <button className="btn btn-primary" style={{ padding: "8px 22px", fontWeight: 700 }} onClick={() => setShown(true)}>Show</button>
+        {(fZone || fHod || fUser || fFrom || fTo || shown) && (
+          <button className="btn btn-ghost" onClick={() => { setFZone(""); setFHod(""); setFUser(""); setFFrom(""); setFTo(""); setShown(false); }}>Clear</button>
         )}
         <span style={{ marginLeft: "auto", fontSize: 12.5, color: "var(--muted)", fontWeight: 700 }}>{rows.length} enquiries</span>
       </div>
-      {loading ? <div style={{ padding: 40, color: "var(--muted)" }}>Loading…</div>
+      {!shown ? (
+        <div style={{ padding: 50, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>
+          Set your filters and click <b>Show</b> to load the dashboard.
+        </div>
+      )
+      : loading ? <div style={{ padding: 40, color: "var(--muted)" }}>Loading…</div>
       : err ? <div style={{ padding: 20, background: "#fdecec", color: "#c03636", borderRadius: 10 }}>{err}</div>
       : rows.length === 0 ? (
         <div style={{ padding: 50, textAlign: "center", color: "var(--muted)" }}>
