@@ -1941,7 +1941,10 @@ function FieldFollowUpNew({ add, editData }) {
   const ed = editData || null;
   const pf = FOLLOWUP_PREFILL.data; FOLLOWUP_PREFILL.data = null;   // one-time prefill from scan/quote
   const [f, setF] = useState({
-    category: ed?.category || pf?.type || "Distributor", partyName: ed?.partyName || ed?.name || pf?.name || "", address: ed?.address || "", type: "Visit", notes: ed?.notes || "", lat: ed?.lat || null, lng: ed?.lng || null,
+    category: ed?.category || pf?.type || "Distributor", partyName: ed?.partyName || ed?.name || pf?.name || "", address: ed?.address || pf?.address || "", type: "Visit", notes: ed?.notes || pf?.notes || "", lat: ed?.lat || null, lng: ed?.lng || null,
+    /* where this customer came from — carried over when an enquiry is converted */
+    enquiryFrom: ed?.enquiryFrom || pf?.enquiryFrom || "",
+    state: ed?.state || pf?.state || "",
   });
   const [projects, setProjects] = useState(ed?.projects?.length ? ed.projects : (ed?.projectName ? String(ed.projectName).split(",").map((x) => x.trim()) : [""]));   // multiple project names
   const [contacts, setContacts] = useState(ed?.contacts?.length ? ed.contacts : [{ name: ed?.contactName || pf?.name || "", mobile: ed?.mobile || pf?.mobile || "", whatsapp: ed?.whatsapp || pf?.mobile || "", email: ed?.email || "" }]);
@@ -2030,6 +2033,19 @@ function FieldFollowUpNew({ add, editData }) {
           {scanBusy && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 8 }}>Scanning…</div>}
         </div>
 
+        {f.enquiryFrom ? (
+          <div style={{ background: "#eef7ff", border: "1px solid #cfe4ff", borderRadius: 10, padding: "9px 12px", marginBottom: 6 }}>
+            <span style={{ fontSize: 11.5, color: "var(--muted)", fontWeight: 700 }}>ENQUIRY FROM</span>
+            <div style={{ fontWeight: 800, fontSize: 13.5, color: "var(--navy)" }}>{f.enquiryFrom}</div>
+          </div>
+        ) : null}
+
+        {f.enquiryFrom ? (
+          <>
+            <label>Enquiry From</label>
+            <input value={f.enquiryFrom} readOnly style={{ background: "#f3f6ff", fontWeight: 700 }} />
+          </>
+        ) : null}
         <label>Category <b>*</b></label>
         <select value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })} style={inp}>
           {CATS.map((c) => <option key={c}>{c}</option>)}
@@ -4179,6 +4195,19 @@ function FieldEnquiry() {
               {(r.contact || r.phone) && <a href={`tel:${r.contact || r.phone}`} style={{ ...enqBtn("#059669", "#e5f9f1"), textDecoration: "none", textAlign: "center" }}>📞 Call</a>}
               {r.status !== "Win" && <button onClick={() => markSpam(r)} style={enqBtn("#c0392b", "#fdecec")}>🚫 Spam</button>}
               {r.status !== "Win" && <button onClick={() => setReassignFor(r)} style={enqBtn("#6c5ce7", "#efeaff")}>↗ Reassign</button>}
+              <button onClick={() => {
+                /* carry the enquiry straight into a new customer entry */
+                FOLLOWUP_PREFILL.data = {
+                  name: r.company || r.customer || "",
+                  mobile: r.contact || r.phone || "",
+                  email: r.email || "",
+                  address: r.area || r.city || "",
+                  state: r.state || "",
+                  notes: r.enquiryDetails || "",
+                  enquiryFrom: r.leadFrom || r.leadSource || "",
+                };
+                nav("/app/followup/new");
+              }} style={enqBtn("#0f7a44", "#e7f7ef")}>👤 Move to Customer</button>
               {r.status !== "Win" && <button onClick={() => setWinFor(r)} style={enqBtn("#0f7a44", "#e5f9f1")}>🏆 Win</button>}
             </div>
           </div>
@@ -4274,49 +4303,108 @@ function EnquiryWin({ r, onClose, onDone }) {
   );
 }
 
-/* Enquiry Reassign — team members (same location) */
+/* Enquiry Reassign — own STATE team + admin users (admin needs a remark) */
 function EnquiryReassign({ r, onClose, onDone }) {
   const [team, setTeam] = useState([]);
+  const [admins, setAdmins] = useState([]);
   const [q, setQ] = useState("");
+  const [pick, setPick] = useState(null);      // chosen admin -> ask for a remark
+  const [remark, setRemark] = useState("");
+  const [busy, setBusy] = useState(false);
+
   useEffect(() => {
     api.listUsers().then((d) => {
       const me = CU();
-      const all = (d.users || d.records || []).map((u) => u.data ? { id: u.id, ...u.data } : u);
-      /* same location/area team members */
-      const mine = all.filter((u) => u.name !== me.name && (u.role || "") !== "Admin");
-      setTeam(mine);
+      const all = (d.users || d.records || []).map((u) => (u.data ? { id: u.id, ...u.data } : u));
+      const isAdmin = (u) => /admin/i.test(String(u.role || ""));
+      /* only people from MY state, plus the admin users */
+      setTeam(all.filter((u) => u.name !== me.name && !isAdmin(u)
+        && String(u.state || "").toLowerCase() === String(me.state || "").toLowerCase()));
+      setAdmins(all.filter((u) => u.name !== me.name && isAdmin(u)));
     }).catch(() => {});
   }, []);
-  const ql = q.trim().toLowerCase();
-  const list = ql ? team.filter((u) => (u.name || "").toLowerCase().includes(ql) || String(u.empCode || u.id).toLowerCase().includes(ql)) : team;
 
-  const reassign = async (u) => {
-    if (!window.confirm(`Reassign this enquiry to ${u.name}?`)) return;
+  const ql = q.trim().toLowerCase();
+  const match = (u) => !ql || (u.name || "").toLowerCase().includes(ql) || String(u.empCode || u.code || u.id).toLowerCase().includes(ql);
+  const teamList = team.filter(match);
+  const adminList = admins.filter(match);
+
+  const doReassign = async (u, rmk) => {
+    setBusy(true);
     try {
-      await api.update("enquiry", r._id, { ...r, assignedTo: u.name, assignedToId: u.id, passto: u.name, reassigned: true, reassignedBy: CU().name, reassignAt: new Date().toLocaleString("en-IN"), assignDate: new Date().toLocaleDateString("en-GB") });
-      try { await api.create("notification", { title: "Enquiry Assigned", message: `${r.company || r.customer} enquiry assigned to you by ${CU().name}.`, forUser: u.id, link: "/app/m/enquiry", at: new Date().toISOString() }); } catch {}
-      try { await api.create("notification", { title: "Enquiry Reassigned", message: `${CU().name} reassigned ${r.company || r.customer} to ${u.name}.`, forRole: "Admin", link: "/admin/sfa/enquiry", at: new Date().toISOString() }); } catch {}
+      await api.update("enquiry", r._id, {
+        ...r, assignedTo: u.name, assignedToId: u.id, passto: u.name,
+        reassigned: true, reassignedBy: CU().name,
+        reassignAt: new Date().toLocaleString("en-IN"),
+        reassignRemark: rmk || "",
+        assignDate: new Date().toLocaleDateString("en-GB"),
+        assignTime: new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
+      });
+      try {
+        await api.create("notification", { title: "Enquiry Assigned",
+          message: `${r.company || r.customer} enquiry assigned to you by ${CU().name}.${rmk ? " Remark: " + rmk : ""}`,
+          to: u.name, forUser: u.id, link: "/app/m/enquiry", at: new Date().toISOString() });
+      } catch {}
+      try {
+        await api.create("notification", { title: "Enquiry Reassigned",
+          message: `${CU().name} reassigned ${r.company || r.customer} to ${u.name}.${rmk ? " Remark: " + rmk : ""}`,
+          forRole: "Admin", link: "/admin/sfa/enquiry", at: new Date().toISOString() });
+      } catch {}
       onDone(); onClose();
     } catch (e) { alert(e.message); }
+    setBusy(false);
   };
+
+  const choose = (u, isAdmin) => {
+    if (isAdmin) { setPick(u); return; }                 // admin -> remark first
+    if (!window.confirm(`Reassign this enquiry to ${u.name}?`)) return;
+    doReassign(u, "");
+  };
+
+  const Row = ({ u, isAdmin }) => (
+    <div onClick={() => choose(u, isAdmin)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderRadius: 10, border: "1px solid #eef1f8", cursor: "pointer" }}>
+      <div>
+        <div style={{ fontWeight: 700, fontSize: 13 }}>{u.name}</div>
+        <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{u.empCode || u.code || u.id}{u.grade ? ` · ${u.grade}` : ""}</div>
+      </div>
+      <span style={{ fontSize: 12, color: "var(--accent)", fontWeight: 700 }}>{isAdmin ? "Remark →" : "Assign →"}</span>
+    </div>
+  );
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 300, display: "grid", placeItems: "center", padding: 16 }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 400, padding: 20, maxHeight: "80vh", overflowY: "auto" }}>
-        <h3 style={{ marginTop: 0, fontSize: 16 }}>Reassign to team member</h3>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name / ID…" style={{ width: "100%", marginBottom: 12, padding: "9px 11px", borderRadius: 9, border: "1px solid #d7dcef" }} />
-        <div style={{ display: "grid", gap: 6 }}>
-          {list.length === 0 ? <div style={{ color: "var(--muted)", fontSize: 13, textAlign: "center", padding: 12 }}>No team members found</div>
-            : list.map((u) => (
-              <div key={u.id} onClick={() => reassign(u)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderRadius: 10, border: "1px solid #eef1f8", cursor: "pointer" }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 13 }}>{u.name}</div>
-                  <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{u.empCode || u.id}{u.grade ? ` · ${u.grade}` : ""}</div>
-                </div>
-                <span style={{ fontSize: 12, color: "var(--accent)", fontWeight: 700 }}>Assign →</span>
-              </div>
-            ))}
-        </div>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 400, padding: 20, maxHeight: "82vh", overflowY: "auto" }}>
+        {pick ? (
+          <>
+            <h3 style={{ marginTop: 0, fontSize: 16 }}>Remark for {pick.name}</h3>
+            <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 0 }}>A remark is required when sending to an admin.</p>
+            <textarea rows={4} value={remark} onChange={(e) => setRemark(e.target.value)}
+              placeholder="Why are you sending this to admin?"
+              style={{ width: "100%", padding: "10px 11px", borderRadius: 9, border: "1px solid #d7dcef", fontSize: 13, marginBottom: 12 }} />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn" style={{ flex: 1 }} onClick={() => { setPick(null); setRemark(""); }}>Back</button>
+              <button className="f-submit" style={{ flex: 1, opacity: busy ? .7 : 1 }} disabled={busy}
+                onClick={() => { if (!remark.trim()) { alert("Please enter a remark"); return; } doReassign(pick, remark.trim()); }}>
+                {busy ? "Sending…" : "Send to Admin"}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <h3 style={{ marginTop: 0, fontSize: 16 }}>Reassign enquiry</h3>
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name / code…" style={{ width: "100%", marginBottom: 12, padding: "9px 11px", borderRadius: 9, border: "1px solid #d7dcef" }} />
+            <div style={{ fontSize: 11.5, fontWeight: 800, color: "var(--muted)", margin: "4px 0 6px" }}>MY STATE TEAM</div>
+            <div style={{ display: "grid", gap: 6, marginBottom: 14 }}>
+              {teamList.length === 0 ? <div style={{ color: "var(--muted)", fontSize: 12.5, padding: 8 }}>No team members in your state</div>
+                : teamList.map((u) => <Row key={u.id} u={u} isAdmin={false} />)}
+            </div>
+            <div style={{ fontSize: 11.5, fontWeight: 800, color: "var(--muted)", margin: "4px 0 6px" }}>ADMIN</div>
+            <div style={{ display: "grid", gap: 6 }}>
+              {adminList.length === 0 ? <div style={{ color: "var(--muted)", fontSize: 12.5, padding: 8 }}>No admin users</div>
+                : adminList.map((u) => <Row key={u.id} u={u} isAdmin />)}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
