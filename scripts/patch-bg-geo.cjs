@@ -80,7 +80,23 @@ try {
                     pt.put("lng", location.getLongitude());
                     pt.put("accuracy", location.getAccuracy());
                     pt.put("time", location.getTime() > 0 ? location.getTime() : now);
-                    pt.put("online", true);
+                    /* real battery % and network state for the admin timeline */
+                    try {
+                        android.content.IntentFilter bf = new android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED);
+                        android.content.Intent bi = getApplicationContext().registerReceiver(null, bf);
+                        if (bi != null) {
+                            int lvl = bi.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1);
+                            int scl = bi.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1);
+                            if (lvl >= 0 && scl > 0) pt.put("battery", Math.round(lvl * 100f / scl));
+                        }
+                    } catch (Exception be) {}
+                    boolean netUp = true;
+                    try {
+                        android.net.ConnectivityManager cm = (android.net.ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                        android.net.NetworkInfo ni = cm != null ? cm.getActiveNetworkInfo() : null;
+                        netUp = ni != null && ni.isConnected();
+                    } catch (Exception ne) {}
+                    pt.put("online", netUp);
                     JSONArray arr = new JSONArray();
                     arr.put(pt);
                     JSONObject body = new JSONObject();
@@ -567,6 +583,7 @@ try {
         '<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />',
         '<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />',
         '<uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />',
+        '<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />',
       ];
       let toAdd = perms.filter(p => !mf.includes(p));
       if (toAdd.length) {

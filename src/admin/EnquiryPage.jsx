@@ -5,8 +5,9 @@ import { api } from "../lib/api.js";
 import { scopeRows } from "../lib/scope.js";
 
 const LEAD_SOURCES = [
-  "IndiaMart", "Website", "Direct Call", "Exhibition", "DCCHAT",
-  "IndiaMart (ARCHER)", "Other", "Website Archer", "Website Eurobond",
+  "IndiaMart", "Social Media", "Direct Call", "Exhibition", "DCCHAT",
+  "IndiaMart (ARCHER)", "Google AD (Eurobond)", "Google AD (Archer)",
+  "Website Archer", "Website Eurobond", "Other",
 ];
 const UOMS = ["Sq.Mtr", "Sq.Ft", "Nos", "Kg", "Ton", "Sheet"];
 

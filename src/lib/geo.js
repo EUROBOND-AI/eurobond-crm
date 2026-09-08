@@ -11,6 +11,34 @@ const API_BASE_FALLBACK = "https://eurobondsealant.com/crm-api";
    and uploaded automatically once the connection is back, so the timeline has
    no gaps in basements / low-signal areas. ---- */
 const EB_QUEUE_KEY = "eb_point_queue";
+
+/* ---- Battery % and network state, attached to every GPS point so admin can
+   see whether the phone was low on charge or offline at that moment. ---- */
+let _ebBattery = null;
+(function ebWatchBattery() {
+  try {
+    if (typeof navigator === "undefined" || !navigator.getBattery) return;
+    navigator.getBattery().then((b) => {
+      const read = () => { _ebBattery = Math.round((b.level || 0) * 100); };
+      read();
+      b.addEventListener("levelchange", read);
+    }).catch(() => {});
+  } catch {}
+})();
+function ebBatteryPct() {
+  /* Capacitor Device plugin first (most accurate on Android), else the web API */
+  try {
+    const D = typeof window !== "undefined" && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Device;
+    if (D && D.getBatteryInfo) {
+      D.getBatteryInfo().then((i) => { if (i && typeof i.batteryLevel === "number") _ebBattery = Math.round(i.batteryLevel * 100); }).catch(() => {});
+    }
+  } catch {}
+  return _ebBattery;
+}
+function ebOnline() {
+  try { return typeof navigator !== "undefined" && typeof navigator.onLine === "boolean" ? navigator.onLine : true; }
+  catch { return true; }
+}
 function ebQueueRead() { try { return JSON.parse(localStorage.getItem(EB_QUEUE_KEY) || "[]"); } catch { return []; } }
 function ebQueueWrite(a) { try { localStorage.setItem(EB_QUEUE_KEY, JSON.stringify(a.slice(-500))); } catch {} }
 export function ebQueueSize() { return ebQueueRead().length; }
@@ -173,6 +201,8 @@ function _handleLocation(loc) {
     lat: loc.latitude ?? loc.lat,
     lng: loc.longitude ?? loc.lng,
     accuracy: loc.accuracy ?? null,
+    battery: ebBatteryPct(),          // phone charge % at this point
+    online: ebOnline(),               // was the phone on network?
     time: loc.time || Date.now(),
     t: loc.time || Date.now(),
   };

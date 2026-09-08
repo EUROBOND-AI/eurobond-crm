@@ -4119,7 +4119,7 @@ function FieldProjectDetail({ id }) {
   );
 }
 
-const ENQ_SOURCES = ["IndiaMart", "Website", "Direct Call", "Exhibition", "DCCHAT", "IndiaMart (ARCHER)", "Other", "Website Archer", "Website Eurobond"];
+const ENQ_SOURCES = ["IndiaMart", "Social Media", "Direct Call", "Exhibition", "DCCHAT", "IndiaMart (ARCHER)", "Google AD (Eurobond)", "Google AD (Archer)", "Website Archer", "Website Eurobond", "Other"];
 
 function FieldEnquiry() {
   const nav = useNavigate();
