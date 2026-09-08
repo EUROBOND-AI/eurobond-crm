@@ -21,7 +21,16 @@ try {
   if (!fs.existsSync(file)) { console.log("[patch-bg-geo] plugin file not found, skipping"); process.exit(0); }
   let src = fs.readFileSync(file, "utf8");
 
-  const alreadyPatched = src.includes("EB_NATIVE_UPLOAD");
+  /* Bump this whenever the native Java changes, so an old patched copy is
+     detected and repatched instead of being silently skipped. */
+  const PATCH_VERSION = "EB_PATCH_V3_BATTERY_NET";
+  const alreadyPatched = src.includes(PATCH_VERSION);
+  if (src.includes("EB_NATIVE_UPLOAD") && !alreadyPatched) {
+    console.log("[patch-bg-geo] older patch found — reinstall the plugin so the new native code applies:");
+    console.log("   npm uninstall @capacitor-community/background-geolocation");
+    console.log("   npm install @capacitor-community/background-geolocation@1.2.26");
+    console.log("   node scripts/patch-bg-geo.cjs");
+  }
 
   // ---- imports ----
   if (!alreadyPatched) {
@@ -56,7 +65,7 @@ try {
     /private static final int NOTIFICATION_ID = 28351;/,
     `private static final int NOTIFICATION_ID = 28351;
 
-    // EB_NATIVE_UPLOAD: post a location straight to the server from native code,
+    // EB_NATIVE_UPLOAD EB_PATCH_V3_BATTERY_NET: post a location straight to the server from native code,
     // so uploads work even when the JS/WebView is frozen in the background.
     private long ebLastUploadMs = 0;
     private void ebUploadLocation(final Location location) {
