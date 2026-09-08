@@ -110,18 +110,34 @@ export async function buildExpensePdf(fmt, formatOnly = false) {
     }
   }
   const fileName = `Expense-${(fmt.user || "statement").replace(/\s+/g, "-")}-${fmt.periodTo || ""}.pdf`;
-  /* On the Android app pdf.save() silently does nothing (no download manager in the
-     WebView), so open the PDF in the system viewer / browser instead. */
-  const isNative = typeof window !== "undefined" && window.Capacitor
-    && typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform();
+
+  /* On the phone pdf.save() does nothing (the Android WebView has no download
+     manager), so write the file and hand it to the system so it can be opened
+     or saved from the share sheet. On the web the normal download is used. */
+  const Cap = typeof window !== "undefined" ? window.Capacitor : null;
+  const isNative = Cap && typeof Cap.isNativePlatform === "function" && Cap.isNativePlatform();
   if (isNative) {
     try {
-      const uri = pdf.output("datauristring");
-      const B = window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
-      if (B && B.open) { await B.open({ url: uri }); return; }
-      const w = window.open(uri, "_blank");
-      if (w) return;
-    } catch {}
+      const base64 = pdf.output("datauristring").split(",")[1];
+      const P = Cap.Plugins || {};
+      if (P.Filesystem && P.Filesystem.writeFile) {
+        const res = await P.Filesystem.writeFile({
+          path: fileName, data: base64, directory: "CACHE", recursive: true,
+        });
+        const uri = (res && res.uri) || "";
+        if (uri && P.Share && P.Share.share) {
+          await P.Share.share({ title: fileName, url: uri, dialogTitle: "Open or save the PDF" });
+          return;
+        }
+      }
+      /* last resort — open the data URI in the system browser */
+      if (P.Browser && P.Browser.open) { await P.Browser.open({ url: pdf.output("datauristring") }); return; }
+      window.open(pdf.output("bloburl"), "_blank");
+      return;
+    } catch (e) {
+      alert("Could not open the PDF: " + (e && e.message ? e.message : e));
+      return;
+    }
   }
   pdf.save(fileName);
 }

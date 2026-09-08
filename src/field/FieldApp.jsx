@@ -8,7 +8,7 @@ import {
   Play, Square, Navigation, Smartphone, CheckCircle2, AlertCircle, Eye, EyeOff, Camera, Search, Filter, Pencil,
 } from "lucide-react";
 import { ebFlushQueue, ebQueueSize, watchLocation, startTracker, stopTracker, setTrackerHandler, setTrackerSession, isTrackerActive, showTrackingNotification, hideTrackingNotification, totalDistanceKm, haversineKm, fmtKm, fmtDuration } from "../lib/geo.js";
-import { api, auth } from "../lib/api.js";
+import { api, auth, API_BASE } from "../lib/api.js";
 import { buildExpensePdf } from "../lib/expensePdf.js";
 import { MODULES } from "../admin/moduleConfigs.jsx";
 
@@ -2023,15 +2023,10 @@ function FieldFollowUpNew({ add, editData }) {
         {/* Visiting card scan — top lo, entry pani taggutundi */}
         <div style={{ background: "linear-gradient(135deg,#eef1ff,#f4ecff)", borderRadius: 14, padding: "14px", marginBottom: 6 }}>
           <div style={{ fontWeight: 800, fontSize: 13.5, color: "var(--navy)", marginBottom: 4 }}>📇 Scan Visiting Card</div>
-          <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 10 }}>Scan front & back — details auto-fill (add both sides)</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <label style={{ flex: 1, textAlign: "center", padding: "10px", borderRadius: 10, border: "1.5px solid var(--navy)", background: "#fff", color: "var(--navy)", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
-              📷 Front <input type="file" accept="image/*" capture="environment" hidden onChange={(e) => scanCard(e.target.files[0])} />
-            </label>
-            <label style={{ flex: 1, textAlign: "center", padding: "10px", borderRadius: 10, border: "1.5px solid var(--navy)", background: "#fff", color: "var(--navy)", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
-              📷 Back <input type="file" accept="image/*" capture="environment" hidden onChange={(e) => scanCard(e.target.files[0])} />
-            </label>
-          </div>
+          <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 10 }}>Details auto-fill from the card</div>
+          <label style={{ display: "block", textAlign: "center", padding: "12px", borderRadius: 10, border: "1.5px solid var(--navy)", background: "#fff", color: "var(--navy)", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+            📷 Scan Here <input type="file" accept="image/*" capture="environment" hidden onChange={(e) => scanCard(e.target.files[0])} />
+          </label>
           {scanBusy && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 8 }}>Scanning…</div>}
         </div>
 
@@ -5470,13 +5465,27 @@ function AppPhotoViewer() {
   const [url, setUrl] = useState(null);
   const [zoom, setZoom] = useState(1);
   const [info, setInfo] = useState(false);
+  const [imgErr, setImgErr] = useState(false);
   useEffect(() => {
-    const h = (e) => { setUrl(e.detail); setZoom(1); setInfo(false); };
+    const h = (e) => { setUrl(e.detail); setZoom(1); setInfo(false); setImgErr(false); };
     window.addEventListener("app-photo", h);
     return () => window.removeEventListener("app-photo", h);
   }, []);
   if (!url) return null;
-  const isPdf = String(url).match(/\.pdf$/i);
+  /* make sure a stored relative path becomes a full URL, otherwise the phone
+     shows a blank screen because the image can't be found */
+  const fullUrl = /^(https?:|data:|blob:)/i.test(String(url))
+    ? String(url)
+    : `${API_BASE.replace(/\/$/, "")}/${String(url).replace(/^\//, "")}`;
+  const isPdf = String(fullUrl).match(/\.pdf$/i);
+  const openOutside = async () => {
+    try {
+      const Cap = window.Capacitor;
+      const P = (Cap && Cap.Plugins) || {};
+      if (P.Browser && P.Browser.open) { await P.Browser.open({ url: fullUrl }); return; }
+      window.open(fullUrl, "_blank");
+    } catch { window.open(fullUrl, "_blank"); }
+  };
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.92)", zIndex: 4000, display: "flex", flexDirection: "column" }}>
       {/* top bar */}
@@ -5494,9 +5503,24 @@ function AppPhotoViewer() {
       {/* content */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         <div style={{ flex: 1, overflow: "auto", display: "grid", placeItems: "center", padding: 12 }}>
-          {isPdf
-            ? <iframe src={url} title="Attachment" style={{ width: "100%", height: "100%", minHeight: "70vh", border: "none", borderRadius: 8, background: "#fff" }} />
-            : <img src={url} alt="attachment" style={{ maxWidth: "100%", transform: `scale(${zoom})`, transformOrigin: "center", transition: "transform .15s", borderRadius: 8 }} />}
+          {isPdf ? (
+            /* Android's WebView cannot render a PDF in an iframe (blank screen),
+               so open it in the system viewer instead. */
+            <div style={{ textAlign: "center", color: "#fff" }}>
+              <div style={{ fontSize: 48, marginBottom: 10 }}>📄</div>
+              <div style={{ fontSize: 14, marginBottom: 16 }}>PDF attachment</div>
+              <button onClick={openOutside} style={{ background: "#4285F4", color: "#fff", border: "none", padding: "11px 22px", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Open PDF</button>
+            </div>
+          ) : imgErr ? (
+            <div style={{ textAlign: "center", color: "#fff" }}>
+              <div style={{ fontSize: 44, marginBottom: 10 }}>🖼️</div>
+              <div style={{ fontSize: 13.5, marginBottom: 14, opacity: .85 }}>Could not load the image here.</div>
+              <button onClick={openOutside} style={{ background: "#4285F4", color: "#fff", border: "none", padding: "11px 22px", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Open in browser</button>
+            </div>
+          ) : (
+            <img src={fullUrl} alt="attachment" onError={() => setImgErr(true)}
+              style={{ maxWidth: "100%", transform: `scale(${zoom})`, transformOrigin: "center", transition: "transform .15s", borderRadius: 8 }} />
+          )}
         </div>
         {/* right-side info panel */}
         {info && (
@@ -5506,7 +5530,7 @@ function AppPhotoViewer() {
             <div style={{ marginBottom: 12 }}>{isPdf ? "PDF Document" : "Image"}</div>
             <div style={{ color: "#bbb", marginBottom: 6 }}>File</div>
             <div style={{ marginBottom: 12, wordBreak: "break-all" }}>{String(url).split("/").pop()}</div>
-            <a href={url} download style={{ display: "inline-block", background: "#4285F4", color: "#fff", padding: "8px 14px", borderRadius: 8, textDecoration: "none", fontWeight: 700 }}>⬇ Download</a>
+            <button onClick={openOutside} style={{ background: "#4285F4", color: "#fff", padding: "8px 14px", borderRadius: 8, border: "none", fontWeight: 700, cursor: "pointer" }}>⬇ Open / Save</button>
           </div>
         )}
       </div>
