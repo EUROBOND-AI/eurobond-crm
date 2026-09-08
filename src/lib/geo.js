@@ -15,6 +15,27 @@ const EB_QUEUE_KEY = "eb_point_queue";
 /* ---- Battery % and network state, attached to every GPS point so admin can
    see whether the phone was low on charge or offline at that moment. ---- */
 let _ebBattery = null;
+let _ebOnline = null;
+
+/* Capacitor Device / Network plugins give reliable values inside the app
+   (the browser battery API is not available in the Android WebView). */
+(function ebWatchNative() {
+  try {
+    const P = typeof window !== "undefined" && window.Capacitor && window.Capacitor.Plugins;
+    if (!P) return;
+    const readBat = () => {
+      try { P.Device && P.Device.getBatteryInfo && P.Device.getBatteryInfo()
+        .then((i) => { if (i && typeof i.batteryLevel === "number") _ebBattery = Math.round(i.batteryLevel * 100); })
+        .catch(() => {}); } catch {}
+    };
+    readBat();
+    setInterval(readBat, 60000);
+    if (P.Network) {
+      try { P.Network.getStatus().then((st) => { if (st) _ebOnline = !!st.connected; }).catch(() => {}); } catch {}
+      try { P.Network.addListener("networkStatusChange", (st) => { _ebOnline = !!(st && st.connected); }); } catch {}
+    }
+  } catch {}
+})();
 (function ebWatchBattery() {
   try {
     if (typeof navigator === "undefined" || !navigator.getBattery) return;
@@ -25,17 +46,9 @@ let _ebBattery = null;
     }).catch(() => {});
   } catch {}
 })();
-function ebBatteryPct() {
-  /* Capacitor Device plugin first (most accurate on Android), else the web API */
-  try {
-    const D = typeof window !== "undefined" && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Device;
-    if (D && D.getBatteryInfo) {
-      D.getBatteryInfo().then((i) => { if (i && typeof i.batteryLevel === "number") _ebBattery = Math.round(i.batteryLevel * 100); }).catch(() => {});
-    }
-  } catch {}
-  return _ebBattery;
-}
+function ebBatteryPct() { return _ebBattery; }
 function ebOnline() {
+  if (_ebOnline !== null) return _ebOnline;          // Network plugin value
   try { return typeof navigator !== "undefined" && typeof navigator.onLine === "boolean" ? navigator.onLine : true; }
   catch { return true; }
 }
