@@ -2355,48 +2355,76 @@ function ProjectStatus({ rec, onClose, onSaved }) {
 
 function ProjectMention({ rec, isSpec, onClose, onSaved }) {
   const [users, setUsers] = useState([]);
-  const [to, setTo] = useState("");
+  const [picked, setPicked] = useState([]);     // MANY people can work on one project
+  const [one, setOne] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const roleWord = isSpec ? "sales" : "spec";
   const targetMod = isSpec ? "specToSales" : "salesToSpec";
+
   useEffect(() => {
     api.listUsers().then((d) => {
       const us = (d.users || []).filter((u) => u.status == 1);
+      /* only the matching role can be mentioned (specs mention -> specification people) */
       setUsers(us.filter((u) => `${u.role || ""} ${u.designation || ""}`.toLowerCase().includes(roleWord)).map((u) => u.name));
     }).catch(() => {});
   }, []);
+
+  const add = (n) => { if (n && !picked.includes(n)) setPicked((p) => [...p, n]); setOne(""); };
+  const remove = (n) => setPicked((p) => p.filter((x) => x !== n));
+
   const save = async () => {
-    if (!to) { alert("Select a person"); return; }
+    if (!picked.length) { alert("Select at least one person"); return; }
     setBusy(true);
     try {
-      const rowData = {
-        projId: rec._id, projectName: rec.projectName, items: rec.items || [], contacts: rec.contacts || [],
-        city: rec.city, projectType: rec.projectType, expectedMonth: rec.expectedMonth,
-        helpNeeded: note || rec.helpNeeded || "", photo: rec.photo || "", status: "Pending",
-        createdBy: CU().name, createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
-      };
-      if (isSpec) { rowData.specPerson = CU().name; rowData.salesPerson = to; }
-      else { rowData.salesPerson = CU().name; rowData.specPerson = to; }
-      await api.create(targetMod, rowData);
-      const patch = isSpec ? { salesPerson: to } : { specPerson: to };
+      for (const to of picked) {
+        const rowData = {
+          projId: rec._id, projectName: rec.projectName, items: rec.items || [], contacts: rec.contacts || [],
+          city: rec.city, projectType: rec.projectType, expectedMonth: rec.expectedMonth,
+          helpNeeded: note || rec.helpNeeded || "", photo: rec.photo || "", status: "Pending",
+          createdBy: CU().name,
+          createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+        };
+        if (isSpec) { rowData.specPerson = CU().name; rowData.salesPerson = to; }
+        else { rowData.salesPerson = CU().name; rowData.specPerson = to; }
+        await api.create(targetMod, rowData);
+        try {
+          await api.create("notification", { title: "Project Mentioned to you",
+            message: `${CU().name} mentioned "${rec.projectName}" to you`,
+            to, link: `/app/m/${targetMod}`, at: new Date().toISOString() });
+        } catch {}
+      }
+      /* keep the project row pointing at everyone mentioned */
+      const joined = picked.join(", ");
+      const patch = isSpec ? { salesPerson: joined } : { specPerson: joined };
       try { await api.update("projectProjection", rec._id, { ...rec, ...patch }); } catch {}
-      try { await api.create("notification", { title: "Project Mentioned to you", message: `${CU().name} mentioned "${rec.projectName}" to you`, to, link: `/app/m/${targetMod}`, at: new Date().toISOString() }); } catch {}
       onSaved();
     } catch (e) { alert(e.message); setBusy(false); }
   };
+
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.55)", zIndex: 9999, display: "grid", placeItems: "center", padding: 16 }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, maxWidth: 400, width: "100%", padding: 18 }}>
-        <h3 style={{ marginTop: 0 }}>🔗 Mention to {isSpec ? "Sales" : "Specification"} Person</h3>
-        <label style={{ fontWeight: 700, fontSize: 13 }}>{isSpec ? "Sales" : "Specification"} Person</label>
-        <SearchSelect value={to} onChange={setTo} options={users} placeholder="Search person..." />
-        <div style={{ height: 10 }} />
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, maxWidth: 400, width: "100%", padding: 18, maxHeight: "85vh", overflowY: "auto" }}>
+        <h3 style={{ marginTop: 0 }}>🔗 Mention to {isSpec ? "Sales" : "Specification"} {picked.length > 1 ? "People" : "Person"}</h3>
+        <label style={{ fontWeight: 700, fontSize: 13 }}>Add {isSpec ? "sales" : "specification"} people (more than one allowed)</label>
+        <SearchSelect value={one} onChange={add} options={users.filter((u) => !picked.includes(u))} placeholder="Search person..." />
+        {picked.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "10px 0" }}>
+            {picked.map((n) => (
+              <span key={n} style={{ background: "#eef2ff", color: "#3949ab", borderRadius: 999, padding: "5px 10px", fontSize: 12, fontWeight: 700 }}>
+                {n} <span onClick={() => remove(n)} style={{ cursor: "pointer", marginLeft: 4 }}>×</span>
+              </span>
+            ))}
+          </div>
+        )}
+        <div style={{ height: 6 }} />
         <label style={{ fontWeight: 700, fontSize: 13 }}>Note (optional)</label>
         <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} style={{ width: "100%", marginBottom: 12 }} />
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={onClose} style={{ flex: 1, padding: 11, borderRadius: 10, border: "1.5px solid #d7dcef", background: "#fff", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
-          <button onClick={save} disabled={busy || !to} style={{ flex: 1, padding: 11, borderRadius: 10, border: "none", background: "var(--navy)", color: "#fff", fontWeight: 800, cursor: "pointer" }}>{busy ? "Sending..." : "Mention"}</button>
+          <button onClick={save} disabled={busy || !picked.length} style={{ flex: 1, padding: 11, borderRadius: 10, border: "none", background: "var(--navy)", color: "#fff", fontWeight: 800, cursor: "pointer" }}>
+            {busy ? "Sending..." : `Mention${picked.length > 1 ? ` (${picked.length})` : ""}`}
+          </button>
         </div>
       </div>
     </div>
@@ -3872,7 +3900,7 @@ function FieldNotifications() {
     /* Holiday / Announcement have no screen of their own — show the full text
        in a popup so nothing gets cut off. */
     const t = `${n.title || ""} ${n.message || ""}`.toLowerCase();
-    const isInfoOnly = !link && (t.includes("holiday") || t.includes("announcement") || t.includes("resource"));
+    const isInfoOnly = t.includes("message from admin") || (!link && (t.includes("holiday") || t.includes("announcement") || t.includes("resource")));
     if (isInfoOnly || !link) { setDetail(n); return; }
     nav(link);
   };

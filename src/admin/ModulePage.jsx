@@ -155,6 +155,7 @@ export default function ModulePage({ cfgKey }) {
   const [chatRow, setChatRow] = useState(null);
   const [projView, setProjView] = useState(null);
   const [fwdRow, setFwdRow] = useState(null);
+  const [msgRow, setMsgRow] = useState(null);
   const [hiddenCols, setHiddenCols] = useState([]);
   const [showColCfg, setShowColCfg] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
@@ -469,6 +470,7 @@ export default function ModulePage({ cfgKey }) {
             <span style={{ display: "inline-flex", gap: 4, marginRight: 6 }}>
               <button className="btn" style={{ padding: "3px 8px", fontSize: 11, background: "#e4e8ff", color: "#3949ab" }} onClick={(e) => { e.stopPropagation(); setProjView(r); }}>View</button>
               <button className="btn" style={{ padding: "3px 8px", fontSize: 11, background: "#efe7fb", color: "#8854d0" }} onClick={(e) => { e.stopPropagation(); setFwdRow(r); }}>Forward</button>
+              <button className="btn" style={{ padding: "3px 8px", fontSize: 11, background: "#e4f3ff", color: "#0b6cb0" }} onClick={(e) => { e.stopPropagation(); setMsgRow(r); }}>💬 Message</button>
             </span>
           ) : cfg.approveFlow ? (r) => (
             <span style={{ display: "inline-flex", gap: 4, marginRight: 6 }}>
@@ -496,6 +498,7 @@ export default function ModulePage({ cfgKey }) {
       {chatRow && <AdminChatModal row={chatRow} cfgKey={cfgKey} onClose={() => setChatRow(null)} onSent={(updated) => { setRows(rows.map((x) => (x._id === updated._id ? updated : x))); setChatRow(updated); }} />}
       {projView && <AdminProjectView rec={projView} onClose={() => setProjView(null)} />}
       {fwdRow && <AdminProjectForward rec={fwdRow} onClose={() => setFwdRow(null)} onSent={() => setFwdRow(null)} />}
+      {msgRow && <AdminProjectMessage rec={msgRow} onClose={() => setMsgRow(null)} />}
 
       {rejectFor && (
         <div className="modal-mask" onClick={() => setRejectFor(null)}>
@@ -708,6 +711,49 @@ function AdminProjectView({ rec, onClose }) {
 }
 
 /* Admin forward project to a user */
+/* Admin -> message the people on a project row. The message lands as a
+   notification; tapping it opens the full text in a popup. */
+function AdminProjectMessage({ rec, onClose }) {
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  const people = [...new Set([rec.createdBy, rec.salesPerson, rec.specPerson, rec.name]
+    .filter(Boolean).join(",").split(",").map((x) => x.trim()).filter(Boolean))];
+
+  const send = async () => {
+    if (!msg.trim()) { alert("Type a message"); return; }
+    if (!people.length) { alert("No one is linked to this record"); return; }
+    setBusy(true);
+    try {
+      for (const to of people) {
+        await api.create("notification", {
+          title: "Message from Admin",
+          message: `${rec.projectName || rec.name || "Project"}: ${msg.trim()}`,
+          to, link: "/app/notifications", at: new Date().toISOString(),
+        });
+      }
+      alert(`Message sent to ${people.length} person(s).`);
+      onClose();
+    } catch (e) { alert(e.message); setBusy(false); }
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.5)", zIndex: 9999, display: "grid", placeItems: "center", padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, maxWidth: 420, width: "100%", padding: 20 }}>
+        <h3 style={{ marginTop: 0, fontSize: 16 }}>💬 Message about {rec.projectName || rec.name || "this project"}</h3>
+        <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 10 }}>
+          To: {people.length ? people.join(", ") : "—"}
+        </div>
+        <textarea rows={5} value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="Write your message…"
+          style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid var(--line)", fontSize: 13.5, marginBottom: 12 }} />
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" style={{ flex: 1 }} disabled={busy} onClick={send}>{busy ? "Sending…" : "Send"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AdminProjectForward({ rec, onClose, onSent }) {
   const projects = rec.bulk ? rec.bulk : [rec];
   const [users, setUsers] = useState([]);

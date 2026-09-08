@@ -308,16 +308,6 @@ export default function EnquiryPage() {
                     <div style={{ display: "flex", alignItems: "center" }}>
                       <button title="Edit" style={iconBtn("#22a45d")} onClick={() => setEditRow(r)}><Edit3 size={14} /></button>
                       <button title="Assign" style={iconBtn("#e8833a")} onClick={() => { setReassign(false); setAssignFor(r); }}><UserPlus size={14} /></button>
-                      <button title="Move to Customer" style={iconBtn("#0f7a44")} onClick={() => {
-                        try {
-                          localStorage.setItem("eb_cust_prefill", JSON.stringify({
-                            name: r.company || r.customer || "", mobile: r.contact || r.phone || "",
-                            email: r.email || "", address: r.area || r.city || "", state: r.state || "",
-                            notes: r.enquiryDetails || "", enquiryFrom: r.leadFrom || r.leadSource || "",
-                          }));
-                        } catch {}
-                        window.location.href = "/admin/sfa/customers?prefill=1";
-                      }}>👤</button>
                       <button title="Delete" style={iconBtn("#e5484d")} onClick={() => del(r)}><Trash2 size={14} /></button>
                       {(r.assignedTo || r.passto) && <button title="Re-Assign" style={iconBtn("#6c5ce7")} onClick={() => { setReassign(true); setAssignFor(r); }}><RefreshCw size={14} /></button>}
                       <button title={String(r.status).toLowerCase() === "spam" ? "Remove from Spam" : "Mark as Spam"}
@@ -530,8 +520,14 @@ function AdminEnquiryView({ r, onClose }) {
         {row("Status", r.status)}
         {row("Assign Date", r.assignDate)}
         {row("Assign Time", r.assignTime)}
-        {r.reassignRemark ? row("Reassign Remark", r.reassignRemark) : null}
-        {r.reassignedBy ? row("Reassigned By", r.reassignedBy) : null}
+        {(r.reassigned || r.reassignRemark || r.reassignedBy) && (
+          <div style={{ marginTop: 12, background: "#f3efff", border: "1px solid #ddd3ff", borderRadius: 12, padding: 14 }}>
+            <div style={{ fontWeight: 800, color: "#5b3fd6", marginBottom: 8 }}>🔄 Reassign Info</div>
+            {row("Reassigned By", r.reassignedBy || "—")}
+            {row("Reassigned At", r.reassignAt || "—")}
+            {row("Remark", r.reassignRemark || "—")}
+          </div>
+        )}
         {r.status === "Win" && (
           <div style={{ marginTop: 14, background: "#e5f9f1", borderRadius: 12, padding: 14 }}>
             <div style={{ fontWeight: 800, color: "#0f7a44", marginBottom: 8 }}>🏆 Win Details</div>
