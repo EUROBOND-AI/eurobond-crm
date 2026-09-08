@@ -153,7 +153,9 @@ export default function EnquiryPage() {
         await api.update("enquiry", id, {
           ...row, assignedTo: userName, assignedToId: userId,
           passto: userName, hod: hodName || row.hod || "",
-          status: "Assigned", assignDate: new Date().toLocaleDateString("en-GB"),
+          status: "Assigned",
+          assignDate: new Date().toLocaleDateString("en-GB"),
+          assignTime: new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
           reassigned: isReassign ? true : !!row.reassigned,
           reassignDate: isReassign ? new Date().toLocaleDateString("en-GB") : (row.reassignDate || ""),
         });
@@ -164,8 +166,8 @@ export default function EnquiryPage() {
   };
 
   const exportCsv = () => {
-    const head = ["Sl#", "Lead From", "Year", "Month", "Date", "Company", "Contact", "Email", "State", "Area", "HOD", "Passto", "Product", "Enquiry Details", "Status", "Assign Date"];
-    const body = list.map((r, i) => [i + 1, r.leadFrom || r.leadSource, r.year, r.month, r.date, r.company || r.customer, r.contact || r.phone, r.email, r.state, r.area || r.city, r.hod, r.passto || r.assignedTo, r.product, r.enquiryDetails, r.status || "Pending", r.assignDate]);
+    const head = ["Sl#", "Lead From", "Year", "Month", "Date", "Company", "Contact", "Email", "State", "Area", "HOD", "Passto", "Product", "Enquiry Details", "Status", "Assign Date", "Assign Time"];
+    const body = list.map((r, i) => [i + 1, r.leadFrom || r.leadSource, r.year, r.month, r.date, r.company || r.customer, r.contact || r.phone, r.email, r.state, r.area || r.city, r.hod, r.passto || r.assignedTo, r.product, r.enquiryDetails, r.status || "Pending", r.assignDate, r.assignTime || ""]);
     const csv = [head, ...body].map((row) => row.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
@@ -291,7 +293,7 @@ export default function EnquiryPage() {
               <tr style={{ background: "linear-gradient(135deg,#1f3a68,#2b6fb8)" }}>
                 <th style={th}><input type="checkbox" checked={pageRows.length > 0 && selected.size === pageRows.length} onChange={toggleAll} /></th>
                 <th style={th}>Action</th>
-                {["Sl#", "Lead From", "Year", "Month", "Date", "Company Name", "Contact number", "Contact Person", "Email Id", "State", "Area", "Product Request", "Enquiry details", "HOD", "Passto", "Status", "Assign Date"].map((h) => <th key={h} style={th}>{h}</th>)}
+                {["Sl#", "Lead From", "Year", "Month", "Date", "Company Name", "Contact number", "Contact Person", "Email Id", "State", "Area", "Product Request", "Enquiry details", "HOD", "Passto", "Status", "Assign Date", "Assign Time"].map((h) => <th key={h} style={th}>{h}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -337,6 +339,7 @@ export default function EnquiryPage() {
                   <td style={td}>{r.passto || r.assignedTo || "—"}</td>
                   <td style={td}><span style={{ fontSize: 11, fontWeight: 800, padding: "2px 9px", borderRadius: 8, background: statusBg(r.status), color: statusFg(r.status) }}>{r.status || "Pending"}</span></td>
                   <td style={td}>{r.assignDate || "—"}</td>
+                  <td style={td}>{r.assignTime || "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -361,6 +364,9 @@ export default function EnquiryPage() {
 
 /* Add / Edit enquiry form */
 function EnquiryForm({ row, onClose, onSaved }) {
+  /* State + Area come from the Areas master so entries stay consistent */
+  const [mStates, setMStates] = useState([]);
+  const [mAreas, setMAreas] = useState([]);
   const [f, setF] = useState(row || {
     date: new Date().toISOString().slice(0, 10), customer: "", contactPerson: "", phone: "", email: "",
     area: "", state: "", leadFrom: "IndiaMart", product: "", quantity: "", uom: "Sq.Mtr", orderValue: "", enquiryDetails: "",
@@ -368,6 +374,12 @@ function EnquiryForm({ row, onClose, onSaved }) {
   const [busy, setBusy] = useState(false);
   const inp = { width: "100%", marginBottom: 10, padding: "9px 11px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13 };
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
+
+  useEffect(() => { api.areaStates().then((d) => setMStates(d.states || [])).catch(() => {}); }, []);
+  useEffect(() => {
+    if (!f.state) { setMAreas([]); return; }
+    api.areasByState(f.state).then((d) => setMAreas(d.areas || [])).catch(() => setMAreas([]));
+  }, [f.state]);
 
   const save = async () => {
     if (!f.customer) { alert("Customer Name required"); return; }
@@ -409,8 +421,18 @@ function EnquiryForm({ row, onClose, onSaved }) {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
           <div><label style={{ fontSize: 11.5, fontWeight: 700 }}>Email</label><input type="email" value={f.email} onChange={(e) => set("email", e.target.value)} style={inp} /></div>
-          <div><label style={{ fontSize: 11.5, fontWeight: 700 }}>State</label><input value={f.state} onChange={(e) => set("state", e.target.value)} style={inp} /></div>
-          <div><label style={{ fontSize: 11.5, fontWeight: 700 }}>Location / Area</label><input value={f.area} onChange={(e) => set("area", e.target.value)} style={inp} /></div>
+          <div><label style={{ fontSize: 11.5, fontWeight: 700 }}>State</label>
+            <select value={f.state} onChange={(e) => { set("state", e.target.value); set("area", ""); }} style={inp}>
+              <option value="">Select State…</option>
+              {mStates.map((st) => <option key={st}>{st}</option>)}
+            </select>
+          </div>
+          <div><label style={{ fontSize: 11.5, fontWeight: 700 }}>Location / Area</label>
+            <select value={f.area} onChange={(e) => set("area", e.target.value)} style={inp} disabled={!f.state}>
+              <option value="">{f.state ? "Select Area…" : "Select State first"}</option>
+              {mAreas.map((a) => <option key={a}>{a}</option>)}
+            </select>
+          </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 8 }}>
           <div><label style={{ fontSize: 11.5, fontWeight: 700 }}>Product Required</label><input value={f.product} onChange={(e) => set("product", e.target.value)} style={inp} /></div>
@@ -497,6 +519,7 @@ function AdminEnquiryView({ r, onClose }) {
         {row("Passto", r.passto || r.assignedTo)}
         {row("Status", r.status)}
         {row("Assign Date", r.assignDate)}
+        {row("Assign Time", r.assignTime)}
         {r.status === "Win" && (
           <div style={{ marginTop: 14, background: "#e5f9f1", borderRadius: 12, padding: 14 }}>
             <div style={{ fontWeight: 800, color: "#0f7a44", marginBottom: 8 }}>🏆 Win Details</div>

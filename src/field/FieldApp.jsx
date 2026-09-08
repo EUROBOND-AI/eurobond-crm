@@ -1298,7 +1298,7 @@ function FieldExpense({ list, add, reload }) {
       const fmt = {
         createdAt: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
         user: u.name, createdBy: u.name, createdById: u.id,
-        empCode: u.code || "", designation: u.designation || "", grade: u.grade || "", location: u.city || u.state || "",
+        empCode: u.code || "", designation: u.designation || "", grade: u.grade || "", depo: u.depo || "", location: u.city || u.state || "",
         status: "Format", isFormat: true, items, amount: total,
         periodFrom: items.reduce((a, b) => (a && a < b.date ? a : b.date), items[0]?.date), periodTo: items.reduce((a, b) => (a && a > b.date ? a : b.date), items[0]?.date),
       };
@@ -4572,7 +4572,7 @@ function FieldQuotationNew({ prefill }) {
                 {r.thickness && <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>Thickness: {r.thickness}</div>}
               </>
             )}
-            <label style={{ fontSize: 12 }}>Rate (per sq ft ₹)</label>
+            <label style={{ fontSize: 12 }}>{isFins ? "Rate (per Running ft ₹)" : "Rate (per sq ft ₹)"}</label>
             <input inputMode="decimal" value={r.rate} onChange={(e) => setRow(i, "rate", e.target.value.replace(/[^\d.]/g, ""))} placeholder="e.g. 350" style={{ width: "100%" }} />
             {!isFins && r.rate && (
               <div style={{ fontSize: 11.5, color: "#1f7a44", marginTop: 6, fontWeight: 700 }}>
@@ -5387,7 +5387,7 @@ function AttendanceWizard({ mode = "start", visitInfo = null, onClose, onDone })
 
         {!isStop && (
           <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-            {["Local", "Tour", "WFH"].map((t) => (
+            {["Local", "Tour"].map((t) => (
               <button key={t} onClick={() => setType(t)}
                 style={{ flex: 1, padding: "11px 4px", borderRadius: 12, border: type === t ? "2px solid var(--navy)" : "1.5px solid #d7dcef", background: type === t ? "#eef1ff" : "#fff", fontWeight: 800, fontSize: 13, color: type === t ? "var(--navy)" : "var(--muted)" }}>
                 {t === "WFH" ? "Work From Home" : t}
@@ -6052,7 +6052,18 @@ export default function FieldApp() {
             }} />} />
             <Route path="followup/new" element={<FieldFollowUpNew add={async (f) => { try { const r = await api.create("followup", f); setFollowups((x) => [{ _id: r.id, ...f }, ...x]); } catch (err) { alert(err.message); } }} />} />
             <Route path="followup/quick" element={<FieldFollowUpQuick add={async (f) => { const r = await api.create("followup", f); setFollowups((x) => [{ _id: r.id, ...f }, ...x]); }} />} />
-            <Route path="customer/edit" element={<FieldFollowUpNew editData={CUST_EDIT.data} add={async (f) => { try { const id = CUST_EDIT.data?._id; if (id) { await api.update("followup", id, f); setFollowups((x) => x.map((c) => (c._id === id ? { _id: id, ...f } : c))); } CUST_EDIT.data = null; } catch (err) { alert(err.message); } }} />} />
+            <Route path="customer/edit" element={<FieldFollowUpNew editData={CUST_EDIT.data} add={async (f) => {
+              try {
+                /* the customers list is aggregated, so a row carries "ids" (all its
+                   follow-up records) rather than a single _id — edit the newest one */
+                const d = CUST_EDIT.data || {};
+                const id = d._id || (Array.isArray(d.ids) && d.ids.length ? d.ids[0] : null);
+                if (!id) { alert("Could not find this customer record to update."); return; }
+                await api.update("followup", id, f);
+                setFollowups((x) => x.map((c) => (c._id === id ? { _id: id, ...f } : c)));
+                CUST_EDIT.data = null;
+              } catch (err) { alert(err.message); }
+            }} />} />
             <Route path="project/new" element={<FieldProjectNew />} />
             <Route path="resources" element={<FieldResources />} />
             {Object.keys(APP_MODS).map((m) => (

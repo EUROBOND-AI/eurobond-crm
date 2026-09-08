@@ -96,6 +96,7 @@ export default function UsersPage() {
   };
 
   const zoneOpts = [...new Set(users.map((u) => u.zone).filter(Boolean))];
+  const depoOpts = [...new Set(users.map((u) => u.depo).filter(Boolean))];
   /* City belongs to a State — until a State is picked there is nothing to choose,
      so a city can never be saved (or added) under the wrong state. */
   const cityOpts = !form || !form.state
@@ -222,6 +223,7 @@ export default function UsersPage() {
               <Field label="Date of Birth" type="date" val={form.dob || ""} on={(v) => setForm({ ...form, dob: v })} />
               <SelectOrAdd label="State" val={form.state} on={(v) => setForm({ ...form, state: v, city: "" })} options={stateOpts} />
               <SelectOrAdd label="Zone" val={form.zone} on={(v) => setForm({ ...form, zone: v })} options={zoneOpts} />
+              <SelectOrAdd label="Depo" val={form.depo} on={(v) => setForm({ ...form, depo: v })} options={depoOpts} />
               {form.state
                 ? <SelectOrAdd label="City" val={form.city} on={(v) => setForm({ ...form, city: v })} options={cityOpts} />
                 : <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>City</label>

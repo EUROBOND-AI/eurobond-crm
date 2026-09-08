@@ -133,9 +133,9 @@ export default function AttendanceSheet() {
 
   const exportCsv = () => {
     if (!grid) return;
-    const head = ["Name", "Code", "HOD", "Zone", "City", ...Array.from({ length: daysInMonth }, (_, i) => i + 1), "Local", "Tour", "WFH", "Leave", "Holiday", "Sunday", "Absent", "Total"];
+    const head = ["Name", "Code", "HOD", "Zone", "City", ...Array.from({ length: daysInMonth }, (_, i) => i + 1), "Local", "Tour", "Leave", "Holiday", "Sunday", "Absent", "Total"];
     const rows = grid.map(({ u, cells, totals }) =>
-      [u.name, u.code || "", u.manager || "", u.zone || "", u.city || "", ...cells, totals.p, totals.t, totals.wfh, totals.l, totals.ho, totals.s, totals.a, totals.total]);
+      [u.name, u.code || "", u.manager || "", u.zone || "", u.city || "", ...cells, totals.p, totals.t, totals.l, totals.ho, totals.s, totals.a, totals.total]);
     const csv = [head, ...rows].map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
@@ -177,7 +177,7 @@ export default function AttendanceSheet() {
 
       {/* legend */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-        {Object.entries({ P: "Local", T: "Tour", WFH: "Work From Home", L: "Leave", HO: "Holiday", S: "Weekly Off" }).map(([k, label]) => (
+        {Object.entries({ P: "Local", T: "Tour", L: "Leave", HO: "Holiday", S: "Weekly Off" }).map(([k, label]) => (
           <span key={k} style={{ fontSize: 11.5, fontWeight: 700, padding: "4px 10px", borderRadius: 8, background: CODE_STYLE[k].bg, color: CODE_STYLE[k].color }}>
             {k} — {label}
           </span>
@@ -200,7 +200,7 @@ export default function AttendanceSheet() {
                     <div>{d.d}</div><div style={{ fontSize: 9, color: "#8a93a8" }}>{d.w}</div>
                   </th>
                 ))}
-                {["P", "T", "WFH", "L", "HO", "S", "A"].map((k) => <th key={k} style={{ ...th, background: CODE_STYLE[k].bg, color: CODE_STYLE[k].color }}>{k}</th>)}
+                {["P", "T", "L", "HO", "S", "A"].map((k) => <th key={k} style={{ ...th, background: CODE_STYLE[k].bg, color: CODE_STYLE[k].color }}>{k}</th>)}
                 <th style={{ ...th, background: "#2a3260", color: "#fff" }}>Total</th>
               </tr>
             </thead>
@@ -224,7 +224,6 @@ export default function AttendanceSheet() {
                   ))}
                   <td style={tot}>{totals.p}</td>
                   <td style={tot}>{totals.t}</td>
-                  <td style={tot}>{totals.wfh}</td>
                   <td style={tot}>{totals.l}</td>
                   <td style={tot}>{totals.ho}</td>
                   <td style={tot}>{totals.s}</td>

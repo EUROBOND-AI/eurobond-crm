@@ -34,14 +34,14 @@ export async function buildExpensePdf(fmt, formatOnly = false) {
 
   pdf.setFontSize(8.5); pdf.setFont(undefined, "normal");
   let y = 28;
-  pdf.text(`NAME : ${fmt.user || ""}`, mL, y);
+  pdf.text(`NAME : ${fmt.user || ""}   |   EMP CODE : ${fmt.empCode || fmt.code || "-"}`, mL, y);
   pdf.text(`DATE : ${fmt.createdAt || ""}`, 140, y);
   y += 5;
   pdf.text(`PERIOD : ${fmt.periodFrom || ""} TO ${fmt.periodTo || ""}`, mL, y);
   pdf.text(`GRADE : ${fmt.grade || "-"}`, 140, y);
   y += 5;
   pdf.text(`DESIGNATION : ${fmt.designation || "-"}`, mL, y);
-  pdf.text(`LOCATION : ${fmt.location || "-"}`, 140, y);
+  pdf.text(`DEPO : ${fmt.depo || "-"}`, 140, y);
   y += 5;
 
   /* compact columns */
@@ -49,8 +49,9 @@ export async function buildExpensePdf(fmt, formatOnly = false) {
     { k: "sr", t: "SI No", w: 12, align: "center" },
     { k: "date", t: "Date", w: 22, align: "center" },
     { k: "station", t: "Ex/Out-station", w: 26, align: "center" },
-    { k: "orig", t: "Origin to Destination", w: 44, align: "left" },
-    { k: "category", t: "Category", w: 38, align: "left" },
+    { k: "orig", t: "Origin to Destination", w: 38, align: "left" },
+    { k: "km", t: "KM", w: 14, align: "center" },
+    { k: "category", t: "Category", w: 32, align: "left" },
     { k: "amount", t: "Amount", w: 22, align: "right" },
     { k: "total", t: "Total", w: 22, align: "right" },
   ];
@@ -72,7 +73,7 @@ export async function buildExpensePdf(fmt, formatOnly = false) {
   items.forEach((it, i) => {
     if (y > pageH - 40) { pdf.addPage(); y = 16; drawHeader(); pdf.setFont(undefined, "normal"); pdf.setFontSize(8); }
     const amt = Number(it.amount) || 0;
-    const cell = { sr: String(i + 1), date: it.date || "", station: it.station || "", orig: it.desc || "", category: it.category || "", amount: amt.toLocaleString("en-IN"), total: amt.toLocaleString("en-IN") };
+    const cell = { sr: String(i + 1), date: it.date || "", station: it.station || "", orig: it.desc || "", km: it.km || it.kilometers || it.distance || "", category: it.category || "", amount: amt.toLocaleString("en-IN"), total: amt.toLocaleString("en-IN") };
     drawRow(y, rowH);
     let cx = startX;
     cols.forEach((c) => {

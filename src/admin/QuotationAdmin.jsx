@@ -659,7 +659,7 @@ function AdminQuoteForm({ onClose, onSaved }) {
                   {r.thickness && <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 6 }}>Thickness: {r.thickness}</div>}
                 </>
               )}
-              <input inputMode="decimal" value={r.rate} onChange={(e) => setRow(i, "rate", e.target.value.replace(/[^\d.]/g, ""))} placeholder="Rate (per sq ft ₹)" style={{ ...inp, marginBottom: 0 }} />
+              <input inputMode="decimal" value={r.rate} onChange={(e) => setRow(i, "rate", e.target.value.replace(/[^\d.]/g, ""))} placeholder={r.fins ? "Rate (per Running ft ₹)" : "Rate (per sq ft ₹)"} style={{ ...inp, marginBottom: 0 }} />
               {!isFins && r.rate && <div style={{ fontSize: 11, color: "#1f7a44", marginTop: 5, fontWeight: 700 }}>= ₹{(Number(r.rate) * 10.764).toFixed(2)} / sq.mtr</div>}
             </div>
           );
