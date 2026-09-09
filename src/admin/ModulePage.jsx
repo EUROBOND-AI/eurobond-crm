@@ -22,6 +22,13 @@ function beatSummary(d) {
     .map((x) => `${String(x.day).slice(0, 3)}: ${x.type}${x.areas && x.areas.length ? " (" + x.areas.join(", ") + ")" : ""}`)
     .join(" · ");
 }
+/* day-wise remarks, e.g.  Wed (site closed) · Fri (customer busy) */
+function beatRemarks(d) {
+  if (!d || !Array.isArray(d.days)) return "";
+  return d.days.filter((x) => x.remark && String(x.remark).trim())
+    .map((x) => `${String(x.day).slice(0, 3)} (${String(x.remark).trim()})`)
+    .join(" · ");
+}
 function targetPct(d) {
   const t = Number(d && d.target) || 0, a = Number(d && d.achieved) || 0;
   if (!t) return "";
@@ -85,7 +92,7 @@ export default function ModulePage({ cfgKey }) {
     let alive = true;
     setLoading(true); setErr("");
     api.list(cfgKey)
-      .then((d) => { if (alive) setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length, productsText: projProductsText(r.data.items), ...projCategoryCols(r.data.contacts), achievementPct: targetPct(r.data), planSummary: beatSummary(r.data) }))); })
+      .then((d) => { if (alive) setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length, productsText: projProductsText(r.data.items), ...projCategoryCols(r.data.contacts), achievementPct: targetPct(r.data), planSummary: beatSummary(r.data), planRemarks: beatRemarks(r.data) }))); })
       .catch((e) => { if (alive) setErr(e.message); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
@@ -170,7 +177,7 @@ export default function ModulePage({ cfgKey }) {
   const reload = () => {
     setRefreshing(true); setErr("");
     api.list(cfgKey)
-      .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length, productsText: projProductsText(r.data.items), ...projCategoryCols(r.data.contacts), achievementPct: targetPct(r.data), planSummary: beatSummary(r.data) }))))
+      .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length, productsText: projProductsText(r.data.items), ...projCategoryCols(r.data.contacts), achievementPct: targetPct(r.data), planSummary: beatSummary(r.data), planRemarks: beatRemarks(r.data) }))))
       .catch((e) => setErr(e.message))
       .finally(() => setRefreshing(false));
   };

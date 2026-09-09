@@ -5504,14 +5504,20 @@ function PhotoCapture({ label, photo, onPhoto, address, capture = "user" }) {
   );
 }
 
-function AttendanceWizard({ mode = "start", visitInfo = null, onClose, onDone }) {
-  /* mode: "start" -> full flow; "stop" -> logout photos (rules per visit type) */
-  const [type, setType] = useState(visitInfo?.visit_type || "Local");     // Local / Tour / WFH
+function AttendanceWizard({ mode = "start", visitInfo = null, beatPlan = null, onClose, onDone }) {
+  /* mode: "start" -> full flow; "stop" -> logout photos (rules per visit type)
+     beatPlan (optional) -> today's saved plan, used to prefill type + areas so the
+     person only has to take the photo. */
+  const planType = beatPlan ? (beatPlan.type === "Local" ? "Local" : "Tour") : null;
+  const [type, setType] = useState(planType || visitInfo?.visit_type || "Local");
   const [subType, setSubType] = useState(
-    ["ExStation", "Outstation"].includes(visitInfo?.visit_type) ? visitInfo.visit_type : "ExStation");
+    beatPlan && beatPlan.type === "Ex-station" ? "ExStation"
+    : beatPlan && beatPlan.type === "Out-station" ? "Outstation"
+    : ["ExStation", "Outstation"].includes(visitInfo?.visit_type) ? visitInfo.visit_type : "ExStation");
   const [transport, setTransport] = useState(visitInfo?.transport || "Public");
   const [loc, setLoc] = useState(null);
-  const [locs, setLocs] = useState([]);   // multiple areas (login lo + tho)
+  const [locs, setLocs] = useState(
+    beatPlan && Array.isArray(beatPlan.areas) ? beatPlan.areas.map((a) => ({ name: a })) : []);   // multiple areas
   const [selfie, setSelfie] = useState(null);
   const [reading, setReading] = useState(null);
   const [address, setAddress] = useState("");
@@ -5727,6 +5733,7 @@ export default function FieldApp() {
   const [menu, setMenu] = useState(false);
   const [visitPopup, setVisitPopup] = useState(false);
   const [beatCheck, setBeatCheck] = useState(false);
+  const beatPlanRef = useRef(null);
   const [stopPopup, setStopPopup] = useState(false);
   const visitInfoRef = useRef({ type: "Local", name: "" });
   const todaySessionRef = useRef(null);       // {visit_type, transport} — stop-flow photo rules ki
@@ -6303,12 +6310,13 @@ export default function FieldApp() {
         {beatCheck && (
           <BeatPlanConfirm
             onClose={() => setBeatCheck(false)}
-            onContinue={() => { setBeatCheck(false); setVisitPopup(true); }}
+            onContinue={(plan) => { beatPlanRef.current = plan || null; setBeatCheck(false); setVisitPopup(true); }}
           />
         )}
         {visitPopup && (
           <AttendanceWizard
             mode="start"
+            beatPlan={beatPlanRef.current}
             onClose={() => setVisitPopup(false)}
             onDone={(info) => {
               visitInfoRef.current = info;

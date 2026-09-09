@@ -352,6 +352,7 @@ export const MODULES = {
       { key: "weekStart", label: "Week From" }, { key: "weekEnd", label: "Week To" },
       { key: "createdBy", label: "Person" }, { key: "hod", label: "HOD" },
       { key: "state", label: "State" }, { key: "planSummary", label: "Plan" },
+      { key: "planRemarks", label: "Remark" },
     ],
     form: null,
   },

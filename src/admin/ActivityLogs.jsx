@@ -19,6 +19,7 @@ export default function ActivityLogs() {
   const [sum, setSum] = useState([]);
   const [shown, setShown] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [sel, setSel] = useState(new Set());
 
   useEffect(() => { api.listUsers().then((d) => setUsers((d.users || []).filter((u) => u.status == 1))).catch(() => {}); }, []);
 
@@ -31,6 +32,7 @@ export default function ActivityLogs() {
         api.activitySummary({ from, to }).catch(() => ({ summary: [] })),
       ]);
       setRows(d.logs || []);
+      setSel(new Set());
       setSum(s.summary || []);
     } catch (e) { alert(e.message); }
     setBusy(false);
@@ -69,11 +71,12 @@ export default function ActivityLogs() {
           {busy ? "Loading…" : "Show"}
         </button>
         {shown && <button className="btn btn-soft" onClick={exportCsv}>⬇ CSV</button>}
-        {shown && rows.length > 0 && (
+        {shown && sel.size > 0 && (
           <button className="btn btn-danger" onClick={async () => {
-            if (!window.confirm(`Delete ALL logs between ${from} and ${to}? This cannot be undone.`)) return;
-            try { await api.activityClear(from, to); show(); } catch (e) { alert(e.message); }
-          }}>🗑 Clear Range</button>
+            if (!window.confirm(`Delete ${sel.size} selected log entr${sel.size === 1 ? "y" : "ies"}?`)) return;
+            try { await api.activityDeleteMany([...sel]); setRows((x) => x.filter((y) => !sel.has(y.id))); setSel(new Set()); }
+            catch (e) { alert(e.message); }
+          }}>🗑 Delete Selected ({sel.size})</button>
         )}
       </div>
 
@@ -93,13 +96,24 @@ export default function ActivityLogs() {
             {tab === "detail" ? (
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead style={{ background: "#f7f9ff" }}>
-                  <tr>{["Date & Time", "User", "Role", "HOD", "State", "Module", "Screen", "From", "Action"].map((h) => <th key={h} style={th}>{h}</th>)}</tr>
+                  <tr>
+                    <th style={th}>
+                      <input type="checkbox"
+                        checked={rows.length > 0 && sel.size === rows.length}
+                        onChange={(e) => setSel(e.target.checked ? new Set(rows.map((x) => x.id)) : new Set())} />
+                    </th>
+                    {["Date & Time", "User", "Role", "HOD", "State", "Module", "Screen", "From", "Action"].map((h) => <th key={h} style={th}>{h}</th>)}
+                  </tr>
                 </thead>
                 <tbody>
                   {rows.length === 0 ? (
-                    <tr><td colSpan={9} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>No activity for these filters.</td></tr>
+                    <tr><td colSpan={10} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>No activity for these filters.</td></tr>
                   ) : rows.map((r, i) => (
-                    <tr key={i}>
+                    <tr key={i} style={{ background: sel.has(r.id) ? "#f2f6ff" : "transparent" }}>
+                      <td style={td}>
+                        <input type="checkbox" checked={sel.has(r.id)}
+                          onChange={(e) => setSel((s2) => { const n = new Set(s2); e.target.checked ? n.add(r.id) : n.delete(r.id); return n; })} />
+                      </td>
                       <td style={td}>{String(r.opened_at || "").replace("T", " ")}</td>
                       <td style={{ ...td, fontWeight: 700 }}>{r.user_name || "—"}</td>
                       <td style={td}>{r.user_role || "—"}</td>

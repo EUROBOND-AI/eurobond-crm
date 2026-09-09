@@ -1,6 +1,7 @@
 /* Weekly Beat Plan — sales & specs people fill Monday..Saturday once a week.
    Each day: visit type (Local / Ex-station / Out-station) + areas + remark. */
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api, auth } from "../lib/api.js";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -19,6 +20,7 @@ const iso = (d) => d.toISOString().slice(0, 10);
 const dateOfDay = (ws, i) => { const d = new Date(ws); d.setDate(d.getDate() + i); return d; };
 
 export default function BeatPlan() {
+  const nav = useNavigate();
   const [offset, setOffset] = useState(0);          // 0 = this week, 1 = next week
   const ws = useMemo(() => { const d = weekStart(); d.setDate(d.getDate() + offset * 7); return d; }, [offset]);
   const weekKey = iso(ws);
@@ -66,6 +68,18 @@ export default function BeatPlan() {
     try {
       if (existing?._id) await api.update("beatPlan", existing._id, payload);
       else { const r = await api.create("beatPlan", payload); setExisting({ _id: r.id, ...payload }); }
+      /* let the HOD know, with any day-wise remarks */
+      try {
+        const remarks = payload.days.filter((d) => d.remark && d.remark.trim())
+          .map((d) => `${d.day.slice(0, 3)} (${d.remark.trim()})`).join(" · ");
+        if (CU().manager) {
+          await api.create("notification", {
+            title: existing ? "Beat Plan Updated" : "Beat Plan Submitted",
+            message: `${CU().name} — week ${payload.weekStart} to ${payload.weekEnd}.${remarks ? " Remarks: " + remarks : ""}`,
+            to: CU().manager, link: "/admin/sfa/beat-plan", at: new Date().toISOString(),
+          });
+        }
+      } catch {}
       setMsg("Beat plan saved ✓");
     } catch (e) { alert(e.message); }
     setBusy(false);
@@ -73,7 +87,11 @@ export default function BeatPlan() {
 
   return (
     <>
-      <div className="f-head"><h2 style={{ margin: 0, fontSize: 17 }}>Beat Plan</h2></div>
+      <div className="f-head" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <button onClick={() => nav(-1)} aria-label="Back"
+          style={{ width: 30, height: 30, borderRadius: 9, border: "1px solid #d7dcef", background: "#fff", fontSize: 18, lineHeight: 1, cursor: "pointer", fontWeight: 800, color: "var(--navy)" }}>‹</button>
+        <h2 style={{ margin: 0, fontSize: 17 }}>Beat Plan</h2>
+      </div>
       <div className="f-form" style={{ paddingBottom: 120 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
           <button onClick={() => setOffset((o) => o - 1)} style={navBtn}>‹</button>
@@ -171,7 +189,7 @@ export function BeatPlanConfirm({ onClose, onContinue }) {
           link: "/admin/sfa/beat-plan", at: new Date().toISOString(),
         });
       } catch {}
-      onContinue();                     // still let them mark attendance
+      onContinue(null);                 // rejected -> no prefill, plan not followed
     } catch (e) { alert(e.message); setBusy(false); }
   };
 
@@ -198,7 +216,7 @@ export function BeatPlanConfirm({ onClose, onContinue }) {
             </p>
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={onClose} style={btnGhost}>Cancel</button>
-              <button className="f-submit" style={{ flex: 1 }} onClick={onContinue}>Continue</button>
+              <button className="f-submit" style={{ flex: 1 }} onClick={() => onContinue(null)}>Continue</button>
             </div>
           </>
         ) : (
@@ -213,7 +231,7 @@ export function BeatPlanConfirm({ onClose, onContinue }) {
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={() => setReject(true)} style={{ ...btnGhost, color: "#c0392b", borderColor: "#f3c9c4" }}>Reject</button>
-              <button className="f-submit" style={{ flex: 1 }} onClick={onContinue}>Continue</button>
+              <button className="f-submit" style={{ flex: 1 }} onClick={() => onContinue(today)}>Continue</button>
             </div>
           </>
         )}
