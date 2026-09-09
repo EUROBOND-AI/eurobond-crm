@@ -53,11 +53,11 @@ export default function MeetingCalendar() {
       </div>
       <div className="f-form" style={{ paddingBottom: 120 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <button onClick={() => setCur(new Date(year, month - 1, 1))} style={nav}>‹</button>
+          <button onClick={() => setCur(new Date(year, month - 1, 1))} style={navBtn}>‹</button>
           <div style={{ flex: 1, textAlign: "center", fontWeight: 800, fontSize: 14.5 }}>
             {cur.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}
           </div>
-          <button onClick={() => setCur(new Date(year, month + 1, 1))} style={nav}>›</button>
+          <button onClick={() => setCur(new Date(year, month + 1, 1))} style={navBtn}>›</button>
         </div>
 
         <div style={{ background: "#fff", borderRadius: 14, padding: 12, boxShadow: "var(--shadow)", marginBottom: 14 }}>
@@ -112,4 +112,4 @@ export default function MeetingCalendar() {
   );
 }
 
-const nav = { width: 34, height: 34, borderRadius: 10, border: "1px solid #d7dcef", background: "#fff", fontSize: 18, cursor: "pointer", fontWeight: 800 };
+const navBtn = { width: 34, height: 34, borderRadius: 10, border: "1px solid #d7dcef", background: "#fff", fontSize: 18, cursor: "pointer", fontWeight: 800 };
