@@ -633,6 +633,14 @@ const ATT_END_MIN = 30;        // :30
 const withinAttWindow = () => { const d = new Date(); const mins = d.getHours() * 60 + d.getMinutes(); return mins >= ATT_START_HOUR * 60 && mins < ATT_END_HOUR * 60 + ATT_END_MIN; };
 function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expenses, followups, leaves, onStartAttendance, onStopAttendance }) {
   const [seg, setSeg] = useState("Matrics");
+  /* how many customer meetings are planned in the current month */
+  const [monthMeetings, setMonthMeetings] = useState(0);
+  useEffect(() => {
+    const mKey = new Date().toISOString().slice(0, 7);
+    api.customers("", true)
+      .then((d) => setMonthMeetings((d.customers || []).filter((c) => String(c.nextMeetingDate || "").startsWith(mKey)).length))
+      .catch(() => setMonthMeetings(0));
+  }, []);
   const [sheet, setSheet] = useState(false);
   const [, tickHome] = useState(0);
   const nav = useNavigate();
@@ -663,7 +671,7 @@ function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expense
   const expMonth = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
 
   const metrics = [
-    { label: "Calendar", icon: <CalendarDays size={15} />, big: "📅", note: "meetings this month", to: "/app/calendar" },
+    { label: "Calendar", icon: <CalendarDays size={15} />, big: monthMeetings, note: "meetings this month", to: "/app/calendar" },
     { label: "Customer", icon: <ClipboardList size={15} />, big: `${followups.length}`, note: "total customers", to: "/app/customers" },
     { label: "Leave", icon: <CalendarDays size={15} />, big: leavePending, note: "pending approvals", to: "/app/leave" },
     { label: "Expense", icon: <Wallet size={15} />, big: "₹" + expMonth.toLocaleString("en-IN"), note: "total claimed", to: "/app/expense" },
@@ -2708,10 +2716,27 @@ function FieldProjectNew() {
 
         {/* mention person: sales -> spec person; specs -> sales person */}
         {!isSpec ? (<>
-          <label>Specification Person</label>
-          <select value={f.specPerson} onChange={(e) => set("specPerson", e.target.value)} style={inp}>
-            <option value="">Select…</option>{specPersons.map((p) => <option key={p}>{p}</option>)}
+          <label>Specification Person(s) — you can add more than one</label>
+          <select value="" onChange={(e) => {
+            const v = e.target.value; if (!v) return;
+            const cur = String(f.specPerson || "").split(",").map((x) => x.trim()).filter(Boolean);
+            if (!cur.includes(v)) set("specPerson", [...cur, v].join(", "));
+          }} style={inp}>
+            <option value="">Add person…</option>
+            {specPersons.filter((p) => !String(f.specPerson || "").includes(p)).map((p) => <option key={p}>{p}</option>)}
           </select>
+          {String(f.specPerson || "").trim() ? (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+              {String(f.specPerson).split(",").map((x) => x.trim()).filter(Boolean).map((n) => (
+                <span key={n} style={{ background: "#eef2ff", color: "#3949ab", borderRadius: 999, padding: "5px 10px", fontSize: 12, fontWeight: 700 }}>
+                  {n} <span style={{ cursor: "pointer", marginLeft: 4 }} onClick={() => {
+                    const left = String(f.specPerson).split(",").map((y) => y.trim()).filter((y) => y && y !== n);
+                    set("specPerson", left.join(", "));
+                  }}>×</span>
+                </span>
+              ))}
+            </div>
+          ) : null}
           <label>What specification help is needed?</label>
           <textarea value={f.helpNeeded} onChange={(e) => set("helpNeeded", e.target.value)} rows={3} style={inp} />
         </>) : (<>
@@ -3937,8 +3962,12 @@ function FieldNotifications() {
     /* Holiday / Announcement have no screen of their own — show the full text
        in a popup so nothing gets cut off. */
     const t = `${n.title || ""} ${n.message || ""}`.toLowerCase();
-    const isInfoOnly = t.includes("message from admin") || (!link && (t.includes("holiday") || t.includes("announcement") || t.includes("resource")));
-    if (isInfoOnly || !link) { setDetail(n); return; }
+    /* a notice that points at the notifications screen itself has nothing to open,
+       so show the full text in a popup instead of navigating nowhere */
+    const isInfoOnly = !link || link === "/app/notifications"
+      || t.includes("message from admin") || t.includes("holiday")
+      || t.includes("announcement") || t.includes("resource");
+    if (isInfoOnly) { setDetail(n); return; }
     nav(link);
   };
 
@@ -5758,6 +5787,15 @@ export default function FieldApp() {
     if (!authed) return;
     /* register for FCM push once we are logged in (the token save needs auth) */
     try { registerPush(); } catch {}
+    /* Safety: if attendance is not running, clear any leftover session id so the
+       native service stops itself (no stray "Tracking on" or location alarm). */
+    (async () => {
+      try {
+        if (localStorage.getItem("eb_att_on") === "1") return;
+        const P = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences;
+        if (P) { await P.set({ key: "eb_session_id", value: "" }); await P.remove({ key: "eb_session_id" }); }
+      } catch {}
+    })();
     api.attToday().then((d) => {
       const s = d.session;
       if (s && s.status === "RUNNING") {
@@ -6053,6 +6091,13 @@ export default function FieldApp() {
     }
     return () => clearInterval(alarmTimer.current);
   }, [gpsAlarm]);
+
+  /* evening logout reminders stay armed for as long as attendance is running
+     (also covers a resumed session, not just a fresh start) */
+  useEffect(() => {
+    if (attendanceOn) { try { scheduleLogoutReminders(); } catch {} }
+    else { try { cancelLogoutReminders(); } catch {} }
+  }, [attendanceOn]);
 
   /* push any points held while offline as soon as the network is back */
   useEffect(() => {

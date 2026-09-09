@@ -24,14 +24,12 @@ export default function BeatPlan() {
   const weekKey = iso(ws);
 
   const [rows, setRows] = useState(DAYS.map(() => ({ type: "Local", areas: [], remark: "" })));
-  const [states, setStates] = useState([]);
-  const [state, setState] = useState(CU().state || "");
+  const state = CU().state || "";          // always the person's own state
   const [areaOpts, setAreaOpts] = useState([]);
   const [existing, setExisting] = useState(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
-  useEffect(() => { api.areaStates().then((d) => setStates(d.states || [])).catch(() => {}); }, []);
   useEffect(() => {
     if (!state) { setAreaOpts([]); return; }
     api.areasByState(state).then((d) => setAreaOpts(d.areas || [])).catch(() => setAreaOpts([]));
@@ -43,7 +41,7 @@ export default function BeatPlan() {
     api.list("beatPlan", true).then((d) => {
       const mine = (d.records || []).map((r) => ({ _id: r.id, ...r.data }))
         .find((r) => r.weekStart === weekKey && r.createdBy === CU().name);
-      if (mine) { setExisting(mine); setRows(mine.days || rows); setState(mine.state || state); }
+      if (mine) { setExisting(mine); setRows(mine.days || rows); }
       else { setExisting(null); setRows(DAYS.map(() => ({ type: "Local", areas: [], remark: "" }))); }
     }).catch(() => {});
   }, [weekKey]);
@@ -86,11 +84,9 @@ export default function BeatPlan() {
           <button onClick={() => setOffset((o) => o + 1)} style={navBtn}>›</button>
         </div>
 
-        <label>State</label>
-        <select value={state} onChange={(e) => setState(e.target.value)} style={{ width: "100%", marginBottom: 10 }}>
-          <option value="">Select State…</option>
-          {states.map((s) => <option key={s}>{s}</option>)}
-        </select>
+        <div style={{ background: "#f4f7ff", borderRadius: 10, padding: "9px 12px", marginBottom: 10, fontSize: 12.5 }}>
+          <b>State:</b> {state || "— not set on your profile —"}
+        </div>
 
         {DAYS.map((d, i) => (
           <div key={d} style={{ background: "#fff", borderRadius: 12, padding: 12, marginBottom: 10, boxShadow: "var(--shadow)" }}>
@@ -107,7 +103,7 @@ export default function BeatPlan() {
             {rows[i].type !== "Off" && (
               <>
                 <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)", marginBottom: 5 }}>Areas {rows[i].areas.length ? `(${rows[i].areas.length})` : ""}</div>
-                {!state ? <div style={{ fontSize: 12, color: "var(--muted)" }}>Select a state first</div> : (
+                {!state ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No state on your profile — ask admin to set it</div> : (
                   <div style={{ maxHeight: 120, overflowY: "auto", display: "flex", flexWrap: "wrap", gap: 5 }}>
                     {areaOpts.map((a) => (
                       <span key={a} onClick={() => toggleArea(i, a)}

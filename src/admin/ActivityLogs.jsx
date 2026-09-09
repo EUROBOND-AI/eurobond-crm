@@ -69,6 +69,12 @@ export default function ActivityLogs() {
           {busy ? "Loading…" : "Show"}
         </button>
         {shown && <button className="btn btn-soft" onClick={exportCsv}>⬇ CSV</button>}
+        {shown && rows.length > 0 && (
+          <button className="btn btn-danger" onClick={async () => {
+            if (!window.confirm(`Delete ALL logs between ${from} and ${to}? This cannot be undone.`)) return;
+            try { await api.activityClear(from, to); show(); } catch (e) { alert(e.message); }
+          }}>🗑 Clear Range</button>
+        )}
       </div>
 
       {!shown ? (
@@ -87,11 +93,11 @@ export default function ActivityLogs() {
             {tab === "detail" ? (
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead style={{ background: "#f7f9ff" }}>
-                  <tr>{["Date & Time", "User", "Role", "HOD", "State", "Module", "Screen", "From"].map((h) => <th key={h} style={th}>{h}</th>)}</tr>
+                  <tr>{["Date & Time", "User", "Role", "HOD", "State", "Module", "Screen", "From", "Action"].map((h) => <th key={h} style={th}>{h}</th>)}</tr>
                 </thead>
                 <tbody>
                   {rows.length === 0 ? (
-                    <tr><td colSpan={8} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>No activity for these filters.</td></tr>
+                    <tr><td colSpan={9} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>No activity for these filters.</td></tr>
                   ) : rows.map((r, i) => (
                     <tr key={i}>
                       <td style={td}>{String(r.opened_at || "").replace("T", " ")}</td>
@@ -105,6 +111,14 @@ export default function ActivityLogs() {
                         <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: r.source === "admin" ? "#e4f3ff" : "#e7f7ef", color: r.source === "admin" ? "#0b6cb0" : "#0f7a44" }}>
                           {r.source === "admin" ? "Admin" : "App"}
                         </span>
+                      </td>
+                      <td style={td}>
+                        <button className="btn btn-danger" style={{ padding: "3px 9px", fontSize: 11 }}
+                          onClick={async () => {
+                            if (!window.confirm("Delete this log entry?")) return;
+                            try { await api.activityDelete(r.id); setRows((x) => x.filter((y) => y.id !== r.id)); }
+                            catch (e) { alert(e.message); }
+                          }}>Delete</button>
                       </td>
                     </tr>
                   ))}

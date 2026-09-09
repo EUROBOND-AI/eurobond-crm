@@ -184,6 +184,8 @@ export const api = {
   savePushToken: (token) => req("/push.php?action=save_token", { method: "POST", body: { token, platform: "android" } }),
   activityLog: (module, screen, source) => req("/activity.php?action=log", { method: "POST", body: { module, screen, source: source || "app" } }),
   activityList: (q) => req("/activity.php?action=list&" + new URLSearchParams(q || {}).toString()),
+  activityDelete: (id) => req("/activity.php?action=delete", { method: "POST", body: { id } }),
+  activityClear: (from, to) => req("/activity.php?action=delete", { method: "POST", body: { all: true, from, to } }),
   activitySummary: (q) => req("/activity.php?action=summary&" + new URLSearchParams(q || {}).toString()),
   waTest: (to, name) => req("/whatsapp.php?action=test", { method: "POST", body: { to, name } }),
   waLog: () => req("/whatsapp.php?action=log"),
