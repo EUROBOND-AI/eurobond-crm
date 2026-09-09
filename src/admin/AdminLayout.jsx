@@ -1,6 +1,6 @@
 import logoImg from "../assets/logo.jpg";
-import { useState, useEffect } from "react";
-import { Outlet, NavLink, useNavigate, Navigate } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { Outlet, NavLink, useNavigate, Navigate, useLocation } from "react-router-dom";
 import {
   Search, Bell, Moon, Maximize, Settings, LayoutDashboard, Megaphone, Users,
   BarChart3, Boxes, LifeBuoy, BellRing, ChevronDown, LogOut,
@@ -167,6 +167,18 @@ function ModuleSearch({ nav }) {
 }
 
 export default function AdminLayout() {
+  /* record which admin screen was opened (Activity Logs) */
+  const _loc = useLocation();
+  const _lastLogged = useRef("");
+  useEffect(() => {
+    const path = _loc.pathname;
+    if (!path || path === _lastLogged.current) return;
+    _lastLogged.current = path;
+    const parts = path.split("/").filter(Boolean);
+    const module = parts[parts.length - 1] || "dashboard";
+    api.activityLog(module, path, "admin").catch(() => {});
+  }, [_loc.pathname]);
+
   const nav = useNavigate();
   useEffect(() => { if (localStorage.getItem("eb_admin_dark") === "1") document.body.classList.add("dark-admin"); }, []);
 

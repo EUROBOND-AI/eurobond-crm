@@ -8,8 +8,9 @@ const td = { padding: "9px 12px", fontSize: 12.5, borderTop: "1px solid #f0f2f8"
 
 export default function ActivityLogs() {
   const today = new Date().toISOString().slice(0, 10);
+  const weekAgo = new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10);
   const [users, setUsers] = useState([]);
-  const [from, setFrom] = useState(today);
+  const [from, setFrom] = useState(weekAgo);
   const [to, setTo] = useState(today);
   const [user, setUser] = useState("");
   const [hod, setHod] = useState("");
@@ -107,7 +108,10 @@ export default function ActivityLogs() {
                 </thead>
                 <tbody>
                   {rows.length === 0 ? (
-                    <tr><td colSpan={10} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>No activity for these filters.</td></tr>
+                    <tr><td colSpan={10} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>
+                      No activity yet for these filters.<br />
+                      <span style={{ fontSize: 12 }}>Logging starts once <b>activity.php</b> is uploaded and someone opens an admin screen.</span>
+                    </td></tr>
                   ) : rows.map((r, i) => (
                     <tr key={i} style={{ background: sel.has(r.id) ? "#f2f6ff" : "transparent" }}>
                       <td style={td}>
