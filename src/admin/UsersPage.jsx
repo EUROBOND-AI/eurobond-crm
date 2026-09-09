@@ -58,8 +58,23 @@ export default function UsersPage() {
     let ok = 0, fail = 0;
     for (let i = 1; i < lines.length; i++) {
       const vals = parseLine(lines[i]);
+      const raw = {};
+      header.forEach((h, idx) => { raw[h] = (vals[idx] || "").trim(); });
+      /* accept the friendly headers used in the downloaded format */
+      const map = {
+        "full name": "name", "name": "name",
+        "mobile": "mobile", "mobile (login id)": "mobile",
+        "employee code": "code", "code": "code",
+        "email": "email", "role": "role", "grade": "grade",
+        "designation": "designation",
+        "date of joining": "doj", "doj": "doj",
+        "date of birth": "dob", "dob": "dob",
+        "state": "state", "zone": "zone", "depo": "depo", "city": "city",
+        "near-by range (meters)": "nearby_range_m", "nearby range": "nearby_range_m",
+        "reporting manager": "manager", "manager": "manager",
+      };
       const rec = {};
-      header.forEach((h, idx) => { rec[h] = (vals[idx] || "").trim(); });
+      Object.keys(raw).forEach((h) => { const k = map[h] || h; if (raw[h] !== "") rec[k] = raw[h]; });
       if (!rec.name || !rec.mobile) { fail++; continue; }
       if (!rec.password) rec.password = rec.mobile;   // default password = mobile
       if (!rec.role) rec.role = "Sales Person";
@@ -126,7 +141,14 @@ export default function UsersPage() {
         actions={<div style={{ display: "flex", gap: 8 }}>
           <button className="btn btn-ghost" onClick={exportUsers}><Download size={14} /> Export</button>
           <button className="btn btn-ghost" onClick={() => {
-            const csv = "Full Name,Mobile,Email,Role,Manager,Zone,State,City,Code\nJohn Doe,9876543210,john@example.com,Sales Person,HOD Name,South,Telangana,Hyderabad,EMP001";
+            /* every field on the Add User form, in the same order */
+            const head = ["Full Name", "Mobile", "Employee Code", "Email", "Role", "Grade",
+              "Designation", "Date of Joining", "Date of Birth", "State", "Zone", "Depo",
+              "City", "Near-by Range (meters)", "Reporting Manager"];
+            const sample = ["John Doe", "9876543210", "EMP001", "john@example.com", "Sales Person", "S1",
+              "Sales Executive", "2026-01-15", "1995-06-20", "Telangana", "South", "Hyderabad Depo",
+              "Hyderabad", "500", "HOD Name"];
+            const csv = [head, sample].map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(",")).join("\n");
             const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = "app-users-format.csv"; a.click();
           }}><Download size={14} /> Download Format</button>
           <label className="btn btn-ghost" style={{ cursor: "pointer" }}><Upload size={14} /> Import

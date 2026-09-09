@@ -224,9 +224,22 @@ export default function ModulePage({ cfgKey }) {
 
   /* download a CSV template with the module's column headers (like Holidays) */
   const downloadFormat = () => {
-    const labels = (cfg.form || []).map((f) => f.label || f.name).filter(Boolean);
-    const heads = labels.length ? labels : (cfg.columns || []).map((c) => c.label);
-    const csv = heads.join(",") + "\n";
+    /* every field on the Add form (required ones marked), plus one sample row
+       so the person knows exactly what to type in each column */
+    const fields = (cfg.form || []).filter((f) => f && (f.label || f.name));
+    const heads = fields.length
+      ? fields.map((f) => (f.label || f.name) + (f.required ? " *" : ""))
+      : (cfg.columns || []).map((c) => c.label);
+    const sample = fields.length
+      ? fields.map((f) => {
+          if (Array.isArray(f.options) && f.options.length) return String(f.options[0]);
+          if (f.type === "date") return new Date().toISOString().slice(0, 10);
+          if (f.type === "number") return "0";
+          return "Sample " + String(f.label || f.name);
+        })
+      : heads.map(() => "");
+    const q = (x) => `"${String(x ?? "").replace(/"/g, '""')}"`;
+    const csv = [heads, sample].map((r) => r.map(q).join(",")).join("\n") + "\n";
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     a.download = `${cfgKey}-format.csv`; a.click();
@@ -239,7 +252,7 @@ export default function ModulePage({ cfgKey }) {
       const file = inp.files[0]; if (!file) return;
       const text = await file.text();
       const [headLine, ...dataLines] = text.split(/\r?\n/).filter(Boolean);
-      const labels = headLine.split(",").map((h) => h.replace(/^"|"$/g, "").trim());
+      const labels = headLine.split(",").map((h) => h.replace(/^"|"$/g, "").replace(/\s*\*$/, "").trim());
       const keyByLabel = {}; cfg.columns.forEach((c) => { keyByLabel[c.label] = c.key; });
       let ok = 0;
       for (const line of dataLines) {

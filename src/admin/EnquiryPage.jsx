@@ -175,8 +175,15 @@ export default function EnquiryPage() {
   };
 
   const downloadFormat = () => {
-    const head = ["Date", "Customer Name", "Contact Person", "Phone No", "Email", "Location", "Lead From", "Product Required", "Quantity", "UOM", "Order Value", "Enquiry Details"];
-    const csv = head.map((h) => `"${h}"`).join(",") + "\n";
+    /* all enquiry fields + a sample row */
+    const head = ["Date", "Customer Name", "Contact Person", "Phone No", "Email",
+      "State", "Area", "Location", "Lead From", "Product Required", "Quantity", "UOM",
+      "Order Value", "Enquiry Details", "HOD", "Passto", "Status"];
+    const sample = [new Date().toISOString().slice(0, 10), "ABC Constructions", "Ramesh Kumar",
+      "9876543210", "ramesh@example.com", "Telangana", "Hyderabad", "Banjara Hills",
+      "IndiaMart", "4MM ACP", "500", "Sq.Mtr", "250000", "Needs quotation for facade",
+      "HOD Name", "Sales Person Name", "Pending"];
+    const csv = [head, sample].map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(",")).join("\n") + "\n";
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     a.download = "enquiry_import_format.csv"; a.click();
