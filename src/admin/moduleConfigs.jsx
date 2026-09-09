@@ -351,7 +351,9 @@ export const MODULES = {
     columns: [
       { key: "weekStart", label: "Week From" }, { key: "weekEnd", label: "Week To" },
       { key: "createdBy", label: "Person" }, { key: "hod", label: "HOD" },
-      { key: "state", label: "State" }, { key: "planSummary", label: "Plan" },
+      { key: "state", label: "State" },
+      { key: "mon", label: "Mon" }, { key: "tue", label: "Tue" }, { key: "wed", label: "Wed" },
+      { key: "thu", label: "Thu" }, { key: "fri", label: "Fri" }, { key: "sat", label: "Sat" },
       { key: "planRemarks", label: "Remark" },
     ],
     form: null,

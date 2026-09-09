@@ -39,6 +39,10 @@ export default function MeetingCalendar() {
   const iso = (d) => `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   const todayIso = new Date().toISOString().slice(0, 10);
   const dayList = byDate[pick] || [];
+  const fmtPick = (() => {
+    const d = new Date(pick);
+    return isNaN(d.getTime()) ? pick : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  })();
 
   return (
     <>
@@ -69,7 +73,7 @@ export default function MeetingCalendar() {
               return (
                 <div key={i} onClick={() => setPick(key)}
                   style={{
-                    aspectRatio: "1", borderRadius: 9, display: "flex", flexDirection: "column",
+                    height: 40, borderRadius: 9, display: "flex", flexDirection: "column",
                     alignItems: "center", justifyContent: "center", cursor: "pointer", position: "relative",
                     background: isPick ? "var(--navy)" : isToday ? "#e8f0ff" : n ? "#f0fdf4" : "#f7f9fc",
                     color: isPick ? "#fff" : "var(--navy)",
@@ -85,7 +89,7 @@ export default function MeetingCalendar() {
         </div>
 
         <div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 8 }}>
-          {new Date(pick).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} · {dayList.length} meeting{dayList.length === 1 ? "" : "s"}
+          {fmtPick} · {dayList.length} meeting{dayList.length === 1 ? "" : "s"}
         </div>
 
         {loading ? <div style={{ color: "var(--muted)", fontSize: 13 }}>Loading…</div>

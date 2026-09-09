@@ -22,6 +22,19 @@ function beatSummary(d) {
     .map((x) => `${String(x.day).slice(0, 3)}: ${x.type}${x.areas && x.areas.length ? " (" + x.areas.join(", ") + ")" : ""}`)
     .join(" · ");
 }
+/* one column per weekday: "Local — Tiruvuru" */
+function beatDayCols(d) {
+  const out = {};
+  const names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const keys = ["mon", "tue", "wed", "thu", "fri", "sat"];
+  names.forEach((n, i) => {
+    const day = Array.isArray(d?.days) ? d.days.find((x) => x.day === n) : null;
+    if (!day || !day.type || day.type === "Off") { out[keys[i]] = day ? "Off" : ""; return; }
+    out[keys[i]] = day.areas && day.areas.length ? `${day.type} — ${day.areas.join(", ")}` : day.type;
+  });
+  return out;
+}
+
 /* day-wise remarks, e.g.  Wed (site closed) · Fri (customer busy) */
 function beatRemarks(d) {
   if (!d || !Array.isArray(d.days)) return "";
@@ -92,7 +105,7 @@ export default function ModulePage({ cfgKey }) {
     let alive = true;
     setLoading(true); setErr("");
     api.list(cfgKey)
-      .then((d) => { if (alive) setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length, productsText: projProductsText(r.data.items), ...projCategoryCols(r.data.contacts), achievementPct: targetPct(r.data), planSummary: beatSummary(r.data), planRemarks: beatRemarks(r.data) }))); })
+      .then((d) => { if (alive) setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length, productsText: projProductsText(r.data.items), ...projCategoryCols(r.data.contacts), achievementPct: targetPct(r.data), planSummary: beatSummary(r.data), planRemarks: beatRemarks(r.data), ...beatDayCols(r.data) }))); })
       .catch((e) => { if (alive) setErr(e.message); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
@@ -177,7 +190,7 @@ export default function ModulePage({ cfgKey }) {
   const reload = () => {
     setRefreshing(true); setErr("");
     api.list(cfgKey)
-      .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length, productsText: projProductsText(r.data.items), ...projCategoryCols(r.data.contacts), achievementPct: targetPct(r.data), planSummary: beatSummary(r.data), planRemarks: beatRemarks(r.data) }))))
+      .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: (r.data.followups || []).length, productsText: projProductsText(r.data.items), ...projCategoryCols(r.data.contacts), achievementPct: targetPct(r.data), planSummary: beatSummary(r.data), planRemarks: beatRemarks(r.data), ...beatDayCols(r.data) }))))
       .catch((e) => setErr(e.message))
       .finally(() => setRefreshing(false));
   };

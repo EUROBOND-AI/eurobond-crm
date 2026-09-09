@@ -132,8 +132,6 @@ export default function BeatPlan() {
                     ))}
                   </div>
                 )}
-                <input value={rows[i].remark} onChange={(e) => setDay(i, { remark: e.target.value })}
-                  placeholder="Remark (optional)" style={{ width: "100%", marginTop: 8, padding: "8px 10px", borderRadius: 8, border: "1px solid #e6e9f2", fontSize: 12.5 }} />
               </>
             )}
           </div>
