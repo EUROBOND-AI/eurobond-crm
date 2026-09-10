@@ -181,6 +181,7 @@ function ExpenseReview({ r, onClose, onDone }) {
   const [busy, setBusy] = useState(false);
   const [remark, setRemark] = useState("");
   const [attach, setAttach] = useState("");
+  const [itemApproved, setItemApproved] = useState({});
   const [approvedAmt, setApprovedAmt] = useState(total);
   const [rejectedIdx, setRejectedIdx] = useState(new Set());   // per-entry reject
 
@@ -199,11 +200,17 @@ function ExpenseReview({ r, onClose, onDone }) {
   };
 
   const approve = async () => {
-    if (!window.confirm(`Approve this statement for ₹${Number(approvedAmt).toLocaleString("en-IN")}?`)) return;
+    /* save the per-row approved amounts and use their sum as the statement total */
+    const newItems = items.map((it, i) => ({
+      ...it,
+      approvedAmount: rejectedIdx.has(i) ? 0 : Number(itemApproved[i] ?? it.approvedAmount ?? it.amount ?? 0),
+    }));
+    const sum = newItems.reduce((a, b) => a + (Number(b.approvedAmount) || 0), 0);
+    if (!window.confirm(`Approve this statement for ₹${sum.toLocaleString("en-IN")}?`)) return;
     setBusy(true);
     try {
-      await api.update("expense", r._id, { ...r, status: "Approved", approvedAmount: Number(approvedAmt), approvedAt: new Date().toLocaleString("en-IN"), rejectRemark: "", rejectAttachment: "" });
-      try { await api.create("notification", { title: "Expense Approved ✓", message: `Your expense statement (₹${Number(approvedAmt).toLocaleString("en-IN")}) has been approved.`, forUser: r.createdById, link: "/app/expense", at: new Date().toISOString() }); } catch {}
+      await api.update("expense", r._id, { ...r, items: newItems, status: "Approved", approvedAmount: sum, approvedAt: new Date().toLocaleString("en-IN"), rejectRemark: "", rejectAttachment: "" });
+      try { await api.create("notification", { title: "Expense Approved ✓", message: `Your expense statement (₹${sum.toLocaleString("en-IN")}) has been approved.`, to: r.user || r.createdBy, forUser: r.createdById, link: "/app/expense", at: new Date().toISOString() }); } catch {}
       onDone();
     } catch (e) { alert(e.message); setBusy(false); }
   };
@@ -266,17 +273,27 @@ function ExpenseReview({ r, onClose, onDone }) {
         <div style={{ maxHeight: "42vh", overflowY: "auto", border: "1px solid #eef1f8", borderRadius: 10 }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
             <thead><tr style={{ background: "#f4f6fc", position: "sticky", top: 0 }}>
-              {["#", "Date", "Category", "Type", "Amount", "Bill"].map((h) => <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontWeight: 800, fontSize: 11.5 }}>{h}</th>)}
+              {["SI No", "Date", "Ex/Out-station", "Origin to Destination", "Description", "KM", "Category", "Amount", "Approved Amount", "Bill"]
+                .map((h) => <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontWeight: 800, fontSize: 11.5, whiteSpace: "nowrap" }}>{h}</th>)}
               {r.status === "Submitted" && <th style={{ padding: "8px 10px", textAlign: "center", fontWeight: 800, fontSize: 11.5, color: "#c03636" }}>Action</th>}
             </tr></thead>
             <tbody>
               {items.map((it, i) => (
                 <tr key={i} style={{ borderTop: "1px solid #eef1f8", background: rejectedIdx.has(i) ? "#fdecec" : undefined }}>
                   <td style={{ padding: "8px 10px" }}>{i + 1}</td>
-                  <td style={{ padding: "8px 10px" }}>{it.date}</td>
+                  <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{it.date}</td>
+                  <td style={{ padding: "8px 10px" }}>{it.station || "—"}</td>
+                  <td style={{ padding: "8px 10px" }}>{it.desc || "—"}</td>
+                  <td style={{ padding: "8px 10px" }}>{it.description || "—"}</td>
+                  <td style={{ padding: "8px 10px" }}>{it.km || "—"}</td>
                   <td style={{ padding: "8px 10px" }}>{it.category}</td>
-                  <td style={{ padding: "8px 10px" }}>{it.type}</td>
                   <td style={{ padding: "8px 10px", fontWeight: 700, textDecoration: rejectedIdx.has(i) ? "line-through" : undefined }}>₹{(Number(it.amount) || 0).toLocaleString("en-IN")}</td>
+                  <td style={{ padding: "6px 8px" }}>
+                    {/* pre-filled with the claimed amount; admin can change it */}
+                    <input value={itemApproved[i] ?? (it.approvedAmount ?? it.amount ?? "")}
+                      onChange={(e) => setItemApproved((m) => ({ ...m, [i]: e.target.value.replace(/[^\d.]/g, "") }))}
+                      style={{ width: 92, padding: "5px 7px", borderRadius: 7, border: "1px solid var(--line)", fontSize: 12 }} />
+                  </td>
                   <td style={{ padding: "8px 10px" }}>{it.photo ? <span onClick={() => openLightbox(it.photo)} style={{ color: "var(--accent)", cursor: "pointer", fontWeight: 700 }}>View</span> : "—"}</td>
                   {r.status === "Submitted" && (
                     <td style={{ padding: "8px 10px", textAlign: "center" }}>
@@ -314,7 +331,11 @@ function ExpenseReview({ r, onClose, onDone }) {
             </div>
           ) : (
             <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
-              <div style={{ fontSize: 12.5 }}>Approved Amount: ₹<input value={approvedAmt} onChange={(e) => setApprovedAmt(e.target.value.replace(/[^\d.]/g, ""))} style={{ width: 110, padding: "6px 8px", borderRadius: 8, border: "1px solid var(--line)" }} /></div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "#0f7a44" }}>
+                Approved Total: ₹{Object.keys(itemApproved).length || items.length
+                  ? items.reduce((sum, it, i) => sum + (rejectedIdx.has(i) ? 0 : Number(itemApproved[i] ?? it.approvedAmount ?? it.amount ?? 0)), 0).toLocaleString("en-IN")
+                  : 0}
+              </div>
               <div style={{ flex: 1 }} />
               <div style={{ fontSize: 11.5, color: "var(--muted)" }}>Tip: use per-row "Reject" to reject only some entries</div>
               <button className="btn" style={{ background: "#0f7a44", color: "#fff", borderColor: "transparent" }} disabled={busy} onClick={approve}>Approve</button>

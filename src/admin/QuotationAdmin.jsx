@@ -10,6 +10,22 @@ import html2canvas from "html2canvas";
 /* Admin Quotation — same "From" reflects, quotation-to-quotation format,
    Action: Approve -> app shows approved + PDF auto-generates (company format).
    Mail: To=client, CC=chosen, from sales1@eurobondacp.com with fixed draft. */
+/* standard price per grade, from Products master — admin only */
+function useStdPrices() {
+  const [map, setMap] = useState({});
+  useEffect(() => {
+    api.productsAll ? api.productsAll().then((d) => {
+      const m = {};
+      (d.rows || d.products || []).forEach((r) => {
+        if (!r || !r.price) return;
+        [r.productName, r.grade].filter(Boolean).forEach((k) => { m[String(k).toLowerCase()] = Number(r.price); });
+      });
+      setMap(m);
+    }).catch(() => {}) : null;
+  }, []);
+  return map;
+}
+
 export default function QuotationAdmin() {
   const [rows, setRows] = useState(null);
   const [colSearch, setColSearch] = useState({});
@@ -180,7 +196,18 @@ export default function QuotationAdmin() {
                   {colVisible("Thickness") && <td style={{ padding: "11px 14px", fontSize: 11 }}>{(r.items && r.items[0] && r.items[0].thickness) || r.thickness || "—"}</td>}
                   {colVisible("Colour Code") && <td style={{ padding: "11px 14px" }}>{(r.items && r.items[0] && (r.items[0].colourCode || r.items[0].colour)) || r.colour || "—"}</td>}
                   {colVisible("Rate/SqMtr") && <td style={{ padding: "11px 14px" }}>{(r.items && r.items[0] && r.items[0].ratePerSqm) ? `₹${r.items[0].ratePerSqm}` : (r.ratePerSqm ? `₹${r.ratePerSqm}` : "—")}</td>}
-                  {colVisible("Rate/SqFt") && <td style={{ padding: "11px 14px" }}>{r.rate ? `₹${r.rate}` : "—"}</td>}
+                  {colVisible("Rate/SqFt") && (() => {
+                    const grade = r.grade || (r.items && r.items[0] && r.items[0].grade) || "";
+                    const std = stdPrice[String(grade).toLowerCase()];
+                    const approved = String(r.status || "").toLowerCase() === "approved";
+                    const low = !approved && std && Number(r.rate) > 0 && Number(r.rate) < std;
+                    return (
+                      <td style={{ padding: "11px 14px", color: low ? "#c0392b" : "inherit", fontWeight: low ? 800 : 400 }}
+                        title={low ? `Below standard ₹${std}` : ""}>
+                        {r.rate ? `₹${r.rate}` : "—"}{low ? ` ▼` : ""}
+                      </td>
+                    );
+                  })()}
                   {colVisible("Created By") && <td style={{ padding: "11px 14px" }}>{r.createdBy || "—"}</td>}
                   {colVisible("Status") && <td style={{ padding: "11px 14px" }}>
                     <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 9px", borderRadius: 8,

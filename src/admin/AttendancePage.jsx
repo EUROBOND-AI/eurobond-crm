@@ -33,7 +33,8 @@ function downloadSessionExcel(s, points, visits) {
     ["Date", s.work_date], ["Name", s.name], ["Emp Code", s.code || ""],
     ["Type", s.visit_type || "Local"], ["Area", s.visit_name || ""], ["HOD", s.manager || ""],
     ["Zone", s.zone || ""], ["City", s.city || ""],
-    ["Login Time", rawTime(s.start_time) || ""], ["Logout Time", rawTime(s.end_time) || ""],
+    ["Login Time", rawTime(s.start_time) || ""],
+    ["Logout Time", (rawTime(s.end_time) || "") + (Number(s.system_logout) === 1 ? " (System Logout)" : "")],
     ["Distance (km)", distKm.toFixed(2)],
     ["Start Address", s.start_address || ""], ["End Address", s.end_address || ""],
     [], ["Customer Visits"],
@@ -308,7 +309,7 @@ export default function AttendancePage() {
       : filtered.length === 0 ? <div style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No attendance found for the selected filters.</div>
       : (
         <div className="table-wrap"><table className="grid">
-          <thead><tr><th>Date</th><th>Zone</th><th>City</th><th>HOD</th><th>Emp Code</th><th>Emp Name</th><th>Type</th><th>Area</th><th>Login Time</th><th>Logout Time</th><th>Distance</th><th>Login Photo</th><th>Logout Photo</th><th>Reading In</th><th>Reading Out</th><th>GPS Status</th><th>Status</th><th>Action</th></tr></thead>
+          <thead><tr><th>Date</th><th>Zone</th><th>City</th><th>HOD</th><th>Emp Code</th><th>Emp Name</th><th>Type</th><th>Area</th><th>Login Time</th><th>Logout Time</th><th>Distance</th><th>Reading In</th><th>Reading Out</th><th>GPS Status</th><th>Status</th><th>Action</th></tr></thead>
           <tbody>
             {filtered.map((s) => (
               <tr key={s.id} style={s.marked_absent ? { background: "#fff5f5" } : undefined}>
@@ -321,10 +322,13 @@ export default function AttendancePage() {
                 <td><span style={{ fontWeight: 700, fontSize: 12 }}>{s.visit_type || "Local"}{s.transport ? ` · ${s.transport}` : ""}</span></td>
                 <td>{s.visit_name || "—"}</td>
                 <td>{rawTime(s.start_time) || "—"}</td>
-                <td>{rawTime(s.end_time) || "Running"}</td>
+                <td>
+                  {rawTime(s.end_time) || "Running"}
+                  {Number(s.system_logout) === 1 && (
+                    <div style={{ fontSize: 10.5, fontWeight: 800, color: "#c0392b" }}>System Logout</div>
+                  )}
+                </td>
                 <td>{fmtKm(Number(s.distance_km) || 0)}</td>
-                <td>{s.start_selfie ? <img src={s.start_selfie} alt="Login" onClick={() => setPhotoView({ url: s.start_selfie, label: "Login Photo" })} style={thumb} /> : <span style={{ color: "var(--muted)" }}>—</span>}</td>
-                <td>{s.end_selfie ? <img src={s.end_selfie} alt="Logout" onClick={() => setPhotoView({ url: s.end_selfie, label: "Logout Photo" })} style={thumb} /> : <span style={{ color: "var(--muted)" }}>—</span>}</td>
                 <td>{s.start_reading ? <img src={s.start_reading} alt="Reading In" onClick={() => setPhotoView({ url: s.start_reading, label: "Reading In (Odometer)" })} style={thumb} /> : <span style={{ color: "var(--muted)" }}>—</span>}</td>
                 <td>{s.end_reading ? <img src={s.end_reading} alt="Reading Out" onClick={() => setPhotoView({ url: s.end_reading, label: "Reading Out (Odometer)" })} style={thumb} /> : <span style={{ color: "var(--muted)" }}>—</span>}</td>
                 <td>
@@ -384,9 +388,9 @@ export default function AttendancePage() {
                 {viewSess.end_address && <div style={{ background: "#f3fbf6", borderRadius: 9, padding: "8px 10px" }}><b>End:</b> {viewSess.end_address}</div>}
               </div>
             )}
-            {(viewSess.start_selfie || viewSess.start_reading || viewSess.end_selfie || viewSess.end_reading) && (
+            {(viewSess.start_reading || viewSess.end_reading) && (
               <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-                {[["Start selfie", viewSess.start_selfie], ["Start reading", viewSess.start_reading], ["End selfie", viewSess.end_selfie], ["End reading", viewSess.end_reading]]
+                {[["Start reading", viewSess.start_reading], ["End reading", viewSess.end_reading]]
                   .filter(([, u]) => u)
                   .map(([label, u]) => (
                     <div key={label} onClick={() => window.dispatchEvent(new CustomEvent("crm-lightbox", { detail: u }))} style={{ textAlign: "center", fontSize: 10.5, color: "var(--muted)", cursor: "pointer" }}>

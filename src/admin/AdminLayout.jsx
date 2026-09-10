@@ -6,7 +6,7 @@ import {
   BarChart3, Boxes, LifeBuoy, BellRing, ChevronDown, LogOut,
 } from "lucide-react";
 import { FooterNote } from "../components/ui.jsx";
-import { auth, api } from "../lib/api.js";
+import { auth, api, API_BASE } from "../lib/api.js";
 import { MODULES } from "./moduleConfigs.jsx";
 
 const NAV = [
@@ -311,9 +311,26 @@ export default function AdminLayout() {
         {lightbox && (
           <div onClick={() => setLightbox(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.88)", zIndex: 9999, display: "grid", placeItems: "center", padding: 24 }}>
             <button onClick={() => setLightbox(null)} style={{ position: "absolute", top: 20, right: 24, background: "rgba(255,255,255,.15)", border: "none", color: "#fff", width: 42, height: 42, borderRadius: "50%", fontSize: 24, cursor: "pointer" }}>×</button>
-            {String(lightbox).match(/\.pdf$/i)
-              ? <iframe src={lightbox} title="Attachment" style={{ width: "90vw", height: "88vh", border: "none", borderRadius: 8, background: "#fff" }} />
-              : <img src={lightbox} alt="attachment" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "92vw", maxHeight: "92vh", borderRadius: 8 }} />}
+            {(() => {
+              /* a stored path may be relative — make it a full URL or nothing loads */
+              const full = /^(https?:|data:|blob:)/i.test(String(lightbox))
+                ? String(lightbox)
+                : `${API_BASE.replace(/\/$/, "")}/${String(lightbox).replace(/^\//, "")}`;
+              const isPdf = /\.pdf($|\?)/i.test(full);
+              return (
+                <div onClick={(e) => e.stopPropagation()} style={{ textAlign: "center" }}>
+                  {isPdf
+                    ? <iframe src={full} title="Attachment" style={{ width: "90vw", height: "82vh", border: "none", borderRadius: 8, background: "#fff" }} />
+                    : <img src={full} alt="attachment" style={{ maxWidth: "92vw", maxHeight: "82vh", borderRadius: 8 }} />}
+                  <div style={{ marginTop: 12 }}>
+                    <a href={full} target="_blank" rel="noreferrer"
+                      style={{ background: "#4285F4", color: "#fff", padding: "9px 18px", borderRadius: 9, textDecoration: "none", fontWeight: 700, fontSize: 13.5 }}>
+                      Open in new tab
+                    </a>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
 

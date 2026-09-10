@@ -55,19 +55,33 @@ export default function AdminUsersPage() {
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead><tr style={{ background: "#f4f6fc", textAlign: "left" }}>
-              {["Full Name", "Username", "Email ID", "Role", "Action"].map((h) => <th key={h} style={{ padding: "11px 14px", fontWeight: 800, fontSize: 12, color: "#4a5578" }}>{h}</th>)}
+              {["Full Name", "Username", "Email ID", "Role", "Status", "Action"].map((h) => <th key={h} style={{ padding: "11px 14px", fontWeight: 800, fontSize: 12, color: "#4a5578" }}>{h}</th>)}
             </tr></thead>
             <tbody>
               {rows === null ? (
-                <tr><td colSpan={5} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
+                <tr><td colSpan={6} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={5} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No admin users yet. Add one to grant backend access.</td></tr>
+                <tr><td colSpan={6} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No admin users yet. Add one to grant backend access.</td></tr>
               ) : rows.map((r) => (
                 <tr key={r._id} style={{ borderTop: "1px solid #eef1f8" }}>
                   <td style={{ padding: "11px 14px", fontWeight: 700 }}>{r.name}</td>
                   <td style={{ padding: "11px 14px", fontWeight: 700 }}>{r.username}</td>
                   <td style={{ padding: "11px 14px" }}>{r.email || "—"}</td>
                   <td style={{ padding: "11px 14px" }}><span style={{ fontSize: 11, background: "#eef2ff", color: "#4f46e5", fontWeight: 700, padding: "2px 9px", borderRadius: 7 }}>{r.role}</span></td>
+                  <td style={{ padding: "11px 14px" }}>
+                    {/* click to switch backend access on/off */}
+                    <button title="Click to toggle"
+                      onClick={async () => {
+                        const next = r.active === false ? true : false;
+                        setRows((list) => list.map((x) => (x._id === r._id ? { ...x, active: next } : x)));
+                        try { await api.update("adminUser", r._id, { ...r, active: next, adminToken: next ? r.adminToken : "" }); load(); }
+                        catch (e) { alert(e.message); load(); }
+                      }}
+                      style={{ border: "none", cursor: "pointer", fontWeight: 800, fontSize: 11.5, padding: "4px 12px", borderRadius: 9,
+                        background: r.active === false ? "#fdecec" : "#e8f7ee", color: r.active === false ? "#c03636" : "#1f7a44" }}>
+                      {r.active === false ? "○ Inactive" : "● Active"}
+                    </button>
+                  </td>
                   <td style={{ padding: "11px 14px" }}>
                     <div style={{ display: "flex", gap: 6 }}>
                       <button className="btn btn-ghost" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => setForm({ ...r, password: "" })}>Edit</button>

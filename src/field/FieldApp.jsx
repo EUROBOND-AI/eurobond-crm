@@ -1298,7 +1298,7 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
 /* ------------------------------------------------ EXPENSE ------------------------------------------------ */
 function FieldExpense({ list, add, reload }) {
   const [tab, setTab] = useState("Draft");
-  const tabs = ["Draft", "Format", "Submitted", "Rejected"];
+  const tabs = ["Draft", "Format", "Submitted", "Approved", "Rejected"];
   const nav = useNavigate();
   const [busy, setBusy] = useState(false);
 
@@ -1307,7 +1307,8 @@ function FieldExpense({ list, add, reload }) {
   const rows = mine.filter((e) => {
     if (tab === "Draft") return e.status === "Draft";
     if (tab === "Format") return e.status === "Format";
-    if (tab === "Submitted") return e.status === "Submitted" || e.status === "Approved";
+    if (tab === "Submitted") return e.status === "Submitted";
+    if (tab === "Approved") return e.status === "Approved";
     if (tab === "Rejected") return e.status === "Rejected" || e.status === "Reject";
     return false;
   });
@@ -1429,8 +1430,15 @@ function FieldExpenseNew({ add }) {
   const nav = useNavigate();
   const ed = EXP_EDIT.data;
   const today = new Date().toISOString().slice(0, 10);
-  const [f, setF] = useState(ed || { date: today, km: "", station: "Outstation", category: "Food & Meals", amount: "", desc: "" });
+  const [f, setF] = useState(ed || { date: today, km: "", station: "Outstation", category: "Food & Meals", amount: "", desc: "", description: "" });
   const [doc, setDoc] = useState(ed?.photo || "");
+  /* areas of my state, with their A/B/C tier — used for Origin to Destination */
+  const [areaRows, setAreaRows] = useState([]);
+  useEffect(() => {
+    const st = CU().state || "";
+    if (!st) return;
+    api.areasByState(st).then((d) => setAreaRows(d.areaRows || (d.areas || []).map((n) => ({ name: n, tier: "A" })))).catch(() => {});
+  }, []);
   const [busy, setBusy] = useState(false);
   const expType = CAT_TYPE[f.category] || "Miscellaneous";
 
@@ -1481,8 +1489,15 @@ function FieldExpenseNew({ add }) {
         <label>Amount (₹) <b>*</b></label>
         <input inputMode="numeric" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value.replace(/\D/g, "") })} style={{ width: "100%", marginBottom: 12 }} />
 
+        <label>Origin to Destination</label>
+        <select value={f.desc} onChange={(e) => setF({ ...f, desc: e.target.value })} style={{ width: "100%", marginBottom: 12 }}>
+          <option value="">Select area…</option>
+          {areaRows.map((a) => <option key={a.name} value={`${a.name} (${a.tier || "A"})`}>{a.name} ({a.tier || "A"})</option>)}
+        </select>
+
         <label>Description</label>
-        <textarea rows={3} value={f.desc} onChange={(e) => setF({ ...f, desc: e.target.value })} style={{ width: "100%", marginBottom: 12 }} />
+        <textarea rows={2} value={f.description || ""} onChange={(e) => setF({ ...f, description: e.target.value })}
+          placeholder="Any extra detail" style={{ width: "100%", marginBottom: 12 }} />
 
         <label>Bill / Document</label>
         <input type="file" accept="image/*,application/pdf" capture="environment" onChange={(e) => upload(e.target.files[0])} style={{ marginBottom: 8 }} />
@@ -1599,7 +1614,14 @@ function ExpenseFormatView({ list, reload }) {
 
         {/* actions */}
         <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
-          <button className="f-submit" style={{ flex: 1, background: "#3949ab" }} disabled={busy} onClick={downloadPdf}>{busy ? "…" : "⬇ Download PDF"}</button>
+          {/* the PDF is available only once admin has approved the statement */}
+          {fmt.status === "Approved"
+            ? <button className="f-submit" style={{ flex: 1, background: "#3949ab" }} disabled={busy} onClick={downloadPdf}>{busy ? "…" : "⬇ Download PDF"}</button>
+            : <button className="f-submit" style={{ flex: 1, background: "#5b6b8c" }} onClick={() => {
+                const withBill = (fmt.items || []).filter((it) => it.photo);
+                if (!withBill.length) { alert("No bills attached in this statement."); return; }
+                openAppPhoto(withBill[0].photo);
+              }}>🧾 View Bills</button>}
           {editable && <button className="f-submit" style={{ flex: 1, background: "#0f7a44" }} disabled={busy} onClick={submit}>Submit to Admin</button>}
         </div>
         {fmt.status === "Submitted" && <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 12, marginTop: 10 }}>Submitted — waiting for admin approval.</div>}
@@ -1891,6 +1913,14 @@ async function nextQuoteNo() {
   const mm = String(new Date().getMonth() + 1).padStart(2, "0");
   const fy = financialYear();
   let running = 160;
+  /* admin can set the next number in API Keys & Settings (quotation_next_no);
+     that value wins so the series can be continued from anywhere. */
+  try {
+    const st = await api.settingsList();
+    const row = (st.settings || []).find((x) => x.skey === "quotation_next_no");
+    const manual = row ? parseInt(String(row.svalue).replace(/\D/g, ""), 10) : 0;
+    if (manual > 0) running = manual;
+  } catch {}
   try {
     const d = await api.list("quotation", false);
     const nums = (d.records || []).map((r) => {
@@ -1898,8 +1928,8 @@ async function nextQuoteNo() {
       const m = s.match(/EP\/\d+\/(\d+)/);
       return m ? parseInt(m[1], 10) : 0;
     });
-    const max = nums.length ? Math.max(...nums) : 159;
-    running = Math.max(max + 1, 160);
+    const max = nums.length ? Math.max(...nums) : 0;
+    running = Math.max(max + 1, running);      // never go below the admin setting
   } catch {}
   return `EP/${mm}/${running}/${fy}`;
 }
@@ -3582,6 +3612,8 @@ function SpecReply({ rec, mod, isS2S, onClose, onSaved }) {
   const [sqm, setSqm] = useState(rec.sqmApproved || "");
   const [sales, setSales] = useState(rec.salesDone || "");
   const [busy, setBusy] = useState(false);
+  const [replyDoc, setReplyDoc] = useState("");     // optional attachment with the reply
+  const [upBusy, setUpBusy] = useState(false);
   const doneLabel = isS2S ? "Approved" : "Win";
 
   useEffect(() => { api.productNames && api.productNames().then((d) => setGradeNames(d.names || [])).catch(() => {}); }, []);
@@ -3591,7 +3623,8 @@ function SpecReply({ rec, mod, isS2S, onClose, onSaved }) {
     setBusy(true);
     try {
       const patch = { ...rec, status };
-      patch.replies = [...(rec.replies || []), { by: CU().name, status, remark, at: new Date().toLocaleString("en-IN") }];
+      patch.replies = [...(rec.replies || []), { by: CU().name, status, remark, attachment: replyDoc || "", at: new Date().toLocaleString("en-IN") }];
+      if (replyDoc) patch.replyAttachment = replyDoc;
       if (status === "Approved") { patch.colourApproved = colour; patch.gradeApproved = grade; patch.sqmApproved = sqm; }
       if (status === "Win") { patch.sqmApproved = sqm; patch.salesDone = sales; }
       if (remark) patch.lastRemark = remark;
@@ -3606,7 +3639,7 @@ function SpecReply({ rec, mod, isS2S, onClose, onSaved }) {
           const pd = await api.list("projectProjection", false);
           const proj = (pd.records || []).find((x) => String(x.id) === String(rec.projId));
           if (proj) {
-            const merged = { ...proj.data, specReplyStatus: status, replyBy: CU().name, replyRemark: remark || "" };
+            const merged = { ...proj.data, specReplyStatus: status, replyBy: CU().name, replyRemark: remark || "", replyAttachment: replyDoc || proj.data.replyAttachment || "" };
             if (status === "Approved") {
               /* add approved grade/colour straight into the project's products list */
               merged.items = [...(proj.data.items || []).filter((it) => it.grade), { grade, colourCode: colour, qty: sqm || "", approved: true, approvedBy: CU().name }];
@@ -3644,6 +3677,18 @@ function SpecReply({ rec, mod, isS2S, onClose, onSaved }) {
           <input inputMode="numeric" value={sqm} onChange={(e) => setSqm(e.target.value.replace(/\D/g, ""))} style={{ width: "100%", marginBottom: 8 }} />
           <label style={{ fontWeight: 700, fontSize: 13 }}>Remark (optional)</label>
           <textarea value={remark} onChange={(e) => setRemark(e.target.value)} rows={2} style={{ width: "100%", marginBottom: 10 }} />
+
+          <label style={{ fontWeight: 700, fontSize: 13 }}>Attachment (optional)</label>
+          <input type="file" accept="image/*,application/pdf" style={{ marginBottom: 6 }}
+            onChange={async (e) => {
+              const f = e.target.files && e.target.files[0]; if (!f) return;
+              setUpBusy(true);
+              try { const u = await api.uploadCompressed(f, "specReply"); setReplyDoc(u.url || u.path || ""); }
+              catch (er) { alert("Upload failed: " + er.message); }
+              setUpBusy(false);
+            }} />
+          {upBusy && <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>Uploading…</div>}
+          {replyDoc && <div style={{ fontSize: 12, color: "#1f9d55", marginBottom: 10 }}>✓ Attached <span onClick={() => openAppPhoto(replyDoc)} style={{ color: "var(--accent)", cursor: "pointer", marginLeft: 6 }}>View</span></div>}
         </>)}
         {status === "Win" && (<>
           <label style={{ fontWeight: 700, fontSize: 13 }}>Sq Meter</label>
@@ -3652,6 +3697,18 @@ function SpecReply({ rec, mod, isS2S, onClose, onSaved }) {
           <input inputMode="numeric" value={sales} onChange={(e) => setSales(e.target.value.replace(/\D/g, ""))} style={{ width: "100%", marginBottom: 8 }} />
           <label style={{ fontWeight: 700, fontSize: 13 }}>Remark (optional)</label>
           <textarea value={remark} onChange={(e) => setRemark(e.target.value)} rows={2} style={{ width: "100%", marginBottom: 10 }} />
+
+          <label style={{ fontWeight: 700, fontSize: 13 }}>Attachment (optional)</label>
+          <input type="file" accept="image/*,application/pdf" style={{ marginBottom: 6 }}
+            onChange={async (e) => {
+              const f = e.target.files && e.target.files[0]; if (!f) return;
+              setUpBusy(true);
+              try { const u = await api.uploadCompressed(f, "specReply"); setReplyDoc(u.url || u.path || ""); }
+              catch (er) { alert("Upload failed: " + er.message); }
+              setUpBusy(false);
+            }} />
+          {upBusy && <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>Uploading…</div>}
+          {replyDoc && <div style={{ fontSize: 12, color: "#1f9d55", marginBottom: 10 }}>✓ Attached <span onClick={() => openAppPhoto(replyDoc)} style={{ color: "var(--accent)", cursor: "pointer", marginLeft: 6 }}>View</span></div>}
         </>)}
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={onClose} style={{ flex: 1, padding: 11, borderRadius: 10, border: "1.5px solid #d7dcef", background: "#fff", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
@@ -5545,7 +5602,7 @@ function AttendanceWizard({ mode = "start", visitInfo = null, beatPlan = null, o
      Local: selfie | WFH: selfie
      Tour+Public: selfie only | Tour+Personal: odometer reading + selfie   */
   const needReading = effType === "Tour" && effTransport === "Personal";
-  const needSelfie = true;
+  const needSelfie = false;                 // selfie removed — not asked any more
   const needLocation = !isStop && effType !== "WFH";
 
   const ready = (!needLocation || locs.length > 0) && (!needSelfie || selfie) && (!needReading || reading);
@@ -5631,9 +5688,6 @@ function AttendanceWizard({ mode = "start", visitInfo = null, beatPlan = null, o
         {needReading && (
           <PhotoCapture label={isStop ? "Closing Reading Photo (Bike/Car)" : "Reading Photo (Bike/Car)"}
             photo={reading} onPhoto={setReading} address={address} capture="environment" />
-        )}
-        {needSelfie && (
-          <PhotoCapture label="Your Photo (Selfie)" photo={selfie} onPhoto={setSelfie} address={address} capture="user" />
         )}
 
         {err && <div style={{ background: "#fdecec", color: "#c03636", borderRadius: 9, padding: "8px 11px", fontSize: 12.5, marginBottom: 10 }}>{err}</div>}

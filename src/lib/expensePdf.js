@@ -49,11 +49,12 @@ export async function buildExpensePdf(fmt, formatOnly = false) {
     { k: "sr", t: "SI No", w: 12, align: "center" },
     { k: "date", t: "Date", w: 22, align: "center" },
     { k: "station", t: "Ex/Out-station", w: 26, align: "center" },
-    { k: "orig", t: "Origin to Destination", w: 38, align: "left" },
-    { k: "km", t: "KM", w: 14, align: "center" },
-    { k: "category", t: "Category", w: 32, align: "left" },
-    { k: "amount", t: "Amount", w: 22, align: "right" },
-    { k: "total", t: "Total", w: 22, align: "right" },
+    { k: "orig", t: "Origin to Destination", w: 32, align: "left" },
+    { k: "descr", t: "Description", w: 28, align: "left" },
+    { k: "km", t: "KM", w: 12, align: "center" },
+    { k: "category", t: "Category", w: 26, align: "left" },
+    { k: "amount", t: "Amount", w: 20, align: "right" },
+    { k: "appr", t: "Approved Amount", w: 24, align: "right" },
   ];
   const rowH = 7, headH = 9;
   const totalW = cols.reduce((s, c) => s + c.w, 0);
@@ -73,7 +74,9 @@ export async function buildExpensePdf(fmt, formatOnly = false) {
   items.forEach((it, i) => {
     if (y > pageH - 40) { pdf.addPage(); y = 16; drawHeader(); pdf.setFont(undefined, "normal"); pdf.setFontSize(8); }
     const amt = Number(it.amount) || 0;
-    const cell = { sr: String(i + 1), date: it.date || "", station: it.station || "", orig: it.desc || "", km: it.km || it.kilometers || it.distance || "", category: it.category || "", amount: amt.toLocaleString("en-IN"), total: amt.toLocaleString("en-IN") };
+    const cell = { sr: String(i + 1), date: it.date || "", station: it.station || "", orig: it.desc || "", km: it.km || it.kilometers || it.distance || "", descr: it.description || "", category: it.category || "", amount: amt.toLocaleString("en-IN"),
+      appr: (it.approvedAmount !== undefined && it.approvedAmount !== null && it.approvedAmount !== ""
+        ? Number(it.approvedAmount) : amt).toLocaleString("en-IN") };
     drawRow(y, rowH);
     let cx = startX;
     cols.forEach((c) => {

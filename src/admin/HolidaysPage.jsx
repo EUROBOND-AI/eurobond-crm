@@ -56,7 +56,12 @@ export default function HolidaysPage() {
   };
 
   const downloadFormat = () => {
-    const csv = "State,Date,Days,Holiday,City\nMaharashtra,2026-01-26,Monday,Republic Day,Mumbai\nGujarat,2026-01-26,Monday,Republic Day,Ahmedabad";
+    const csv = [
+      ["State", "Date (YYYY-MM-DD)", "Day", "Holiday Name", "City"],
+      ["Maharashtra", "2026-01-26", "Monday", "Republic Day", "Mumbai"],
+      ["Gujarat", "2026-01-26", "Monday", "Republic Day", "Ahmedabad"],
+      ["Telangana", "2026-08-15", "Saturday", "Independence Day", "Hyderabad"],
+    ].map((r) => r.map((x) => `"${x}"`).join(",")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     a.download = "holiday-format.csv"; a.click();

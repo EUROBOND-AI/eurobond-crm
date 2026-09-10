@@ -191,8 +191,13 @@ export default function UsersPage() {
                   <td>
                     {/* Active/Inactive toggle — click to switch */}
                     <button
-                      onClick={async () => {
-                        try { await api.setUserStatus(u.id, u.status == 1 ? 0 : 1); load(); } catch (e) { alert(e.message); }
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const next = u.status == 1 ? 0 : 1;
+                        /* show the change straight away, then confirm with the server */
+                        setUsers((list) => list.map((x) => (x.id === u.id ? { ...x, status: next } : x)));
+                        try { await api.setUserStatus(u.id, next); load(); }
+                        catch (err) { alert(err.message); load(); }
                       }}
                       title="Click to toggle"
                       style={{

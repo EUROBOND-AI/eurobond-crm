@@ -169,7 +169,7 @@ export const api = {
   areaDeleteState: (state) => req("/areas.php?action=deleteState", { method: "POST", body: { state } }),
   areasByState: (state) => req("/areas.php?action=byState&state=" + encodeURIComponent(state)),
   areaSearch: (state, q) => req("/areas.php?action=search&state=" + encodeURIComponent(state || "") + "&q=" + encodeURIComponent(q)),
-  areaAdd: (state, name) => req("/areas.php?action=add", { method: "POST", body: { state, name } }),
+  areaAdd: (state, name, tier) => req("/areas.php?action=add", { method: "POST", body: { state, name, tier } }),
   areaImport: (rows) => req("/areas.php?action=import", { method: "POST", body: { rows } }),
   attMine: (from, to) => req("/attendance.php?action=mine&from=" + from + "&to=" + to),
   attUpdateVisit: (session_id, type, name) => req("/attendance.php?action=updateVisit", { method: "POST", body: { session_id, type, name } }),

@@ -71,6 +71,17 @@ export default function AreasPage() {
     <div>
       <PageHead crumb="Master" title="Areas" actions={
         <>
+          <button className="btn btn-ghost" onClick={() => {
+            const csv = [
+              ["State", "Area / City", "Tier (A/B/C)"],
+              ["Andhra Pradesh", "Visakhapatnam", "A"],
+              ["Andhra Pradesh", "Amalapuram", "B"],
+              ["Telangana", "Hyderabad", "A"],
+            ].map((r) => r.map((x) => `"${x}"`).join(",")).join("\n");
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+            a.download = "areas-format.csv"; a.click();
+          }}><Upload size={14} /> Download Format</button>
           <button className="btn btn-soft" onClick={() => setAddOpen(true)}><Plus size={14} /> Add Area</button>
           <label className="btn btn-primary" style={{ cursor: "pointer" }}>
             <Upload size={14} /> {busy ? "Importing…" : "Import CSV"}
@@ -123,11 +134,12 @@ export default function AreasPage() {
 function AddAreaModal({ states, onClose, onSaved }) {
   const [state, setState] = useState("");
   const [name, setName] = useState("");
+  const [tier, setTier] = useState("A");
   const [busy, setBusy] = useState(false);
   const save = async () => {
     if (!state.trim() || !name.trim()) return;
     setBusy(true);
-    try { await api.areaAdd(state.trim(), name.trim()); onSaved(state.trim()); }
+    try { await api.areaAdd(state.trim(), name.trim(), tier); onSaved(state.trim()); }
     catch (e) { alert(e.message); setBusy(false); }
   };
   return (
@@ -143,7 +155,15 @@ function AddAreaModal({ states, onClose, onSaved }) {
         <datalist id="states-dl">{states.map((s) => <option key={s} value={s} />)}</datalist>
         <label style={{ fontSize: 12.5, fontWeight: 700 }}>Area / City name</label>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Andheri"
-          style={{ width: "100%", padding: "10px", borderRadius: 10, border: "1px solid var(--line)", margin: "6px 0 16px" }} />
+          style={{ width: "100%", padding: "10px", borderRadius: 10, border: "1px solid var(--line)", margin: "6px 0 12px" }} />
+        {/* tier decides the expense category shown as Area (A) / (B) / (C) */}
+        <label style={{ fontSize: 12.5, fontWeight: 700 }}>Tier</label>
+        <select value={tier} onChange={(e) => setTier(e.target.value)}
+          style={{ width: "100%", padding: "10px", borderRadius: 10, border: "1px solid var(--line)", margin: "6px 0 16px" }}>
+          <option value="A">A — Tier 1</option>
+          <option value="B">B — Tier 2</option>
+          <option value="C">C — Tier 3</option>
+        </select>
         <button className="btn btn-primary" style={{ width: "100%" }} disabled={!state.trim() || !name.trim() || busy} onClick={save}>
           {busy ? "Saving…" : "Add Area"}
         </button>

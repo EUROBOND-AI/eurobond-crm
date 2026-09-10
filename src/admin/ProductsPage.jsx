@@ -77,6 +77,16 @@ export default function ProductsPage() {
       <PageHead crumb="Master" title="Products" actions={
         <>
           <button className="btn btn-primary" onClick={() => setAddOpen(true)}><Package size={14} /> Add Product</button>
+          <button className="btn btn-ghost" onClick={() => {
+            const csv = [
+              ["Product Name (Grade Name)", "Colour Code", "Colour", "Grade Code", "Thickness", "Standard Price (per Sq.Ft)"],
+              ["4MM PLATINIUM", "ER 501", "Brush Silver", "3BRB", "0.50 AL + 3.00 LDPE CORE + 0.50 AL", "150"],
+              ["4MM ECONOMY", "ER 107", "Red", "2RED", "0.30 AL + 3.00 LDPE CORE + 0.30 AL", "120"],
+            ].map((r) => r.map((x) => `"${x}"`).join(",")).join("\n");
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+            a.download = "products-format.csv"; a.click();
+          }}><Upload size={14} /> Download Format</button>
           <label className="btn btn-soft" style={{ cursor: "pointer" }}>
             <Upload size={14} /> {busy ? "Importing…" : "Import CSV"}
             <input type="file" accept=".csv" hidden onChange={(e) => importCsv(e.target.files[0])} />
@@ -161,6 +171,13 @@ function AddProductModal({ onClose, onSaved, defaultName, existingNames = [] }) 
         <input value={f.grade} onChange={(e) => set("grade", e.target.value)} placeholder="e.g. 3BRB" style={inp} />
         <label style={{ fontSize: 12, fontWeight: 700 }}>Thickness</label>
         <input value={f.thickness} onChange={(e) => set("thickness", e.target.value)} placeholder="e.g. 0.50 AL + 3.00 LDPE CORE + 0.50 AL" style={inp} />
+
+        {/* Standard rate — used only in the admin panel to flag low quotation rates.
+            It is never shown to field users. */}
+        <label style={{ fontSize: 12, fontWeight: 700 }}>Standard Price (₹ per Sq.Ft)</label>
+        <input value={f.price || ""} inputMode="decimal"
+          onChange={(e) => set("price", e.target.value.replace(/[^\d.]/g, ""))}
+          placeholder="e.g. 150" style={inp} />
         <button className="btn btn-primary" style={{ width: "100%", marginTop: 6 }} disabled={busy || !f.productName} onClick={async () => {
           setBusy(true);
           try { await api.productAdd(f); onSaved(); } catch (e) { alert(e.message); setBusy(false); }
