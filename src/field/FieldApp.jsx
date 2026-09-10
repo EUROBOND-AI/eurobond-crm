@@ -1348,8 +1348,12 @@ function FieldExpense({ list, add, reload }) {
     <>
       <ScreenHead title="Expenses" right={<button className="f-submit" style={{ padding: "8px 14px", fontSize: 12.5 }} onClick={() => { EXP_EDIT.data = null; nav("/app/expense/new"); }}>+ Add</button>} />
 
-      <div className="f-seg" style={{ margin: "12px 18px" }}>
-        {tabs.map((t) => <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>{t}</button>)}
+      {/* 5 tabs don't fit on a phone — let them scroll sideways instead of squashing */}
+      <div className="f-seg" style={{ margin: "12px 18px", overflowX: "auto", flexWrap: "nowrap", WebkitOverflowScrolling: "touch" }}>
+        {tabs.map((t) => (
+          <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}
+            style={{ flex: "0 0 auto", whiteSpace: "nowrap", padding: "7px 13px", fontSize: 12.5 }}>{t}</button>
+        ))}
       </div>
 
       {tab === "Draft" && drafts.length > 0 && (
@@ -1910,28 +1914,35 @@ function financialYear(d = new Date()) {
   return m >= 3 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
 }
 async function nextQuoteNo() {
+  /* Admin sets the FULL next number in API Keys & Settings, e.g. EP/08/161/26-27.
+     We keep that month + financial year and just move the running number forward
+     past whatever already exists, so the series never repeats. */
   const mm = String(new Date().getMonth() + 1).padStart(2, "0");
   const fy = financialYear();
-  let running = 160;
-  /* admin can set the next number in API Keys & Settings (quotation_next_no);
-     that value wins so the series can be continued from anywhere. */
+  let seedNo = 160, seedMm = mm, seedFy = fy;
+
   try {
     const st = await api.settingsList();
     const row = (st.settings || []).find((x) => x.skey === "quotation_next_no");
-    const manual = row ? parseInt(String(row.svalue).replace(/\D/g, ""), 10) : 0;
-    if (manual > 0) running = manual;
+    const setting = row ? String(row.svalue || "").trim() : "";
+    const m = setting.match(/^EP\/(\d{2})\/(\d+)\/(.+)$/i);
+    if (m) { seedMm = m[1]; seedNo = parseInt(m[2], 10); seedFy = m[3]; }
+    else if (/^\d+$/.test(setting)) { seedNo = parseInt(setting, 10); }
   } catch {}
+
+  let running = seedNo;
   try {
     const d = await api.list("quotation", false);
     const nums = (d.records || []).map((r) => {
-      const s = String(r.data?.baseNo || r.data?.quoteNo || "");
-      const m = s.match(/EP\/\d+\/(\d+)/);
-      return m ? parseInt(m[1], 10) : 0;
+      const s2 = String(r.data?.baseNo || r.data?.quoteNo || "");
+      const mm2 = s2.match(/EP\/\d+\/(\d+)\//i);
+      return mm2 ? parseInt(mm2[1], 10) : 0;
     });
     const max = nums.length ? Math.max(...nums) : 0;
-    running = Math.max(max + 1, running);      // never go below the admin setting
+    running = Math.max(max + 1, seedNo);      // never below what admin set
   } catch {}
-  return `EP/${mm}/${running}/${fy}`;
+
+  return `EP/${seedMm}/${running}/${seedFy}`;
 }
 
 async function sendVisitWhatsApp(number, party) {
@@ -3994,7 +4005,8 @@ function FieldNotifications() {
       const me = CU();
       const mine = (d.records || [])
         .map((r) => ({ _id: String(r.id), ...r.data }))
-        .filter((n) => isMine(n, me));
+        .filter((n) => isMine(n, me))
+        .filter((n) => !(Array.isArray(n.dismissedBy) && n.dismissedBy.includes(me.name)));
       setRows(mine);
       if (mine.length) markRead(mine.map((n) => n._id));
     }).catch(() => setRows([]));
@@ -4034,6 +4046,16 @@ function FieldNotifications() {
       localStorage.setItem("eb_notif_dismissed", JSON.stringify([...next]));
       return next;
     });
+    /* remember it on the SERVER too, so a cleared notification does not come
+       back after logging out and in again (or on another phone) */
+    (async () => {
+      try {
+        const rec = (rows || []).find((x) => String(x._id) === String(id));
+        if (!rec) return;
+        const by = new Set([...(rec.dismissedBy || []), CU().name]);
+        await api.update("notification", id, { ...rec, dismissedBy: [...by] });
+      } catch {}
+    })();
     /* also mark read + seen so it never re-shows after re-login or re-fires as a phone notification */
     markRead(id);
     try {

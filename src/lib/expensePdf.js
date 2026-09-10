@@ -71,6 +71,10 @@ export async function buildExpensePdf(fmt, formatOnly = false) {
 
   pdf.setFont(undefined, "normal"); pdf.setFontSize(8);
   const grand = items.reduce((s, it) => s + (Number(it.amount) || 0), 0);
+  /* the figure that matters after approval is the approved total */
+  const grandApproved = items.reduce((s, it) => s + Number(
+    it.approvedAmount !== undefined && it.approvedAmount !== null && it.approvedAmount !== "" ? it.approvedAmount : (it.amount || 0)
+  ), 0);
   items.forEach((it, i) => {
     if (y > pageH - 40) { pdf.addPage(); y = 16; drawHeader(); pdf.setFont(undefined, "normal"); pdf.setFontSize(8); }
     const amt = Number(it.amount) || 0;
@@ -93,7 +97,10 @@ export async function buildExpensePdf(fmt, formatOnly = false) {
   pdf.setFont(undefined, "bold"); pdf.setFontSize(9);
   drawRow(y, rowH + 1);
   pdf.text("TOTAL", startX + 2, y + 5);
-  pdf.text("Rs. " + grand.toLocaleString("en-IN"), startX + totalW - 1.5, y + 5, { align: "right" });
+  /* claimed total sits above the Amount column, approved total under its own column */
+  const apprW = (cols.find((c) => c.k === "appr") || { w: 0 }).w;
+  pdf.text("Rs. " + grand.toLocaleString("en-IN"), startX + totalW - apprW - 1.5, y + 5, { align: "right" });
+  pdf.text("Rs. " + grandApproved.toLocaleString("en-IN"), startX + totalW - 1.5, y + 5, { align: "right" });
   y += rowH + 1 + 12;
 
   pdf.setFont(undefined, "normal"); pdf.setFontSize(8.5);

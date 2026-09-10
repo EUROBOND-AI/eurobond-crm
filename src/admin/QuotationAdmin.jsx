@@ -27,6 +27,7 @@ function useStdPrices() {
 }
 
 export default function QuotationAdmin() {
+  const stdPrice = useStdPrices();          // standard rates from Products master
   const [rows, setRows] = useState(null);
   const [colSearch, setColSearch] = useState({});
   const [view, setView] = useState(null);
@@ -335,8 +336,15 @@ This quotation is confidential and intended solely for the recipient named above
 
 We look forward to the pleasure of hearing from you shortly.
 
-Thank you,
-EUROBOND`;
+CHITRA
+MANAGER - SALES CO-ORDINATOR
+
+EURO PANEL PRODUCTS LIMITED
+T: +91 22 29686521 I M: 8828238388
+E: sales@eurobondacp.com I W: www.eurobondacp.com
+A: 12th Floor, Solitaire Business Center, Borivali Sheela CHS Ltd,
+Market Road, Opp. Ajanta Talkies, Borivali West,
+Mumbai - 400092, Maharashtra, India`;
   const [draft, setDraft] = useState(defaultDraft);
   const [subject, setSubject] = useState(`Quotation ${q.quoteNo || q.id} - Eurobond`);
   const [busy, setBusy] = useState(false);

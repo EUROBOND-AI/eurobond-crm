@@ -688,6 +688,44 @@ try {
     }
   } catch (e) { console.log("[patch-bg-geo] fcm icon note:", e.message); }
 
+  /* ---- Play Store release signing: wire keystore.properties into the Gradle
+     build so `assembleRelease` / `bundleRelease` produces a signed artifact.
+     Only applies when android/keystore.properties exists. ---- */
+  try {
+    const props = path.join(__dirname, "..", "android", "keystore.properties");
+    const appG = path.join(__dirname, "..", "android", "app", "build.gradle");
+    if (fs.existsSync(props) && fs.existsSync(appG)) {
+      let ag = fs.readFileSync(appG, "utf8");
+      if (!ag.includes("EB_RELEASE_SIGNING")) {
+        const head =
+          "// EB_RELEASE_SIGNING\n" +
+          "def keystorePropertiesFile = rootProject.file('keystore.properties')\n" +
+          "def keystoreProperties = new Properties()\n" +
+          "if (keystorePropertiesFile.exists()) { keystoreProperties.load(new FileInputStream(keystorePropertiesFile)) }\n\n";
+        ag = head + ag;
+        ag = ag.replace(/android\s*\{/, `android {
+    signingConfigs {
+        release {
+            if (keystoreProperties['storeFile']) {
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }`);
+        ag = ag.replace(/buildTypes\s*\{\s*release\s*\{/, `buildTypes {
+        release {
+            signingConfig signingConfigs.release`);
+        fs.writeFileSync(appG, ag, "utf8");
+        console.log("[patch-bg-geo] release signing wired into app/build.gradle ✓");
+      } else {
+        console.log("[patch-bg-geo] release signing already configured ✓");
+      }
+    }
+  } catch (e) { console.log("[patch-bg-geo] signing note:", e.message); }
+
+
 
 
   // ---- set the tracking-notification icon to the Eurobond logo (string resource only,
