@@ -98,8 +98,7 @@ export async function buildExpensePdf(fmt, formatOnly = false) {
   drawRow(y, rowH + 1);
   pdf.text("TOTAL", startX + 2, y + 5);
   /* claimed total sits above the Amount column, approved total under its own column */
-  const apprW = (cols.find((c) => c.k === "appr") || { w: 0 }).w;
-  pdf.text("Rs. " + grand.toLocaleString("en-IN"), startX + totalW - apprW - 1.5, y + 5, { align: "right" });
+  /* the payable figure is the approved one, so that is the TOTAL */
   pdf.text("Rs. " + grandApproved.toLocaleString("en-IN"), startX + totalW - 1.5, y + 5, { align: "right" });
   y += rowH + 1 + 12;
 

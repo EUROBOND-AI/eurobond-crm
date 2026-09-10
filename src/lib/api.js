@@ -178,6 +178,7 @@ export const api = {
   attTrack: (session_id) => req("/attendance.php?action=track&session_id=" + session_id),
   attGeocode: (session_id) => req("/attendance.php?action=geocode&session_id=" + session_id),
   settingsList: () => req("/settings.php?action=list"),
+  settingsDelete: (key) => req("/settings.php?action=delete", { method: "POST", body: { key } }),
   settingsSave: (key, value, label) => req("/settings.php?action=save", { method: "POST", body: { key, value, label } }),
   healthCheck: () => req("/health.php?action=check"),
   scanCard: (image) => req("/scan_card.php", { method: "POST", body: { image } }),

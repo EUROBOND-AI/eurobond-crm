@@ -57,6 +57,11 @@ export default function ApiKeysPage() {
                   onChange={(e) => setEdits({ ...edits, [r.skey]: e.target.value })}
                   style={{ flex: 1, padding: "9px 12px", borderRadius: 9, border: "1.5px solid #d7dcef", fontSize: 13, fontFamily: "monospace" }} />
                 <button className="btn btn-primary" disabled={savingKey === r.skey} onClick={() => saveOne(r.skey, r.slabel)}>{savingKey === r.skey ? "Saving…" : "Save"}</button>
+                <button className="btn btn-danger" style={{ marginLeft: 8 }}
+                  onClick={async () => {
+                    if (!window.confirm(`Delete the setting "${r.slabel || r.skey}"? Anything using it falls back to its built-in value.`)) return;
+                    try { await api.settingsDelete(r.skey); load(); } catch (e) { alert(e.message); }
+                  }}>Delete</button>
               </div>
             </div>
           ))}
