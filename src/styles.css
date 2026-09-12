@@ -313,14 +313,14 @@ table.grid tbody tr.row-click:hover { background: #eef1ff; }
 .f-nav a { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10.5px; font-weight: 800; color: var(--muted); width: 62px; }
 .f-nav a.active { color: var(--navy); }
 .f-fab {
-  position: absolute; right: 18px; bottom: 88px; z-index: 30;
+  position: absolute; right: 18px; bottom: calc(88px + env(safe-area-inset-bottom)); z-index: 30;
   width: 56px; height: 56px; border-radius: 50%; background: var(--navy); color: #fff; border: none;
   display: grid; place-items: center; box-shadow: 0 10px 24px rgba(11, 60, 140, 0.45);
 }
 .f-screen-head { display: flex; align-items: center; gap: 12px; padding: 15px 18px; background: #fff; border-bottom: 1px solid var(--line); font-family: var(--font-display); font-weight: 800; font-size: 17px; position: sticky; top: 0; z-index: 10; }
 .f-screen-head .grow { flex: 1; text-align: center; }
-.f-list-pad { padding: 16px 18px 88px; }
-.f-form { padding: 18px; display: flex; flex-direction: column; gap: 13px; padding-bottom: 100px; }
+.f-list-pad { padding: 16px 18px calc(88px + env(safe-area-inset-bottom)); }
+.f-form { padding: 18px; display: flex; flex-direction: column; gap: 13px; padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
 .f-form input, .f-form select, .f-form textarea { border: 1.5px solid #d7dcef; border-radius: 11px; padding: 13px 13px; font-size: 14.5px; outline: none; background: #fff; }
 .f-form label { font-weight: 800; font-size: 13px; margin-bottom: -6px; }
 .f-form label b { color: var(--red); }

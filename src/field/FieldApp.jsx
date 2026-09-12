@@ -118,7 +118,12 @@ function useUnreadCount() {
     api.myNotifications().then((d) => {
       const me = CU();
       const read = getReadIds();
-      const mine = (d.records || []).map((r) => ({ id: String(r.id), ...r.data })).filter((n) => isMine(n, me));
+      let dis = new Set();
+      try { dis = new Set(JSON.parse(localStorage.getItem("eb_notif_dismissed") || "[]")); } catch {}
+      const mine = (d.records || []).map((r) => ({ id: String(r.id), ...r.data }))
+        .filter((n) => isMine(n, me))
+        .filter((n) => !dis.has(String(n.id)))
+        .filter((n) => !(Array.isArray(n.dismissedBy) && n.dismissedBy.includes(me.name)));
       setCount(mine.filter((n) => !read.has(String(n.id))).length);
     }).catch(() => {});
   };
@@ -1324,7 +1329,7 @@ function FieldExpense({ list, add, reload }) {
     if (!window.confirm(`Prepare a format document from ${drafts.length} draft(s)? They will be combined into one statement.`)) return;
     setBusy(true);
     try {
-      const items = drafts.map((d) => ({ date: d.date, km: d.km || "", station: d.station || "", category: d.category, type: d.type, amount: Number(d.amount) || 0, desc: d.desc || "", photo: d.photo || "" }));
+      const items = drafts.map((d) => ({ date: d.date, km: d.km || "", station: d.station || "", category: d.category, type: d.type, amount: Number(d.amount) || 0, desc: d.desc || "", description: d.description || "", photo: d.photo || "" }));
       const total = items.reduce((s, x) => s + x.amount, 0);
       const u = CU();
       const fmt = {
@@ -5809,6 +5814,7 @@ export default function FieldApp() {
   const [menu, setMenu] = useState(false);
   const [visitPopup, setVisitPopup] = useState(false);
   const [beatCheck, setBeatCheck] = useState(false);
+  const [locDisclosure, setLocDisclosure] = useState(false);
   const beatPlanRef = useRef(null);
   const [stopPopup, setStopPopup] = useState(false);
   const visitInfoRef = useRef({ type: "Local", name: "" });
@@ -5870,14 +5876,25 @@ export default function FieldApp() {
     if (!authed) return;
     /* register for FCM push once we are logged in (the token save needs auth) */
     try { registerPush(); } catch {}
-    /* Safety: if attendance is not running, clear any leftover session id so the
-       native service stops itself (no stray "Tracking on" or location alarm). */
+    /* Safety: clear a leftover session id so the native service stops itself.
+       The SERVER decides — checking localStorage alone was wrong: if the phone
+       wiped the app's web storage (low memory / OEM cleaner), the flag vanished
+       and tracking was killed even though the day's session was still running. */
     (async () => {
       try {
-        if (localStorage.getItem("eb_att_on") === "1") return;
         const P = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences;
-        if (P) { await P.set({ key: "eb_session_id", value: "" }); await P.remove({ key: "eb_session_id" }); }
-      } catch {}
+        if (!P) return;
+        const d = await api.attToday();
+        const running = d && d.session && String(d.session.status).toUpperCase() === "RUNNING";
+        if (running) {
+          /* server says the day is still on -> restore the local flag instead */
+          try { localStorage.setItem("eb_att_on", "1"); } catch {}
+          try { await P.set({ key: "eb_session_id", value: String(d.session.id) }); } catch {}
+          return;
+        }
+        await P.set({ key: "eb_session_id", value: "" });
+        await P.remove({ key: "eb_session_id" });
+      } catch { /* offline -> leave everything as it is, never kill tracking */ }
     })();
     api.attToday().then((d) => {
       const s = d.session;
@@ -5992,6 +6009,7 @@ export default function FieldApp() {
           const nid = String(n.id);
           if (!seen.has(nid) && !readSet.has(nid)) {          // already-read ones never re-fire
             seen.add(nid);
+            if (Array.isArray(n.dismissedBy) && n.dismissedBy.includes(CU().name)) return;
             phoneNotify(n.title || "Eurobond CRM", n.message || "", { notifId: nid, link: n.link || "/app/notifications" });
           }
         });
@@ -6313,7 +6331,7 @@ export default function FieldApp() {
 
         <div className="phone-body">
           <Routes>
-            <Route index element={<FieldHome attendanceOn={attendanceOn} doneToday={doneToday} setAttendanceOn={setAttendanceOn} tracking={tracking} expenses={expenses} followups={followups} leaves={leaves} onStartAttendance={() => setBeatCheck(true)} onStopAttendance={() => setStopPopup(true)} />} />
+            <Route index element={<FieldHome attendanceOn={attendanceOn} doneToday={doneToday} setAttendanceOn={setAttendanceOn} tracking={tracking} expenses={expenses} followups={followups} leaves={leaves} onStartAttendance={() => setLocDisclosure(true)} onStopAttendance={() => setStopPopup(true)} />} />
             <Route path="attendance" element={<FieldAttendance attendanceOn={attendanceOn} setAttendanceOn={setAttendanceOn} tracking={tracking} setTracking={setTracking} gpsAlarm={gpsAlarm} todaySession={todaySessionRef.current} sessionId={sessionRef.current} />} />
             <Route path="expense" element={<FieldExpense list={expenses} add={(e) => setExpenses((x) => [e, ...x])} reload={reloadExpenses} />} />
             <Route path="expense/new" element={<FieldExpenseNew add={async (e) => { try { const r = await api.create("expense", e); setExpenses((x) => [{ _id: r.id, ...e }, ...x]); } catch (err) { alert(err.message); } }} />} />
@@ -6383,6 +6401,35 @@ export default function FieldApp() {
         </div>
 
         <MenuDrawer open={menu} close={() => setMenu(false)} />
+        {/* Prominent disclosure — shown BEFORE the location permission prompt,
+           as required by Google Play for background location. */}
+        {locDisclosure && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.6)", zIndex: 10000, display: "grid", placeItems: "center", padding: 18 }}>
+            <div style={{ background: "#fff", borderRadius: 18, maxWidth: 360, width: "100%", padding: 22 }}>
+              <div style={{ fontSize: 40, textAlign: "center", marginBottom: 8 }}>📍</div>
+              <h3 style={{ margin: "0 0 10px", fontSize: 17, textAlign: "center", color: "var(--navy)" }}>Location for Attendance</h3>
+              <p style={{ fontSize: 13.5, lineHeight: 1.6, color: "#334155", margin: "0 0 12px" }}>
+                Eurobond CRM collects location data to record your attendance and your
+                field-visit route <b>even when the app is closed or not in use</b>.
+              </p>
+              <p style={{ fontSize: 13, lineHeight: 1.6, color: "#475569", margin: "0 0 16px" }}>
+                Tracking starts only when you start attendance and stops when you stop it,
+                or automatically at 10:30 PM. A notification stays on your phone the whole
+                time tracking is running.
+              </p>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => setLocDisclosure(false)}
+                  style={{ flex: 1, padding: 12, borderRadius: 11, border: "1.5px solid #d7dcef", background: "#fff", fontWeight: 700, cursor: "pointer" }}>
+                  Not now
+                </button>
+                <button className="f-submit" style={{ flex: 1 }}
+                  onClick={() => { setLocDisclosure(false); setBeatCheck(true); }}>
+                  Agree &amp; Continue
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {beatCheck && (
           <BeatPlanConfirm
             onClose={() => setBeatCheck(false)}

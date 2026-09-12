@@ -129,8 +129,13 @@ export default function UsersPage() {
     }).map((u) => u.name).filter(Boolean)
   )];
 
-  const filtered = users.filter((u) =>
-    !q || (u.name + u.mobile + (u.code || "") + (u.city || "")).toLowerCase().includes(q.toLowerCase())
+  const [fRole, setFRole] = useState("");
+  const [fState, setFState] = useState("");
+  const [shown, setShown] = useState(false);
+  const filtered = !shown ? [] : users.filter((u) =>
+    (!q || (u.name + u.mobile + (u.code || "") + (u.city || "")).toLowerCase().includes(q.toLowerCase()))
+    && (!fRole || u.role === fRole)
+    && (!fState || u.state === fState)
   );
 
   return (
@@ -163,6 +168,16 @@ export default function UsersPage() {
       <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", border: "1px solid var(--line)", borderRadius: 10, padding: "8px 12px", maxWidth: 320, marginBottom: 14 }}>
         <Search size={15} color="var(--muted)" />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, mobile, city" style={{ border: "none", outline: "none", width: "100%", fontSize: 13 }} />
+        <select value={fRole} onChange={(e) => setFRole(e.target.value)} style={{ border: "1px solid var(--line)", borderRadius: 8, padding: "6px 9px", fontSize: 12.5, marginLeft: 8 }}>
+          <option value="">All Roles</option>
+          {[...new Set(users.map((u) => u.role).filter(Boolean))].sort().map((r) => <option key={r}>{r}</option>)}
+        </select>
+        <select value={fState} onChange={(e) => setFState(e.target.value)} style={{ border: "1px solid var(--line)", borderRadius: 8, padding: "6px 9px", fontSize: 12.5, marginLeft: 8 }}>
+          <option value="">All States</option>
+          {[...new Set(users.map((u) => u.state).filter(Boolean))].sort().map((r) => <option key={r}>{r}</option>)}
+        </select>
+        <button className="btn btn-primary" style={{ marginLeft: 8, padding: "6px 18px", fontWeight: 700 }} onClick={() => setShown(true)}>Show</button>
+        {shown && <button className="btn btn-ghost" style={{ marginLeft: 6 }} onClick={() => { setShown(false); setQ(""); setFRole(""); setFState(""); }}>Clear</button>}
       </div>
 
       {loading ? <div style={{ padding: 30, color: "var(--muted)" }}>Loading…</div>
@@ -171,11 +186,18 @@ export default function UsersPage() {
         <div className="table-wrap">
           <table className="grid">
             <thead>
-              <tr><th>Name</th><th>Mobile</th><th>Code</th><th>Email</th><th>Role</th><th>Designation</th><th>Grade</th><th>State</th><th>Zone</th><th>City</th><th>Manager</th><th>DOJ</th><th>Status</th><th>Actions</th></tr>
+              <tr><th>S.No</th><th>Name</th><th>Mobile</th><th>Code</th><th>Email</th><th>Role</th><th>Designation</th><th>Grade</th><th>State</th><th>Zone</th><th>Depo</th><th>City</th><th>Manager</th><th>DOJ</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody>
-              {filtered.map((u) => (
+              {!shown ? (
+                <tr><td colSpan={16} style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>
+                  Set your filters and click <b>Show</b> to load the list.
+                </td></tr>
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan={16} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No users match these filters.</td></tr>
+              ) : filtered.map((u, idx) => (
                 <tr key={u.id}>
+                  <td style={{ color: "var(--muted)", fontWeight: 700 }}>{idx + 1}</td>
                   <td style={{ fontWeight: 700 }}>{u.name}</td>
                   <td>{u.mobile}</td>
                   <td>{u.code || "—"}</td>
@@ -185,9 +207,10 @@ export default function UsersPage() {
                   <td>{u.grade || "—"}</td>
                   <td>{u.state || "—"}</td>
                   <td>{u.zone || "—"}</td>
+                  <td>{u.depo || "—"}</td>
                   <td>{u.city || "—"}</td>
                   <td>{u.manager || "—"}</td>
-                  <td>{u.doj || "—"}</td>
+                  <td>{u.doj ? String(u.doj).slice(0, 10) : "—"}</td>
                   <td>
                     {/* Active/Inactive toggle — click to switch */}
                     <button

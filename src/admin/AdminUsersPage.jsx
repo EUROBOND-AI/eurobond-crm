@@ -55,15 +55,16 @@ export default function AdminUsersPage() {
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead><tr style={{ background: "#f4f6fc", textAlign: "left" }}>
-              {["Full Name", "Username", "Email ID", "Role", "Status", "Action"].map((h) => <th key={h} style={{ padding: "11px 14px", fontWeight: 800, fontSize: 12, color: "#4a5578" }}>{h}</th>)}
+              {["S.No", "Full Name", "Username", "Email ID", "Role", "Status", "Action"].map((h) => <th key={h} style={{ padding: "11px 14px", fontWeight: 800, fontSize: 12, color: "#4a5578" }}>{h}</th>)}
             </tr></thead>
             <tbody>
               {rows === null ? (
-                <tr><td colSpan={6} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
+                <tr><td colSpan={7} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={6} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No admin users yet. Add one to grant backend access.</td></tr>
-              ) : rows.map((r) => (
+                <tr><td colSpan={7} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No admin users yet. Add one to grant backend access.</td></tr>
+              ) : rows.map((r, idx) => (
                 <tr key={r._id} style={{ borderTop: "1px solid #eef1f8" }}>
+                  <td style={{ padding: "11px 14px", color: "var(--muted)", fontWeight: 700 }}>{idx + 1}</td>
                   <td style={{ padding: "11px 14px", fontWeight: 700 }}>{r.name}</td>
                   <td style={{ padding: "11px 14px", fontWeight: 700 }}>{r.username}</td>
                   <td style={{ padding: "11px 14px" }}>{r.email || "—"}</td>

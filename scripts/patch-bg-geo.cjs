@@ -68,14 +68,46 @@ try {
     // EB_NATIVE_UPLOAD EB_PATCH_V3_BATTERY_NET: post a location straight to the server from native code,
     // so uploads work even when the JS/WebView is frozen in the background.
     private long ebLastUploadMs = 0;
+
+    /* ---- Offline queue (native) ----
+       If a point cannot reach the server (no network, weak signal), keep it in
+       SharedPreferences and send it with the next successful upload, so the
+       timeline has no gaps. ---- */
+    private void ebQueuePoint(String ptJson) {
+        try {
+            SharedPreferences p = getApplicationContext().getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE);
+            String q = p.getString("eb_native_queue", "");
+            if (q.length() > 60000) return;                 // safety cap
+            p.edit().putString("eb_native_queue", q.isEmpty() ? ptJson : q + "|" + ptJson).apply();
+        } catch (Exception e) {}
+    }
+    private JSONArray ebTakeQueue() {
+        JSONArray arr = new JSONArray();
+        try {
+            SharedPreferences p = getApplicationContext().getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE);
+            String q = p.getString("eb_native_queue", "");
+            if (q.isEmpty()) return arr;
+            for (String part : q.split(java.util.regex.Pattern.quote(String.valueOf((char) 124)))) {
+                if (part == null || part.trim().isEmpty()) continue;
+                try { arr.put(new JSONObject(part)); } catch (Exception e) {}
+            }
+        } catch (Exception e) {}
+        return arr;
+    }
+    private void ebClearQueue() {
+        try {
+            getApplicationContext().getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE)
+                .edit().remove("eb_native_queue").apply();
+        } catch (Exception e) {}
+    }
     private void ebUploadLocation(final Location location) {
         if (location == null) return;
         final long now = System.currentTimeMillis();
         // one upload per ~14 min (matches the 15-min timeline; server also spaces)
         if (ebLastUploadMs != 0 && (now - ebLastUploadMs) < 14 * 60 * 1000) return;
-        ebLastUploadMs = now;
         new Thread(new Runnable() {
             @Override public void run() {
+                final String[] ptHolder = new String[1];
                 try {
                     SharedPreferences prefs = getApplicationContext()
                         .getSharedPreferences("CapacitorStorage", MODE_PRIVATE);
@@ -106,7 +138,8 @@ try {
                         netUp = ni != null && ni.isConnected();
                     } catch (Exception ne) {}
                     pt.put("online", netUp);
-                    JSONArray arr = new JSONArray();
+                    ptHolder[0] = pt.toString();
+                    JSONArray arr = ebTakeQueue();      // anything held from earlier
                     arr.put(pt);
                     JSONObject body = new JSONObject();
                     body.put("session_id", Integer.parseInt(sessionId));
@@ -125,6 +158,10 @@ try {
                     os.write(body.toString().getBytes("UTF-8"));
                     os.flush(); os.close();
                     int rc = c.getResponseCode();
+                    /* mark the slot as used ONLY on success, so a failed upload is
+                       retried on the next alarm tick instead of being dropped */
+                    if (rc >= 200 && rc < 300) { ebLastUploadMs = now; ebClearQueue(); }
+                    else ebQueuePoint(pt.toString());
                     /* if the server says this session is closed (10:30 PM auto-logout or
                        manual stop), clear the stored session so the service shuts down. */
                     try {
@@ -142,7 +179,9 @@ try {
                         }
                     } catch (Exception e2) {}
                     c.disconnect();
-                } catch (Exception e) { /* retry on next location */ }
+                } catch (Exception e) {
+                    /* no network -> hold the point and send it next time */
+                    try { if (ptHolder[0] != null) ebQueuePoint(ptHolder[0]); } catch (Exception e2) {} }
             }
         }).start();
     }
@@ -587,13 +626,19 @@ try {
       let mf = fs.readFileSync(manifest, "utf8");
       const perms = [
         '<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />',
-        '<uses-permission android:name="android.permission.USE_EXACT_ALARM" />',
         '<uses-permission android:name="android.permission.WAKE_LOCK" />',
         '<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />',
         '<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />',
         '<uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />',
         '<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />',
       ];
+      /* strip a permission an older build added — Play only allows it for
+         alarm-clock / calendar apps, and setAlarmClock does not need it */
+      if (mf.includes("android.permission.USE_EXACT_ALARM")) {
+        mf = mf.replace(/[ \t]*<uses-permission android:name="android\.permission\.USE_EXACT_ALARM"[^>]*\/>\s*\n?/g, "");
+        fs.writeFileSync(manifest, mf, "utf8");
+        console.log("[patch-bg-geo] removed USE_EXACT_ALARM (Play restricts it) ✓");
+      }
       let toAdd = perms.filter(p => !mf.includes(p));
       if (toAdd.length) {
         mf = mf.replace(/<uses-permission/, toAdd.join("\n    ") + "\n    <uses-permission");

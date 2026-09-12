@@ -100,11 +100,11 @@ export const api = {
 
   /* ---------- Users ---------- */
   listUsers: () => memo("users", 60000, () => req("/users.php")),
-  createUser: (u) => req("/users.php", { method: "POST", body: u }),
-  updateUser: (id, u) => req("/users.php?id=" + id + "&action=update", { method: "POST", body: u }),
-  deleteUser: (id) => req("/users.php?id=" + id + "&action=delete", { method: "POST" }),
+  createUser: async (u) => { const r = await req("/users.php", { method: "POST", body: u }); clearApiCache(); return r; },
+  updateUser: async (id, u) => { const r = await req("/users.php?id=" + id + "&action=update", { method: "POST", body: u }); clearApiCache(); return r; },
+  deleteUser: async (id) => { const r = await req("/users.php?id=" + id + "&action=delete", { method: "POST" }); clearApiCache(); return r; },
   deleteUserHard: (id) => req("/users.php?id=" + id + "&hard=1&action=delete", { method: "POST" }),
-  setUserStatus: (id, status) => req("/users.php?id=" + id + "&action=update", { method: "POST", body: { status } }),
+  setUserStatus: async (id, status) => { const r = await req("/users.php?id=" + id + "&action=update", { method: "POST", body: { status } }); clearApiCache(); return r; },
   resetUserPass: (id, new_password) => req("/users.php?action=reset_pass", { method: "POST", body: { id, new_password } }),
 
   /* ---------- Generic records (all modules) ---------- */
