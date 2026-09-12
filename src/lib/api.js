@@ -143,6 +143,7 @@ export const api = {
   attStart: (visit) => req("/attendance.php?action=start", { method: "POST", body: visit || {} }),
   /* GPS points upload via NATIVE HTTP (CapacitorHttp) so it works even when the app is
      backgrounded — WebView fetch() gets throttled/suspended after ~5 min in the background. */
+  attSaveAddress: (rows) => req("/attendance.php?action=save_address", { method: "POST", body: { rows } }),
   attPoints: async (session_id, points) => {
     const url = API_BASE + "/attendance.php?action=points";
     const token = auth.token;

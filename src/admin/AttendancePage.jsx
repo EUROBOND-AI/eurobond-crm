@@ -163,6 +163,7 @@ export default function AttendancePage() {
   /* reverse-geocode each timeline point to a full address (cached by lat,lng) */
   useEffect(() => {
     let stop = false;
+    const resolved = [];
     (async () => {
       for (const p of routePoints.slice(0, 100)) {
         if (stop) break;
@@ -198,9 +199,14 @@ export default function AttendancePage() {
             full = parts.join(", ").trim();
           } catch {}
         }
-        if (full && !stop) setPtAddr((m) => ({ ...m, [key]: full }));
+        if (full && !stop) {
+          setPtAddr((m) => ({ ...m, [key]: full }));
+          /* keep it on the server so this point never needs geocoding again */
+          resolved.push({ lat: p.lat, lng: p.lng, address: full });
+        }
         await new Promise((res) => setTimeout(res, 1100));   // Nominatim ~1 req/sec
       }
+      if (resolved.length) { try { await api.attSaveAddress(resolved); } catch {} }
     })();
     return () => { stop = true; };
   }, [routePoints]);

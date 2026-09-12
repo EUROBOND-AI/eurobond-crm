@@ -4091,6 +4091,17 @@ function FieldNotifications() {
     if (!visible.length) return;
     if (!window.confirm("Clear all notifications?")) return;
     const ids = visible.map((n) => String(n._id));
+    /* Record the clear on the SERVER as well. Without this it lived only in the
+       phone's storage, so reinstalling the app brought every old notification
+       back (uninstall wipes local storage, the server records stay). */
+    (async () => {
+      for (const n of visible) {
+        try {
+          const by = new Set([...(n.dismissedBy || []), CU().name]);
+          await api.update("notification", n._id, { ...n, dismissedBy: [...by] });
+        } catch {}
+      }
+    })();
     setDismissed((prev) => {
       const next = new Set(prev); ids.forEach((id) => next.add(id));
       localStorage.setItem("eb_notif_dismissed", JSON.stringify([...next]));
