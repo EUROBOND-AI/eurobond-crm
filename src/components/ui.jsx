@@ -153,6 +153,14 @@ export function DataTable({ columns, rows, onDelete, onEdit, onView, onRowClick,
 }
 
 export function ToolButtons({ onAdd, addLabel = "Add", onRefresh, onExport, onImport, onDownloadFormat, onHeaderConfig, onLogs, onReport, refreshing }) {
+  /* "Working…" while an import/export runs, so a slow one doesn't look stuck */
+  const [runImp, setRunImp] = useState(false);
+  const [runExp, setRunExp] = useState(false);
+  const wrap = (fn, setFlag) => async () => {
+    setFlag(true);
+    try { await fn(); } catch (e) { alert(e.message || String(e)); }
+    setFlag(false);
+  };
   return (
     <>
       <button className="btn btn-pink" onClick={onHeaderConfig}><Eye size={14} /> Header Config</button>
@@ -161,9 +169,13 @@ export function ToolButtons({ onAdd, addLabel = "Add", onRefresh, onExport, onIm
       </button>
       {onReport && <button className="btn btn-ghost" onClick={onReport}><FileText size={14} /> View Report</button>}
       {onAdd && <button className="btn btn-primary" onClick={onAdd}><Plus size={14} /> {addLabel}</button>}
-      {onImport && <button className="btn btn-soft" onClick={onImport}><Upload size={14} /> Import</button>}
+      {onImport && <button className="btn btn-soft" disabled={runImp} onClick={wrap(onImport, setRunImp)}>
+        <Upload size={14} /> {runImp ? "Importing…" : "Import"}
+      </button>}
       {onDownloadFormat && <button className="btn btn-ghost" onClick={onDownloadFormat}><Upload size={14} /> Download Format</button>}
-      {onExport && <button className="btn btn-soft" onClick={onExport}><FileText size={14} /> Export</button>}
+      {onExport && <button className="btn btn-soft" disabled={runExp} onClick={wrap(onExport, setRunExp)}>
+        <FileText size={14} /> {runExp ? "Exporting…" : "Export"}
+      </button>}
     </>
   );
 }

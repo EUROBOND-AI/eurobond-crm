@@ -43,7 +43,9 @@ export default function AttendanceSheet() {
     setBusy(true);
     Promise.all([api.listUsers(), api.attList(from, to), api.list("leave", false), api.list("holidays", false)])
       .then(([u, a, l, h]) => {
-        setUsers((u.users || []).filter((x) => Number(x.status) !== 0));
+        setUsers((u.users || [])
+          .filter((x) => Number(x.status) !== 0)
+          .filter((x) => !/^admin$/i.test(String(x.role || "").trim())));
         setSessions(a.sessions || []);
         setLeaves((l.records || []).map((r) => r.data));
         setHolidays((h.records || []).map((r) => r.data));

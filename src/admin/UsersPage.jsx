@@ -7,6 +7,8 @@ const ROLES = ["Admin", "HOD (Sales)", "HOD (Specs)", "Sub HOD (Sales)", "Sub HO
 const GRADES = ["S1", "S2", "S3", "S4", "S5", "M1", "M2", "M3"];
 const empty = { name: "", mobile: "", code: "", email: "", role: "Sales Person", grade: "", designation: "", doj: "", dob: "", state: "", zone: "", city: "", manager: "", password: "", nearby_range_m: 500 };
 
+const selStyle = { background: "#fff", border: "1px solid var(--line)", borderRadius: 10, padding: "9px 11px", fontSize: 13 };
+
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,6 +43,7 @@ export default function UsersPage() {
 
   const importUsers = async (file) => {
     if (!file) return;
+    setImporting(true);
     const text = await file.text();
     const lines = text.split(/\r?\n/).filter((l) => l.trim());
     if (lines.length < 2) { alert("CSV empty or has no data rows."); return; }
@@ -80,6 +83,7 @@ export default function UsersPage() {
       if (!rec.role) rec.role = "Sales Person";
       try { await api.createUser(rec); ok++; } catch { fail++; }
     }
+    setImporting(false);
     alert(`Import done: ${ok} added, ${fail} skipped.`);
     load();
   };
@@ -132,6 +136,7 @@ export default function UsersPage() {
   const [fRole, setFRole] = useState("");
   const [fState, setFState] = useState("");
   const [shown, setShown] = useState(false);
+  const [importing, setImporting] = useState(false);
   const filtered = !shown ? [] : users.filter((u) =>
     (!q || (u.name + u.mobile + (u.code || "") + (u.city || "")).toLowerCase().includes(q.toLowerCase()))
     && (!fRole || u.role === fRole)
@@ -156,7 +161,7 @@ export default function UsersPage() {
             const csv = [head, sample].map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(",")).join("\n");
             const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = "app-users-format.csv"; a.click();
           }}><Download size={14} /> Download Format</button>
-          <label className="btn btn-ghost" style={{ cursor: "pointer" }}><Upload size={14} /> Import
+          <label className="btn btn-ghost" style={{ cursor: "pointer" }}><Upload size={14} /> {importing ? "Importing…" : "Import"}
             <input type="file" accept=".csv" hidden onChange={(e) => importUsers(e.target.files[0])} />
           </label>
           <button className="btn btn-ghost" onClick={() => setForm({ ...empty, role: "HOD (Sales)", isHod: true })}><UserPlus size={14} /> Add HOD</button>
@@ -165,19 +170,22 @@ export default function UsersPage() {
         </div>}
       />
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", border: "1px solid var(--line)", borderRadius: 10, padding: "8px 12px", maxWidth: 320, marginBottom: 14 }}>
-        <Search size={15} color="var(--muted)" />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, mobile, city" style={{ border: "none", outline: "none", width: "100%", fontSize: 13 }} />
-        <select value={fRole} onChange={(e) => setFRole(e.target.value)} style={{ border: "1px solid var(--line)", borderRadius: 8, padding: "6px 9px", fontSize: 12.5, marginLeft: 8 }}>
+      {/* search + filters on one row, no empty panel below */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", border: "1px solid var(--line)", borderRadius: 10, padding: "8px 12px", width: 260 }}>
+          <Search size={15} color="var(--muted)" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, mobile, city" style={{ border: "none", outline: "none", width: "100%", fontSize: 13 }} />
+        </div>
+        <select value={fRole} onChange={(e) => setFRole(e.target.value)} style={selStyle}>
           <option value="">All Roles</option>
           {[...new Set(users.map((u) => u.role).filter(Boolean))].sort().map((r) => <option key={r}>{r}</option>)}
         </select>
-        <select value={fState} onChange={(e) => setFState(e.target.value)} style={{ border: "1px solid var(--line)", borderRadius: 8, padding: "6px 9px", fontSize: 12.5, marginLeft: 8 }}>
+        <select value={fState} onChange={(e) => setFState(e.target.value)} style={selStyle}>
           <option value="">All States</option>
           {[...new Set(users.map((u) => u.state).filter(Boolean))].sort().map((r) => <option key={r}>{r}</option>)}
         </select>
-        <button className="btn btn-primary" style={{ marginLeft: 8, padding: "6px 18px", fontWeight: 700 }} onClick={() => setShown(true)}>Show</button>
-        {shown && <button className="btn btn-ghost" style={{ marginLeft: 6 }} onClick={() => { setShown(false); setQ(""); setFRole(""); setFState(""); }}>Clear</button>}
+        <button className="btn btn-primary" style={{ padding: "8px 20px", fontWeight: 700 }} onClick={() => setShown(true)}>Show</button>
+        {shown && <button className="btn btn-ghost" onClick={() => { setShown(false); setQ(""); setFRole(""); setFState(""); }}>Clear</button>}
       </div>
 
       {loading ? <div style={{ padding: 30, color: "var(--muted)" }}>Loading…</div>
