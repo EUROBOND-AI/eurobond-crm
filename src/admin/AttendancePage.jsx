@@ -210,7 +210,7 @@ export default function AttendancePage() {
     setRoutePoints([]);
     const m = L.map(mapRef.current, { attributionControl: true }).setView([20.59, 78.96], 5);
     m.attributionControl.setPrefix("Gonti");
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© Gonti", maxZoom: 19 }).addTo(m);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© GK", maxZoom: 19 }).addTo(m);
     mapObj.current = m;
     const pinIcon = (color, label) => L.divIcon({
       className: "route-pin",

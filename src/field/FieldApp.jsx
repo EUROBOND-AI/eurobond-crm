@@ -787,12 +787,27 @@ function GpsSetupModal({ onClose }) {
     } catch {}
   };
   const openAppSettings = async () => {
-    /* opens THIS app's system settings page — user taps Battery / Autostart there */
+    /* Opens this app's system settings page. The battery plugin is tried first,
+       then Capacitor's own App.openSettings — earlier only the plugin was tried,
+       so on phones without it the button did nothing at all. */
     try {
       if (_plat === "android" && P.BatteryOptimization && P.BatteryOptimization.openBatteryOptimizationSettings) {
-        await P.BatteryOptimization.openBatteryOptimizationSettings(); mark("oem");
+        await P.BatteryOptimization.openBatteryOptimizationSettings();
+        mark("oem");
+        return;
       }
     } catch {}
+    try {
+      if (P.App && P.App.openSettings) { await P.App.openSettings(); mark("oem"); return; }
+    } catch {}
+    try {
+      if (P.NativeSettings && P.NativeSettings.openAndroid) {
+        await P.NativeSettings.openAndroid({ option: "application_details" });
+        mark("oem");
+        return;
+      }
+    } catch {}
+    alert("Please open: Settings → Apps → Eurobond CRM → Battery → No restrictions, and turn Autostart ON.");
   };
 
   const Row = ({ n, title, desc, btn, onClick, k }) => (
@@ -892,7 +907,7 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
     mapObj.current = L.map(mapRef.current, { attributionControl: true }).setView([start.lat, start.lng], 15);
     mapObj.current.attributionControl.setPrefix("Gonti");
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© Gonti",
+      attribution: "© GK",
       maxZoom: 19,
     }).addTo(mapObj.current);
 
@@ -5814,7 +5829,6 @@ export default function FieldApp() {
   const [menu, setMenu] = useState(false);
   const [visitPopup, setVisitPopup] = useState(false);
   const [beatCheck, setBeatCheck] = useState(false);
-  const [locDisclosure, setLocDisclosure] = useState(false);
   const beatPlanRef = useRef(null);
   const [stopPopup, setStopPopup] = useState(false);
   const visitInfoRef = useRef({ type: "Local", name: "" });
@@ -6331,7 +6345,7 @@ export default function FieldApp() {
 
         <div className="phone-body">
           <Routes>
-            <Route index element={<FieldHome attendanceOn={attendanceOn} doneToday={doneToday} setAttendanceOn={setAttendanceOn} tracking={tracking} expenses={expenses} followups={followups} leaves={leaves} onStartAttendance={() => setLocDisclosure(true)} onStopAttendance={() => setStopPopup(true)} />} />
+            <Route index element={<FieldHome attendanceOn={attendanceOn} doneToday={doneToday} setAttendanceOn={setAttendanceOn} tracking={tracking} expenses={expenses} followups={followups} leaves={leaves} onStartAttendance={() => setBeatCheck(true)} onStopAttendance={() => setStopPopup(true)} />} />
             <Route path="attendance" element={<FieldAttendance attendanceOn={attendanceOn} setAttendanceOn={setAttendanceOn} tracking={tracking} setTracking={setTracking} gpsAlarm={gpsAlarm} todaySession={todaySessionRef.current} sessionId={sessionRef.current} />} />
             <Route path="expense" element={<FieldExpense list={expenses} add={(e) => setExpenses((x) => [e, ...x])} reload={reloadExpenses} />} />
             <Route path="expense/new" element={<FieldExpenseNew add={async (e) => { try { const r = await api.create("expense", e); setExpenses((x) => [{ _id: r.id, ...e }, ...x]); } catch (err) { alert(err.message); } }} />} />
@@ -6401,35 +6415,6 @@ export default function FieldApp() {
         </div>
 
         <MenuDrawer open={menu} close={() => setMenu(false)} />
-        {/* Prominent disclosure — shown BEFORE the location permission prompt,
-           as required by Google Play for background location. */}
-        {locDisclosure && (
-          <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.6)", zIndex: 10000, display: "grid", placeItems: "center", padding: 18 }}>
-            <div style={{ background: "#fff", borderRadius: 18, maxWidth: 360, width: "100%", padding: 22 }}>
-              <div style={{ fontSize: 40, textAlign: "center", marginBottom: 8 }}>📍</div>
-              <h3 style={{ margin: "0 0 10px", fontSize: 17, textAlign: "center", color: "var(--navy)" }}>Location for Attendance</h3>
-              <p style={{ fontSize: 13.5, lineHeight: 1.6, color: "#334155", margin: "0 0 12px" }}>
-                Eurobond CRM collects location data to record your attendance and your
-                field-visit route <b>even when the app is closed or not in use</b>.
-              </p>
-              <p style={{ fontSize: 13, lineHeight: 1.6, color: "#475569", margin: "0 0 16px" }}>
-                Tracking starts only when you start attendance and stops when you stop it,
-                or automatically at 10:30 PM. A notification stays on your phone the whole
-                time tracking is running.
-              </p>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => setLocDisclosure(false)}
-                  style={{ flex: 1, padding: 12, borderRadius: 11, border: "1.5px solid #d7dcef", background: "#fff", fontWeight: 700, cursor: "pointer" }}>
-                  Not now
-                </button>
-                <button className="f-submit" style={{ flex: 1 }}
-                  onClick={() => { setLocDisclosure(false); setBeatCheck(true); }}>
-                  Agree &amp; Continue
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
         {beatCheck && (
           <BeatPlanConfirm
             onClose={() => setBeatCheck(false)}
