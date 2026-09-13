@@ -826,29 +826,65 @@ function GpsSetupModal({ onClose }) {
       }
     } catch {}
   };
-  const openAppSettings = async () => {
-    /* Opens this app's system settings page. The battery plugin is tried first,
-       then Capacitor's own App.openSettings — earlier only the plugin was tried,
-       so on phones without it the button did nothing at all. */
+  const askOverlay = async () => {
+    /* "Display over other apps" — the only way to show the warning when the
+       person has switched notifications off. */
     try {
-      if (_plat === "android" && P.BatteryOptimization && P.BatteryOptimization.openBatteryOptimizationSettings) {
-        await P.BatteryOptimization.openBatteryOptimizationSettings();
-        mark("oem");
-        return;
+      const P2 = window.Capacitor && window.Capacitor.Plugins;
+      if (P2 && P2.AppLauncher && P2.AppLauncher.openUrl) {
+        const r = await P2.AppLauncher.openUrl({
+          url: "intent:#Intent;action=android.settings.action.MANAGE_OVERLAY_PERMISSION;end",
+        });
+        if (r && r.completed) { mark("overlay"); return; }
       }
     } catch {}
+    try { if (P.App && P.App.openSettings) { await P.App.openSettings(); mark("overlay"); return; } } catch {}
+    alert("Open: Settings → Apps → Eurobond CRM → Display over other apps → Allow");
+  };
+
+  const openAppSettings = async () => {
+    /* Take the person straight to the right screen. Autostart lives in each
+       manufacturer's own settings app (not part of Android), so we try the known
+       screens first and fall back to this app's details page. */
+    const tryIntent = async (pkg, cls) => {
+      try {
+        const P2 = window.Capacitor && window.Capacitor.Plugins;
+        if (P2 && P2.AppLauncher && P2.AppLauncher.openUrl) {
+          const url = `intent:#Intent;component=${pkg}/${cls};end`;
+          const r = await P2.AppLauncher.openUrl({ url });
+          if (r && r.completed) return true;
+        }
+      } catch {}
+      return false;
+    };
+
+    const oem = (navigator.userAgent || "").toLowerCase();
+    const targets = [];
+    if (/miui|xiaomi|redmi|poco/.test(oem)) targets.push(["com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity"]);
+    if (/vivo|iqoo/.test(oem)) targets.push(["com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.BgStartUpManagerActivity"]);
+    if (/oppo|realme|cph/.test(oem)) targets.push(["com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity"]);
+    if (/samsung|sm-/.test(oem)) targets.push(["com.samsung.android.lool", "com.samsung.android.sm.ui.battery.BatteryActivity"]);
+    if (/honor|huawei/.test(oem)) targets.push(["com.huawei.systemmanager", "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity"]);
+
+    for (const [pkg, cls] of targets) {
+      if (await tryIntent(pkg, cls)) { mark("oem"); return; }
+    }
+    /* battery-optimisation screen (standard Android) */
     try {
-      if (P.App && P.App.openSettings) { await P.App.openSettings(); mark("oem"); return; }
+      if (P.BatteryOptimization && P.BatteryOptimization.openBatteryOptimizationSettings) {
+        await P.BatteryOptimization.openBatteryOptimizationSettings(); mark("oem"); return;
+      }
     } catch {}
+    /* this app's own settings page — Battery and Autostart are both one tap away */
+    try { if (P.App && P.App.openSettings) { await P.App.openSettings(); mark("oem"); return; } } catch {}
     try {
       if (P.NativeSettings && P.NativeSettings.openAndroid) {
-        await P.NativeSettings.openAndroid({ option: "application_details" });
-        mark("oem");
-        return;
+        await P.NativeSettings.openAndroid({ option: "application_details" }); mark("oem"); return;
       }
     } catch {}
-    alert("Please open: Settings → Apps → Eurobond CRM → Battery → No restrictions, and turn Autostart ON.");
+    alert("Open: Settings → Apps → Eurobond CRM → Battery → No restrictions, then turn Autostart ON.");
   };
+
 
   const Row = ({ n, title, desc, btn, onClick, k }) => (
     <div style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "12px 0", borderBottom: "1px solid #eef0f6" }}>
@@ -870,7 +906,10 @@ function GpsSetupModal({ onClose }) {
         <Row n="1" k="notif" title="Notifications" desc="So the tracking status stays visible." btn="Allow Notifications" onClick={askNotif} />
         <Row n="2" k="loc" title="Location — Allow all the time" desc="Choose 'Allow all the time' (not 'Only while using')." btn="Allow Location" onClick={askLoc} />
         <Row n="3" k="battery" title="Run in background (Battery)" desc="Allow the app to run without battery limits — this stops it from sleeping." btn="Allow Background" onClick={askBattery} />
-        <Row n="4" k="oem" title="No restrictions / Autostart" desc="On Vivo, Redmi, Oppo, Realme, Samsung: open settings → Battery → set 'No restrictions', and turn Autostart ON." btn="Open App Settings" onClick={openAppSettings} />
+        <Row n="4" k="overlay" title="Display over other apps"
+          desc="Lets the warning appear on top of any app when tracking stops — even if notifications are off."
+          btn="Allow Overlay" onClick={askOverlay} />
+        <Row n="5" k="oem" title="No restrictions / Autostart" desc="On Vivo, Redmi, Oppo, Realme, Samsung: open settings → Battery → set 'No restrictions', and turn Autostart ON." btn="Open App Settings" onClick={openAppSettings} />
 
         <button onClick={onClose} style={{ width: "100%", marginTop: 16, padding: "12px", borderRadius: 11, border: "none", background: "var(--navy)", color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>Done — Start Tracking</button>
         {!isNative && <div style={{ fontSize: 11, color: "var(--muted)", textAlign: "center", marginTop: 8 }}>(These apply on the installed app, not the browser.)</div>}
@@ -5984,6 +6023,8 @@ export default function FieldApp() {
 
   const [tracking, setTracking] = useState({ points: [], km: 0, startedAt: null, stoppedAt: null, error: "" });
   const [gpsAlarm, setGpsAlarm] = useState(false);
+  const [gpsAlarmReason, setGpsAlarmReason] = useState("");
+  const lastReportedRef = useRef(null);
   const alarmCtx = useRef(null);
   const alarmTimer = useRef(null);
   const lastPointAt = useRef(0);
@@ -6320,23 +6361,52 @@ export default function FieldApp() {
     lastPointAt.current = Date.now();
     const id = setInterval(async () => {
       let bad = false;
+      let reason = "";
       try {
         const Cap = window.Capacitor;
         if (Cap && Cap.Plugins) {
           /* location off */
           if (Cap.Plugins.Geolocation) {
             const perm = await Cap.Plugins.Geolocation.checkPermissions();
-            if (perm && perm.location && perm.location !== "granted" && perm.location !== "prompt") bad = true;
+            if (perm && perm.location && perm.location !== "granted" && perm.location !== "prompt") { bad = true; reason = "Location is switched off"; }
           }
           /* notifications off (people disable these to dodge tracking) */
           if (!bad && Cap.Plugins.LocalNotifications) {
             const st = await Cap.Plugins.LocalNotifications.checkPermissions();
             if (st && st.display && st.display !== "granted") bad = true;
+            if (st && st.display && st.display !== "granted") reason = "Notifications are switched off";
+          }
+          /* network off — points can't reach the server */
+          if (!bad && Cap.Plugins.Network) {
+            const ns = await Cap.Plugins.Network.getStatus();
+            if (ns && ns.connected === false) { bad = true; reason = "Mobile data / Wi-Fi is switched off"; }
+          } else if (!bad && typeof navigator !== "undefined" && navigator.onLine === false) {
+            bad = true; reason = "Mobile data / Wi-Fi is switched off";
+          }
+          /* battery optimisation switched back on — Android will freeze tracking */
+          if (!bad && Cap.Plugins.BatteryOptimization && Cap.Plugins.BatteryOptimization.isBatteryOptimizationEnabled) {
+            const bo = await Cap.Plugins.BatteryOptimization.isBatteryOptimizationEnabled();
+            if (bo && bo.enabled === true) { bad = true; reason = "Battery optimisation is ON for this app"; }
           }
         }
       } catch {}
-      if (!bad && trackingErrorRef.current) bad = true;
+      if (!bad && trackingErrorRef.current) { bad = true; reason = "Location could not be read"; }
       setGpsAlarm(bad);
+      setGpsAlarmReason(bad ? reason : "");
+      /* tell the server which setting was switched off, so admin sees
+         "Net Off" / "Notifications Off" under the GPS status */
+      const short = !bad ? "" :
+        /data|wi-?fi/i.test(reason) ? "Net Off" :
+        /notification/i.test(reason) ? "Notifications Off" :
+        /batter/i.test(reason) ? "Battery Optimisation ON" :
+        /location/i.test(reason) ? "Location Off" : "Tracking stopped";
+      if (short !== lastReportedRef.current) {
+        lastReportedRef.current = short;
+        try {
+          const sid = sessionRef.current;
+          if (sid) await api.attGpsStatus(sid, !bad, short);
+        } catch {}
+      }
     }, 5000);
     return () => { clearInterval(id); setGpsAlarm(false); };
   }, [attendanceOn]);
@@ -6360,7 +6430,8 @@ export default function FieldApp() {
             <div style={{ fontSize: 44, marginBottom: 6 }}>⚠️</div>
             <h2 style={{ margin: "0 0 6px", color: "#c0392b" }}>Tracking Interrupted!</h2>
             <p style={{ color: "#444", fontSize: 13.5, marginBottom: 18, lineHeight: 1.5 }}>
-              Your <b>Location</b> is OFF. Attendance tracking needs it ON. Tap below to turn it on.
+              <b>{gpsAlarmReason || "Location is switched off"}</b>. Attendance tracking needs this ON.
+              Fix it now — the alarm stops the moment it is back on.
             </p>
             <button onClick={async () => {
               try {

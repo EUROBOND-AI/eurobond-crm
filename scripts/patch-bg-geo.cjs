@@ -160,7 +160,14 @@ try {
                     int rc = c.getResponseCode();
                     /* mark the slot as used ONLY on success, so a failed upload is
                        retried on the next alarm tick instead of being dropped */
-                    if (rc >= 200 && rc < 300) { ebLastUploadMs = now; ebClearQueue(); }
+                    if (rc >= 200 && rc < 300) {
+                        ebLastUploadMs = now; ebClearQueue();
+                        /* network is back — push any GPS on/off change that couldn't be sent */
+                        try {
+                            String pend = prefs.getString("eb_pending_gps_status", null);
+                            if (pend != null) ebPostGpsStatus("1".equals(pend));
+                        } catch (Exception e3) {}
+                    }
                     else ebQueuePoint(pt.toString());
                     /* if the server says this session is closed (10:30 PM auto-logout or
                        manual stop), clear the stored session so the service shuts down. */
@@ -201,13 +208,41 @@ try {
         } catch (Exception e) { return true; }
     }
 
-    /* Repeats every 3s while location is OFF: keeps the alarm looping and re-posts the
-       notification even if the user swipes it. Stops the instant location is back ON. */
+    /* ---- What else can stop tracking? Network, notifications and battery
+       optimisation are checked here too, so the alarm fires for all of them even
+       when the app is closed. Returns "" when everything is fine. ---- */
+    private String ebProblem() {
+        if (!ebLocationOn()) return "Location is switched off";
+        try {
+            android.net.ConnectivityManager cm = (android.net.ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            android.net.NetworkInfo ni = cm != null ? cm.getActiveNetworkInfo() : null;
+            if (ni == null || !ni.isConnected()) return "Mobile data / Wi-Fi is switched off";
+        } catch (Exception e) {}
+        try {
+            androidx.core.app.NotificationManagerCompat nmc = androidx.core.app.NotificationManagerCompat.from(getApplicationContext());
+            if (!nmc.areNotificationsEnabled()) return "Notifications are switched off";
+        } catch (Exception e) {}
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= 23) {
+                android.os.PowerManager pm = (android.os.PowerManager) getSystemService(Context.POWER_SERVICE);
+                if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName()))
+                    return "Battery optimisation is ON for this app";
+            }
+        } catch (Exception e) {}
+        return "";
+    }
+
+    /* Repeats every 3s while something is wrong: keeps the alarm looping and re-posts
+       the notification even if the user swipes it. Stops the instant it is fixed. */
+    private String ebLastProblem = "";
     private final Runnable ebAlertLoop = new Runnable() {
         @Override public void run() {
-            if (ebLocationOn()) { ebStopAlert(); return; }
+            String prob = ebProblem();
+            if (prob.length() == 0) { ebStopAlert(); return; }
+            ebLastProblem = prob;
             ebStartAlarmSound();
             ebShowLocationOffNotification();
+            ebShowOverlay(prob);
             ebAlertHandler.postDelayed(this, 3000);
         }
     };
@@ -218,8 +253,90 @@ try {
         ebAlertHandler.removeCallbacks(ebAlertLoop);
         ebAlertHandler.post(ebAlertLoop);
     }
+
+    /* ---- Full-screen warning drawn OVER other apps ----
+       When the person switches notifications off we cannot post a notification,
+       so the warning is drawn as a system overlay instead. Needs the
+       "Display over other apps" permission; without it we still make the sound. */
+    private android.view.View ebOverlayView = null;
+    private void ebShowOverlay(final String why) {
+        try {
+            if (ebOverlayView != null) return;
+            if (android.os.Build.VERSION.SDK_INT >= 23 && !android.provider.Settings.canDrawOverlays(getApplicationContext())) return;
+            final android.view.WindowManager wm = (android.view.WindowManager) getSystemService(Context.WINDOW_SERVICE);
+            if (wm == null) return;
+            ebAlertHandler.post(new Runnable() { @Override public void run() {
+                try {
+                    if (ebOverlayView != null) return;
+                    android.widget.LinearLayout box = new android.widget.LinearLayout(getApplicationContext());
+                    box.setOrientation(android.widget.LinearLayout.VERTICAL);
+                    box.setBackgroundColor(android.graphics.Color.parseColor("#F2C0392B"));
+                    int pad = (int) (22 * getResources().getDisplayMetrics().density);
+                    box.setPadding(pad, pad, pad, pad);
+                    box.setGravity(android.view.Gravity.CENTER);
+
+                    android.widget.TextView t1 = new android.widget.TextView(getApplicationContext());
+                    t1.setText("Tracking Interrupted!");
+                    t1.setTextColor(android.graphics.Color.WHITE);
+                    t1.setTextSize(21);
+                    t1.setGravity(android.view.Gravity.CENTER);
+                    t1.setTypeface(null, android.graphics.Typeface.BOLD);
+
+                    android.widget.TextView t2 = new android.widget.TextView(getApplicationContext());
+                    t2.setText(why + ". Attendance tracking has stopped. Turn it back ON now.");
+                    t2.setTextColor(android.graphics.Color.WHITE);
+                    t2.setTextSize(14);
+                    t2.setGravity(android.view.Gravity.CENTER);
+                    t2.setPadding(0, pad / 2, 0, pad / 2);
+
+                    android.widget.Button btn = new android.widget.Button(getApplicationContext());
+                    btn.setText("FIX NOW");
+                    btn.setOnClickListener(new android.view.View.OnClickListener() {
+                        @Override public void onClick(android.view.View v) {
+                            try {
+                                Intent op = getPackageManager().getLaunchIntentForPackage(getPackageName());
+                                if (op != null) { op.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); startActivity(op); }
+                            } catch (Throwable t) {}
+                        }
+                    });
+
+                    box.addView(t1); box.addView(t2); box.addView(btn);
+
+                    int type = android.os.Build.VERSION.SDK_INT >= 26
+                        ? android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                        : android.view.WindowManager.LayoutParams.TYPE_PHONE;
+                    android.view.WindowManager.LayoutParams lp = new android.view.WindowManager.LayoutParams(
+                        android.view.WindowManager.LayoutParams.MATCH_PARENT,
+                        android.view.WindowManager.LayoutParams.WRAP_CONTENT,
+                        type,
+                        android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                            | android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                            | android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON,
+                        android.graphics.PixelFormat.TRANSLUCENT);
+                    lp.gravity = android.view.Gravity.TOP;
+                    wm.addView(box, lp);
+                    ebOverlayView = box;
+                } catch (Throwable t) {}
+            }});
+        } catch (Throwable t) {}
+    }
+    private void ebHideOverlay() {
+        try {
+            final android.view.View v = ebOverlayView;
+            if (v == null) return;
+            ebOverlayView = null;
+            ebAlertHandler.post(new Runnable() { @Override public void run() {
+                try {
+                    android.view.WindowManager wm = (android.view.WindowManager) getSystemService(Context.WINDOW_SERVICE);
+                    if (wm != null) wm.removeView(v);
+                } catch (Throwable t) {}
+            }});
+        } catch (Throwable t) {}
+    }
+
     private void ebStopAlert() {
         ebAlertRunning = false;
+        ebHideOverlay();
         ebAlertHandler.removeCallbacks(ebAlertLoop);
         ebStopAlarmSound();
         try { NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE); if (nm != null) nm.cancel(74191); } catch (Exception e) {}
@@ -249,12 +366,16 @@ try {
                 if (!ebSessionActive()) { ebStopAlert(); return; }   // attendance not running
                 boolean on = ebLocationOn();
                 ebPostGpsStatus(on);           // admin sees it instantly
-                if (!on) ebStartAlert(); else ebStopAlert();
+                if (ebProblem().length() > 0) ebStartAlert(); else ebStopAlert();
             }
         };
-        try { registerReceiver(ebLocReceiver, new IntentFilter("android.location.PROVIDERS_CHANGED")); } catch (Exception e) {}
-        // also check right away in case location was already off
-        if (ebSessionActive() && !ebLocationOn()) ebStartAlert();
+        try {
+            IntentFilter f = new IntentFilter("android.location.PROVIDERS_CHANGED");
+            f.addAction("android.net.conn.CONNECTIVITY_CHANGE");   // data / Wi-Fi switched off
+            registerReceiver(ebLocReceiver, f);
+        } catch (Exception e) {}
+        // also check right away in case something was already off
+        if (ebSessionActive() && ebProblem().length() > 0) ebStartAlert();
     }
 
     /* Android 8+ blocks starting a background service from an alarm/PendingIntent.
@@ -288,11 +409,31 @@ try {
                     c.setRequestProperty("Content-Type", "application/json");
                     if (token != null && token.length() > 0) c.setRequestProperty("Authorization", "Bearer " + token);
                     String q = String.valueOf((char) 34);
-                    String body = "{" + q + "session_id" + q + ":" + sessionId + "," + q + "gps_on" + q + ":" + (on ? "true" : "false") + "}";
+                    String why = ebProblem();
+                    String shortWhy = "";
+                    if (why.length() > 0) {
+                        if (why.contains("data")) shortWhy = "Net Off";
+                        else if (why.contains("Notification")) shortWhy = "Notifications Off";
+                        else if (why.contains("Battery")) shortWhy = "Battery Optimisation ON";
+                        else shortWhy = "Location Off";
+                    }
+                    String body = "{" + q + "session_id" + q + ":" + sessionId + "," + q + "gps_on" + q + ":"
+                        + (on ? "true" : "false") + "," + q + "reason" + q + ":" + q + shortWhy + q + "}";
                     java.io.OutputStream os = c.getOutputStream();
                     os.write(body.getBytes("UTF-8")); os.flush(); os.close();
-                    c.getResponseCode(); c.disconnect();
-                } catch (Exception e) {}
+                    int rc2 = c.getResponseCode();
+                    c.disconnect();
+                    if (rc2 >= 200 && rc2 < 300) {
+                        prefs.edit().remove("eb_pending_gps_status").apply();
+                    } else {
+                        prefs.edit().putString("eb_pending_gps_status", on ? "1" : "0").apply();
+                    }
+                } catch (Exception e) {
+                    try {
+                        getApplicationContext().getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE)
+                            .edit().putString("eb_pending_gps_status", on ? "1" : "0").apply();
+                    } catch (Exception e2) {}
+                }
             }
         }).start();
     }
@@ -315,6 +456,8 @@ try {
                         "eb_alert_hi", "Eurobond Tracking Alerts", NotificationManager.IMPORTANCE_HIGH);
                     ch.setDescription("Alerts when location is turned off during attendance");
                     ch.enableVibration(true);
+                    ch.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
+                    ch.setBypassDnd(true);
                     nm.createNotificationChannel(ch);
                 }
             } catch (Exception e) {}
@@ -326,16 +469,25 @@ try {
                 try { fl |= PendingIntent.FLAG_IMMUTABLE; } catch (Throwable t) {}
                 pi = PendingIntent.getActivity(getApplicationContext(), 74192, open, fl);
             }
+            String why = (ebLastProblem == null || ebLastProblem.length() == 0)
+                ? "Location is switched off" : ebLastProblem;
             NotificationCompat.Builder b = new NotificationCompat.Builder(getApplicationContext(), "eb_alert_hi")
-                .setContentTitle("GPS is OFF")
-                .setContentText("Attendance tracking stopped. Turn ON your location now.")
+                .setContentTitle("Tracking Interrupted!")
+                .setContentText(why + ". Attendance tracking has stopped — fix it now.")
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(
+                    why + ". Attendance tracking has stopped. Turn it back ON - the alarm stops the moment you do."))
                 .setSmallIcon(getResources().getIdentifier("ic_stat_notify", "drawable", getPackageName()))
                 .setPriority(NotificationCompat.PRIORITY_MAX)
                 .setCategory(NotificationCompat.CATEGORY_ALARM)
                 .setOngoing(true)        // can't be swiped away while location is off
                 .setAutoCancel(false)
                 .setOnlyAlertOnce(true); // the looping alarm carries the sound
-            if (pi != null) b.setContentIntent(pi);
+            if (pi != null) {
+                b.setContentIntent(pi);
+                /* shows as a heads-up banner over any app, and full-screen on a
+                   locked phone — this is what makes it visible outside the app */
+                b.setFullScreenIntent(pi, true);
+            }
             if (nm != null) nm.notify(74191, b.build());
         } catch (Exception e) {}
     }
@@ -417,7 +569,22 @@ try {
 
             startForeground(NOTIFICATION_ID, b.build());
             ebNotifWasVisible = true;
-        } catch (Exception e) {}
+        } catch (Throwable e) {
+            /* If the user disabled notifications, startForeground can throw and the
+               service would die with it. Keep the service alive and make sure the
+               wake-up alarm is re-armed so tracking carries on regardless. */
+            try { ebScheduleAlarm(); } catch (Throwable t) {}
+        }
+    }
+
+    /* Notifications can be switched off mid-day (some people do it to dodge
+       tracking). Android then hides our foreground notification, so we re-assert
+       the foreground state on every tick and re-arm the alarm — tracking resumes
+       by itself the moment notifications are switched back on, with no need to
+       open the app. */
+    private void ebReassertForeground() {
+        try { ebEnsureForeground(); } catch (Throwable t) {}
+        try { ebScheduleAlarm(); } catch (Throwable t) {}
     }
 
     private final Handler keepAliveHandler = new Handler(Looper.getMainLooper());
@@ -450,6 +617,16 @@ try {
             try { flag |= PendingIntent.FLAG_IMMUTABLE; } catch (Throwable t) {}
             PendingIntent pi = ebServicePI(4802, i, flag);
             long next = System.currentTimeMillis() + 60000; // ~60s — brings the notification back sooner
+
+            /* A second alarm aimed at the manifest receiver. A receiver runs even
+               when the service itself can't be started (notifications switched off,
+               process killed), so this is what revives tracking on its own. */
+            try {
+                Intent rx = new Intent("com.eurobond.crm.EB_WAKE");
+                rx.setClass(getApplicationContext(), EbWakeReceiver.class);
+                PendingIntent rpi = PendingIntent.getBroadcast(getApplicationContext(), 4804, rx, flag);
+                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next + 5000, rpi);
+            } catch (Throwable t) {}
             // setAlarmClock() is NOT throttled by Doze — it always fires on time, even in
             // deep sleep. This is the key to points flowing when the phone is idle for hours.
             try {
@@ -626,6 +803,8 @@ try {
       let mf = fs.readFileSync(manifest, "utf8");
       const perms = [
         '<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />',
+        '<uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />',
+        '<uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />',
         '<uses-permission android:name="android.permission.WAKE_LOCK" />',
         '<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />',
         '<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />',
@@ -666,6 +845,31 @@ try {
       }
     }
   } catch (e) { console.log("[patch-bg-geo] plugin manifest note:", e.message); }
+
+  /* ---- register EbWakeReceiver in the plugin manifest so it survives the
+     service being killed ---- */
+  try {
+    const pm = path.join(__dirname, "..", "node_modules", "@capacitor-community",
+      "background-geolocation", "android", "src", "main", "AndroidManifest.xml");
+    if (fs.existsSync(pm)) {
+      let x = fs.readFileSync(pm, "utf8");
+      if (!x.includes("EbWakeReceiver")) {
+        const rxXml = '        <receiver android:name="com.equimaps.capacitor_background_geolocation.EbWakeReceiver"\n' +
+                      '            android:exported="false" android:enabled="true">\n' +
+                      '            <intent-filter>\n' +
+                      '                <action android:name="com.eurobond.crm.EB_WAKE" />\n' +
+                      '                <action android:name="android.intent.action.BOOT_COMPLETED" />\n' +
+                      '                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />\n' +
+                      '            </intent-filter>\n' +
+                      '        </receiver>\n';
+        if (x.includes("</application>")) x = x.replace("</application>", rxXml + "    </application>");
+        else x = x.replace(/<\/manifest>/, "    <application>\n" + rxXml + "    </application>\n</manifest>");
+        fs.writeFileSync(pm, x, "utf8");
+        console.log("[patch-bg-geo] wake receiver registered \u2713");
+      }
+    }
+  } catch (e) { console.log("[patch-bg-geo] receiver manifest note:", e.message); }
+
 
   /* ---- foreground-service plugin: declare its service with foregroundServiceType
      so Android 10+/14+ actually starts it (otherwise startForegroundService fails). ---- */
@@ -769,6 +973,199 @@ try {
       }
     }
   } catch (e) { console.log("[patch-bg-geo] signing note:", e.message); }
+
+  /* ---- EB_WAKE_RECEIVER: a manifest-registered receiver that restarts the
+     tracking service. A receiver still runs even when the service itself could
+     not start (for example while notifications were switched off), so this is
+     what brings tracking back by itself once the user fixes the setting. ---- */
+  try {
+    const pkgDir = path.join(__dirname, "..", "node_modules", "@capacitor-community",
+      "background-geolocation", "android", "src", "main", "java", "com", "equimaps",
+      "capacitor_background_geolocation");
+    const rxFile = path.join(pkgDir, "EbWakeReceiver.java");
+    if (fs.existsSync(pkgDir)) {
+      const rx = [
+        "package com.equimaps.capacitor_background_geolocation;",
+        "",
+        "import android.app.AlarmManager;",
+        "import android.app.PendingIntent;",
+        "import android.content.BroadcastReceiver;",
+        "import android.content.Context;",
+        "import android.content.Intent;",
+        "import android.content.SharedPreferences;",
+        "import android.graphics.Color;",
+        "import android.graphics.PixelFormat;",
+        "import android.location.LocationManager;",
+        "import android.media.AudioManager;",
+        "import android.media.MediaPlayer;",
+        "import android.media.RingtoneManager;",
+        "import android.os.Build;",
+        "import android.os.Handler;",
+        "import android.os.Looper;",
+        "import android.os.PowerManager;",
+        "import android.provider.Settings;",
+        "import android.view.Gravity;",
+        "import android.view.View;",
+        "import android.view.WindowManager;",
+        "import android.widget.Button;",
+        "import android.widget.LinearLayout;",
+        "import android.widget.TextView;",
+        "",
+        "/* Runs even when the tracking service has been killed (for example after",
+        "   the user switched notifications off), so the alarm, the warning overlay",
+        "   and the restart of tracking never depend on the service being alive. */",
+        "public class EbWakeReceiver extends BroadcastReceiver {",
+        "    private static MediaPlayer player = null;",
+        "    private static View overlay = null;",
+        "",
+        "    private static String problem(Context ctx) {",
+        "        try {",
+        "            LocationManager lm = (LocationManager) ctx.getSystemService(Context.LOCATION_SERVICE);",
+        "            boolean on = lm != null && (lm.isProviderEnabled(LocationManager.GPS_PROVIDER)",
+        "                || lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER));",
+        "            if (!on) return \"Location is switched off\";",
+        "        } catch (Throwable t) {}",
+        "        try {",
+        "            android.net.ConnectivityManager cm = (android.net.ConnectivityManager) ctx.getSystemService(Context.CONNECTIVITY_SERVICE);",
+        "            android.net.NetworkInfo ni = cm != null ? cm.getActiveNetworkInfo() : null;",
+        "            if (ni == null || !ni.isConnected()) return \"Mobile data / Wi-Fi is switched off\";",
+        "        } catch (Throwable t) {}",
+        "        try {",
+        "            androidx.core.app.NotificationManagerCompat nmc = androidx.core.app.NotificationManagerCompat.from(ctx);",
+        "            if (!nmc.areNotificationsEnabled()) return \"Notifications are switched off\";",
+        "        } catch (Throwable t) {}",
+        "        try {",
+        "            if (Build.VERSION.SDK_INT >= 23) {",
+        "                PowerManager pm = (PowerManager) ctx.getSystemService(Context.POWER_SERVICE);",
+        "                if (pm != null && !pm.isIgnoringBatteryOptimizations(ctx.getPackageName()))",
+        "                    return \"Battery optimisation is ON for this app\";",
+        "            }",
+        "        } catch (Throwable t) {}",
+        "        return \"\";",
+        "    }",
+        "",
+        "    private static void startSound(Context ctx) {",
+        "        try {",
+        "            if (player != null && player.isPlaying()) return;",
+        "            android.net.Uri u = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);",
+        "            if (u == null) u = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);",
+        "            player = new MediaPlayer();",
+        "            player.setDataSource(ctx, u);",
+        "            player.setAudioStreamType(AudioManager.STREAM_ALARM);",
+        "            player.setLooping(true);",
+        "            player.prepare();",
+        "            player.start();",
+        "        } catch (Throwable t) {}",
+        "    }",
+        "    private static void stopSound() {",
+        "        try { if (player != null) { player.stop(); player.release(); } } catch (Throwable t) {}",
+        "        player = null;",
+        "    }",
+        "",
+        "    private static void showOverlay(final Context ctx, final String why) {",
+        "        try {",
+        "            if (overlay != null) return;",
+        "            if (Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(ctx)) return;",
+        "            new Handler(Looper.getMainLooper()).post(new Runnable() { public void run() {",
+        "                try {",
+        "                    if (overlay != null) return;",
+        "                    WindowManager wm = (WindowManager) ctx.getSystemService(Context.WINDOW_SERVICE);",
+        "                    if (wm == null) return;",
+        "                    LinearLayout box = new LinearLayout(ctx);",
+        "                    box.setOrientation(LinearLayout.VERTICAL);",
+        "                    box.setBackgroundColor(Color.parseColor(\"#F2C0392B\"));",
+        "                    int pad = (int) (22 * ctx.getResources().getDisplayMetrics().density);",
+        "                    box.setPadding(pad, pad, pad, pad);",
+        "                    box.setGravity(Gravity.CENTER);",
+        "                    TextView t1 = new TextView(ctx);",
+        "                    t1.setText(\"Tracking Interrupted!\");",
+        "                    t1.setTextColor(Color.WHITE); t1.setTextSize(21);",
+        "                    t1.setGravity(Gravity.CENTER);",
+        "                    TextView t2 = new TextView(ctx);",
+        "                    t2.setText(why + \". Attendance tracking has stopped. Turn it back ON now.\");",
+        "                    t2.setTextColor(Color.WHITE); t2.setTextSize(14);",
+        "                    t2.setGravity(Gravity.CENTER);",
+        "                    t2.setPadding(0, pad / 2, 0, pad / 2);",
+        "                    Button b = new Button(ctx);",
+        "                    b.setText(\"FIX NOW\");",
+        "                    b.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {",
+        "                        try {",
+        "                            Intent op = ctx.getPackageManager().getLaunchIntentForPackage(ctx.getPackageName());",
+        "                            if (op != null) { op.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); ctx.startActivity(op); }",
+        "                        } catch (Throwable t) {}",
+        "                    }});",
+        "                    box.addView(t1); box.addView(t2); box.addView(b);",
+        "                    int type = Build.VERSION.SDK_INT >= 26",
+        "                        ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY",
+        "                        : WindowManager.LayoutParams.TYPE_PHONE;",
+        "                    WindowManager.LayoutParams lp = new WindowManager.LayoutParams(",
+        "                        WindowManager.LayoutParams.MATCH_PARENT,",
+        "                        WindowManager.LayoutParams.WRAP_CONTENT, type,",
+        "                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE",
+        "                            | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED",
+        "                            | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON,",
+        "                        PixelFormat.TRANSLUCENT);",
+        "                    lp.gravity = Gravity.TOP;",
+        "                    wm.addView(box, lp);",
+        "                    overlay = box;",
+        "                } catch (Throwable t) {}",
+        "            }});",
+        "        } catch (Throwable t) {}",
+        "    }",
+        "    private static void hideOverlay(final Context ctx) {",
+        "        final View v = overlay;",
+        "        if (v == null) return;",
+        "        overlay = null;",
+        "        new Handler(Looper.getMainLooper()).post(new Runnable() { public void run() {",
+        "            try {",
+        "                WindowManager wm = (WindowManager) ctx.getSystemService(Context.WINDOW_SERVICE);",
+        "                if (wm != null) wm.removeView(v);",
+        "            } catch (Throwable t) {}",
+        "        }});",
+        "    }",
+        "",
+        "    private static void rearm(Context ctx) {",
+        "        try {",
+        "            AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);",
+        "            Intent rx = new Intent(\"com.eurobond.crm.EB_WAKE\");",
+        "            rx.setClass(ctx, EbWakeReceiver.class);",
+        "            int fl = PendingIntent.FLAG_UPDATE_CURRENT;",
+        "            try { fl |= PendingIntent.FLAG_IMMUTABLE; } catch (Throwable t) {}",
+        "            PendingIntent pi = PendingIntent.getBroadcast(ctx, 4804, rx, fl);",
+        "            long next = System.currentTimeMillis() + 30000;",
+        "            if (am == null) return;",
+        "            try { am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next, pi); }",
+        "            catch (Throwable t) { am.set(AlarmManager.RTC_WAKEUP, next, pi); }",
+        "        } catch (Throwable t) {}",
+        "    }",
+        "",
+        "    @Override public void onReceive(Context ctx, Intent intent) {",
+        "        Context app = ctx.getApplicationContext();",
+        "        try {",
+        "            SharedPreferences p = app.getSharedPreferences(\"CapacitorStorage\", Context.MODE_PRIVATE);",
+        "            String sid = p.getString(\"eb_session_id\", null);",
+        "            if (sid == null || sid.length() == 0) { stopSound(); hideOverlay(app); return; }",
+        "            rearm(app);",
+        "            String why = problem(app);",
+        "            if (why.length() > 0) { startSound(app); showOverlay(app, why); }",
+        "            else { stopSound(); hideOverlay(app); }",
+        "            Intent svc = new Intent(app, BackgroundGeolocationService.class);",
+        "            try {",
+        "                if (Build.VERSION.SDK_INT >= 26) app.startForegroundService(svc);",
+        "                else app.startService(svc);",
+        "            } catch (Throwable t) { try { app.startService(svc); } catch (Throwable t2) {} }",
+        "        } catch (Throwable t) {}",
+        "    }",
+        "}",
+        ""
+      ].join("\n");
+      if (!fs.existsSync(rxFile) || fs.readFileSync(rxFile, "utf8") !== rx) {
+        fs.writeFileSync(rxFile, rx, "utf8");
+        console.log("[patch-bg-geo] wake receiver written \u2713");
+      }
+    }
+  } catch (e) { console.log("[patch-bg-geo] wake receiver note:", e.message); }
+
 
 
 

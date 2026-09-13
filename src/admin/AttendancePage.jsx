@@ -347,7 +347,8 @@ export default function AttendancePage() {
                     else on = s.app_status === "Live";
                     const closed = !on && isRunning;
                     return (
-                      <span title={on ? "GPS ON (live)" : closed ? "GPS OFF" : "Completed"} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      <span title={on ? "GPS ON (live)" : closed ? "GPS OFF" : "Completed"} style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                         <span style={{
                           width: 34, height: 19, borderRadius: 12, background: on ? "#20bf6b" : "#cbd2e0",
                           position: "relative", display: "inline-block", transition: "background .2s",
@@ -358,6 +359,11 @@ export default function AttendancePage() {
                           }} />
                         </span>
                         <span style={{ fontSize: 10.5, fontWeight: 800, color: on ? "#1f7a44" : "#8a93a8" }}>{on ? "ON" : "OFF"}</span>
+                      </span>
+                      {/* what the phone reported — Net Off, Notifications Off, etc. */}
+                      {!on && s.gps_note ? (
+                        <span style={{ fontSize: 9.5, fontWeight: 800, color: "#c0392b", whiteSpace: "nowrap" }}>{s.gps_note}</span>
+                      ) : null}
                       </span>
                     );
                   })()}
@@ -438,8 +444,24 @@ export default function AttendancePage() {
                     </div>
                     <div style={{ fontSize: 13, color: "var(--ink)", marginTop: 3, fontWeight: 600, lineHeight: 1.4 }}>{addr || "Finding address…"}</div>
                     <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3, display: "flex", gap: 12, flexWrap: "wrap" }}>
-                      <span>🔋 {p.battery != null ? p.battery + "%" : "NA"}</span>
-                      <span>{p.online === 1 || p.online === true ? "🟢 Online" : p.online === 0 || p.online === false ? "🔴 Offline" : "📶 NA"}</span>
+                      {(() => {
+                        /* real battery level, coloured once it gets low */
+                        const b = p.battery != null ? Number(p.battery) : null;
+                        const bc = b == null ? "var(--muted)" : b <= 15 ? "#c0392b" : b <= 30 ? "#e08600" : "#1f7a44";
+                        return <span style={{ color: bc, fontWeight: 800 }}>🔋 {b == null ? "NA" : b + "%"}</span>;
+                      })()}
+                      {(() => {
+                        /* green when the phone had network at this point, red when it didn't */
+                        const on = p.online === 1 || p.online === true;
+                        const off = p.online === 0 || p.online === false;
+                        if (!on && !off) return <span style={{ color: "var(--muted)" }}>📶 NA</span>;
+                        return (
+                          <span style={{ color: on ? "#1f7a44" : "#c0392b", fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                            <span style={{ width: 9, height: 9, borderRadius: 9, background: on ? "#1f9d55" : "#e5484d", display: "inline-block" }} />
+                            {on ? "Online" : "Offline"}
+                          </span>
+                        );
+                      })()}
                       <span>🕐 {p.recorded_at ? String(p.recorded_at).slice(11, 16) : ""}</span>
                     </div>
                     <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>📍 {Number(p.lat).toFixed(5)}, {Number(p.lng).toFixed(5)}</div>
