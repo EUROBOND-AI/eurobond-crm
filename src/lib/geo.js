@@ -19,17 +19,22 @@ let _ebOnline = null;
 
 /* Capacitor Device / Network plugins give reliable values inside the app
    (the browser battery API is not available in the Android WebView). */
-(function ebWatchNative() {
+(function ebWatchNative(tries) {
+  tries = tries || 0;
   try {
     const P = typeof window !== "undefined" && window.Capacitor && window.Capacitor.Plugins;
-    if (!P) return;
+    if (!P || !P.Device) {
+      /* plugins are injected a moment after load — keep trying for ~30s */
+      if (tries < 60) setTimeout(() => ebWatchNative(tries + 1), 500);
+      return;
+    }
     const readBat = () => {
       try { P.Device && P.Device.getBatteryInfo && P.Device.getBatteryInfo()
         .then((i) => { if (i && typeof i.batteryLevel === "number") _ebBattery = Math.round(i.batteryLevel * 100); })
         .catch(() => {}); } catch {}
     };
     readBat();
-    setInterval(readBat, 60000);
+    setInterval(readBat, 30000);
     if (P.Network) {
       try { P.Network.getStatus().then((st) => { if (st) _ebOnline = !!st.connected; }).catch(() => {}); } catch {}
       try { P.Network.addListener("networkStatusChange", (st) => { _ebOnline = !!(st && st.connected); }); } catch {}
@@ -209,7 +214,22 @@ export function setTrackerSession(sessionId, intervalMs, uploadFn) {
   }
 }
 
-function _handleLocation(loc) {
+async function _ebFreshBattery() {
+  try {
+    const P = typeof window !== "undefined" && window.Capacitor && window.Capacitor.Plugins;
+    if (P && P.Device && P.Device.getBatteryInfo) {
+      const i = await P.Device.getBatteryInfo();
+      if (i && typeof i.batteryLevel === "number") _ebBattery = Math.round(i.batteryLevel * 100);
+    }
+    if (P && P.Network && P.Network.getStatus) {
+      const st = await P.Network.getStatus();
+      if (st) _ebOnline = !!st.connected;
+    }
+  } catch {}
+}
+
+async function _handleLocation(loc) {
+  await _ebFreshBattery();          // real % and network state for THIS point
   const pt = {
     lat: loc.latitude ?? loc.lat,
     lng: loc.longitude ?? loc.lng,

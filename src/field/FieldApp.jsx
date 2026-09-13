@@ -6359,7 +6359,7 @@ export default function FieldApp() {
   useEffect(() => {
     if (!attendanceOn) { setGpsAlarm(false); return; }
     lastPointAt.current = Date.now();
-    const id = setInterval(async () => {
+    const tick = async () => {
       let bad = false;
       let reason = "";
       try {
@@ -6407,8 +6407,24 @@ export default function FieldApp() {
           if (sid) await api.attGpsStatus(sid, !bad, short);
         } catch {}
       }
-    }, 5000);
-    return () => { clearInterval(id); setGpsAlarm(false); };
+    };
+    tick();                                   // check right away
+    const id = setInterval(tick, 2000);
+    /* react the instant the network is switched off/on, like the location one */
+    let netSub = null;
+    try {
+      const NP = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Network;
+      if (NP && NP.addListener) netSub = NP.addListener("networkStatusChange", () => { try { tick(); } catch {} });
+    } catch {}
+    const onOnline = () => { try { tick(); } catch {} };
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOnline);
+    return () => {
+      clearInterval(id); setGpsAlarm(false);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOnline);
+      try { netSub && netSub.remove && netSub.remove(); } catch {}
+    };
   }, [attendanceOn]);
 
   if (!authed) {

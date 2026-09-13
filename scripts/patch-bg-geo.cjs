@@ -235,6 +235,7 @@ try {
     /* Repeats every 3s while something is wrong: keeps the alarm looping and re-posts
        the notification even if the user swipes it. Stops the instant it is fixed. */
     private String ebLastProblem = "";
+    private String ebLastReported = "";
     private final Runnable ebAlertLoop = new Runnable() {
         @Override public void run() {
             String prob = ebProblem();
@@ -602,6 +603,15 @@ try {
                 } catch (Exception e) {}
             }
             ebScheduleAlarm();   // keep a Doze-proof wakeup armed
+            /* push a status change to the server the moment it happens */
+            try {
+                String nowProb = ebProblem();
+                if (!nowProb.equals(ebLastReported)) {
+                    ebLastReported = nowProb;
+                    ebPostGpsStatus(nowProb.length() == 0);
+                    if (nowProb.length() > 0) ebStartAlert(); else ebStopAlert();
+                }
+            } catch (Throwable t) {}
             keepAliveHandler.postDelayed(this, 1000);
         }
     };
