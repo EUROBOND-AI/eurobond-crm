@@ -532,23 +532,57 @@ async function scheduleAttendanceReminders() {
       } catch {}
     }
     /* clear any previously scheduled ones so we never stack duplicates */
-    try { await LN.cancel({ notifications: ATT_REMINDER_IDS.map((id) => ({ id })) }); } catch {}
+    try {
+      const old = [];
+      for (let day = 0; day < 7; day++) ATT_REMINDER_IDS.forEach((id) => old.push({ id: id + day * 10 }));
+      await LN.cancel({ notifications: old });
+    } catch {}
+
+    /* Days off must stay quiet, so instead of a blind daily repeat we schedule
+       the next 7 working days one by one, skipping Sundays, company holidays and
+       the person's approved leave. Re-runs whenever the app opens. */
+    const off = new Set();
+    try {
+      const h = await api.list("holidays", false);
+      (h.records || []).forEach((r) => { const d = r.data || {}; if (d.date) off.add(String(d.date).slice(0, 10)); });
+    } catch {}
+    try {
+      const me = CU();
+      const l = await api.list("leave", true);
+      (l.records || []).map((r) => r.data || {})
+        .filter((d) => d.createdBy === me.name && !String(d.status || "").toLowerCase().startsWith("reject"))
+        .forEach((d) => {
+          const a = new Date(d.from || d.fromDate || d.date);
+          const b = new Date(d.to || d.toDate || d.from || d.date);
+          if (isNaN(a.getTime())) return;
+          for (let x = new Date(a); x <= (isNaN(b.getTime()) ? a : b); x.setDate(x.getDate() + 1)) {
+            off.add(x.toISOString().slice(0, 10));
+          }
+        });
+    } catch {}
 
     const times = [[9, 0], [9, 10], [9, 20], [9, 30], [9, 40], [9, 50], [10, 0]];
-    const notifications = times.map(([h, m], i) => {
-      const at = new Date();
-      at.setHours(h, m, 0, 0);
-      if (at.getTime() <= Date.now()) at.setDate(at.getDate() + 1);   // next occurrence
-      return {
-        id: ATT_REMINDER_IDS[i],
-        title: "Attendance Reminder",
-        body: "Please start your attendance login for today.",
-        channelId: "eurobond_reminder",
-        smallIcon: "ic_stat_notify",
-        schedule: { at, allowWhileIdle: true, repeats: true, every: "day" },
-      };
-    });
-    await LN.schedule({ notifications });
+    const notifications = [];
+    for (let day = 0; day < 7; day++) {
+      const base = new Date();
+      base.setDate(base.getDate() + day);
+      if (base.getDay() === 0) continue;                       // Sunday
+      if (off.has(base.toISOString().slice(0, 10))) continue;  // holiday / leave
+      times.forEach(([h, m], i) => {
+        const at = new Date(base);
+        at.setHours(h, m, 0, 0);
+        if (at.getTime() <= Date.now()) return;                // already past
+        notifications.push({
+          id: ATT_REMINDER_IDS[i] + day * 10,
+          title: "Attendance Reminder",
+          body: "Please start your attendance login for today.",
+          channelId: "eurobond_reminder",
+          smallIcon: "ic_stat_notify",
+          schedule: { at, allowWhileIdle: true },
+        });
+      });
+    }
+    if (notifications.length) await LN.schedule({ notifications });
   } catch {}
 }
 /* stop today's reminders once the person has logged attendance */
@@ -556,7 +590,11 @@ async function cancelAttendanceReminders() {
   try {
     const Cap = typeof window !== "undefined" ? window.Capacitor : null;
     const LN = Cap && Cap.Plugins && Cap.Plugins.LocalNotifications;
-    if (LN) await LN.cancel({ notifications: ATT_REMINDER_IDS.map((id) => ({ id })) });
+    if (LN) {
+      const all = [];
+      for (let day = 0; day < 7; day++) ATT_REMINDER_IDS.forEach((id) => all.push({ id: id + day * 10 }));
+      await LN.cancel({ notifications: all });
+    }
   } catch {}
 }
 
@@ -580,10 +618,12 @@ async function scheduleLogoutReminders() {
         body: "Please complete your attendance logout for today.",
         channelId: "eurobond_reminder",
         smallIcon: "ic_stat_notify",
-        schedule: { at, allowWhileIdle: true, repeats: true, every: "day" },
+        /* today only — re-armed each day attendance is started, so it never
+           fires on a Sunday, holiday or leave day */
+        schedule: { at, allowWhileIdle: true },
       };
-    });
-    await LN.schedule({ notifications });
+    }).filter(Boolean);
+    if (notifications.length) await LN.schedule({ notifications });
   } catch {}
 }
 /* remind the person on the morning of a customer meeting */
@@ -6043,14 +6083,19 @@ export default function FieldApp() {
     };
     const firstLoad = !localStorage.getItem("eb_seen_notif");
     if (firstLoad) {
-      // seed seen set silently so we don't spam old notifications on first login
+      /* Fresh install: mark everything already on the server as "seen" BEFORE
+         the first poll. Previously the poll ran while this was still loading,
+         so every old notification fired again after a reinstall. */
       api.myNotifications().then((d) => {
-        const ids = (d.records || []).map((r) => r.id);
+        const ids = (d.records || []).map((r) => String(r.id));
         localStorage.setItem("eb_seen_notif", JSON.stringify(ids));
         seen = new Set(ids);
-      }).catch(() => {});
+      }).catch(() => {
+        localStorage.setItem("eb_seen_notif", "[]");
+      }).finally(() => { pollNotif(); });
+    } else {
+      pollNotif();                                     // fire right away on mount
     }
-    pollNotif();                                       // fire right away on mount
     const notifTimer = setInterval(pollNotif, 15000);   // 15s — near-instant alerts
     /* also poll the moment the app comes back to the foreground */
     const onWake = () => { if (!document.hidden) pollNotif(); };
