@@ -503,8 +503,11 @@ async function registerPush() {
          app just woke up, so restart tracking right here — this is what recovers
          a phone that froze the app. */
       try {
-        const t = `${n.title || ""} ${n.body || ""}`.toLowerCase();
-        if (t.includes("tracking stopped") || t.includes("no location recorded") || t.includes("not been recorded")) {
+        /* the server's wake-up arrives as a data-only message, so the text is in
+           n.data rather than n.title / n.body */
+        const d0 = n.data || {};
+        const t = `${n.title || d0.ebTitle || ""} ${n.body || d0.ebBody || ""}`.toLowerCase();
+        if (d0.ebWake === "1" || t.includes("tracking stopped") || t.includes("no location recorded") || t.includes("not been recorded")) {
           (async () => {
             try {
               if (localStorage.getItem("eb_att_on") !== "1") return;
