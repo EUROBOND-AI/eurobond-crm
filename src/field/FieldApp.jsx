@@ -493,6 +493,41 @@ async function registerPush() {
           link: (n.data && n.data.link) || "/app/notifications",
         });
       } catch {}
+      /* The server sends this when a phone has gone quiet. Receiving it means the
+         app just woke up, so restart tracking right here — this is what recovers
+         a phone that froze the app. */
+      try {
+        const t = `${n.title || ""} ${n.body || ""}`.toLowerCase();
+        if (t.includes("tracking stopped") || t.includes("no location recorded") || t.includes("not been recorded")) {
+          (async () => {
+            try {
+              if (localStorage.getItem("eb_att_on") !== "1") return;
+              const d = await api.attToday();
+              const sess = d && d.session;
+              if (sess && String(sess.status).toUpperCase() === "RUNNING") {
+                setTrackerSession(sess.id, (loadGpsCfg().intervalSec ?? 900) * 1000, api.attPoints);
+                /* make a noise too — the person switched something off and the
+                   phone had frozen the app, so this push is the wake-up */
+                try {
+                  const P2 = window.Capacitor && window.Capacitor.Plugins;
+                  if (P2 && P2.LocalNotifications) {
+                    await P2.LocalNotifications.schedule({
+                      notifications: [{
+                        id: 74196,
+                        title: "Tracking Interrupted!",
+                        body: "Attendance tracking stopped. Please check Location, Network and Notifications.",
+                        channelId: "eurobond_reminder",
+                        smallIcon: "ic_stat_notify",
+                        schedule: { at: new Date(Date.now() + 500), allowWhileIdle: true },
+                      }],
+                    });
+                  }
+                } catch {}
+              }
+            } catch {}
+          })();
+        }
+      } catch {}
     });
     /* tapped from the tray -> open the right screen */
     PN.addListener("pushNotificationActionPerformed", (ev) => {

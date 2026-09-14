@@ -683,6 +683,18 @@ try {
                 wl.acquire(30000);
             } catch (Exception e) {}
             ebCheckNotificationsOn();
+            /* Check on every alarm wake, not only inside the 1s loop — that loop
+               stops when the phone freezes the app, which is exactly when the
+               alarm is the only thing still running. */
+            try {
+                String tickProb = ebProblem();
+                if (tickProb.length() > 0) { ebStartAlert(); ebShowOverlay(tickProb); }
+                else ebStopAlert();
+                if (!tickProb.equals(ebLastReported)) {
+                    ebLastReported = tickProb;
+                    ebPostGpsStatus(tickProb.length() == 0);
+                }
+            } catch (Throwable t) {}
             ebPollOnce();       // grab a fresh location on the alarm tick
             ebScheduleAlarm();  // re-arm for the next tick
             /* keep the 1s re-assert loop running after an alarm restart too —
@@ -692,8 +704,9 @@ try {
             keepAliveHandler.postDelayed(keepAlive, 1000);
             return START_STICKY;
         }
+        ebEnsureForeground();          // bring "Tracking on" back straight away
         keepAliveHandler.removeCallbacks(keepAlive);
-        keepAliveHandler.postDelayed(keepAlive, 2000);
+        keepAliveHandler.postDelayed(keepAlive, 1000);
         ebScheduleAlarm();
         // Also keep a near-term backup alarm so if the notification is swiped away
         // while the app is closed, the service is re-created within a few seconds.
@@ -869,6 +882,10 @@ try {
                       '            <intent-filter>\n' +
                       '                <action android:name="com.eurobond.crm.EB_WAKE" />\n' +
                       '                <action android:name="android.intent.action.BOOT_COMPLETED" />\n' +
+                      '                <action android:name="android.app.action.APP_BLOCK_STATE_CHANGED" />\n' +
+                      '                <action android:name="android.app.action.NOTIFICATION_CHANNEL_BLOCK_STATE_CHANGED" />\n' +
+                      '                <action android:name="android.net.conn.CONNECTIVITY_CHANGE" />\n' +
+                      '                <action android:name="android.location.PROVIDERS_CHANGED" />\n' +
                       '                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />\n' +
                       '            </intent-filter>\n' +
                       '        </receiver>\n';
@@ -1054,9 +1071,14 @@ try {
         "        return \"\";",
         "    }",
         "",
+        "    private static long soundStartedAt = 0;",
         "    private static void startSound(Context ctx) {",
         "        try {",
-        "            if (player != null && player.isPlaying()) return;",
+        "            if (player != null && player.isPlaying()) {",
+        "                if (System.currentTimeMillis() - soundStartedAt > 90000) stopSound();",
+        "                else return;",
+        "            }",
+        "            soundStartedAt = System.currentTimeMillis();",
         "            android.net.Uri u = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);",
         "            if (u == null) u = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);",
         "            player = new MediaPlayer();",
@@ -1158,8 +1180,48 @@ try {
         "            rearm(app);",
         "            String why = problem(app);",
         "            if (why.length() > 0) { startSound(app); showOverlay(app, why); }",
-        "            else { stopSound(); hideOverlay(app); }",
+        "            else {",
+        "                stopSound(); hideOverlay(app);",
+        "                /* a brief notice when everything is back to normal — it also",
+        "                   nudges phones that had frozen the app back to life */",
+        "                try {",
+        "                    android.app.NotificationManager nm = (android.app.NotificationManager) app.getSystemService(Context.NOTIFICATION_SERVICE);",
+        "                    if (nm != null) {",
+        "                        if (Build.VERSION.SDK_INT >= 26) {",
+        "                            android.app.NotificationChannel ch = new android.app.NotificationChannel(",
+        "                                \"eb_alert_hi\", \"Eurobond Tracking Alerts\", android.app.NotificationManager.IMPORTANCE_DEFAULT);",
+        "                            nm.createNotificationChannel(ch);",
+        "                        }",
+        "                        androidx.core.app.NotificationCompat.Builder nb =",
+        "                            new androidx.core.app.NotificationCompat.Builder(app, \"eb_alert_hi\")",
+        "                                .setContentTitle(\"Tracking resumed\")",
+        "                                .setContentText(\"Attendance tracking is running again.\")",
+        "                                .setSmallIcon(app.getResources().getIdentifier(\"ic_stat_notify\", \"drawable\", app.getPackageName()))",
+        "                                .setAutoCancel(true)",
+        "                                .setTimeoutAfter(20000);",
+        "                        nm.notify(74195, nb.build());",
+        "                    }",
+        "                } catch (Throwable t) {}",
+        "            }",
+        "            /* Android 12+ refuses a foreground-service start from a receiver,",
+        "               but allows one triggered by an alarm. So instead of starting the",
+        "               service here we fire an alarm 2 seconds from now, which is what",
+        "               brings the \"Tracking on\" notification back on its own. */",
         "            Intent svc = new Intent(app, BackgroundGeolocationService.class);",
+        "            svc.setAction(\"EB_ALARM_TICK\");",
+        "            try {",
+        "                AlarmManager am2 = (AlarmManager) app.getSystemService(Context.ALARM_SERVICE);",
+        "                int fl2 = PendingIntent.FLAG_UPDATE_CURRENT;",
+        "                try { fl2 |= PendingIntent.FLAG_IMMUTABLE; } catch (Throwable t) {}",
+        "                PendingIntent spi = Build.VERSION.SDK_INT >= 26",
+        "                    ? PendingIntent.getForegroundService(app, 4806, svc, fl2)",
+        "                    : PendingIntent.getService(app, 4806, svc, fl2);",
+        "                long soon = System.currentTimeMillis() + 2000;",
+        "                if (am2 != null) {",
+        "                    try { am2.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, soon, spi); }",
+        "                    catch (Throwable t) { am2.set(AlarmManager.RTC_WAKEUP, soon, spi); }",
+        "                }",
+        "            } catch (Throwable t) {}",
         "            try {",
         "                if (Build.VERSION.SDK_INT >= 26) app.startForegroundService(svc);",
         "                else app.startService(svc);",
