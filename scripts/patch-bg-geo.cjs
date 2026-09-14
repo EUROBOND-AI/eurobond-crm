@@ -68,6 +68,8 @@ try {
     // EB_NATIVE_UPLOAD EB_PATCH_V3_BATTERY_NET: post a location straight to the server from native code,
     // so uploads work even when the JS/WebView is frozen in the background.
     private long ebLastUploadMs = 0;
+    private com.google.android.gms.location.FusedLocationProviderClient ebSelfClient = null;
+    private com.google.android.gms.location.LocationCallback ebSelfCallback = null;
 
     /* ---- Offline queue (native) ----
        If a point cannot reach the server (no network, weak signal), keep it in
@@ -650,6 +652,52 @@ try {
     }
 
     private void ebPollOnce() {
+        /* After the phone kills the app the service comes back with an EMPTY
+           watcher list (watchers are added by the JS side when tracking starts),
+           so nothing fetched a location and no points arrived. Fetch one with our
+           own client in that case. */
+        if (watchers.isEmpty() && ebSessionActive()) {
+            /* Also keep continuous updates running, not just this single fix —
+               otherwise points only arrive on the 60s alarm and stop again. */
+            try {
+                if (ebSelfCallback == null) {
+                    ebSelfClient = com.google.android.gms.location.LocationServices
+                        .getFusedLocationProviderClient(getApplicationContext());
+                    com.google.android.gms.location.LocationRequest lr =
+                        com.google.android.gms.location.LocationRequest.create();
+                    lr.setPriority(com.google.android.gms.location.LocationRequest.PRIORITY_HIGH_ACCURACY);
+                    lr.setInterval(60000);
+                    lr.setFastestInterval(30000);
+                    ebSelfCallback = new com.google.android.gms.location.LocationCallback() {
+                        @Override public void onLocationResult(com.google.android.gms.location.LocationResult r) {
+                            if (r != null && r.getLastLocation() != null) ebUploadLocation(r.getLastLocation());
+                        }
+                    };
+                    ebSelfClient.requestLocationUpdates(lr, ebSelfCallback, Looper.getMainLooper());
+                }
+            } catch (Throwable t) {}
+            try {
+                final com.google.android.gms.location.FusedLocationProviderClient fc =
+                    com.google.android.gms.location.LocationServices.getFusedLocationProviderClient(getApplicationContext());
+                fc.getCurrentLocation(100, null)
+                    .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<Location>() {
+                        @Override public void onSuccess(Location loc) {
+                            if (loc != null) ebUploadLocation(loc);
+                        }
+                    });
+            } catch (Throwable t) {
+                try {
+                    com.google.android.gms.location.FusedLocationProviderClient fc2 =
+                        com.google.android.gms.location.LocationServices.getFusedLocationProviderClient(getApplicationContext());
+                    fc2.getLastLocation().addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<Location>() {
+                        @Override public void onSuccess(Location loc) {
+                            if (loc != null) ebUploadLocation(loc);
+                        }
+                    });
+                } catch (Throwable t2) {}
+            }
+            return;
+        }
         for (Watcher w : watchers) {
             try {
                 // Force a FRESH single location (ignores distanceFilter), so a point is
@@ -878,7 +926,8 @@ try {
       let x = fs.readFileSync(pm, "utf8");
       if (!x.includes("EbWakeReceiver")) {
         const rxXml = '        <receiver android:name="com.equimaps.capacitor_background_geolocation.EbWakeReceiver"\n' +
-                      '            android:exported="false" android:enabled="true">\n' +
+                      '            android:exported="false" android:enabled="true"\n' +
+                      '            android:process=":ebwake">\n' +
                       '            <intent-filter>\n' +
                       '                <action android:name="com.eurobond.crm.EB_WAKE" />\n' +
                       '                <action android:name="android.intent.action.BOOT_COMPLETED" />\n' +
@@ -1118,15 +1167,41 @@ try {
         "                    t2.setTextColor(Color.WHITE); t2.setTextSize(14);",
         "                    t2.setGravity(Gravity.CENTER);",
         "                    t2.setPadding(0, pad / 2, 0, pad / 2);",
-        "                    Button b = new Button(ctx);",
-        "                    b.setText(\"FIX NOW\");",
-        "                    b.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {",
+        "                    android.widget.LinearLayout row = new android.widget.LinearLayout(ctx);",
+        "                    row.setOrientation(android.widget.LinearLayout.HORIZONTAL);",
+        "                    row.setGravity(Gravity.CENTER);",
+        "",
+        "                    /* Allow: opens this app's notification settings straight away */",
+        "                    Button bAllow = new Button(ctx);",
+        "                    bAllow.setText(\"ALLOW\");",
+        "                    bAllow.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {",
         "                        try {",
-        "                            Intent op = ctx.getPackageManager().getLaunchIntentForPackage(ctx.getPackageName());",
-        "                            if (op != null) { op.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); ctx.startActivity(op); }",
-        "                        } catch (Throwable t) {}",
+        "                            Intent si = new Intent(\"android.settings.APP_NOTIFICATION_SETTINGS\");",
+        "                            si.putExtra(\"android.provider.extra.APP_PACKAGE\", ctx.getPackageName());",
+        "                            si.putExtra(\"app_package\", ctx.getPackageName());",
+        "                            si.putExtra(\"app_uid\", ctx.getApplicationInfo().uid);",
+        "                            si.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);",
+        "                            ctx.startActivity(si);",
+        "                        } catch (Throwable t) {",
+        "                            try {",
+        "                                Intent di = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);",
+        "                                di.setData(android.net.Uri.parse(\"package:\" + ctx.getPackageName()));",
+        "                                di.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);",
+        "                                ctx.startActivity(di);",
+        "                            } catch (Throwable t2) {}",
+        "                        }",
         "                    }});",
-        "                    box.addView(t1); box.addView(t2); box.addView(b);",
+        "",
+        "                    /* Don't allow: hides this banner for a moment, but the alarm keeps",
+        "                       running and the banner comes back until it is actually fixed. */",
+        "                    Button bNo = new Button(ctx);",
+        "                    bNo.setText(\"DON\u0027T ALLOW\");",
+        "                    bNo.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {",
+        "                        try { hideOverlay(ctx); } catch (Throwable t) {}",
+        "                    }});",
+        "",
+        "                    row.addView(bAllow); row.addView(bNo);",
+        "                    box.addView(t1); box.addView(t2); box.addView(row);",
         "                    int type = Build.VERSION.SDK_INT >= 26",
         "                        ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY",
         "                        : WindowManager.LayoutParams.TYPE_PHONE;",
@@ -1164,7 +1239,7 @@ try {
         "            int fl = PendingIntent.FLAG_UPDATE_CURRENT;",
         "            try { fl |= PendingIntent.FLAG_IMMUTABLE; } catch (Throwable t) {}",
         "            PendingIntent pi = PendingIntent.getBroadcast(ctx, 4804, rx, fl);",
-        "            long next = System.currentTimeMillis() + 30000;",
+        "            long next = System.currentTimeMillis() + (problem(ctx).length() > 0 ? 8000 : 20000);",
         "            if (am == null) return;",
         "            try { am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next, pi); }",
         "            catch (Throwable t) { am.set(AlarmManager.RTC_WAKEUP, next, pi); }",
@@ -1173,13 +1248,24 @@ try {
         "",
         "    @Override public void onReceive(Context ctx, Intent intent) {",
         "        Context app = ctx.getApplicationContext();",
+        "        PowerManager.WakeLock wl = null;",
+        "        try {",
+        "            PowerManager pm = (PowerManager) app.getSystemService(Context.POWER_SERVICE);",
+        "            if (pm != null) {",
+        "                wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, \"eurobond:wake\");",
+        "                wl.acquire(15000);",
+        "            }",
+        "        } catch (Throwable t) {}",
         "        try {",
         "            SharedPreferences p = app.getSharedPreferences(\"CapacitorStorage\", Context.MODE_PRIVATE);",
         "            String sid = p.getString(\"eb_session_id\", null);",
         "            if (sid == null || sid.length() == 0) { stopSound(); hideOverlay(app); return; }",
         "            rearm(app);",
         "            String why = problem(app);",
-        "            if (why.length() > 0) { startSound(app); showOverlay(app, why); }",
+        "            if (why.length() > 0) {",
+        "                startSound(app);",
+        "                showOverlay(app, why);          // comes back every tick until fixed",
+        "            }",
         "            else {",
         "                stopSound(); hideOverlay(app);",
         "                /* a brief notice when everything is back to normal — it also",
@@ -1216,17 +1302,14 @@ try {
         "                PendingIntent spi = Build.VERSION.SDK_INT >= 26",
         "                    ? PendingIntent.getForegroundService(app, 4806, svc, fl2)",
         "                    : PendingIntent.getService(app, 4806, svc, fl2);",
-        "                long soon = System.currentTimeMillis() + 2000;",
+        "                long soon = System.currentTimeMillis() + 500;",
         "                if (am2 != null) {",
         "                    try { am2.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, soon, spi); }",
         "                    catch (Throwable t) { am2.set(AlarmManager.RTC_WAKEUP, soon, spi); }",
         "                }",
         "            } catch (Throwable t) {}",
-        "            try {",
-        "                if (Build.VERSION.SDK_INT >= 26) app.startForegroundService(svc);",
-        "                else app.startService(svc);",
-        "            } catch (Throwable t) { try { app.startService(svc); } catch (Throwable t2) {} }",
         "        } catch (Throwable t) {}",
+        "        try { if (wl != null && wl.isHeld()) wl.release(); } catch (Throwable t) {}",
         "    }",
         "}",
         ""

@@ -870,9 +870,23 @@ function GpsSetupModal({ onClose }) {
       }
     } catch {}
   };
+  /* Ask Android whether "Display over other apps" is really granted — the row
+     used to turn green just because the button was tapped, which hid the fact
+     that the warning banner could never be drawn. */
+  const checkOverlay = async () => {
+    try {
+      const P2 = window.Capacitor && window.Capacitor.Plugins;
+      if (P2 && P2.BatteryOptimization && P2.BatteryOptimization.canDrawOverlays) {
+        const r = await P2.BatteryOptimization.canDrawOverlays();
+        return !!(r && (r.granted ?? r.value ?? r.enabled));
+      }
+    } catch {}
+    return null;                       // unknown
+  };
+
   const askOverlay = async () => {
     /* "Display over other apps" — the only way to show the warning when the
-       person has switched notifications off. */
+       person has switched notifications off. Opens the exact settings screen. */
     try {
       const P2 = window.Capacitor && window.Capacitor.Plugins;
       if (P2 && P2.AppLauncher && P2.AppLauncher.openUrl) {
@@ -951,7 +965,7 @@ function GpsSetupModal({ onClose }) {
         <Row n="2" k="loc" title="Location — Allow all the time" desc="Choose 'Allow all the time' (not 'Only while using')." btn="Allow Location" onClick={askLoc} />
         <Row n="3" k="battery" title="Run in background (Battery)" desc="Allow the app to run without battery limits — this stops it from sleeping." btn="Allow Background" onClick={askBattery} />
         <Row n="4" k="overlay" title="Display over other apps"
-          desc="Lets the warning appear on top of any app when tracking stops — even if notifications are off."
+          desc="REQUIRED: without this the warning banner cannot appear outside the app. Turn the switch ON in the screen that opens."
           btn="Allow Overlay" onClick={askOverlay} />
         <Row n="5" k="oem" title="No restrictions / Autostart" desc="On Vivo, Redmi, Oppo, Realme, Samsung: open settings → Battery → set 'No restrictions', and turn Autostart ON." btn="Open App Settings" onClick={openAppSettings} />
 
@@ -5963,6 +5977,7 @@ export default function FieldApp() {
   const [menu, setMenu] = useState(false);
   const [visitPopup, setVisitPopup] = useState(false);
   const [beatCheck, setBeatCheck] = useState(false);
+  const [overlayWarn, setOverlayWarn] = useState(false);
   const beatPlanRef = useRef(null);
   const [stopPopup, setStopPopup] = useState(false);
   const visitInfoRef = useRef({ type: "Local", name: "" });
@@ -6532,7 +6547,25 @@ export default function FieldApp() {
 
         <div className="phone-body">
           <Routes>
-            <Route index element={<FieldHome attendanceOn={attendanceOn} doneToday={doneToday} setAttendanceOn={setAttendanceOn} tracking={tracking} expenses={expenses} followups={followups} leaves={leaves} onStartAttendance={() => setBeatCheck(true)} onStopAttendance={() => setStopPopup(true)} />} />
+            <Route index element={<FieldHome attendanceOn={attendanceOn} doneToday={doneToday} setAttendanceOn={setAttendanceOn} tracking={tracking} expenses={expenses} followups={followups} leaves={leaves} onStartAttendance={async () => {
+              try {
+                const P2 = window.Capacitor && window.Capacitor.Plugins;
+                if (P2 && P2.AppLauncher) {
+                  const ok = await (async () => {
+                    try {
+                      const B = P2.BatteryOptimization;
+                      if (B && B.canDrawOverlays) {
+                        const r = await B.canDrawOverlays();
+                        return !!(r && (r.granted ?? r.value ?? r.enabled));
+                      }
+                    } catch {}
+                    return true;            // can't tell -> don't nag
+                  })();
+                  if (!ok) { setOverlayWarn(true); return; }
+                }
+              } catch {}
+              setBeatCheck(true);
+            }} onStopAttendance={() => setStopPopup(true)} />} />
             <Route path="attendance" element={<FieldAttendance attendanceOn={attendanceOn} setAttendanceOn={setAttendanceOn} tracking={tracking} setTracking={setTracking} gpsAlarm={gpsAlarm} todaySession={todaySessionRef.current} sessionId={sessionRef.current} />} />
             <Route path="expense" element={<FieldExpense list={expenses} add={(e) => setExpenses((x) => [e, ...x])} reload={reloadExpenses} />} />
             <Route path="expense/new" element={<FieldExpenseNew add={async (e) => { try { const r = await api.create("expense", e); setExpenses((x) => [{ _id: r.id, ...e }, ...x]); } catch (err) { alert(err.message); } }} />} />
@@ -6602,6 +6635,24 @@ export default function FieldApp() {
         </div>
 
         <MenuDrawer open={menu} close={() => setMenu(false)} />
+        {overlayWarn && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.6)", zIndex: 10000, display: "grid", placeItems: "center", padding: 18 }}>
+            <div style={{ background: "#fff", borderRadius: 16, maxWidth: 360, width: "100%", padding: 22 }}>
+              <div style={{ fontSize: 38, textAlign: "center" }}>⚠️</div>
+              <h3 style={{ margin: "8px 0 10px", fontSize: 16.5, textAlign: "center" }}>One permission is missing</h3>
+              <p style={{ fontSize: 13.5, lineHeight: 1.6, color: "#334155", margin: "0 0 16px" }}>
+                <b>Display over other apps</b> is OFF. Without it the tracking warning
+                cannot appear outside the app, so you won't see it if tracking stops.
+              </p>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => setOverlayWarn(false)}
+                  style={{ flex: 1, padding: 11, borderRadius: 10, border: "1.5px solid #d7dcef", background: "#fff", fontWeight: 700, cursor: "pointer" }}>Later</button>
+                <button className="f-submit" style={{ flex: 1 }}
+                  onClick={() => { setOverlayWarn(false); askOverlay(); }}>Turn it ON</button>
+              </div>
+            </div>
+          </div>
+        )}
         {beatCheck && (
           <BeatPlanConfirm
             onClose={() => setBeatCheck(false)}

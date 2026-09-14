@@ -81,6 +81,24 @@ export default function AttendancePage() {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [dateTo, setDateTo] = useState(new Date().toISOString().slice(0, 10));
   const [sessions, setSessions] = useState([]);
+  /* The server's distance_km only updates when the day is closed, so a running
+     row showed 0 km. Work it out from the points, the same way the timeline does. */
+  const [liveKm, setLiveKm] = useState({});
+  useEffect(() => {
+    let stop = false;
+    (async () => {
+      const need = (sessions || []).filter((s) => !Number(s.distance_km) && (s.points_count > 1));
+      for (const s of need.slice(0, 40)) {
+        if (stop) return;
+        try {
+          const d = await api.attPointsList(s.id);
+          const pts = d.points || d.route || [];
+          if (pts.length > 1) setLiveKm((m) => ({ ...m, [s.id]: kmFromPoints(pts) }));
+        } catch {}
+      }
+    })();
+    return () => { stop = true; };
+  }, [sessions]);
   const [loading, setLoading] = useState(false);
   const [zone, setZone] = useState("");
   const [hodF, setHodF] = useState("");
@@ -334,7 +352,7 @@ export default function AttendancePage() {
                     <div style={{ fontSize: 10.5, fontWeight: 800, color: "#c0392b" }}>System Logout</div>
                   )}
                 </td>
-                <td>{fmtKm(Number(s.distance_km) || 0)}</td>
+                <td>{fmtKm(liveKm[s.id] != null ? liveKm[s.id] : (Number(s.distance_km) || 0))}</td>
                 <td>{s.start_reading ? <img src={s.start_reading} alt="Reading In" onClick={() => setPhotoView({ url: s.start_reading, label: "Reading In (Odometer)" })} style={thumb} /> : <span style={{ color: "var(--muted)" }}>—</span>}</td>
                 <td>{s.end_reading ? <img src={s.end_reading} alt="Reading Out" onClick={() => setPhotoView({ url: s.end_reading, label: "Reading Out (Odometer)" })} style={thumb} /> : <span style={{ color: "var(--muted)" }}>—</span>}</td>
                 <td>
