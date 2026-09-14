@@ -74,6 +74,12 @@ const isMine = (n, me) => {
     if (fr === "admin") return myRole === "admin";
     return fr === myRole;
   }
+  /* Holiday reminders are written one row per user with "forUser" (an id) and no
+     "to". Without this check every user matched every row, which is why one
+     holiday arrived as many copies — one for each person in that state. */
+  if (n.forUser !== undefined && n.forUser !== null && n.forUser !== "") {
+    return String(n.forUser) === String(me.id);
+  }
   return !n.to || n.to === me.name || n.to === me.code || n.to === me.mobile;
 };
 
