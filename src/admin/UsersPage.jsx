@@ -21,7 +21,7 @@ export default function UsersPage() {
 
   const load = () => {
     setLoading(true);
-    api.listUsers().then((d) => setUsers(d.users || [])).catch((e) => setErr(e.message)).finally(() => setLoading(false));
+    api.listUsers().then((d) => { setUsers(d.users || []); setPicked(new Set()); }).catch((e) => setErr(e.message)).finally(() => setLoading(false));
   };
   useEffect(load, []);
   useEffect(() => { api.areaStates().then((d) => setStatesList(d.states || [])).catch(() => {}); }, []);
@@ -76,8 +76,24 @@ export default function UsersPage() {
         "near-by range (meters)": "nearby_range_m", "nearby range": "nearby_range_m",
         "reporting manager": "manager", "manager": "manager",
       };
+      /* the sheet has dates as DD-MM-YYYY, but the database wants YYYY-MM-DD —
+         without this both Date of Joining and Date of Birth were dropped */
+      const toIsoDate = (v) => {
+        const t = String(v || "").trim();
+        if (!t) return "";
+        if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+        const m = t.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})$/);
+        if (!m) return t;
+        let [, d, mo, y] = m;
+        if (y.length === 2) y = "20" + y;
+        return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      };
       const rec = {};
-      Object.keys(raw).forEach((h) => { const k = map[h] || h; if (raw[h] !== "") rec[k] = raw[h]; });
+      Object.keys(raw).forEach((h) => {
+        const k = map[h] || h;
+        if (raw[h] === "") return;
+        rec[k] = (k === "doj" || k === "dob") ? toIsoDate(raw[h]) : raw[h];
+      });
       if (!rec.name || !rec.mobile) { fail++; continue; }
       if (!rec.password) rec.password = rec.mobile;   // default password = mobile
       if (!rec.role) rec.role = "Sales Person";
@@ -137,6 +153,7 @@ export default function UsersPage() {
   const [fState, setFState] = useState("");
   const [shown, setShown] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [picked, setPicked] = useState(new Set());
   const filtered = !shown ? [] : users.filter((u) =>
     (!q || (u.name + u.mobile + (u.code || "") + (u.city || "")).toLowerCase().includes(q.toLowerCase()))
     && (!fRole || u.role === fRole)
@@ -185,7 +202,19 @@ export default function UsersPage() {
           {[...new Set(users.map((u) => u.state).filter(Boolean))].sort().map((r) => <option key={r}>{r}</option>)}
         </select>
         <button className="btn btn-primary" style={{ padding: "8px 20px", fontWeight: 700 }} onClick={() => setShown(true)}>Show</button>
-        {shown && <button className="btn btn-ghost" onClick={() => { setShown(false); setQ(""); setFRole(""); setFState(""); }}>Clear</button>}
+        {shown && <button className="btn btn-ghost" onClick={() => { setShown(false); setQ(""); setFRole(""); setFState(""); setPicked(new Set()); }}>Clear</button>}
+        {picked.size > 0 && (
+          <button className="btn btn-danger" onClick={async () => {
+            if (!window.confirm(`Delete ${picked.size} user(s)? This cannot be undone.`)) return;
+            let ok = 0, fail = 0;
+            for (const id of picked) {
+              try { await api.deleteUser(id); ok++; } catch { fail++; }
+            }
+            setPicked(new Set());
+            load();
+            alert(`Deleted ${ok} user(s)${fail ? `, ${fail} failed` : ""}.`);
+          }}>🗑 Delete Selected ({picked.size})</button>
+        )}
       </div>
 
       {loading ? <div style={{ padding: 30, color: "var(--muted)" }}>Loading…</div>
@@ -194,17 +223,26 @@ export default function UsersPage() {
         <div className="table-wrap">
           <table className="grid">
             <thead>
-              <tr><th>S.No</th><th>Name</th><th>Mobile</th><th>Code</th><th>Email</th><th>Role</th><th>Designation</th><th>Grade</th><th>State</th><th>Zone</th><th>Depo</th><th>City</th><th>Manager</th><th>DOJ</th><th>Status</th><th>Actions</th></tr>
+              <tr>
+                <th>
+                  <input type="checkbox" checked={filtered.length > 0 && filtered.every((u) => picked.has(u.id))}
+                    onChange={(e) => setPicked(e.target.checked ? new Set(filtered.map((u) => u.id)) : new Set())} />
+                </th>
+                <th>S.No</th><th>Name</th><th>Mobile</th><th>Code</th><th>Email</th><th>Role</th><th>Designation</th><th>Grade</th><th>State</th><th>Zone</th><th>Depo</th><th>City</th><th>Manager</th><th>DOJ</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody>
               {!shown ? (
-                <tr><td colSpan={16} style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>
+                <tr><td colSpan={17} style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>
                   Set your filters and click <b>Show</b> to load the list.
                 </td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={16} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No users match these filters.</td></tr>
+                <tr><td colSpan={17} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No users match these filters.</td></tr>
               ) : filtered.map((u, idx) => (
-                <tr key={u.id}>
+                <tr key={u.id} style={{ background: picked.has(u.id) ? "#f2f6ff" : "transparent" }}>
+                  <td>
+                    <input type="checkbox" checked={picked.has(u.id)}
+                      onChange={(e) => setPicked((p) => { const n = new Set(p); e.target.checked ? n.add(u.id) : n.delete(u.id); return n; })} />
+                  </td>
                   <td style={{ color: "var(--muted)", fontWeight: 700 }}>{idx + 1}</td>
                   <td style={{ fontWeight: 700 }}>{u.name}</td>
                   <td>{u.mobile}</td>
