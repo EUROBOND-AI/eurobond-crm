@@ -51,6 +51,10 @@ async function req(path, { method = "GET", body, isForm = false } = {}) {
     throw new Error("Network error — check internet or try again");
   }
   if (!res.ok) {
+    /* remember this BEFORE any clear() below, otherwise the check further down
+       always sees an empty token */
+    let hadToken = false;
+    try { hadToken = !!auth.token; } catch {}
     /* Only force-logout when the auth check itself fails (auth.php?action=me),
        not on transient 401s from background/data requests — those shouldn't log the user out. */
     if (res.status === 401 && /auth\.php\?action=me/.test(path)) { auth.clear(); }
@@ -58,11 +62,16 @@ async function req(path, { method = "GET", body, isForm = false } = {}) {
        the same login is used on another phone this one's token stops working.
        Sign out here instead of leaving a half-working session behind. */
     if (res.status === 401 && /invalid token|session expired|not logged in/i.test(String(data?.error || ""))) {
-      try {
-        auth.clear();
-        localStorage.setItem("eb_kicked", "1");
-        if (typeof window !== "undefined") window.location.replace("/app");
-      } catch {}
+      /* Only when this phone actually HELD a token. A fresh install has none, and
+         treating that as "signed out elsewhere" showed the warning to someone who
+         had not even typed their number yet. */
+      if (hadToken) {
+        try {
+          auth.clear();
+          localStorage.setItem("eb_kicked", "1");
+          if (typeof window !== "undefined") window.location.replace("/app");
+        } catch {}
+      }
     }
     throw new Error(data?.error || "Request failed");
   }
