@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { PageHead, StatCard, ToolButtons } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
@@ -28,16 +28,20 @@ function useStdPrices() {
 
 export default function QuotationAdmin() {
   const stdPrice = useStdPrices();          // standard rates from Products master
-  /* Older quotations were saved before the designation was stored on the record,
-     so fall back to the creator's designation from App Users. */
-  const [desigByName, setDesigByName] = useState({});
+  /* Older quotations have no designation on the record, so look it up from App
+     Users and attach it just before printing. */
+  const desigRef = useRef({});
   useEffect(() => {
     api.listUsers().then((d) => {
       const m = {};
       (d.users || []).forEach((u) => { if (u.name) m[u.name] = u.designation || u.role || ""; });
-      setDesigByName(m);
+      desigRef.current = m;
     }).catch(() => {});
   }, []);
+  const withDesignation = (q) => ({
+    ...q,
+    createdByDesignation: q.createdByDesignation || q.designation || desigRef.current[q.createdBy] || "",
+  });
   const [rows, setRows] = useState(null);
   const [colSearch, setColSearch] = useState({});
   const [view, setView] = useState(null);
@@ -231,7 +235,7 @@ export default function QuotationAdmin() {
                     <div style={{ display: "flex", gap: 6 }}>
                       <button className="btn btn-ghost" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => setView(r)}>View</button>
                       {(r.status || "Pending") === "Pending" && <button className="btn btn-primary" style={{ padding: "4px 10px", fontSize: 12 }} disabled={busy} onClick={() => approve(r)}>Approve</button>}
-                      {r.status === "Approved" && <button className="btn btn-soft" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => downloadQuotePdf(r)}>PDF</button>}
+                      {r.status === "Approved" && <button className="btn btn-soft" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => downloadQuotePdf(withDesignation(r))}>PDF</button>}
                       {r.status === "Approved" && <button className="btn btn-soft" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => setMailFor(r)}>Mail</button>}
                       <button className="btn btn-danger" style={{ padding: "4px 10px", fontSize: 12 }} onClick={async () => { if (window.confirm(`Delete quotation ${r.quoteNo || r.id}?`)) { try { await api.remove("quotation", r._id); load(); } catch (e) { alert(e.message); } } }}>Delete</button>
                     </div>
@@ -263,7 +267,7 @@ export default function QuotationAdmin() {
         </div>
       )}
 
-      {view && <QuoteAdminView q={view} onClose={() => setView(null)} onPdf={() => downloadQuotePdf(view)} />}
+      {view && <QuoteAdminView q={view} onClose={() => setView(null)} onPdf={() => downloadQuotePdf(withDesignation(view))} />}
       {mailFor && <MailModal q={mailFor} onClose={() => setMailFor(null)} />}
       {showAdd && <AdminQuoteForm onClose={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); load(); }} />}
     </div>
@@ -458,7 +462,7 @@ function quotePageHtml(q) {
     ${tc.remarks ? `<div>Remarks : ${tc.remarks}</div>` : ""}
     <p><b>Note : Unloading of the material will be in scope of Client.</b></p>
     <p>Anticipating healthy business relation with your esteemed organization.</p>
-    <div style="margin-top:22px"><b>Thanks & Regards,</b><br><b>EURO PANEL PRODUCTS LIMITED</b><br>${q.createdBy || ""}<br>${q.createdByDesignation || q.designation || desigByName[q.createdBy] || ""}<br>${q.createdByPhone ? "Mob : " + q.createdByPhone : ""}</div>
+    <div style="margin-top:22px"><b>Thanks & Regards,</b><br><b>EURO PANEL PRODUCTS LIMITED</b><br>${q.createdBy || ""}<br>${q.createdByDesignation || q.designation || ""}<br>${q.createdByPhone ? "Mob : " + q.createdByPhone : ""}</div>
   </div>`;
 }
 
@@ -495,7 +499,7 @@ function quoteHtml(q) {
     ${tc.remarks ? `<div>Remarks : ${tc.remarks}</div>` : ""}
     <p><b>Note : Unloading of the material will be in scope of Client.</b></p>
     <p>Anticipating healthy business relation with your esteemed organization.</p>
-    <div style="margin-top:24px"><b>Thanks & Regards,</b><br><b>EURO PANEL PRODUCTS LIMITED</b><br>${q.createdBy || ""}<br>${q.createdByDesignation || q.designation || desigByName[q.createdBy] || ""}<br>${q.createdByPhone ? "Mob : " + q.createdByPhone : ""}</div>
+    <div style="margin-top:24px"><b>Thanks & Regards,</b><br><b>EURO PANEL PRODUCTS LIMITED</b><br>${q.createdBy || ""}<br>${q.createdByDesignation || q.designation || ""}<br>${q.createdByPhone ? "Mob : " + q.createdByPhone : ""}</div>
   </body></html>`;
 }
 
@@ -566,7 +570,7 @@ function downloadQuotePdf(q) {
         <b>Thanks & Regards,</b><br>
         <b>EURO PANEL PRODUCTS LIMITED</b><br>
         ${q.createdBy || ""}<br>
-        ${q.createdByDesignation || q.designation || desigByName[q.createdBy] || ""}<br>
+        ${q.createdByDesignation || q.designation || ""}<br>
         ${q.createdByPhone ? "Mob : " + q.createdByPhone : ""}
       </div>
     </div>
