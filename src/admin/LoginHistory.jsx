@@ -29,6 +29,7 @@ export default function LoginHistory() {
   const [multi, setMulti] = useState({});
   const [shown, setShown] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [sel2, setSel2] = useState(new Set());
 
   useEffect(() => { api.listUsers().then((d) => setUsers((d.users || []).filter((u) => u.status == 1))).catch(() => {}); }, []);
 
@@ -37,6 +38,7 @@ export default function LoginHistory() {
     try {
       const d = await api.loginHistory({ from, to, user });
       setRows(d.logins || []);
+      setSel2(new Set());
       setMulti(d.multiDevice || {});
     } catch (e) { alert(e.message); }
     setBusy(false);
@@ -68,13 +70,20 @@ export default function LoginHistory() {
           {busy ? "Loading…" : "Show"}
         </button>
         {shown && rows.length > 0 && <button className="btn btn-soft" onClick={exportCsv}>⬇ CSV</button>}
+        {shown && sel2.size > 0 && (
+          <button className="btn btn-danger" onClick={async () => {
+            if (!window.confirm(`Delete ${sel2.size} selected record(s)?`)) return;
+            try { await api.loginDeleteMany([...sel2]); setRows((x) => x.filter((y) => !sel2.has(y.id))); setSel2(new Set()); }
+            catch (e) { alert(e.message); }
+          }}>🗑 Delete Selected ({sel2.size})</button>
+        )}
       </div>
 
       {shown && multiList.length > 0 && (
         <div style={{ background: "#fff7e6", border: "1px solid #ffd591", borderRadius: 12, padding: 14, marginBottom: 14 }}>
-          <div style={{ fontWeight: 800, color: "#ad6800", marginBottom: 6 }}>⚠️ Signed in from more than one device</div>
+          <div style={{ fontWeight: 800, color: "#ad6800", marginBottom: 6 }}>⚠️ Same login used on more than one phone</div>
           <div style={{ fontSize: 13 }}>
-            {multiList.map(([n, c]) => <span key={n} style={{ marginRight: 14 }}><b>{n}</b> — {c} devices</span>)}
+            {multiList.map(([n, c]) => <span key={n} style={{ marginRight: 14 }}><b>{n}</b> — {c} phones</span>)}
           </div>
         </div>
       )}
@@ -87,19 +96,37 @@ export default function LoginHistory() {
         <div style={{ background: "#fff", borderRadius: 12, boxShadow: "var(--shadow)", overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead style={{ background: "#f7f9ff" }}>
-              <tr>{["S.No", "Date & Time", "User", "Phone / Device", "OS", "IP Address"].map((h) => <th key={h} style={th}>{h}</th>)}</tr>
+              <tr>
+                <th style={th}>
+                  <input type="checkbox" checked={rows.length > 0 && sel2.size === rows.length}
+                    onChange={(e) => setSel2(e.target.checked ? new Set(rows.map((x) => x.id)) : new Set())} />
+                </th>
+                {["S.No", "Date & Time", "User", "Phone / Device", "OS", "IP Address", "Action"].map((h) => <th key={h} style={th}>{h}</th>)}
+              </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
-                <tr><td colSpan={6} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>No logins in this period.</td></tr>
+                <tr><td colSpan={8} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>No logins in this period.</td></tr>
               ) : rows.map((r, i) => (
-                <tr key={r.id || i}>
+                <tr key={r.id || i} style={{ background: sel2.has(r.id) ? "#f2f6ff" : "transparent" }}>
+                  <td style={td}>
+                    <input type="checkbox" checked={sel2.has(r.id)}
+                      onChange={(e) => setSel2((s3) => { const n = new Set(s3); e.target.checked ? n.add(r.id) : n.delete(r.id); return n; })} />
+                  </td>
                   <td style={{ ...td, color: "var(--muted)", fontWeight: 700 }}>{i + 1}</td>
                   <td style={{ ...td, whiteSpace: "nowrap" }}>{String(r.at || "").replace("T", " ")}</td>
                   <td style={{ ...td, fontWeight: 700 }}>{r.user_name || "—"}</td>
                   <td style={td}>{phoneOf(r.device)}</td>
                   <td style={td}>{osOf(r.device)}</td>
                   <td style={{ ...td, fontFamily: "monospace" }}>{r.ip || "—"}</td>
+                  <td style={td}>
+                    <button className="btn btn-danger" style={{ padding: "3px 9px", fontSize: 11 }}
+                      onClick={async () => {
+                        if (!window.confirm("Delete this login record?")) return;
+                        try { await api.loginDelete(r.id); setRows((x) => x.filter((y) => y.id !== r.id)); }
+                        catch (e) { alert(e.message); }
+                      }}>Delete</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
