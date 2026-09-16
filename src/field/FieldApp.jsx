@@ -3638,7 +3638,7 @@ function FieldProfile({ onLogout }) {
         {row(<MapPin size={15} />, "City", u.city)}
         {row(<User size={15} />, "Reporting Manager", u.manager || "—")}
         {row(<CalendarDays size={15} />, "Weekly Off", u.weekly_off || u.weeklyOff || "—")}
-        {row(<Smartphone size={15} />, "Device", "CRM Eurobond v1.0.0 · Android")}
+        {row(<Smartphone size={15} />, "Device", `CRM Eurobond v${__APP_VERSION__} · Android`)}
         <button className="f-submit" style={{ width: "100%", background: "#d64545", marginTop: 8 }} onClick={onLogout}>
           <LogOut size={15} style={{ verticalAlign: -2, marginRight: 6 }} /> Logout
         </button>

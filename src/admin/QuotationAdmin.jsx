@@ -28,6 +28,16 @@ function useStdPrices() {
 
 export default function QuotationAdmin() {
   const stdPrice = useStdPrices();          // standard rates from Products master
+  /* Older quotations were saved before the designation was stored on the record,
+     so fall back to the creator's designation from App Users. */
+  const [desigByName, setDesigByName] = useState({});
+  useEffect(() => {
+    api.listUsers().then((d) => {
+      const m = {};
+      (d.users || []).forEach((u) => { if (u.name) m[u.name] = u.designation || u.role || ""; });
+      setDesigByName(m);
+    }).catch(() => {});
+  }, []);
   const [rows, setRows] = useState(null);
   const [colSearch, setColSearch] = useState({});
   const [view, setView] = useState(null);
@@ -448,7 +458,7 @@ function quotePageHtml(q) {
     ${tc.remarks ? `<div>Remarks : ${tc.remarks}</div>` : ""}
     <p><b>Note : Unloading of the material will be in scope of Client.</b></p>
     <p>Anticipating healthy business relation with your esteemed organization.</p>
-    <div style="margin-top:22px"><b>Thanks & Regards,</b><br><b>EURO PANEL PRODUCTS LIMITED</b><br>${q.createdBy || ""}<br>${q.createdByDesignation || q.designation || ""}<br>${q.createdByPhone ? "Mob : " + q.createdByPhone : ""}</div>
+    <div style="margin-top:22px"><b>Thanks & Regards,</b><br><b>EURO PANEL PRODUCTS LIMITED</b><br>${q.createdBy || ""}<br>${q.createdByDesignation || q.designation || desigByName[q.createdBy] || ""}<br>${q.createdByPhone ? "Mob : " + q.createdByPhone : ""}</div>
   </div>`;
 }
 
@@ -485,7 +495,7 @@ function quoteHtml(q) {
     ${tc.remarks ? `<div>Remarks : ${tc.remarks}</div>` : ""}
     <p><b>Note : Unloading of the material will be in scope of Client.</b></p>
     <p>Anticipating healthy business relation with your esteemed organization.</p>
-    <div style="margin-top:24px"><b>Thanks & Regards,</b><br><b>EURO PANEL PRODUCTS LIMITED</b><br>${q.createdBy || ""}<br>${q.createdByDesignation || q.designation || ""}<br>${q.createdByPhone ? "Mob : " + q.createdByPhone : ""}</div>
+    <div style="margin-top:24px"><b>Thanks & Regards,</b><br><b>EURO PANEL PRODUCTS LIMITED</b><br>${q.createdBy || ""}<br>${q.createdByDesignation || q.designation || desigByName[q.createdBy] || ""}<br>${q.createdByPhone ? "Mob : " + q.createdByPhone : ""}</div>
   </body></html>`;
 }
 
@@ -556,7 +566,7 @@ function downloadQuotePdf(q) {
         <b>Thanks & Regards,</b><br>
         <b>EURO PANEL PRODUCTS LIMITED</b><br>
         ${q.createdBy || ""}<br>
-        {q.createdByDesignation || q.designation || ""}<br>
+        ${q.createdByDesignation || q.designation || desigByName[q.createdBy] || ""}<br>
         ${q.createdByPhone ? "Mob : " + q.createdByPhone : ""}
       </div>
     </div>

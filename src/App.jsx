@@ -56,7 +56,7 @@ function Portal() {
             <p>Mobile app for sales executives — attendance with live GPS km tracking, check-ins, follow-ups, leave, expense &amp; targets.</p>
           </Link>
         </div>
-        <p style={{ marginTop: 34, color: "#7c85b4", fontSize: 12.5 }}>Eurobond CRM v1.0.0</p>
+        <p style={{ marginTop: 34, color: "#7c85b4", fontSize: 12.5 }}>Eurobond CRM v{__APP_VERSION__} · {__BUILD_DATE__}</p>
       </div>
     </div>
   );
