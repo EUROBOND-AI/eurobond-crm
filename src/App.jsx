@@ -18,6 +18,7 @@ import TourReport from "./admin/TourReport.jsx";
 import ApiKeysPage from "./admin/ApiKeysPage.jsx";
 import HealthPage from "./admin/HealthPage.jsx";
 import ActivityLogs from "./admin/ActivityLogs.jsx";
+import LoginHistory from "./admin/LoginHistory.jsx";
 import CustomersDashboard from "./admin/CustomersDashboard.jsx";
 import TargetDashboard from "./admin/TargetDashboard.jsx";
 import ProjectDashboard from "./admin/ProjectDashboard.jsx";
@@ -72,9 +73,9 @@ function useActivityLogger() {
     last.current = path;
     if (!auth.isLoggedIn) return;
     const parts = path.split("/").filter(Boolean);
-    const source = parts[0] === "admin" ? "admin" : "app";
+    if (parts[0] !== "admin") return;             // admin panel usage only
     const module = parts[parts.length - 1] || parts[1] || "home";
-    api.activityLog(module, path, source).catch(() => {});
+    api.activityLog(module, path, "admin").catch(() => {});
   }, [loc.pathname]);
 }
 
@@ -97,6 +98,7 @@ export default function App() {
         <Route path="dashboards/target" element={<TargetDashboard />} />
         <Route path="dashboards/project" element={<ProjectDashboard />} />
         <Route path="master/logs" element={<ActivityLogs />} />
+        <Route path="master/login-history" element={<LoginHistory />} />
         <Route path="sfa/checkin" element={<CheckinPage />} />
         <Route path="sfa/tour-report" element={<TourReport />} />
         <Route path="master/roles" element={<RolePermission />} />

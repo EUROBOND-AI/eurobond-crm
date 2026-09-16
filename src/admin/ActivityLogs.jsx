@@ -16,7 +16,6 @@ export default function ActivityLogs() {
   const [hod, setHod] = useState("");
   const [role, setRole] = useState("");
   const [tab, setTab] = useState("detail");        // detail | summary
-  const [source, setSource] = useState("admin");   // admin panel | mobile app
   const [rows, setRows] = useState([]);
   const [sum, setSum] = useState([]);
   const [shown, setShown] = useState(false);
@@ -28,10 +27,10 @@ export default function ActivityLogs() {
   const show = async () => {
     setBusy(true); setShown(true);
     try {
-      const q = { from, to, user, hod, role, source };
+      const q = { from, to, user, hod, role };
       const [d, s] = await Promise.all([
         api.activityList(q).catch(() => ({ logs: [] })),
-        api.activitySummary({ from, to, source }).catch(() => ({ summary: [] })),
+        api.activitySummary({ from, to }).catch(() => ({ summary: [] })),
       ]);
       setRows(d.logs || []);
       setSel(new Set());
@@ -55,13 +54,9 @@ export default function ActivityLogs() {
 
   return (
     <div>
-      <PageHead crumb="Master / Logs" title={source === "app" ? "Activity Logs — App" : "Activity Logs — Admin Panel"} />
+      <PageHead crumb="Master / Logs" title="Activity Logs" />
 
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 16, background: "#fff", padding: 12, borderRadius: 12, boxShadow: "var(--shadow)" }}>
-        <select value={source} onChange={(e) => { setSource(e.target.value); setShown(false); }} style={{ ...sel, fontWeight: 700 }}>
-          <option value="admin">Admin Panel Logs</option>
-          <option value="app">App Logs</option>
-        </select>
         <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={sel} />
         <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={sel} />
         <select value={hod} onChange={(e) => setHod(e.target.value)} style={sel}>

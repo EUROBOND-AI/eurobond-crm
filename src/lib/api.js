@@ -205,6 +205,7 @@ export const api = {
   scanCard: (image) => req("/scan_card.php", { method: "POST", body: { image } }),
   savePushToken: (token) => req("/push.php?action=save_token", { method: "POST", body: { token, platform: "android" } }),
   activityLog: (module, screen, source) => req("/activity.php?action=log", { method: "POST", body: { module, screen, source: source || "app" } }),
+  loginHistory: (q) => req("/activity.php?action=logins&" + new URLSearchParams(q || {}).toString()),
   activityList: (q) => req("/activity.php?action=list&" + new URLSearchParams(q || {}).toString()),
   activityDelete: (id) => req("/activity.php?action=delete", { method: "POST", body: { id } }),
   activityDeleteMany: (ids) => req("/activity.php?action=delete", { method: "POST", body: { ids } }),
