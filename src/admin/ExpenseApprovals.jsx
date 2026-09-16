@@ -210,7 +210,7 @@ function ExpenseReview({ r, onClose, onDone }) {
     setBusy(true);
     try {
       await api.update("expense", r._id, { ...r, items: newItems, status: "Approved", approvedAmount: sum, approvedAt: new Date().toLocaleString("en-IN"), rejectRemark: "", rejectAttachment: "" });
-      try { await api.create("notification", { title: "Expense Approved ✓", message: `Your expense statement (₹${sum.toLocaleString("en-IN")}) has been approved.`, to: r.user || r.createdBy, forUser: r.createdById, link: "/app/expense", at: new Date().toISOString() }); } catch {}
+      try { await api.create("notification", { title: "Expense Approved ✓", message: `Your expense statement (₹${sum.toLocaleString("en-IN")}) has been approved.`, to: r.user || r.createdBy, forUser: r.createdById, to: r.createdBy || "", link: "/app/expense", at: new Date().toISOString() }); } catch {}
       onDone();
     } catch (e) { alert(e.message); setBusy(false); }
   };
@@ -240,7 +240,7 @@ function ExpenseReview({ r, onClose, onDone }) {
       const msg = allRejected
         ? `Your expense statement was rejected: ${remark.trim()}`
         : `Some entries were rejected (${rejItems.join(", ")}): ${remark.trim()}. Please correct and re-submit those.`;
-      try { await api.create("notification", { title: "Expense Rejected", message: msg, forUser: r.createdById, link: "/app/expense", at: new Date().toISOString() }); } catch {}
+      try { await api.create("notification", { title: "Expense Rejected", message: msg, forUser: r.createdById, to: r.createdBy || "", link: "/app/expense", at: new Date().toISOString() }); } catch {}
       onDone();
     } catch (e) { alert(e.message); setBusy(false); }
   };

@@ -71,6 +71,31 @@ try {
     private com.google.android.gms.location.FusedLocationProviderClient ebSelfClient = null;
     private com.google.android.gms.location.LocationCallback ebSelfCallback = null;
 
+    /* After the phone kills the app, the service comes back with an EMPTY watcher
+       list (watchers are registered by the JS side). Drive location ourselves in
+       that case, otherwise the service runs and shows its notification but never
+       records a single point. */
+    private void ebStartSelfUpdates() {
+        try {
+            if (!ebSessionActive()) return;
+            if (!watchers.isEmpty()) return;
+            if (ebSelfCallback != null) return;
+            ebSelfClient = com.google.android.gms.location.LocationServices
+                .getFusedLocationProviderClient(getApplicationContext());
+            com.google.android.gms.location.LocationRequest lr =
+                com.google.android.gms.location.LocationRequest.create();
+            lr.setPriority(com.google.android.gms.location.LocationRequest.PRIORITY_HIGH_ACCURACY);
+            lr.setInterval(60000);
+            lr.setFastestInterval(30000);
+            ebSelfCallback = new com.google.android.gms.location.LocationCallback() {
+                @Override public void onLocationResult(com.google.android.gms.location.LocationResult r) {
+                    if (r != null && r.getLastLocation() != null) ebUploadLocation(r.getLastLocation());
+                }
+            };
+            ebSelfClient.requestLocationUpdates(lr, ebSelfCallback, Looper.getMainLooper());
+        } catch (Throwable t) {}
+    }
+
     /* ---- Offline queue (native) ----
        If a point cannot reach the server (no network, weak signal), keep it in
        SharedPreferences and send it with the next successful upload, so the
@@ -215,11 +240,7 @@ try {
        when the app is closed. Returns "" when everything is fine. ---- */
     private String ebProblem() {
         if (!ebLocationOn()) return "Location is switched off";
-        try {
-            android.net.ConnectivityManager cm = (android.net.ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-            android.net.NetworkInfo ni = cm != null ? cm.getActiveNetworkInfo() : null;
-            if (ni == null || !ni.isConnected()) return "Mobile data / Wi-Fi is switched off";
-        } catch (Exception e) {}
+
         try {
             androidx.core.app.NotificationManagerCompat nmc = androidx.core.app.NotificationManagerCompat.from(getApplicationContext());
             if (!nmc.areNotificationsEnabled()) return "Notifications are switched off";
@@ -657,25 +678,7 @@ try {
            so nothing fetched a location and no points arrived. Fetch one with our
            own client in that case. */
         if (watchers.isEmpty() && ebSessionActive()) {
-            /* Also keep continuous updates running, not just this single fix —
-               otherwise points only arrive on the 60s alarm and stop again. */
-            try {
-                if (ebSelfCallback == null) {
-                    ebSelfClient = com.google.android.gms.location.LocationServices
-                        .getFusedLocationProviderClient(getApplicationContext());
-                    com.google.android.gms.location.LocationRequest lr =
-                        com.google.android.gms.location.LocationRequest.create();
-                    lr.setPriority(com.google.android.gms.location.LocationRequest.PRIORITY_HIGH_ACCURACY);
-                    lr.setInterval(60000);
-                    lr.setFastestInterval(30000);
-                    ebSelfCallback = new com.google.android.gms.location.LocationCallback() {
-                        @Override public void onLocationResult(com.google.android.gms.location.LocationResult r) {
-                            if (r != null && r.getLastLocation() != null) ebUploadLocation(r.getLastLocation());
-                        }
-                    };
-                    ebSelfClient.requestLocationUpdates(lr, ebSelfCallback, Looper.getMainLooper());
-                }
-            } catch (Throwable t) {}
+            ebStartSelfUpdates();
             try {
                 final com.google.android.gms.location.FusedLocationProviderClient fc =
                     com.google.android.gms.location.LocationServices.getFusedLocationProviderClient(getApplicationContext());
@@ -743,6 +746,7 @@ try {
                     ebPostGpsStatus(tickProb.length() == 0);
                 }
             } catch (Throwable t) {}
+            ebStartSelfUpdates();   // fresh process -> no watchers, so drive it ourselves
             ebPollOnce();       // grab a fresh location on the alarm tick
             ebScheduleAlarm();  // re-arm for the next tick
             /* keep the 1s re-assert loop running after an alarm restart too —
@@ -753,6 +757,7 @@ try {
             return START_STICKY;
         }
         ebEnsureForeground();          // bring "Tracking on" back straight away
+        ebStartSelfUpdates();          // and start collecting points again
         keepAliveHandler.removeCallbacks(keepAlive);
         keepAliveHandler.postDelayed(keepAlive, 1000);
         ebScheduleAlarm();
@@ -1100,11 +1105,6 @@ try {
         "            boolean on = lm != null && (lm.isProviderEnabled(LocationManager.GPS_PROVIDER)",
         "                || lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER));",
         "            if (!on) return \"Location is switched off\";",
-        "        } catch (Throwable t) {}",
-        "        try {",
-        "            android.net.ConnectivityManager cm = (android.net.ConnectivityManager) ctx.getSystemService(Context.CONNECTIVITY_SERVICE);",
-        "            android.net.NetworkInfo ni = cm != null ? cm.getActiveNetworkInfo() : null;",
-        "            if (ni == null || !ni.isConnected()) return \"Mobile data / Wi-Fi is switched off\";",
         "        } catch (Throwable t) {}",
         "        try {",
         "            androidx.core.app.NotificationManagerCompat nmc = androidx.core.app.NotificationManagerCompat.from(ctx);",

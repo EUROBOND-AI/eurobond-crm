@@ -78,9 +78,20 @@ const isMine = (n, me) => {
      "to". Without this check every user matched every row, which is why one
      holiday arrived as many copies — one for each person in that state. */
   if (n.forUser !== undefined && n.forUser !== null && n.forUser !== "") {
-    return String(n.forUser) === String(me.id);
+    /* addressed by id — also accept the name, in case the id was not saved */
+    if (String(n.forUser) === String(me.id)) return true;
+    if (n.to) return n.to === me.name || n.to === me.code || n.to === me.mobile;
+    return false;
   }
-  return !n.to || n.to === me.name || n.to === me.code || n.to === me.mobile;
+  /* A message that starts with "Your ..." is personal. If it carries no target at
+     all it used to reach everyone, which is how one person's quotation approval
+     landed on another login. Treat it as not mine rather than broadcasting it. */
+  if (!n.to) {
+    const txt = `${n.title || ""} ${n.message || ""}`.toLowerCase();
+    if (/\byour\b/.test(txt)) return false;
+    return true;
+  }
+  return n.to === me.name || n.to === me.code || n.to === me.mobile;
 };
 
 /* ---------------- GPS / OFFICE-HOURS CONFIG (server-load control) ----------------
@@ -337,6 +348,15 @@ const todayStr = () =>
 
 /* ------------------------------------------------ OTP LOGIN ------------------------------------------------ */
 function FieldLogin({ onLogin }) {
+  /* set by the API layer when the server rejected this phone's token because
+     the same account signed in somewhere else */
+  const [kicked] = useState(() => {
+    try {
+      const k = localStorage.getItem("eb_kicked") === "1";
+      if (k) localStorage.removeItem("eb_kicked");
+      return k;
+    } catch { return false; }
+  });
   const [mobile, setMobile] = useState("");
   const [otp, setOtp] = useState("");
   const [step, setStep] = useState(1);        // 1 = enter mobile, 2 = enter otp
@@ -416,6 +436,12 @@ function FieldLogin({ onLogin }) {
         <div className="f-form" style={{ padding: 0 }}>
           {step === 1 ? (
             <>
+              {kicked && (
+                <div style={{ background: "#fdecec", color: "#c03636", borderRadius: 10, padding: "10px 12px", fontSize: 12.5, marginBottom: 12, fontWeight: 600 }}>
+                  You were signed out because this account was opened on another phone.
+                  One login can be used on one phone at a time.
+                </div>
+              )}
               <label>Mobile Number / Employee Code <b>*</b></label>
               <input
                 placeholder="Mobile or code"
@@ -5072,6 +5098,7 @@ function FieldQuotationNew({ prefill }) {
                   items, grade: items[0]?.grade, colour: items[0]?.colour, rate: items[0]?.rate,
                   tc, status: "Pending",
                   createdBy: CU().name, createdById: CU().id, createdByPhone: CU().mobile || CU().phone || "",
+                  createdByDesignation: CU().designation || CU().role || "",
                   createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
                 });
                 try { await api.create("notification", { title: "New Quotation", message: `${CU().name} created quotation ${quoteNo} for ${f.partyName}`, forRole: "Admin", link: "/admin/sfa/quotation", at: new Date().toISOString() }); } catch {}
@@ -5693,10 +5720,11 @@ function LocationPicker({ value, onPick, addMode }) {
               📍 {a}
             </div>
           ))}
-          {q.trim() && !exactMatch && (
-            <div onClick={addNew} onMouseDown={(e) => e.preventDefault()}
-              style={{ padding: "10px 13px", fontSize: 13.5, cursor: "pointer", color: "var(--accent)", fontWeight: 700, background: "#f6f8fd" }}>
-              ➕ Add "{toTitle(q.trim())}" to {userState}
+          {/* Areas come from the Areas master only — field staff must not create
+              new ones, otherwise the same place ends up spelled five ways. */}
+          {q.trim() && filtered.length === 0 && (
+            <div style={{ padding: "10px 13px", fontSize: 12.5, color: "var(--muted)" }}>
+              No matching area. Please ask admin to add it in Areas master.
             </div>
           )}
           {filtered.length === 0 && !q.trim() && <div style={{ padding: 12, fontSize: 12.5, color: "var(--muted)" }}>Type to search…</div>}
@@ -6435,13 +6463,8 @@ export default function FieldApp() {
             if (st && st.display && st.display !== "granted") bad = true;
             if (st && st.display && st.display !== "granted") reason = "Notifications are switched off";
           }
-          /* network off — points can't reach the server */
-          if (!bad && Cap.Plugins.Network) {
-            const ns = await Cap.Plugins.Network.getStatus();
-            if (ns && ns.connected === false) { bad = true; reason = "Mobile data / Wi-Fi is switched off"; }
-          } else if (!bad && typeof navigator !== "undefined" && navigator.onLine === false) {
-            bad = true; reason = "Mobile data / Wi-Fi is switched off";
-          }
+          /* network is deliberately NOT alarmed: field staff pass through
+             no-signal areas and the offline queue sends those points later */
           /* battery optimisation switched back on — Android will freeze tracking */
           if (!bad && Cap.Plugins.BatteryOptimization && Cap.Plugins.BatteryOptimization.isBatteryOptimizationEnabled) {
             const bo = await Cap.Plugins.BatteryOptimization.isBatteryOptimizationEnabled();

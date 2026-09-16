@@ -76,7 +76,7 @@ export default function QuotationAdmin() {
     try {
       await api.update("quotation", q._id, { ...q, status: "Approved", approvedAt: new Date().toISOString() });
       /* notify the field user that admin approved */
-      try { await api.create("notification", { title: "Quotation Approved", message: `Your quotation ${q.quoteNo || q.id} has been approved.`, forUser: q.createdById, link: "/app/m/quotation", at: new Date().toISOString() }); } catch {}
+      try { await api.create("notification", { title: "Quotation Approved", message: `Your quotation ${q.quoteNo || q.id} has been approved.`, forUser: q.createdById, to: q.createdBy || "", link: "/app/m/quotation", at: new Date().toISOString() }); } catch {}
       load();
     } catch (e) { alert(e.message); }
     setBusy(false);
@@ -360,7 +360,7 @@ Mumbai - 400092, Maharashtra, India`;
         attachment: { name: `Quotation-${(q.quoteNo || q.id).replace(/\//g, "-")}.pdf`, mime: "application/pdf", base64: pdfB64 },
       });
       if (res && res.sent) {
-        try { await api.create("notification", { title: "Quotation Sent", message: `Quotation ${q.quoteNo || q.id} sent to client.`, forUser: q.createdById, link: "/app/m/quotation", at: new Date().toISOString() }); } catch {}
+        try { await api.create("notification", { title: "Quotation Sent", message: `Quotation ${q.quoteNo || q.id} sent to client.`, forUser: q.createdById, to: q.createdBy || "", link: "/app/m/quotation", at: new Date().toISOString() }); } catch {}
         alert("✓ Mail sent to client with quotation PDF.");
         onClose();
       } else {
@@ -448,7 +448,7 @@ function quotePageHtml(q) {
     ${tc.remarks ? `<div>Remarks : ${tc.remarks}</div>` : ""}
     <p><b>Note : Unloading of the material will be in scope of Client.</b></p>
     <p>Anticipating healthy business relation with your esteemed organization.</p>
-    <div style="margin-top:22px"><b>Thanks & Regards,</b><br><b>EURO PANEL PRODUCTS LIMITED</b><br>${q.createdBy || ""}<br>Brand Specification Manager<br>${q.createdByPhone ? "Mob : " + q.createdByPhone : ""}</div>
+    <div style="margin-top:22px"><b>Thanks & Regards,</b><br><b>EURO PANEL PRODUCTS LIMITED</b><br>${q.createdBy || ""}<br>${q.createdByDesignation || q.designation || ""}<br>${q.createdByPhone ? "Mob : " + q.createdByPhone : ""}</div>
   </div>`;
 }
 
@@ -485,7 +485,7 @@ function quoteHtml(q) {
     ${tc.remarks ? `<div>Remarks : ${tc.remarks}</div>` : ""}
     <p><b>Note : Unloading of the material will be in scope of Client.</b></p>
     <p>Anticipating healthy business relation with your esteemed organization.</p>
-    <div style="margin-top:24px"><b>Thanks & Regards,</b><br><b>EURO PANEL PRODUCTS LIMITED</b><br>${q.createdBy || ""}<br>Brand Specification Manager<br>${q.createdByPhone ? "Mob : " + q.createdByPhone : ""}</div>
+    <div style="margin-top:24px"><b>Thanks & Regards,</b><br><b>EURO PANEL PRODUCTS LIMITED</b><br>${q.createdBy || ""}<br>${q.createdByDesignation || q.designation || ""}<br>${q.createdByPhone ? "Mob : " + q.createdByPhone : ""}</div>
   </body></html>`;
 }
 
@@ -556,7 +556,7 @@ function downloadQuotePdf(q) {
         <b>Thanks & Regards,</b><br>
         <b>EURO PANEL PRODUCTS LIMITED</b><br>
         ${q.createdBy || ""}<br>
-        Brand Specification Manager<br>
+        {q.createdByDesignation || q.designation || ""}<br>
         ${q.createdByPhone ? "Mob : " + q.createdByPhone : ""}
       </div>
     </div>

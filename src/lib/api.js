@@ -54,6 +54,16 @@ async function req(path, { method = "GET", body, isForm = false } = {}) {
     /* Only force-logout when the auth check itself fails (auth.php?action=me),
        not on transient 401s from background/data requests — those shouldn't log the user out. */
     if (res.status === 401 && /auth\.php\?action=me/.test(path)) { auth.clear(); }
+    /* One account = one phone. The server keeps a single token per user, so when
+       the same login is used on another phone this one's token stops working.
+       Sign out here instead of leaving a half-working session behind. */
+    if (res.status === 401 && /invalid token|session expired|not logged in/i.test(String(data?.error || ""))) {
+      try {
+        auth.clear();
+        localStorage.setItem("eb_kicked", "1");
+        if (typeof window !== "undefined") window.location.replace("/app");
+      } catch {}
+    }
     throw new Error(data?.error || "Request failed");
   }
   return data;
