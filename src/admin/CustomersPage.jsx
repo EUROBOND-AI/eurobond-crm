@@ -102,6 +102,12 @@ export default function CustomersPage() {
         city: idx(["city", "place"]),
         address: idx(["address"]),
         projects: idx(["project"]),
+        contactName2: idx(["contact person 2", "contact name 2"]),
+        mobile2: idx(["mobile 2", "phone 2"]),
+        email2: idx(["email 2"]),
+        contactName3: idx(["contact person 3", "contact name 3"]),
+        mobile3: idx(["mobile 3", "phone 3"]),
+        email3: idx(["email 3"]),
         enquiryFrom: idx(["enquiry from", "lead from", "source"]),
         remark: idx(["remark", "note"]),
         createdBy: idx(["sales person", "created by", "owner", "employee"]),
@@ -113,10 +119,22 @@ export default function CustomersPage() {
         const c = parse(lines[i]);
         const partyName = get(c, "name");
         if (!partyName) continue;
+        /* up to three contacts per row; more than that go on another row for the
+           same customer, which also becomes that customer's next follow-up entry */
+        const contacts = [];
+        [["contactName", "mobile", "email"],
+         ["contactName2", "mobile2", "email2"],
+         ["contactName3", "mobile3", "email3"]].forEach(([n, m, e]) => {
+          const nm = get(c, n), mo = get(c, m), em = get(c, e);
+          if (nm || mo || em) contacts.push({ name: nm, mobile: mo, email: em, whatsapp: mo });
+        });
         rows.push({
-          partyName, category: get(c, "category"), contactName: get(c, "contactName"),
-          mobile: get(c, "mobile"), email: get(c, "email"), state: get(c, "state"),
-          city: get(c, "city"), address: get(c, "address"), projects: get(c, "projects"),
+          partyName, category: get(c, "category"),
+          contacts,
+          contactName: get(c, "contactName"), mobile: get(c, "mobile"), email: get(c, "email"),
+          state: get(c, "state"), city: get(c, "city"), address: get(c, "address"),
+          /* "Tower A | Tower B | Mall" -> four separate projects */
+          projects: get(c, "projects").split(/[|;]/).map((x) => x.trim()).filter(Boolean),
           enquiryFrom: get(c, "enquiryFrom"), remark: get(c, "remark"),
           createdBy: get(c, "createdBy"), date: get(c, "date"),
         });
@@ -138,12 +156,25 @@ export default function CustomersPage() {
   };
 
   const downloadFormat = () => {
-    const head = ["Customer Name", "Category", "Contact Person", "Mobile", "Email",
+    const head = ["Customer Name", "Category",
+      "Contact Person", "Mobile", "Email",
+      "Contact Person 2", "Mobile 2", "Email 2",
+      "Contact Person 3", "Mobile 3", "Email 3",
       "State", "City", "Address", "Projects", "Enquiry From", "Remark", "Sales Person", "Date"];
-    const sample = ["ABC Constructions", "Distributor", "Ramesh Kumar", "9876543210",
-      "ramesh@example.com", "Maharashtra", "Mumbai", "Andheri East", "Tower A",
-      "IndiaMart", "Old CRM customer", "Badal Ramnath Shukla", "12 Sep 2026"];
-    const csv = [head, sample].map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(",")).join("\n");
+    /* two rows for the same customer = two follow-up entries */
+    const s1 = ["ABC Constructions", "Distributor",
+      "Ramesh Kumar", "9876543210", "ramesh@example.com",
+      "Suresh Patil", "9876500011", "suresh@example.com",
+      "Anita Rao", "9876500022", "anita@example.com",
+      "Maharashtra", "Mumbai", "Andheri East",
+      "Tower A | Tower B | Mall Project | Villa Site",
+      "IndiaMart", "First visit - shared price list", "Badal Ramnath Shukla", "10 Sep 2026"];
+    const s2 = ["ABC Constructions", "Distributor",
+      "Ramesh Kumar", "9876543210", "ramesh@example.com",
+      "", "", "", "", "", "",
+      "Maharashtra", "Mumbai", "Andheri East",
+      "Tower A", "IndiaMart", "Second visit - sample given", "Badal Ramnath Shukla", "14 Sep 2026"];
+    const csv = [head, s1, s2].map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     a.download = "customers-format.csv"; a.click();
