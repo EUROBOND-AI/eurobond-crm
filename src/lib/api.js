@@ -122,7 +122,7 @@ export const api = {
   createUser: async (u) => { const r = await req("/users.php", { method: "POST", body: u }); clearApiCache(); return r; },
   updateUser: async (id, u) => { const r = await req("/users.php?id=" + id + "&action=update", { method: "POST", body: u }); clearApiCache(); return r; },
   deleteUser: async (id) => { const r = await req("/users.php?id=" + id + "&action=delete", { method: "POST" }); clearApiCache(); return r; },
-  deleteUserHard: (id) => req("/users.php?id=" + id + "&hard=1&action=delete", { method: "POST" }),
+  deleteUserHard: async (id) => { const r = await req("/users.php?id=" + id + "&hard=1&action=delete", { method: "POST" }); clearApiCache(); return r; },
   setUserStatus: async (id, status) => { const r = await req("/users.php?id=" + id + "&action=update", { method: "POST", body: { status } }); clearApiCache(); return r; },
   resetUserPass: (id, new_password) => req("/users.php?action=reset_pass", { method: "POST", body: { id, new_password } }),
 

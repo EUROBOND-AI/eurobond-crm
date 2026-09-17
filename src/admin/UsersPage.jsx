@@ -205,10 +205,12 @@ export default function UsersPage() {
         {shown && <button className="btn btn-ghost" onClick={() => { setShown(false); setQ(""); setFRole(""); setFState(""); setPicked(new Set()); }}>Clear</button>}
         {picked.size > 0 && (
           <button className="btn btn-danger" onClick={async () => {
-            if (!window.confirm(`Delete ${picked.size} user(s)? This cannot be undone.`)) return;
+            if (!window.confirm(`Permanently delete ${picked.size} user(s) and their attendance history? This cannot be undone.`)) return;
             let ok = 0, fail = 0;
             for (const id of picked) {
-              try { await api.deleteUser(id); ok++; } catch { fail++; }
+              /* hard delete — the soft one only set status = 0, so the rows came
+                 back as Inactive on the next refresh */
+              try { await api.deleteUserHard(id); ok++; } catch { fail++; }
             }
             setPicked(new Set());
             load();
