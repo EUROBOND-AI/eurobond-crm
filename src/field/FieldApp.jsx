@@ -11,6 +11,7 @@ import { ebFlushQueue, ebQueueSize, watchLocation, startTracker, stopTracker, se
 import { api, auth, API_BASE } from "../lib/api.js";
 import BeatPlan, { BeatPlanConfirm } from "./BeatPlan.jsx";
 import MeetingCalendar from "./MeetingCalendar.jsx";
+import BiltraxList from "./BiltraxList.jsx";
 import { buildExpensePdf } from "../lib/expensePdf.js";
 import { MODULES } from "../admin/moduleConfigs.jsx";
 
@@ -3693,6 +3694,7 @@ function MenuDrawer({ open, close }) {
       ["Attendance", <CalendarCheck size={16} />, "/app/attendance", "attendance"],
       ["Task", <ClipboardList size={16} />, "/app/m/task", "task"],
       ["Beat Plan", <CalendarDays size={16} />, "/app/beat-plan", "beatPlan"],
+      ["Biltrax", <Building2 size={16} />, "/app/biltrax", "biltrax"],
       ["Resources & Links", <FileText size={16} />, "/app/resources", "resources"],
     ] },
   ];
@@ -6624,6 +6626,7 @@ export default function FieldApp() {
             }} />} />
             <Route path="project/new" element={<FieldProjectNew />} />
             <Route path="beat-plan" element={<BeatPlan />} />
+            <Route path="biltrax" element={<BiltraxList />} />
             <Route path="calendar" element={<MeetingCalendar />} />
             <Route path="resources" element={<FieldResources />} />
             {Object.keys(APP_MODS).map((m) => (

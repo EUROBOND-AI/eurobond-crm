@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Eye, Trophy, Share2, Phone, Trash2 } from "lucide-react";
+import { Eye, Trophy, Share2, Phone, Trash2, MessageSquare } from "lucide-react";
 import { PageHead, StatCard, ToolButtons } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
 import { scopeRows, visibleUsers } from "../lib/scope.js";
@@ -13,7 +13,7 @@ const iconBtn = (c) => ({ background: "transparent", border: "none", cursor: "po
 
 const EMPTY = {
   biltraxType: "Requested", projectLink: "", projectName: "", latestSubStatus: "",
-  landmark: "", address: "", associatedCompanies: "", buildingUse: "",
+  landmark: "", address: "", state: "", associatedCompanies: "", buildingUse: "",
   professional1: "", professional2: "", professional3: "", professional4: "",
   assignPerson: "", hod: "", assignedDate: "", appointmentDate: "", status: "Pending",
 };
@@ -26,7 +26,12 @@ export default function BiltraxPage() {
   const [view, setView] = useState(null);
   const [winFor, setWinFor] = useState(null);
   const [assignFor, setAssignFor] = useState(null);
+  const [chatFor, setChatFor] = useState(null);
   const [fType, setFType] = useState("");
+  const [fState, setFState] = useState("");
+  const [fHod, setFHod] = useState("");
+  const [fPerson, setFPerson] = useState("");
+  const [shown, setShown] = useState(false);
   const [q, setQ] = useState("");
 
   const load = () => {
@@ -43,12 +48,15 @@ export default function BiltraxPage() {
   };
   useEffect(load, []);
 
-  const list = useMemo(() => rows.filter((r) => {
+  const list = useMemo(() => (!shown ? [] : rows.filter((r) => {
     if (fType && (r.biltraxType || "Requested") !== fType) return false;
+    if (fState && (r.state || "") !== fState) return false;
+    if (fHod && (r.hod || "") !== fHod) return false;
+    if (fPerson && (r.assignPerson || "") !== fPerson) return false;
     if (!q.trim()) return true;
     const t = q.toLowerCase();
     return `${r.projectName} ${r.address} ${r.landmark} ${r.assignPerson}`.toLowerCase().includes(t);
-  }), [rows, fType, q]);
+  })), [rows, shown, fType, fState, fHod, fPerson, q]);
 
   const save = async (data) => {
     try {
@@ -64,16 +72,71 @@ export default function BiltraxPage() {
   };
 
   const exportCsv = () => {
-    const head = ["Type", "Project Link", "Project Name", "Latest Sub Status", "Landmark", "Address",
+    const head = ["Type", "Project Link", "Project Name", "Latest Sub Status", "Landmark", "Address", "State",
       "Associated Companies", "Building Use", "Professional Detail 1", "Professional Detail 2",
       "Professional Detail 3", "Professional Detail 4", "Assign Person", "HOD", "Assigned Date", "Appointment Date", "Status"];
     const body = list.map((r) => [r.biltraxType, r.projectLink, r.projectName, r.latestSubStatus, r.landmark,
-      r.address, r.associatedCompanies, r.buildingUse, r.professional1, r.professional2, r.professional3,
+      r.address, r.state, r.associatedCompanies, r.buildingUse, r.professional1, r.professional2, r.professional3,
       r.professional4, r.assignPerson, r.hod, r.assignedDate, r.appointmentDate, r.status]);
     const csv = [head, ...body].map((x) => x.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     a.download = "biltrax.csv"; a.click();
+  };
+
+  const COLS = ["Type", "Project Link", "Project Name", "Latest Sub Status", "Landmark", "Address",
+    "State", "Associated Companies", "Building Use", "Professional Detail 1", "Professional Detail 2",
+    "Professional Detail 3", "Professional Detail 4", "Assign Person", "HOD", "Assigned Date", "Appointment Date"];
+
+  const downloadFormat = () => {
+    const sample = ["Appointment", "https://biltrax.com/project/123", "Skyline Towers", "Design stage",
+      "Near Phoenix Mall", "Kurla West, Mumbai", "Maharashtra", "ABC Builders, XYZ Architects", "Commercial",
+      "Arch. Rakesh - 9876543210", "PMC - Mr. Shah 9876500011", "Contractor - 9876500022", "",
+      "Badal Ramnath Shukla", "Rahul Gada", "10-09-2026", "2026-09-25"];
+    const csv = [COLS, sample].map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    a.download = "biltrax-format.csv"; a.click();
+  };
+
+  const importCsv = async (file) => {
+    if (!file) return;
+    setLoading(true);
+    try {
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).filter((l) => l.trim());
+      if (lines.length < 2) { alert("CSV is empty."); setLoading(false); return; }
+      const parse = (line) => { const out = []; let cur = "", inQ = false; for (let i = 0; i < line.length; i++) { const c = line[i]; if (c === '"') { if (inQ && line[i + 1] === '"') { cur += '"'; i++; } else inQ = !inQ; } else if (c === "," && !inQ) { out.push(cur); cur = ""; } else cur += c; } out.push(cur); return out; };
+      const head = parse(lines[0]).map((h) => h.trim().toLowerCase());
+      const at = (name) => head.indexOf(name.toLowerCase());
+      const pick = (c, name) => { const i = at(name); return i >= 0 ? (c[i] || "").trim() : ""; };
+      let ok = 0, fail = 0;
+      for (let i = 1; i < lines.length; i++) {
+        const c = parse(lines[i]);
+        const projectName = pick(c, "Project Name");
+        if (!projectName) continue;
+        const person = pick(c, "Assign Person");
+        const u = users.find((x) => x.name === person);
+        const rec = {
+          biltraxType: pick(c, "Type") || "Requested",
+          projectLink: pick(c, "Project Link"), projectName,
+          latestSubStatus: pick(c, "Latest Sub Status"), landmark: pick(c, "Landmark"),
+          address: pick(c, "Address"), state: pick(c, "State"),
+          associatedCompanies: pick(c, "Associated Companies"), buildingUse: pick(c, "Building Use"),
+          professional1: pick(c, "Professional Detail 1"), professional2: pick(c, "Professional Detail 2"),
+          professional3: pick(c, "Professional Detail 3"), professional4: pick(c, "Professional Detail 4"),
+          assignPerson: person, hod: pick(c, "HOD") || u?.manager || "",
+          assignedDate: pick(c, "Assigned Date"), appointmentDate: pick(c, "Appointment Date"),
+          status: person ? "Assigned" : "Pending",
+          createdBy: auth.user?.name || "",
+        };
+        try { await api.create("biltrax", rec); ok++; } catch { fail++; }
+      }
+      alert(`${ok} project(s) imported${fail ? `, ${fail} failed` : ""}.`);
+      setShown(true);
+      load();
+    } catch (e) { alert("Import failed: " + e.message); }
+    setLoading(false);
   };
 
   const counts = useMemo(() => ({
@@ -87,8 +150,12 @@ export default function BiltraxPage() {
     <div>
       <PageHead crumb="SFA" title="Biltrax" actions={
         <ToolButtons onRefresh={load} refreshing={loading} onExport={exportCsv}
+          onDownloadFormat={downloadFormat}
+          onImport={() => document.getElementById("biltrax-import").click()}
           onAdd={() => setForm({ ...EMPTY })} addLabel="Add Biltrax" />
       } />
+
+      <input id="biltrax-import" type="file" accept=".csv" hidden onChange={(e) => importCsv(e.target.files[0])} />
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 12, marginBottom: 16 }}>
         <StatCard label="Total" value={counts.total} />
@@ -100,25 +167,43 @@ export default function BiltraxPage() {
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search project, address, person…"
           style={{ ...inp, width: 280, marginBottom: 0 }} />
-        <select value={fType} onChange={(e) => setFType(e.target.value)} style={{ ...inp, width: 190, marginBottom: 0 }}>
+        <select value={fType} onChange={(e) => setFType(e.target.value)} style={{ ...inp, width: 170, marginBottom: 0 }}>
           <option value="">All Types</option>
           {BILTRAX_TYPES.map((t) => <option key={t}>{t}</option>)}
         </select>
+        <select value={fState} onChange={(e) => setFState(e.target.value)} style={{ ...inp, width: 170, marginBottom: 0 }}>
+          <option value="">All States</option>
+          {[...new Set(rows.map((r) => r.state).filter(Boolean))].sort().map((x) => <option key={x}>{x}</option>)}
+        </select>
+        <select value={fHod} onChange={(e) => setFHod(e.target.value)} style={{ ...inp, width: 170, marginBottom: 0 }}>
+          <option value="">All HOD</option>
+          {[...new Set(rows.map((r) => r.hod).filter(Boolean))].sort().map((x) => <option key={x}>{x}</option>)}
+        </select>
+        <select value={fPerson} onChange={(e) => setFPerson(e.target.value)} style={{ ...inp, width: 190, marginBottom: 0 }}>
+          <option value="">All Persons</option>
+          {[...new Set(rows.map((r) => r.assignPerson).filter(Boolean))].sort().map((x) => <option key={x}>{x}</option>)}
+        </select>
+        <button className="btn btn-primary" style={{ padding: "9px 22px", fontWeight: 700 }} onClick={() => setShown(true)}>Show</button>
+        {shown && <button className="btn btn-ghost" onClick={() => { setShown(false); setQ(""); setFType(""); setFState(""); setFHod(""); setFPerson(""); }}>Clear</button>}
       </div>
 
       <div style={{ background: "#fff", borderRadius: 12, boxShadow: "var(--shadow)", overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead style={{ background: "#f7f9ff" }}>
-            <tr>{["Action", "Type", "Project Link", "Project Name", "Latest Sub Status", "Landmark", "Address",
+            <tr>{["Action", "Type", "Project Link", "Project Name", "Latest Sub Status", "Landmark", "Address", "State",
               "Associated Companies", "Building Use", "Professional Detail 1", "Professional Detail 2",
               "Professional Detail 3", "Professional Detail 4", "Assign Person", "HOD", "Assigned Date", "Appointment Date", "Status"]
               .map((h) => <th key={h} style={th}>{h}</th>)}</tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={18} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
+              <tr><td colSpan={19} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
+            ) : !shown ? (
+              <tr><td colSpan={19} style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>
+                Set your filters and click <b>Show</b> to load the list.
+              </td></tr>
             ) : list.length === 0 ? (
-              <tr><td colSpan={18} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>No Biltrax projects yet.</td></tr>
+              <tr><td colSpan={19} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>No Biltrax projects match these filters.</td></tr>
             ) : list.map((r) => (
               <tr key={r._id}>
                 <td style={{ ...td, whiteSpace: "nowrap" }}>
@@ -128,6 +213,12 @@ export default function BiltraxPage() {
                   {r.professional1 && (
                     <a title="Call" href={`tel:${String(r.professional1).replace(/\D/g, "")}`} style={{ ...iconBtn("#0f7a44"), display: "inline-block" }}><Phone size={15} /></a>
                   )}
+                  <button title="Message" style={iconBtn("#0b6cb0")} onClick={() => setChatFor(r)}>
+                    <MessageSquare size={15} />
+                    {Array.isArray(r.chat) && r.chat.length > 0 && (
+                      <span style={{ fontSize: 9.5, fontWeight: 800, color: "#0b6cb0" }}>{r.chat.length}</span>
+                    )}
+                  </button>
                   <button title="Delete" style={iconBtn("#e5484d")} onClick={() => del(r)}><Trash2 size={15} /></button>
                 </td>
                 <td style={td}>
@@ -142,6 +233,7 @@ export default function BiltraxPage() {
                 <td style={td}>{r.latestSubStatus || "—"}</td>
                 <td style={td}>{r.landmark || "—"}</td>
                 <td style={td}>{r.address || "—"}</td>
+                <td style={td}>{r.state || "—"}</td>
                 <td style={td}>{r.associatedCompanies || "—"}</td>
                 <td style={td}>{r.buildingUse || "—"}</td>
                 <td style={td}>{r.professional1 || "—"}</td>
@@ -163,6 +255,7 @@ export default function BiltraxPage() {
       {view && <BiltraxView r={view} onClose={() => setView(null)} />}
       {winFor && <BiltraxWin r={winFor} onClose={() => setWinFor(null)} onDone={load} />}
       {assignFor && <BiltraxAssign r={assignFor} users={users} onClose={() => setAssignFor(null)} onDone={load} />}
+      {chatFor && <BiltraxChat r={chatFor} onClose={() => setChatFor(null)} onDone={load} />}
     </div>
   );
 }
@@ -196,6 +289,7 @@ function BiltraxForm({ row, users, onClose, onSave }) {
         <div><label style={lbl}>Latest Sub Status</label><input value={f.latestSubStatus} onChange={(e) => set("latestSubStatus", e.target.value)} style={inp} /></div>
         <div><label style={lbl}>Landmark</label><input value={f.landmark} onChange={(e) => set("landmark", e.target.value)} style={inp} /></div>
         <div><label style={lbl}>Address</label><input value={f.address} onChange={(e) => set("address", e.target.value)} style={inp} /></div>
+        <div><label style={lbl}>State</label><input value={f.state} onChange={(e) => set("state", e.target.value)} style={inp} /></div>
         <div><label style={lbl}>Associated Companies</label><input value={f.associatedCompanies} onChange={(e) => set("associatedCompanies", e.target.value)} style={inp} /></div>
         <div><label style={lbl}>Building Use</label><input value={f.buildingUse} onChange={(e) => set("buildingUse", e.target.value)} style={inp} /></div>
         {[1, 2, 3, 4].map((n) => (
@@ -251,12 +345,19 @@ function BiltraxView({ r, onClose }) {
       {rowLine("HOD", r.hod)}
       {rowLine("Assigned Date", r.assignedDate)}
       {r.biltraxType === "Appointment" && rowLine("Appointment Date", r.appointmentDate)}
+      {rowLine("State", r.state)}
       {rowLine("Status", r.status || "Pending")}
       {r.status === "Win" && (
         <div style={{ marginTop: 14, background: "#e5f9f1", borderRadius: 12, padding: 14 }}>
-          <div style={{ fontWeight: 800, color: "#0f7a44", marginBottom: 8 }}>🏆 Win Details</div>
-          {rowLine("Order (Sq. Meter)", r.winSqm)}
-          {rowLine("Sales Amount", r.winAmount ? `₹${Number(r.winAmount).toLocaleString("en-IN")}` : "")}
+          <div style={{ fontWeight: 800, color: "#0f7a44", marginBottom: 8 }}>
+            🏆 {r.winType === "Specification" ? "Specification Win" : "Sales Win"}
+          </div>
+          {r.winSqm ? rowLine("Order (Sq. Meter)", r.winSqm) : null}
+          {r.winAmount ? rowLine("Sales Amount", `₹${Number(r.winAmount).toLocaleString("en-IN")}`) : null}
+          {r.specGrade ? rowLine("Approved Grade", r.specGrade) : null}
+          {r.specColour ? rowLine("Colour", r.specColour) : null}
+          {r.salesWonBy ? rowLine("Sales Won By", r.salesWonBy) : null}
+          {r.specWonBy ? rowLine("Spec Won By", r.specWonBy) : null}
           {r.winAttachment && rowLine("Attachment",
             <span className="link" style={{ cursor: "pointer" }}
               onClick={() => window.dispatchEvent(new CustomEvent("crm-lightbox", { detail: r.winAttachment }))}>View file</span>)}
@@ -268,27 +369,70 @@ function BiltraxView({ r, onClose }) {
 }
 
 function BiltraxWin({ r, onClose, onDone }) {
+  const me = auth.user || {};
+  /* A sales win is an order value; a specification win is the grade and colour
+     that got approved for the project, same as on a quotation. */
+  const isSpec = /spec/i.test(`${me.role || ""} ${me.designation || ""}`);
   const [sqm, setSqm] = useState(r.winSqm || "");
   const [amount, setAmount] = useState(r.winAmount || "");
+  const [grades, setGrades] = useState([]);
+  const [colours, setColours] = useState([]);
+  const [grade, setGrade] = useState(r.specGrade || "");
+  const [colour, setColour] = useState(r.specColour || "");
   const [file, setFile] = useState(r.winAttachment || "");
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    if (!isSpec) return;
+    api.productNames && api.productNames().then((d) => setGrades(d.names || [])).catch(() => {});
+  }, [isSpec]);
+  useEffect(() => {
+    if (!isSpec || !grade) { setColours([]); return; }
+    api.productsByName(grade).then((d) => setColours(d.rows || [])).catch(() => setColours([]));
+  }, [grade, isSpec]);
+
   const save = async () => {
-    if (!sqm || !amount) { alert("Enter Sq. Meter and Sales Amount"); return; }
+    if (isSpec) {
+      if (!grade) { alert("Select the approved Grade"); return; }
+    } else if (!sqm || !amount) { alert("Enter Sq. Meter and Sales Amount"); return; }
     setBusy(true);
     try {
-      await api.update("biltrax", r._id, { ...r, status: "Win", winSqm: sqm, winAmount: amount, winAttachment: file,
-        wonAt: new Date().toLocaleString("en-IN") });
+      const patch = isSpec
+        ? { specGrade: grade, specColour: colour, specWonBy: me.name || "", specWonAt: new Date().toLocaleString("en-IN") }
+        : { winSqm: sqm, winAmount: amount, salesWonBy: me.name || "", wonAt: new Date().toLocaleString("en-IN") };
+      await api.update("biltrax", r._id, { ...r, status: "Win", winType: isSpec ? "Specification" : "Sales",
+        winAttachment: file, ...patch });
       onDone(); onClose();
     } catch (e) { alert(e.message); setBusy(false); }
   };
 
   return (
-    <Modal title={`🏆 Mark Win — ${r.projectName || ""}`} onClose={onClose}>
-      <label style={lbl}>Order (Sq. Meter) *</label>
-      <input value={sqm} inputMode="decimal" onChange={(e) => setSqm(e.target.value.replace(/[^\d.]/g, ""))} style={inp} />
-      <label style={lbl}>Sales Amount (₹) *</label>
-      <input value={amount} inputMode="decimal" onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))} style={inp} />
+    <Modal title={`🏆 ${isSpec ? "Specification" : "Sales"} Win — ${r.projectName || ""}`} onClose={onClose}>
+      {isSpec ? (
+        <>
+          <label style={lbl}>Approved Grade *</label>
+          <select value={grade} onChange={(e) => { setGrade(e.target.value); setColour(""); }} style={inp}>
+            <option value="">— Select Grade —</option>
+            {grades.map((g) => <option key={g}>{g}</option>)}
+          </select>
+          <label style={lbl}>Colour</label>
+          <select value={colour} onChange={(e) => setColour(e.target.value)} style={inp} disabled={!grade}>
+            <option value="">{grade ? "— Select Colour —" : "Select a grade first"}</option>
+            {colours.map((c, i) => (
+              <option key={i} value={`${c.code ? c.code + " · " : ""}${c.colour || ""}`}>
+                {c.code ? c.code + " · " : ""}{c.colour}
+              </option>
+            ))}
+          </select>
+        </>
+      ) : (
+        <>
+          <label style={lbl}>Order (Sq. Meter) *</label>
+          <input value={sqm} inputMode="decimal" onChange={(e) => setSqm(e.target.value.replace(/[^\d.]/g, ""))} style={inp} />
+          <label style={lbl}>Sales Amount (₹) *</label>
+          <input value={amount} inputMode="decimal" onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))} style={inp} />
+        </>
+      )}
       <label style={lbl}>Attachment (optional)</label>
       <input type="file" accept="image/*,application/pdf" style={{ marginBottom: 10 }}
         onChange={async (e) => {
@@ -300,6 +444,59 @@ function BiltraxWin({ r, onClose, onDone }) {
       <div style={{ display: "flex", gap: 8 }}>
         <button className="btn" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
         <button className="btn btn-primary" style={{ flex: 1 }} disabled={busy} onClick={save}>{busy ? "Saving…" : "Mark Win"}</button>
+      </div>
+    </Modal>
+  );
+}
+
+/* Admin <-> field chat on a project. Every message is kept on the record and the
+   other side gets a notification. */
+function BiltraxChat({ r, onClose, onDone }) {
+  const me = auth.user || {};
+  const [msgs, setMsgs] = useState(Array.isArray(r.chat) ? r.chat : []);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const send = async () => {
+    if (!text.trim()) return;
+    setBusy(true);
+    const entry = { by: me.name || "Admin", text: text.trim(), at: new Date().toLocaleString("en-IN") };
+    const next = [...msgs, entry];
+    try {
+      await api.update("biltrax", r._id, { ...r, chat: next });
+      const to = [r.assignPerson, r.hod, r.createdBy].filter((x) => x && x !== me.name);
+      for (const t of [...new Set(to)]) {
+        try {
+          await api.create("notification", {
+            title: "Message from Admin",
+            message: `${r.projectName || "Biltrax project"}: ${entry.text}`,
+            to: t, link: "/app/notifications", at: new Date().toISOString(),
+          });
+        } catch {}
+      }
+      setMsgs(next); setText("");
+      onDone && onDone();
+    } catch (e) { alert(e.message); }
+    setBusy(false);
+  };
+
+  return (
+    <Modal title={`💬 ${r.projectName || "Biltrax project"}`} onClose={onClose}>
+      <div style={{ maxHeight: 280, overflowY: "auto", marginBottom: 12 }}>
+        {msgs.length === 0 ? (
+          <div style={{ color: "var(--muted)", fontSize: 13, padding: 10 }}>No messages yet.</div>
+        ) : msgs.map((m, i) => (
+          <div key={i} style={{ background: "#f4f7ff", borderRadius: 10, padding: "9px 11px", marginBottom: 8 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 800, color: "var(--navy)" }}>{m.by}</div>
+            <div style={{ fontSize: 13, margin: "3px 0" }}>{m.text}</div>
+            <div style={{ fontSize: 10.5, color: "var(--muted)" }}>{m.at}</div>
+          </div>
+        ))}
+      </div>
+      <textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder="Write a message…" style={inp} />
+      <div style={{ display: "flex", gap: 8 }}>
+        <button className="btn" style={{ flex: 1 }} onClick={onClose}>Close</button>
+        <button className="btn btn-primary" style={{ flex: 1 }} disabled={busy} onClick={send}>{busy ? "Sending…" : "Send"}</button>
       </div>
     </Modal>
   );
