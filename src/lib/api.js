@@ -245,6 +245,7 @@ export const api = {
   leaveReminders: () => req("/leave_reminder.php"),
   forwardCustomers: (mobiles, names, toUserId) => req("/customers.php?action=forward", { method: "POST", body: { mobiles, names, toUserId } }),
   deleteCustomer: (mobile, name) => req("/customers.php?action=delete", { method: "POST", body: { mobile, name } }),
+  customersImport: (rows) => req("/customers.php?action=import", { method: "POST", body: { rows } }),
   customers: (q = "", mine = false) => req(`/customers.php?action=list${q ? "&q=" + encodeURIComponent(q) : ""}${mine ? "&mine=1" : ""}`),
 
   /* ---------- Notifications ---------- */

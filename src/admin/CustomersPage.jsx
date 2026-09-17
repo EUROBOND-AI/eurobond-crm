@@ -92,20 +92,63 @@ export default function CustomersPage() {
       const parse = (line) => { const out = []; let cur = "", inQ = false; for (let i = 0; i < line.length; i++) { const c = line[i]; if (c === '"') { if (inQ && line[i + 1] === '"') { cur += '"'; i++; } else inQ = !inQ; } else if (c === "," && !inQ) { out.push(cur); cur = ""; } else cur += c; } out.push(cur); return out; };
       const head = parse(lines[0]).map((h) => h.trim().toLowerCase());
       const idx = (names) => head.findIndex((h) => names.some((n) => h.includes(n)));
-      const ci = { name: idx(["customer", "name", "firm", "party"]), mobile: idx(["mobile", "phone"]), email: idx(["email"]), place: idx(["place", "city"]), address: idx(["address"]), state: idx(["state"]), category: idx(["category", "type"]) };
-      let added = 0;
+      const ci = {
+        name: idx(["customer name", "customer", "firm", "party"]),
+        category: idx(["category"]),
+        contactName: idx(["contact person", "contact name"]),
+        mobile: idx(["mobile", "phone"]),
+        email: idx(["email"]),
+        state: idx(["state"]),
+        city: idx(["city", "place"]),
+        address: idx(["address"]),
+        projects: idx(["project"]),
+        enquiryFrom: idx(["enquiry from", "lead from", "source"]),
+        remark: idx(["remark", "note"]),
+        createdBy: idx(["sales person", "created by", "owner", "employee"]),
+        date: idx(["date"]),
+      };
+      const get = (c, k) => (ci[k] >= 0 ? (c[ci[k]] || "").trim() : "");
+      const rows = [];
       for (let i = 1; i < lines.length; i++) {
         const c = parse(lines[i]);
-        const name = ci.name >= 0 ? (c[ci.name] || "").trim() : "";
-        if (!name) continue;
-        const rec = { name, mobile: ci.mobile >= 0 ? (c[ci.mobile] || "").trim() : "", email: ci.email >= 0 ? (c[ci.email] || "").trim() : "", place: ci.place >= 0 ? (c[ci.place] || "").trim() : "", address: ci.address >= 0 ? (c[ci.address] || "").trim() : "", state: ci.state >= 0 ? (c[ci.state] || "").trim() : "", category: ci.category >= 0 ? (c[ci.category] || "").trim() : "", by: "Imported", followups: 0, imported: true };
-        try { await api.create("customer", rec); added++; } catch {}
+        const partyName = get(c, "name");
+        if (!partyName) continue;
+        rows.push({
+          partyName, category: get(c, "category"), contactName: get(c, "contactName"),
+          mobile: get(c, "mobile"), email: get(c, "email"), state: get(c, "state"),
+          city: get(c, "city"), address: get(c, "address"), projects: get(c, "projects"),
+          enquiryFrom: get(c, "enquiryFrom"), remark: get(c, "remark"),
+          createdBy: get(c, "createdBy"), date: get(c, "date"),
+        });
       }
-      alert(`${added} customers imported.`);
+      if (!rows.length) { alert("No usable rows found."); setBusy(false); return; }
+      /* the server files each row under the named sales person, so the customer
+         appears in THAT person's app rather than under the admin */
+      const r = await api.customersImport(rows);
+      let msg = `${r.saved} customer(s) imported.`;
+      if (r.skipped) msg += `\n${r.skipped} skipped.`;
+      if (r.unknownOwners && r.unknownOwners.length) {
+        msg += `\n\nThese sales person names did not match any App User:\n` +
+               r.unknownOwners.slice(0, 15).join(", ");
+      }
+      alert(msg);
       load();
     } catch (e) { alert("Import failed: " + e.message); }
     setBusy(false);
   };
+
+  const downloadFormat = () => {
+    const head = ["Customer Name", "Category", "Contact Person", "Mobile", "Email",
+      "State", "City", "Address", "Projects", "Enquiry From", "Remark", "Sales Person", "Date"];
+    const sample = ["ABC Constructions", "Distributor", "Ramesh Kumar", "9876543210",
+      "ramesh@example.com", "Maharashtra", "Mumbai", "Andheri East", "Tower A",
+      "IndiaMart", "Old CRM customer", "Badal Ramnath Shukla", "12 Sep 2026"];
+    const csv = [head, sample].map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    a.download = "customers-format.csv"; a.click();
+  };
+
 
   const exportCsv = () => {
     const head = ["Customer", "Mobile", "Type", "Place", "Address", "Entries", "Last Entry", "By"];
@@ -135,6 +178,7 @@ export default function CustomersPage() {
             refreshing={busy}
             onExport={exportCsv}
             onImport={() => document.getElementById("cust-import-file").click()}
+            onDownloadFormat={downloadFormat}
             onHeaderConfig={() => setCfgOpen(true)}
             onReport={exportCsv}
           />
