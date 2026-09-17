@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { PageHead, StatCard } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
+import { scopeRows } from "../lib/scope.js";
 
 const COLORS = ["#4b5cf0", "#f0932b", "#20bf6b", "#eb3b5a", "#8854d0", "#0fb9b1"];
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -12,8 +13,10 @@ export default function ExpenseDashboard() {
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    api.list("expense")
-      .then((d) => setRows((d.records || []).map((r) => ({ ...r.data, _by: r.created_by_name, _at: r.created_at }))))
+    Promise.all([api.list("expense"), api.listUsers().catch(() => ({ users: [] }))])
+      .then(([d, uu]) => setRows(scopeRows(
+        (d.records || []).map((r) => ({ ...r.data, _by: r.created_by_name, _at: r.created_at })),
+        uu.users || [], ["createdBy", "_by", "user"])))
       .catch((e) => setErr(e.message))
       .finally(() => setLoading(false));
   }, []);

@@ -4,6 +4,7 @@ import { FileText, X } from "lucide-react";
 import { PageHead, Pill } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { fmtKm } from "../lib/geo.js";
+import { visibleUsers } from "../lib/scope.js";
 
 const rawTime = (dt) => {
   if (!dt) return null;
@@ -130,7 +131,14 @@ export default function AttendancePage() {
   const loadData = () => {
     setShown(true);
     setLoading(true);
-    api.attList(date, dateTo).then((d) => setSessions(d.sessions || [])).catch(() => setSessions([])).finally(() => setLoading(false));
+    /* a HOD must only see their own team's attendance */
+    Promise.all([api.attList(date, dateTo), api.listUsers().catch(() => ({ users: [] }))])
+      .then(([d, uu]) => {
+        const allow = new Set(visibleUsers(uu.users || []).map((x) => x.name));
+        setSessions((d.sessions || []).filter((s2) => allow.has(s2.name)));
+      })
+      .catch(() => setSessions([]))
+      .finally(() => setLoading(false));
   };
 
   const zones = useMemo(() => [...new Set(sessions.map((s) => s.zone).filter(Boolean))], [sessions]);

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { CARD, selS, StatBox, BarChart, Donut, MONTHS_SHORT, parseDate } from "./DashKit.jsx";
+import { visibleUsers, scopeRows } from "../lib/scope.js";
 
 export default function CustomersDashboard() {
   const [rows, setRows] = useState(null);
@@ -13,7 +14,7 @@ export default function CustomersDashboard() {
   const [to, setTo] = useState("");
   const [shown, setShown] = useState(false);
 
-  useEffect(() => { api.listUsers().then((d) => setUsers((d.users || []).filter((u) => u.status == 1))).catch(() => {}); }, []);
+  useEffect(() => { api.listUsers().then((d) => setUsers(visibleUsers(d.users || []).filter((u) => u.status == 1))).catch(() => {}); }, []);
 
   const show = () => {
     setShown(true); setRows(null);

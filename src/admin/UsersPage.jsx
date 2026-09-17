@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { UserPlus, KeyRound, Trash2, Search, Download, Upload } from "lucide-react";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
+import { visibleUsers } from "../lib/scope.js";
 
 const ROLES = ["Admin", "HOD (Sales)", "HOD (Specs)", "Sub HOD (Sales)", "Sub HOD (Specs)", "Sales Person", "Specs Person", "Sales Collection"];
 const GRADES = ["S1", "S2", "S3", "S4", "S5", "M1", "M2", "M3"];
@@ -21,7 +22,7 @@ export default function UsersPage() {
 
   const load = () => {
     setLoading(true);
-    api.listUsers().then((d) => { setUsers(d.users || []); setPicked(new Set()); }).catch((e) => setErr(e.message)).finally(() => setLoading(false));
+    api.listUsers().then((d) => { setUsers(visibleUsers(d.users || [])); setPicked(new Set()); }).catch((e) => setErr(e.message)).finally(() => setLoading(false));
   };
   useEffect(load, []);
   useEffect(() => { api.areaStates().then((d) => setStatesList(d.states || [])).catch(() => {}); }, []);

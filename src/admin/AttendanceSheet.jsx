@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, Download, RefreshCw } from "lucide-react";
 import { api } from "../lib/api.js";
+import { visibleUsers } from "../lib/scope.js";
 
 /* ---------------------------------------------------------------------------
    Attendance Sheet — mee Excel sheet laga month grid.
@@ -43,7 +44,7 @@ export default function AttendanceSheet() {
     setBusy(true);
     Promise.all([api.listUsers(), api.attList(from, to), api.list("leave", false), api.list("holidays", false)])
       .then(([u, a, l, h]) => {
-        setUsers((u.users || [])
+        setUsers(visibleUsers(u.users || [])
           .filter((x) => Number(x.status) !== 0)
           .filter((x) => !/^admin$/i.test(String(x.role || "").trim())));
         setSessions(a.sessions || []);

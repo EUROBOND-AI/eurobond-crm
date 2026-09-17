@@ -181,9 +181,28 @@ export default function CustomersPage() {
   };
 
 
+  /* Export uses the SAME columns as the import format, so a file taken out here
+     can be edited and loaded straight back in. */
   const exportCsv = () => {
-    const head = ["Customer", "Mobile", "Type", "Place", "Address", "Entries", "Last Entry", "By"];
-    const body = list.map((r) => [r.name, r.mobile, r.type, r.place, r.address, r.followups, (r.last_followup || "").slice(0, 16), r.by]);
+    const head = ["Customer Name", "Category",
+      "Contact Person", "Mobile", "Email",
+      "Contact Person 2", "Mobile 2", "Email 2",
+      "Contact Person 3", "Mobile 3", "Email 3",
+      "State", "City", "Address", "Projects", "Enquiry From", "Remark", "Sales Person", "Date"];
+    const con = (r, i) => (Array.isArray(r.contacts) && r.contacts[i]) ? r.contacts[i] : {};
+    const body = list.map((r) => {
+      const c1 = con(r, 0), c2 = con(r, 1), c3 = con(r, 2);
+      const projects = Array.isArray(r.projects) ? r.projects.join(" | ") : (r.projectName || "");
+      return [
+        r.name || "", r.category || r.type || "",
+        c1.name || r.contactName || "", c1.mobile || r.mobile || "", c1.email || r.email || "",
+        c2.name || "", c2.mobile || "", c2.email || "",
+        c3.name || "", c3.mobile || "", c3.email || "",
+        r.state || "", r.place || "", r.address || "",
+        projects, r.enquiryFrom || "", r.notes || r.remark || "",
+        r.by || "", (r.last_followup || r.createdAt || "").slice(0, 16),
+      ];
+    });
     const csv = [head, ...body].map((row) => row.map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));

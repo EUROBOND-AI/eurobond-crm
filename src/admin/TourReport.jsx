@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { PageHead, StatCard } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
+import { visibleUsers } from "../lib/scope.js";
 
 const MONTHS = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
 const monthKey = (dateStr) => {
@@ -21,13 +22,18 @@ export default function TourReport() {
   const [shown, setShown] = useState(false);
 
   useEffect(() => {
-    api.listUsers().then((d) => setUsers((d.users || []).filter((u) => u.status == 1))).catch(() => {});
+    api.listUsers().then((d) => setUsers(visibleUsers(d.users || []).filter((u) => u.status == 1))).catch(() => {});
   }, []);
 
   const runShow = () => {
     setShown(true); setSessions(null);
     const from = `${fy}-04-01`, to = `${fy + 1}-03-31`;
-    api.attList(from, to).then((d) => setSessions(d.rows || d.sessions || [])).catch(() => setSessions([]));
+    Promise.all([api.attList(from, to), api.listUsers().catch(() => ({ users: [] }))])
+      .then(([d, uu]) => {
+        const allow = new Set(visibleUsers(uu.users || []).map((x) => x.name));
+        setSessions((d.rows || d.sessions || []).filter((s2) => allow.has(s2.name)));
+      })
+      .catch(() => setSessions([]));
   };
 
   /* each session: user, work_date, visit_type (ExStation/Outstation/Local), visit_name (areas, comma-sep) */

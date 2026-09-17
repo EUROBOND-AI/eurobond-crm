@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
+import { visibleUsers } from "../lib/scope.js";
 
 /* Live check-in overview — 4 cards (Total Users, Login, Pending, Leave).
    Click a card → that list below. No map, no per-row view. */
@@ -21,8 +22,11 @@ export default function CheckinPage() {
     setLoading(true);
     Promise.all([api.attList(date), api.listUsers(), api.list("leave", false)])
       .then(([d, u, l]) => {
-        setSessions(d.sessions || []);
-        setAllUsers((u.users || []).filter((x) => Number(x.status) !== 0 && x.role !== "Admin"));
+        /* a HOD sees only their own team here as well */
+        const allowed = visibleUsers(u.users || []);
+        const allow = new Set(allowed.map((x) => x.name));
+        setSessions((d.sessions || []).filter((s2) => allow.has(s2.name)));
+        setAllUsers(allowed.filter((x) => Number(x.status) !== 0 && x.role !== "Admin"));
         setLeaves((l.records || []).map((r) => r.data));
       })
       .catch(() => {})

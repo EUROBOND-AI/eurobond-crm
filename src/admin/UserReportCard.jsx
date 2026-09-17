@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PageHead, StatCard, Pill } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { fmtKm } from "../lib/geo.js";
+import { scopeRows, visibleUsers } from "../lib/scope.js";
 
 export default function UserReportCard() {
   const [users, setUsers] = useState([]);
@@ -17,9 +18,10 @@ export default function UserReportCard() {
   useEffect(() => {
     Promise.all([api.listUsers(), api.list("expense"), api.list("enquiry")])
       .then(([u, e, q]) => {
-        setUsers((u.users || []).filter((x) => x.status == 1));
-        setExpenses((e.records || []).map((r) => ({ ...r.data, _by: r.created_by_name })));
-        setEnquiries((q.records || []).map((r) => ({ ...r.data, _by: r.created_by_name })));
+        const all = u.users || [];
+        setUsers(visibleUsers(all).filter((x) => x.status == 1));
+        setExpenses(scopeRows((e.records || []).map((r) => ({ ...r.data, _by: r.created_by_name })), all, ["createdBy", "_by", "user"]));
+        setEnquiries(scopeRows((q.records || []).map((r) => ({ ...r.data, _by: r.created_by_name })), all, ["createdBy", "_by", "passto", "assignedTo"]));
       })
       .catch(() => {})
       .finally(() => setLoading(false));

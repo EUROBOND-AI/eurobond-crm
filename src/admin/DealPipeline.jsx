@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
+import { scopeRows } from "../lib/scope.js";
 
 const STAGES = [
   { key: "Review Pending", color: "#f59e0b" },
@@ -16,7 +17,10 @@ export default function DealPipeline() {
 
   const load = () => {
     setLoading(true);
-    api.list("enquiry").then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data })))).catch(() => setRows([])).finally(() => setLoading(false));
+    Promise.all([api.list("enquiry"), api.listUsers().catch(() => ({ users: [] }))])
+      .then(([d, uu]) => setRows(scopeRows((d.records || []).map((r) => ({ _id: r.id, ...r.data })), uu.users || [], ["createdBy", "passto", "assignedTo", "hod", "by"])))
+      .catch(() => setRows([]))
+      .finally(() => setLoading(false));
   };
   useEffect(load, []);
 

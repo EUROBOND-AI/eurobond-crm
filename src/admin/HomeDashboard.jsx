@@ -3,6 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 import { Users, FileText, Wallet, Target, Building2, CalendarCheck, TrendingUp, MapPin } from "lucide-react";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
+import { scopeRows, visibleUsers } from "../lib/scope.js";
 
 const C = {
   blue: "#4a7bff", violet: "#8b5cf6", green: "#10b981", amber: "#f59e0b",
@@ -45,17 +46,21 @@ export default function HomeDashboard() {
   useEffect(() => {
     (async () => {
       const safe = (p) => p.then((r) => r).catch(() => ({ records: [] }));
+      const uu = await safe(api.listUsers()).then((r) => r.users || []).catch(() => []);
       const [enq, cust, exp, leave, target, proj, att] = await Promise.all([
         safe(api.list("enquiry")), safe(api.list("followup")), safe(api.list("expense")),
         safe(api.list("leave")), safe(api.list("target")), safe(api.list("projectProjection")),
         safe(api.attList ? api.attList(new Date().toISOString().slice(0, 10), new Date().toISOString().slice(0, 10)) : Promise.resolve({ sessions: [] })),
       ]);
-      const enqR = (enq.records || []).map((r) => r.data || r);
-      const custR = (cust.records || []).map((r) => r.data || r);
-      const expR = (exp.records || []).map((r) => r.data || r);
-      const leaveR = (leave.records || []).map((r) => r.data || r);
-      const projR = (proj.records || []).map((r) => r.data || r);
-      const sessions = att.sessions || [];
+      /* every figure on this dashboard is limited to what this login may see */
+      const own = ["createdBy", "by", "user", "passto", "assignedTo", "salesPerson"];
+      const enqR  = scopeRows((enq.records || []).map((r) => r.data || r), uu, own);
+      const custR = scopeRows((cust.records || []).map((r) => r.data || r), uu, own);
+      const expR  = scopeRows((exp.records || []).map((r) => r.data || r), uu, own);
+      const leaveR = scopeRows((leave.records || []).map((r) => r.data || r), uu, own);
+      const projR = scopeRows((proj.records || []).map((r) => r.data || r), uu, own);
+      const allowNames = new Set(visibleUsers(uu).map((x) => x.name));
+      const sessions = (att.sessions || []).filter((s2) => allowNames.has(s2.name));
 
       const expTotal = expR.reduce((s, r) => s + (Number(r.amount) || 0), 0);
       const expPending = expR.filter((r) => (r.status || "") === "Submitted").reduce((s, r) => s + (Number(r.amount) || 0), 0);

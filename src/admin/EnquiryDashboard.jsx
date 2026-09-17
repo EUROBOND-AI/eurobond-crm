@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { PageHead, StatCard } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
+import { scopeRows, visibleUsers } from "../lib/scope.js";
 
 const COLORS = ["#4b5cf0", "#20bf6b", "#f0932b", "#eb3b5a", "#8854d0"];
 
@@ -18,11 +19,13 @@ export default function EnquiryDashboard() {
   const [shown, setShown] = useState(false);
 
   useEffect(() => {
-    api.list("enquiry")
-      .then((d) => setAll((d.records || []).map((r) => ({ ...r.data, _by: r.created_by_name || "—", _at: r.created_at }))))
+    Promise.all([api.list("enquiry"), api.listUsers().catch(() => ({ users: [] }))])
+      .then(([d, uu]) => setAll(scopeRows(
+        (d.records || []).map((r) => ({ ...r.data, _by: r.created_by_name || "—", _at: r.created_at })),
+        uu.users || [], ["createdBy", "_by", "passto", "assignedTo", "hod"])))
       .catch((e) => setErr(e.message))
       .finally(() => setLoading(false));
-    api.listUsers().then((d) => setUsers((d.users || []).filter((u) => u.status == 1))).catch(() => {});
+    api.listUsers().then((d) => setUsers(visibleUsers(d.users || []).filter((u) => u.status == 1))).catch(() => {});
   }, []);
 
   /* who belongs to which zone / HOD — resolved from the app users list */

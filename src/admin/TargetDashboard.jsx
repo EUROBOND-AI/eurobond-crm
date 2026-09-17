@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { CARD, selS, StatBox, BarChart, Donut } from "./DashKit.jsx";
+import { scopeRows, visibleUsers } from "../lib/scope.js";
 
 export default function TargetDashboard() {
   const [rows, setRows] = useState(null);
@@ -12,11 +13,13 @@ export default function TargetDashboard() {
   const [period, setPeriod] = useState("");
   const [shown, setShown] = useState(false);
 
-  useEffect(() => { api.listUsers().then((d) => setUsers((d.users || []).filter((u) => u.status == 1))).catch(() => {}); }, []);
+  useEffect(() => { api.listUsers().then((d) => setUsers(visibleUsers(d.users || []).filter((u) => u.status == 1))).catch(() => {}); }, []);
 
   const show = () => {
     setShown(true); setRows(null);
-    api.list("target", false).then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data })))).catch(() => setRows([]));
+    Promise.all([api.list("target", false), api.listUsers().catch(() => ({ users: [] }))])
+      .then(([d, uu]) => setRows(scopeRows((d.records || []).map((r) => ({ _id: r.id, ...r.data })), uu.users || [])))
+      .catch(() => setRows([]));
   };
 
   const list = useMemo(() => {
