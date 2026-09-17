@@ -19,6 +19,7 @@ import ApiKeysPage from "./admin/ApiKeysPage.jsx";
 import HealthPage from "./admin/HealthPage.jsx";
 import ActivityLogs from "./admin/ActivityLogs.jsx";
 import BiltraxPage from "./admin/BiltraxPage.jsx";
+import BiltraxDashboard from "./admin/BiltraxDashboard.jsx";
 import LoginHistory from "./admin/LoginHistory.jsx";
 import CustomersDashboard from "./admin/CustomersDashboard.jsx";
 import TargetDashboard from "./admin/TargetDashboard.jsx";
@@ -99,6 +100,7 @@ export default function App() {
         <Route path="dashboards/target" element={<TargetDashboard />} />
         <Route path="dashboards/project" element={<ProjectDashboard />} />
         <Route path="sfa/biltrax" element={<BiltraxPage />} />
+        <Route path="dashboards/biltrax" element={<BiltraxDashboard />} />
         <Route path="master/logs" element={<ActivityLogs />} />
         <Route path="master/login-history" element={<LoginHistory />} />
         <Route path="sfa/checkin" element={<CheckinPage />} />

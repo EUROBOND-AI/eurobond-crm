@@ -2193,6 +2193,13 @@ function FieldFollowUpQuick({ add }) {
 }
 
 function FieldFollowUpNew({ add, editData }) {
+  /* coming from Biltrax -> prefill the customer form from that project */
+  if (!FOLLOWUP_PREFILL.data) {
+    try {
+      const raw = localStorage.getItem("eb_biltrax_prefill");
+      if (raw) { FOLLOWUP_PREFILL.data = JSON.parse(raw); localStorage.removeItem("eb_biltrax_prefill"); }
+    } catch {}
+  }
   const nav = useNavigate();
   const ed = editData || null;
   const pf = FOLLOWUP_PREFILL.data; FOLLOWUP_PREFILL.data = null;   // one-time prefill from scan/quote

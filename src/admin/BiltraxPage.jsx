@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Eye, Trophy, Share2, Phone, Trash2, MessageSquare } from "lucide-react";
+import { Eye, Share2, Trash2, MessageSquare, Pencil, UserPlus, RefreshCw } from "lucide-react";
 import { PageHead, StatCard, ToolButtons } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
 import { scopeRows, visibleUsers } from "../lib/scope.js";
@@ -24,14 +24,17 @@ export default function BiltraxPage() {
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(null);
   const [view, setView] = useState(null);
-  const [winFor, setWinFor] = useState(null);
   const [assignFor, setAssignFor] = useState(null);
   const [chatFor, setChatFor] = useState(null);
+  const [reassign, setReassign] = useState(false);
+  const [fwdOpen, setFwdOpen] = useState(false);
   const [fType, setFType] = useState("");
   const [fState, setFState] = useState("");
   const [fHod, setFHod] = useState("");
   const [fPerson, setFPerson] = useState("");
   const [shown, setShown] = useState(false);
+  const [tab, setTab] = useState("Draft");
+  const [selected, setSelected] = useState(new Set());
   const [q, setQ] = useState("");
 
   const load = () => {
@@ -48,7 +51,11 @@ export default function BiltraxPage() {
   };
   useEffect(load, []);
 
+  /* Draft = not assigned yet · Processing = assigned, still open · Win = closed */
+  const stageOf = (r) => (r.status === "Win" ? "Win" : (r.assignPerson ? "Processing" : "Draft"));
+
   const list = useMemo(() => (!shown ? [] : rows.filter((r) => {
+    if (stageOf(r) !== tab) return false;
     if (fType && (r.biltraxType || "Requested") !== fType) return false;
     if (fState && (r.state || "") !== fState) return false;
     if (fHod && (r.hod || "") !== fHod) return false;
@@ -56,7 +63,7 @@ export default function BiltraxPage() {
     if (!q.trim()) return true;
     const t = q.toLowerCase();
     return `${r.projectName} ${r.address} ${r.landmark} ${r.assignPerson}`.toLowerCase().includes(t);
-  })), [rows, shown, fType, fState, fHod, fPerson, q]);
+  })), [rows, shown, tab, fType, fState, fHod, fPerson, q]);
 
   const save = async (data) => {
     try {
@@ -84,15 +91,15 @@ export default function BiltraxPage() {
     a.download = "biltrax.csv"; a.click();
   };
 
+  /* the sheet only carries project information — assignment happens inside the app */
   const COLS = ["Type", "Project Link", "Project Name", "Latest Sub Status", "Landmark", "Address",
     "State", "Associated Companies", "Building Use", "Professional Detail 1", "Professional Detail 2",
-    "Professional Detail 3", "Professional Detail 4", "Assign Person", "HOD", "Assigned Date", "Appointment Date"];
+    "Professional Detail 3", "Professional Detail 4"];
 
   const downloadFormat = () => {
     const sample = ["Appointment", "https://biltrax.com/project/123", "Skyline Towers", "Design stage",
       "Near Phoenix Mall", "Kurla West, Mumbai", "Maharashtra", "ABC Builders, XYZ Architects", "Commercial",
-      "Arch. Rakesh - 9876543210", "PMC - Mr. Shah 9876500011", "Contractor - 9876500022", "",
-      "Badal Ramnath Shukla", "Rahul Gada", "10-09-2026", "2026-09-25"];
+      "Arch. Rakesh - 9876543210", "PMC - Mr. Shah 9876500011", "Contractor - 9876500022", ""];
     const csv = [COLS, sample].map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
@@ -187,38 +194,73 @@ export default function BiltraxPage() {
         {shown && <button className="btn btn-ghost" onClick={() => { setShown(false); setQ(""); setFType(""); setFState(""); setFHod(""); setFPerson(""); }}>Clear</button>}
       </div>
 
+      {shown && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+          <div style={{ display: "inline-flex", background: "#eef1ff", borderRadius: 10, padding: 3 }}>
+            {["Draft", "Processing", "Win"].map((t) => (
+              <button key={t} onClick={() => { setTab(t); setSelected(new Set()); }}
+                style={{ padding: "7px 18px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 13,
+                  background: tab === t ? "var(--navy)" : "transparent", color: tab === t ? "#fff" : "var(--navy)" }}>
+                {t} ({rows.filter((r) => stageOf(r) === t).length})
+              </button>
+            ))}
+          </div>
+          <button className="btn" style={{ background: "#3fb6d3", color: "#fff", borderColor: "transparent" }}
+            disabled={selected.size === 0} onClick={() => setAssignFor("bulk")}>Bulk Assign</button>
+          <button className="btn btn-primary" disabled={selected.size === 0}
+            onClick={() => { setReassign(true); setAssignFor("bulk"); }}>Bulk Re-Assign</button>
+          <button className="btn btn-soft" disabled={selected.size === 0}
+            onClick={() => setFwdOpen(true)}>➡ Forward</button>
+          <button className="btn btn-danger" disabled={selected.size === 0}
+            onClick={async () => {
+              if (!window.confirm(`Delete ${selected.size} project(s)?`)) return;
+              for (const id of selected) { try { await api.remove("biltrax", id); } catch {} }
+              setSelected(new Set()); load();
+            }}>🗑 Delete ({selected.size})</button>
+        </div>
+      )}
+
       <div style={{ background: "#fff", borderRadius: 12, boxShadow: "var(--shadow)", overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead style={{ background: "#f7f9ff" }}>
-            <tr>{["Action", "Type", "Project Link", "Project Name", "Latest Sub Status", "Landmark", "Address", "State",
+            <tr>
+              <th style={th}>
+                <input type="checkbox" checked={list.length > 0 && list.every((r) => selected.has(r._id))}
+                  onChange={(e) => setSelected(e.target.checked ? new Set(list.map((r) => r._id)) : new Set())} />
+              </th>
+              {["Action", "Type", "Project Link", "Project Name", "Latest Sub Status", "Landmark", "Address", "State",
               "Associated Companies", "Building Use", "Professional Detail 1", "Professional Detail 2",
               "Professional Detail 3", "Professional Detail 4", "Assign Person", "HOD", "Assigned Date", "Appointment Date", "Status"]
-              .map((h) => <th key={h} style={th}>{h}</th>)}</tr>
+              .map((h) => <th key={h} style={th}>{h}</th>)}
+            </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={19} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
+              <tr><td colSpan={20} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
             ) : !shown ? (
-              <tr><td colSpan={19} style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>
+              <tr><td colSpan={20} style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>
                 Set your filters and click <b>Show</b> to load the list.
               </td></tr>
             ) : list.length === 0 ? (
-              <tr><td colSpan={19} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>No Biltrax projects match these filters.</td></tr>
+              <tr><td colSpan={20} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>No Biltrax projects match these filters.</td></tr>
             ) : list.map((r) => (
-              <tr key={r._id}>
+              <tr key={r._id} style={{ background: selected.has(r._id) ? "#f2f6ff" : "transparent" }}>
+                <td style={td}>
+                  <input type="checkbox" checked={selected.has(r._id)}
+                    onChange={(e) => setSelected((p2) => { const n = new Set(p2); e.target.checked ? n.add(r._id) : n.delete(r._id); return n; })} />
+                </td>
                 <td style={{ ...td, whiteSpace: "nowrap" }}>
                   <button title="View" style={iconBtn("#2b6fb8")} onClick={() => setView(r)}><Eye size={15} /></button>
-                  <button title="Win" style={iconBtn("#1f9d55")} onClick={() => setWinFor(r)}><Trophy size={15} /></button>
-                  <button title="Assign" style={iconBtn("#6c5ce7")} onClick={() => setAssignFor(r)}><Share2 size={15} /></button>
-                  {r.professional1 && (
-                    <a title="Call" href={`tel:${String(r.professional1).replace(/\D/g, "")}`} style={{ ...iconBtn("#0f7a44"), display: "inline-block" }}><Phone size={15} /></a>
-                  )}
+                  <button title="Edit" style={iconBtn("#f59e0b")} onClick={() => setForm(r)}><Pencil size={15} /></button>
+                  <button title="Assign" style={iconBtn("#3fb6d3")} onClick={() => { setReassign(false); setAssignFor(r); }}><UserPlus size={15} /></button>
+                  <button title="Re-Assign" style={iconBtn("#6c5ce7")} onClick={() => { setReassign(true); setAssignFor(r); }}><RefreshCw size={15} /></button>
                   <button title="Message" style={iconBtn("#0b6cb0")} onClick={() => setChatFor(r)}>
                     <MessageSquare size={15} />
                     {Array.isArray(r.chat) && r.chat.length > 0 && (
                       <span style={{ fontSize: 9.5, fontWeight: 800, color: "#0b6cb0" }}>{r.chat.length}</span>
                     )}
                   </button>
+                  <button title="Forward" style={iconBtn("#0f7a44")} onClick={() => { setSelected(new Set([r._id])); setFwdOpen(true); }}><Share2 size={15} /></button>
                   <button title="Delete" style={iconBtn("#e5484d")} onClick={() => del(r)}><Trash2 size={15} /></button>
                 </td>
                 <td style={td}>
@@ -253,8 +295,16 @@ export default function BiltraxPage() {
 
       {form && <BiltraxForm row={form} users={users} onClose={() => setForm(null)} onSave={save} />}
       {view && <BiltraxView r={view} onClose={() => setView(null)} />}
-      {winFor && <BiltraxWin r={winFor} onClose={() => setWinFor(null)} onDone={load} />}
-      {assignFor && <BiltraxAssign r={assignFor} users={users} onClose={() => setAssignFor(null)} onDone={load} />}
+      {assignFor && (
+        <BiltraxAssign
+          rows={assignFor === "bulk" ? rows.filter((x) => selected.has(x._id)) : [assignFor]}
+          users={users} reassign={reassign}
+          onClose={() => { setAssignFor(null); setReassign(false); }}
+          onDone={() => { setSelected(new Set()); load(); }} />
+      )}
+      {fwdOpen && (
+        <BiltraxForward rows={rows.filter((x) => selected.has(x._id))} onClose={() => setFwdOpen(false)} />
+      )}
       {chatFor && <BiltraxChat r={chatFor} onClose={() => setChatFor(null)} onDone={load} />}
     </div>
   );
@@ -502,64 +552,105 @@ function BiltraxChat({ r, onClose, onDone }) {
   );
 }
 
-/* Assign to the other side: a sales person picks a specification person and the
-   project shows up in Sales to Spec; a specs person picks a sales person and it
-   shows up in Spec to Sales. Either way it is tagged as coming from Biltrax. */
-function BiltraxAssign({ r, users, onClose, onDone }) {
+/* Assign or re-assign one or many projects to a field person. */
+function BiltraxAssign({ rows, users, reassign, onClose, onDone }) {
   const me = auth.user || {};
-  const iAmSpec = /spec/i.test(`${me.role || ""} ${me.designation || ""}`);
-  const wantRole = iAmSpec ? "sales" : "spec";
-  const options = users
-    .filter((u) => u.status == 1 && new RegExp(wantRole, "i").test(`${u.role || ""} ${u.designation || ""}`))
-    .map((u) => u.name);
-
+  const people = visibleUsers(users).filter((u) => u.status == 1);
+  const [q, setQ] = useState("");
   const [pick, setPick] = useState("");
-  const [note, setNote] = useState("");
+  const [remark, setRemark] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const send = async () => {
+  const ql = q.trim().toLowerCase();
+  const opts = people.filter((u) => !ql || `${u.name} ${u.code || ""} ${u.role || ""}`.toLowerCase().includes(ql));
+
+  const go = async () => {
     if (!pick) { alert("Select a person"); return; }
+    if (reassign && !remark.trim()) { alert("Please enter a reason for re-assigning"); return; }
     setBusy(true);
-    const mod = iAmSpec ? "specToSales" : "salesToSpec";
+    const u = people.find((x) => x.name === pick);
+    const today = new Date().toLocaleDateString("en-GB");
     try {
-      await api.create(mod, {
-        source: "Biltrax",
-        projectName: r.projectName, city: r.landmark || r.address,
-        helpNeeded: note || r.latestSubStatus || "",
-        contacts: [r.professional1, r.professional2, r.professional3, r.professional4].filter(Boolean).map((p) => ({ name: p })),
-        salesPerson: iAmSpec ? pick : (me.name || ""),
-        specPerson: iAmSpec ? (me.name || "") : pick,
-        status: "Pending", createdBy: me.name || "",
-        createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
-        biltraxId: r._id, biltraxLink: r.projectLink || "",
-      });
-      try {
-        await api.create("notification", {
-          title: "Biltrax Project Assigned",
-          message: `${me.name} assigned the Biltrax project "${r.projectName}" to you.`,
-          to: pick, link: `/app/m/${mod}`, at: new Date().toISOString(),
+      for (const r of rows) {
+        await api.update("biltrax", r._id, {
+          ...r, assignPerson: pick, hod: u?.manager || r.hod || "",
+          assignedDate: today, status: r.status === "Win" ? r.status : "Assigned",
+          ...(reassign ? { reassigned: true, reassignedBy: me.name || "", reassignRemark: remark.trim(), reassignAt: today } : {}),
         });
-      } catch {}
-      await api.update("biltrax", r._id, { ...r, assignPerson: pick,
-        assignedDate: new Date().toLocaleDateString("en-GB"), status: r.status === "Win" ? r.status : "Assigned" });
+        try {
+          await api.create("notification", {
+            title: reassign ? "Biltrax Re-Assigned" : "Biltrax Project Assigned",
+            message: `${r.projectName || "A project"} has been ${reassign ? "re-assigned" : "assigned"} to you.${remark.trim() ? " " + remark.trim() : ""}`,
+            to: pick, link: "/app/biltrax", at: new Date().toISOString(),
+          });
+        } catch {}
+      }
       onDone(); onClose();
     } catch (e) { alert(e.message); setBusy(false); }
   };
 
   return (
-    <Modal title={`Assign to ${iAmSpec ? "Sales" : "Specification"} Person`} onClose={onClose}>
-      <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 0 }}>
-        It will appear in their <b>{iAmSpec ? "Spec to Sales" : "Sales to Spec"}</b> list, marked as Biltrax.
-      </p>
-      <label style={lbl}>Person</label>
-      <select value={pick} onChange={(e) => setPick(e.target.value)} style={inp}>
-        <option value="">— Select —</option>{options.map((n) => <option key={n}>{n}</option>)}
+    <Modal title={`${reassign ? "Re-Assign" : "Assign"} ${rows.length > 1 ? `${rows.length} projects` : rows[0]?.projectName || "project"}`} onClose={onClose}>
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name / code…" style={inp} />
+      <div style={{ maxHeight: 230, overflowY: "auto", marginBottom: 12 }}>
+        {opts.map((u) => (
+          <div key={u.id} onClick={() => setPick(u.name)}
+            style={{ padding: "9px 11px", borderRadius: 9, cursor: "pointer", marginBottom: 5,
+              border: pick === u.name ? "1.5px solid var(--navy)" : "1px solid #eef1f8",
+              background: pick === u.name ? "#f2f6ff" : "#fff" }}>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>{u.name}</div>
+            <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{[u.code, u.role, u.city].filter(Boolean).join(" · ")}</div>
+          </div>
+        ))}
+        {opts.length === 0 && <div style={{ color: "var(--muted)", fontSize: 12.5, padding: 8 }}>No matching person.</div>}
+      </div>
+      <label style={lbl}>{reassign ? "Reason for re-assigning *" : "Remark (optional)"}</label>
+      <textarea rows={2} value={remark} onChange={(e) => setRemark(e.target.value)} style={inp} />
+      <div style={{ display: "flex", gap: 8 }}>
+        <button className="btn" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" style={{ flex: 1 }} disabled={busy} onClick={go}>
+          {busy ? "Saving…" : reassign ? "Re-Assign" : "Assign"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+/* Forward the selected projects to someone as a plain message. */
+function BiltraxForward({ rows, onClose }) {
+  const me = auth.user || {};
+  const [to, setTo] = useState("");
+  const [users, setUsers] = useState([]);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { api.listUsers().then((d) => setUsers(visibleUsers(d.users || []).filter((u) => u.status == 1))).catch(() => {}); }, []);
+
+  const send = async () => {
+    if (!to) { alert("Select who to forward to"); return; }
+    setBusy(true);
+    const names = rows.map((r) => r.projectName || "project").join(", ");
+    try {
+      await api.create("notification", {
+        title: "Biltrax Projects Forwarded",
+        message: `${me.name} forwarded: ${names}.${note.trim() ? " " + note.trim() : ""}`,
+        to, link: "/app/biltrax", at: new Date().toISOString(),
+      });
+      alert(`Forwarded ${rows.length} project(s) to ${to}.`);
+      onClose();
+    } catch (e) { alert(e.message); setBusy(false); }
+  };
+
+  return (
+    <Modal title={`Forward ${rows.length} project(s)`} onClose={onClose}>
+      <label style={lbl}>Forward to</label>
+      <select value={to} onChange={(e) => setTo(e.target.value)} style={inp}>
+        <option value="">— Select —</option>{users.map((u) => <option key={u.id}>{u.name}</option>)}
       </select>
       <label style={lbl}>Note (optional)</label>
       <textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} style={inp} />
       <div style={{ display: "flex", gap: 8 }}>
         <button className="btn" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" style={{ flex: 1 }} disabled={busy} onClick={send}>{busy ? "Sending…" : "Assign"}</button>
+        <button className="btn btn-primary" style={{ flex: 1 }} disabled={busy} onClick={send}>{busy ? "Sending…" : "Forward"}</button>
       </div>
     </Modal>
   );
