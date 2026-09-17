@@ -2433,6 +2433,7 @@ function FieldProjectList() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontWeight: 800, fontSize: 14 }}>{r.projectName || r.name || "Project"}</span>
               <span style={{ background: sColor(r.status), color: "#fff", padding: "2px 10px", borderRadius: 8, fontSize: 11.5, fontWeight: 800 }}>{r.status || "Open"}</span>
+              {r.source === "Biltrax" && <span style={{ background: "#fff4e5", color: "#ad6800", padding: "2px 9px", borderRadius: 8, fontSize: 11, fontWeight: 800, marginLeft: 5 }}>Biltrax</span>}
               {r.specReplyStatus && <span style={{ background: r.specReplyStatus === "Approved" || r.specReplyStatus === "Win" ? "#1f9d55" : "#e08600", color: "#fff", padding: "2px 9px", borderRadius: 8, fontSize: 11, fontWeight: 800, marginLeft: 5 }}>Reply: {r.specReplyStatus}</span>}
             </div>
             <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 4 }}>

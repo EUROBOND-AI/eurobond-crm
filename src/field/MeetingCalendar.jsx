@@ -1,7 +1,7 @@
 /* Month calendar of upcoming customer meetings (from "Next Meeting Date"). */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../lib/api.js";
+import { api, auth } from "../lib/api.js";
 
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -13,9 +13,28 @@ export default function MeetingCalendar() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.customers("", true)
-      .then((d) => setRows(d.customers || []))
-      .catch(() => setRows([]))
+    Promise.all([
+      api.customers("", true).catch(() => ({ customers: [] })),
+      api.list("biltrax", false).catch(() => ({ records: [] })),
+    ])
+      .then(([c, b]) => {
+        const me = (auth.user || {}).name;
+        /* Biltrax appointments show here too, alongside customer meetings */
+        const appts = (b.records || [])
+          .map((r) => ({ _id: r.id, ...r.data }))
+          .filter((r) => r.biltraxType === "Appointment" && r.appointmentDate)
+          .filter((r) => !me || r.assignPerson === me || r.createdBy === me)
+          .map((r) => ({
+            name: r.projectName || "Biltrax project",
+            contactName: r.professional1 || "",
+            mobile: (String(r.professional1 || "").match(/\d{10}/) || [""])[0],
+            place: r.landmark || r.address || "",
+            nextMeetingDate: r.appointmentDate,
+            nextMeetingRemark: r.latestSubStatus || "",
+            isBiltrax: true,
+          }));
+        setRows([...(c.customers || []), ...appts]);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -99,7 +118,10 @@ export default function MeetingCalendar() {
           </div>
         ) : dayList.map((c, i) => (
           <div key={i} style={{ background: "#fff", borderRadius: 12, padding: 13, marginBottom: 8, boxShadow: "var(--shadow)" }}>
-            <div style={{ fontWeight: 800, fontSize: 13.5 }}>{c.name}</div>
+            <div style={{ fontWeight: 800, fontSize: 13.5 }}>
+              {c.name}
+              {c.isBiltrax && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 800, background: "#fff4e5", color: "#ad6800", padding: "2px 7px", borderRadius: 999 }}>Biltrax</span>}
+            </div>
             <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>
               {[c.contactName, c.mobile, c.place].filter(Boolean).join(" · ")}
             </div>
