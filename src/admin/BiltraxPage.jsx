@@ -5,11 +5,11 @@ import { api, auth } from "../lib/api.js";
 import { scopeRows, visibleUsers } from "../lib/scope.js";
 
 const BILTRAX_TYPES = ["Requested", "Appointment"];
-const th = { padding: "11px 12px", textAlign: "left", fontSize: 11.5, fontWeight: 800, color: "var(--muted)", whiteSpace: "nowrap" };
-const td = { padding: "10px 12px", fontSize: 12.5, borderTop: "1px solid #f0f2f8" };
+const th = { padding: "10px 10px", fontWeight: 800, fontSize: 11.5, color: "#fff", textAlign: "left", whiteSpace: "nowrap" };
+const td = { padding: "9px 10px", fontSize: 12.5, borderBottom: "1px solid #eef1f8", whiteSpace: "nowrap" };
 const inp = { width: "100%", marginBottom: 10, padding: "9px 11px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13 };
 const lbl = { fontSize: 11.5, fontWeight: 700 };
-const iconBtn = (c) => ({ background: "transparent", border: "none", cursor: "pointer", color: c, padding: 4 });
+const iconBtn = (bg) => ({ width: 30, height: 30, borderRadius: "50%", border: "none", display: "inline-grid", placeItems: "center", cursor: "pointer", color: "#fff", background: bg, marginRight: 5 });
 
 const EMPTY = {
   biltraxType: "Requested", projectLink: "", projectName: "", latestSubStatus: "",
@@ -156,10 +156,20 @@ export default function BiltraxPage() {
   return (
     <div>
       <PageHead crumb="SFA" title="Biltrax" actions={
-        <ToolButtons onRefresh={load} refreshing={loading} onExport={exportCsv}
-          onDownloadFormat={downloadFormat}
-          onImport={() => document.getElementById("biltrax-import").click()}
-          onAdd={() => setForm({ ...EMPTY })} addLabel="Add Biltrax" />
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button className="btn" style={{ background: "#22a45d", color: "#fff", borderColor: "transparent" }} onClick={() => setForm({ ...EMPTY })}>Add New</button>
+          <button className="btn" style={{ background: "#3fb6d3", color: "#fff", borderColor: "transparent" }} disabled={selected.size === 0} onClick={() => { setReassign(false); setAssignFor("bulk"); }}>Bulk Assign</button>
+          <button className="btn btn-primary" disabled={selected.size === 0} onClick={() => { setReassign(true); setAssignFor("bulk"); }}>Bulk Re-Assign</button>
+          <button className="btn" style={{ background: "#0f7a44", color: "#fff", borderColor: "transparent" }} disabled={selected.size === 0} onClick={() => setFwdOpen(true)}>Forward</button>
+          <button className="btn btn-danger" disabled={selected.size === 0} onClick={async () => {
+            if (!window.confirm(`Delete ${selected.size} project(s)?`)) return;
+            for (const id of selected) { try { await api.remove("biltrax", id); } catch {} }
+            setSelected(new Set()); load();
+          }}>Delete</button>
+          <button className="btn" style={{ background: "#2b6fb8", color: "#fff", borderColor: "transparent" }} onClick={downloadFormat}>Download Format</button>
+          <label className="btn" style={{ background: "#1f3a68", color: "#fff", borderColor: "transparent", cursor: "pointer" }}>Import File<input type="file" accept=".csv" hidden onChange={(e) => importCsv(e.target.files[0])} /></label>
+          <button className="btn btn-soft" onClick={exportCsv}>Export</button>
+        </div>
       } />
 
       <input id="biltrax-import" type="file" accept=".csv" hidden onChange={(e) => importCsv(e.target.files[0])} />
@@ -171,9 +181,9 @@ export default function BiltraxPage() {
         <StatCard label="Won" value={counts.won} />
       </div>
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
+      <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 14, background: "#fff", padding: 14, borderRadius: 12, boxShadow: "var(--shadow-3d)" }}>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search project, address, person…"
-          style={{ ...inp, width: 280, marginBottom: 0 }} />
+          style={{ ...inp, width: 250, marginBottom: 0 }} />
         <select value={fType} onChange={(e) => setFType(e.target.value)} style={{ ...inp, width: 170, marginBottom: 0 }}>
           <option value="">All Types</option>
           {BILTRAX_TYPES.map((t) => <option key={t}>{t}</option>)}
@@ -194,36 +204,21 @@ export default function BiltraxPage() {
         {shown && <button className="btn btn-ghost" onClick={() => { setShown(false); setQ(""); setFType(""); setFState(""); setFHod(""); setFPerson(""); }}>Clear</button>}
       </div>
 
-      {shown && (
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
-          <div style={{ display: "inline-flex", background: "#eef1ff", borderRadius: 10, padding: 3 }}>
-            {["Draft", "Processing", "Win"].map((t) => (
-              <button key={t} onClick={() => { setTab(t); setSelected(new Set()); }}
-                style={{ padding: "7px 18px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 13,
-                  background: tab === t ? "var(--navy)" : "transparent", color: tab === t ? "#fff" : "var(--navy)" }}>
-                {t} ({rows.filter((r) => stageOf(r) === t).length})
-              </button>
-            ))}
-          </div>
-          <button className="btn" style={{ background: "#3fb6d3", color: "#fff", borderColor: "transparent" }}
-            disabled={selected.size === 0} onClick={() => setAssignFor("bulk")}>Bulk Assign</button>
-          <button className="btn btn-primary" disabled={selected.size === 0}
-            onClick={() => { setReassign(true); setAssignFor("bulk"); }}>Bulk Re-Assign</button>
-          <button className="btn btn-soft" disabled={selected.size === 0}
-            onClick={() => setFwdOpen(true)}>➡ Forward</button>
-          <button className="btn btn-danger" disabled={selected.size === 0}
-            onClick={async () => {
-              if (!window.confirm(`Delete ${selected.size} project(s)?`)) return;
-              for (const id of selected) { try { await api.remove("biltrax", id); } catch {} }
-              setSelected(new Set()); load();
-            }}>🗑 Delete ({selected.size})</button>
-        </div>
-      )}
+      {/* status tabs */}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+        {["Draft", "Processing", "Win"].map((t) => {
+          const on = tab === t;
+          return <button key={t} onClick={() => { setTab(t); setSelected(new Set()); }}
+            style={{ padding: "8px 14px", borderRadius: 10, fontSize: 12.5, fontWeight: 700, cursor: "pointer", border: "1px solid " + (on ? "#2b6fb8" : "#ccd2e6"), background: on ? "linear-gradient(135deg,#1f3a68,#2b6fb8)" : "#fff", color: on ? "#fff" : "#5a6484" }}>
+            {t}
+          </button>;
+        })}
+      </div>
 
       <div style={{ background: "#fff", borderRadius: 12, boxShadow: "var(--shadow)", overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead style={{ background: "#f7f9ff" }}>
-            <tr>
+          <thead>
+            <tr style={{ background: "linear-gradient(135deg,#1f3a68,#2b6fb8)" }}>
               <th style={th}>
                 <input type="checkbox" checked={list.length > 0 && list.every((r) => selected.has(r._id))}
                   onChange={(e) => setSelected(e.target.checked ? new Set(list.map((r) => r._id)) : new Set())} />
@@ -604,8 +599,12 @@ function BiltraxAssign({ rows, users, reassign, onClose, onDone }) {
         ))}
         {opts.length === 0 && <div style={{ color: "var(--muted)", fontSize: 12.5, padding: 8 }}>No matching person.</div>}
       </div>
-      <label style={lbl}>{reassign ? "Reason for re-assigning *" : "Remark (optional)"}</label>
-      <textarea rows={2} value={remark} onChange={(e) => setRemark(e.target.value)} style={inp} />
+      {reassign && (
+        <>
+          <label style={lbl}>Reason for re-assigning *</label>
+          <textarea rows={2} value={remark} onChange={(e) => setRemark(e.target.value)} style={inp} />
+        </>
+      )}
       <div style={{ display: "flex", gap: 8 }}>
         <button className="btn" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
         <button className="btn btn-primary" style={{ flex: 1 }} disabled={busy} onClick={go}>

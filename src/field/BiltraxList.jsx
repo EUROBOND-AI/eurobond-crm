@@ -8,7 +8,7 @@ const inp = { width: "100%", marginBottom: 10, padding: "9px 11px", borderRadius
 const lbl = { fontSize: 12, fontWeight: 700 };
 
 const CU = () => auth.user || {};
-const card = { background: "#fff", borderRadius: 13, padding: 13, marginBottom: 9, boxShadow: "var(--shadow)" };
+const card = { background: "#fff", borderRadius: 12, padding: 12, marginBottom: 9, boxShadow: "var(--shadow)" };
 const line = (k, v) => v ? (
   <div key={k} style={{ display: "flex", gap: 8, padding: "6px 0", borderBottom: "1px solid #f2f4fa", fontSize: 12.5 }}>
     <div style={{ width: 132, color: "var(--muted)", fontWeight: 700 }}>{k}</div>
@@ -82,25 +82,23 @@ export default function BiltraxList() {
           </div>
         ) : list.map((r) => (
           <div key={r._id} style={card} onClick={() => setView(r)}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-              <div style={{ fontWeight: 800, fontSize: 13.5 }}>{r.projectName || "Project"}</div>
-              <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 999, whiteSpace: "nowrap",
-                background: r.biltraxType === "Appointment" ? "#fff4e5" : "#eef2ff",
-                color: r.biltraxType === "Appointment" ? "#ad6800" : "#4f46e5" }}>
-                {r.biltraxType || "Requested"}
-              </span>
+            <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 13 }}>
+              <span>{r.projectName || "Project"}</span>
+              <span style={{ color: r.status === "Win" ? "#059669" : "#c99400", fontSize: 10.5 }}>{r.status || "Assigned"}</span>
             </div>
-            <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>
-              {[r.landmark, r.address].filter(Boolean).join(" · ")}
+            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
+              {r.biltraxType || "Requested"}{r.buildingUse ? " · " + r.buildingUse : ""}
+              {(r.landmark || r.address) ? " · " + [r.landmark, r.address].filter(Boolean).join(", ") : ""}
             </div>
-            {r.biltraxType === "Appointment" && r.appointmentDate && (
-              <div style={{ fontSize: 11.5, color: "#ad6800", fontWeight: 700, marginTop: 4 }}>📅 {r.appointmentDate}</div>
-            )}
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 9 }} onClick={(e) => e.stopPropagation()}>
-              <button onClick={() => setView(r)} style={btn("#0b3c8c", "#e8f0ff")}>👁 View</button>
-              {r.status !== "Win" && <button onClick={() => setWinFor(r)} style={btn("#0f7a44", "#e7f7ef")}>🏆 Win</button>}
-              <button onClick={() => convert(r)} style={btn("#c07f00", "#fef3e2")}>👤 Customer</button>
-              <button onClick={() => setFupFor(r)} style={btn("#5b3fd6", "#f3efff")}>📝 Follow-up</button>
+            {r.biltraxType === "Appointment" && r.appointmentDate
+              ? <div style={{ fontSize: 11.5, color: "var(--navy)", marginTop: 2, fontWeight: 600 }}>📅 {r.appointmentDate}</div>
+              : null}
+            {/* action buttons */}
+            <div style={{ display: "flex", gap: 5, marginTop: 8, flexWrap: "wrap" }} onClick={(e) => e.stopPropagation()}>
+              <button onClick={() => setView(r)} style={btn("#3949ab", "#eef1ff")}>👁 View</button>
+              {r.status !== "Win" && <button onClick={() => setWinFor(r)} style={btn("#0f7a44", "#e5f9f1")}>🏆 Win</button>}
+              <button onClick={() => convert(r)} style={btn("#0f7a44", "#e7f7ef")}>👤 Customer</button>
+              <button onClick={() => setFupFor(r)} style={btn("#6c5ce7", "#efeaff")}>📝 Follow-up</button>
               <button onClick={() => setMentionFor(r)} style={btn("#0b6cb0", "#e4f3ff")}>🔗 Mention</button>
             </div>
           </div>
@@ -170,9 +168,10 @@ export default function BiltraxList() {
   );
 }
 
+/* identical to the Enquiry list buttons so both screens feel the same */
 const btn = (color, bg) => ({
-  background: bg, color, border: "none", borderRadius: 9,
-  padding: "7px 11px", fontSize: 11.5, fontWeight: 800, cursor: "pointer",
+  flex: "1 1 auto", minWidth: 58, padding: "6px 4px", borderRadius: 8, border: "none",
+  background: bg, color, fontWeight: 700, fontSize: 11, cursor: "pointer",
 });
 
 function Sheet({ title, children, onClose }) {
