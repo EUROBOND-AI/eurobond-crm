@@ -115,7 +115,10 @@ export const api = {
   async changePassword(old_password, new_password) {
     return req("/auth.php?action=change_pass", { method: "POST", body: { old_password, new_password } });
   },
-  logout() { auth.clear(); },
+  logout() {
+    auth.clear();
+    try { import("./perms.js").then((m) => m.resetPerms()); } catch {}
+  },
 
   /* ---------- Users ---------- */
   listUsers: () => memo("users", 60000, () => req("/users.php")),

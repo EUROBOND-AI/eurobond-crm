@@ -8,6 +8,7 @@ import {
 import { FooterNote } from "../components/ui.jsx";
 import { auth, api, API_BASE } from "../lib/api.js";
 import { MODULES } from "./moduleConfigs.jsx";
+import { loadPerms, canView } from "../lib/perms.js";
 
 const NAV = [
   {
@@ -173,6 +174,10 @@ function ModuleSearch({ nav }) {
 }
 
 export default function AdminLayout() {
+  /* pull this role's permission grid once, then hide the menu items it may not view */
+  const [permsReady, setPermsReady] = useState(false);
+  useEffect(() => { loadPerms().then(() => setPermsReady(true)); }, []);
+
   /* record which admin screen was opened (Activity Logs) */
   const _loc = useLocation();
   const _lastLogged = useRef("");
@@ -260,12 +265,13 @@ export default function AdminLayout() {
         {NAV.map((g) => {
           /* filter children/items by role permission (Admin: allowedNav === null → show all) */
           const items = g.items.map((it) => {
-            if (allowedNav === null) return it;
+            /* a module with View switched off in Roles & Permission is hidden */
+            const viewable = (label) => (allowedNav === null || allowedNav.has(label)) && canView(label);
             if (it.children) {
-              const kids = it.children.filter((c) => allowedNav.has(c.label));
+              const kids = it.children.filter((c) => viewable(c.label));
               return kids.length ? { ...it, children: kids } : null;
             }
-            return allowedNav.has(it.label) ? it : null;
+            return viewable(it.label) ? it : null;
           }).filter(Boolean);
           if (!items.length) return null;
           return (

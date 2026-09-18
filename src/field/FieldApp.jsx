@@ -1314,7 +1314,7 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
               <b style={{ fontSize: 14 }}>{new Date(histDate).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short" })}</b>
               <span onClick={() => { setHistDate(null); setHistSess(null); }} style={{ cursor: "pointer", color: "var(--accent)", fontWeight: 700, fontSize: 12.5 }}>← Today</span>
             </div>
-            {histLoading ? <div style={{ color: "var(--muted)", fontSize: 13, padding: 10 }}>Loading…</div>
+            {histLoading ? <div className="eb-loading"><div className="eb-spin" />Loading…</div>
               : histSess === false ? <div style={{ color: "var(--muted)", fontSize: 13, padding: 10, textAlign: "center" }}>No attendance record for this day.</div>
                 : histSess ? (
                   <div style={{ display: "grid", gap: 7, fontSize: 13 }}>
@@ -1657,6 +1657,9 @@ function FieldExpenseNew({ add }) {
       user: CU().name, createdBy: CU().name, createdById: CU().id,
       date: f.date, km: f.km || "", station: f.station || "Outstation", category: f.category, type: expType,
       amount: Number(f.amount), status: "Draft", desc: f.desc || "",
+      /* the extra Description line — it was never written to the draft, so it
+         could not reach the statement, the admin view or the PDF */
+      description: f.description || "",
       ...(doc ? { photo: doc } : {}),
     };
     if (ed && ed._id) { try { await api.update("expense", ed._id, rec); } catch (e) { alert(e.message); return; } }
@@ -2933,12 +2936,28 @@ function FieldProjectNew() {
             const c = projCust[v];
             setF((x) => ({
               ...x, projectName: v,
-              customerName: c?.name || x.customerName,
-              city: c?.place || x.city,
-              contacts: (c?.contacts && c.contacts.length ? c.contacts : x.contacts),
+              city: c?.place || c?.city || x.city,
+              category: c?.category || x.category,
               categoryFirm: c?.name || x.categoryFirm,
-              address: c?.address || x.address,
             }));
+            /* contacts live in their own state and use a different shape, which is
+               why they were not being filled in before */
+            if (c && Array.isArray(c.contacts) && c.contacts.length) {
+              setContacts([{
+                category: c.category || "",
+                firmName: c.name || "",
+                people: c.contacts.map((p3) => ({
+                  person: p3.name || "",
+                  number: p3.mobile || p3.whatsapp || "",
+                  email: p3.email || "",
+                })),
+              }]);
+            } else if (c) {
+              setContacts([{
+                category: c.category || "", firmName: c.name || "",
+                people: [{ person: c.contactName || "", number: c.mobile || "", email: c.email || "" }],
+              }]);
+            }
           }} style={inp}>
           <option value="">— Select from my customers —</option>
           {myProjects.map((p2) => <option key={p2}>{p2}</option>)}
@@ -4473,7 +4492,7 @@ function FieldSpecThread({ id }) {
     setBusy(false);
   };
 
-  if (!rec) return <><ScreenHead title="Spec Approval" /><div style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</div></>;
+  if (!rec) return <><ScreenHead title="Spec Approval" /><div className="eb-loading"><div className="eb-spin" />Loading…</div></>;
   const thread = rec.thread || [];
 
   return (
@@ -4537,7 +4556,7 @@ function FieldProjectDetail({ id }) {
     setBusy(false);
   };
 
-  if (!rec) return <><ScreenHead title="Project" /><div style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</div></>;
+  if (!rec) return <><ScreenHead title="Project" /><div className="eb-loading"><div className="eb-spin" />Loading…</div></>;
   const visits = rec.visits || [];
 
   return (
@@ -5431,7 +5450,7 @@ function FieldGenericThread({ mod, id }) {
     setBusy(false);
   };
 
-  if (!rec) return <><ScreenHead title="Details" /><div style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</div></>;
+  if (!rec) return <><ScreenHead title="Details" /><div className="eb-loading"><div className="eb-spin" />Loading…</div></>;
   const thread = rec.thread || [];
 
   return (

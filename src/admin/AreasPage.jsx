@@ -46,13 +46,18 @@ export default function AreasPage() {
       const header = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/^"|"$/g, ""));
       const stateIdx = header.findIndex((h) => h.includes("state"));
       const areaIdx = header.findIndex((h) => h.includes("area") || h.includes("city") || h.includes("town"));
+      /* the sheet also carries the A/B/C tier — it used to be ignored, so every
+         imported area ended up as A */
+      const tierIdx = header.findIndex((h) => h.includes("tier"));
       if (stateIdx < 0 || areaIdx < 0) { alert("CSV needs 'State' and 'Area/City' columns."); setBusy(false); return; }
       const rows = [];
       for (let i = 1; i < lines.length; i++) {
         const cols = lines[i].match(/(".*?"|[^,]+)/g) || [];
         const st = (cols[stateIdx] || "").trim().replace(/^"|"$/g, "");
         const ar = (cols[areaIdx] || "").trim().replace(/^"|"$/g, "");
-        if (st && ar) rows.push([st, ar]);
+        let tr = tierIdx >= 0 ? (cols[tierIdx] || "").trim().replace(/^"|"$/g, "").toUpperCase() : "A";
+        if (!["A", "B", "C"].includes(tr)) tr = "A";
+        if (st && ar) rows.push([st, ar, tr]);
       }
       if (rows.length === 0) { alert("No valid rows found."); setBusy(false); return; }
       /* batch import (500 at a time) */

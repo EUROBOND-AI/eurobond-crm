@@ -75,7 +75,7 @@ export default function BiltraxList() {
       </div>
 
       <div className="f-list-pad">
-        {!list ? <div style={{ color: "var(--muted)", fontSize: 13 }}>Loading…</div>
+        {!list ? <div className="eb-loading"><div className="eb-spin" />Loading…</div>
         : list.length === 0 ? (
           <div style={{ ...card, textAlign: "center", color: "var(--muted)", fontSize: 13 }}>
             No Biltrax projects assigned to you.

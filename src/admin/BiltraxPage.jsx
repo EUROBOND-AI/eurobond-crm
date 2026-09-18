@@ -3,6 +3,7 @@ import { Eye, Share2, Trash2, MessageSquare, Pencil, UserPlus } from "lucide-rea
 import { PageHead, StatCard, ToolButtons } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
 import { scopeRows, visibleUsers } from "../lib/scope.js";
+import { canAdd, canDelete, canExport, canImport, canModify } from "../lib/perms.js";
 
 const BILTRAX_TYPES = ["Requested", "Appointment"];
 const th = { padding: "10px 10px", fontWeight: 800, fontSize: 11.5, color: "#fff", textAlign: "left", whiteSpace: "nowrap" };
@@ -157,17 +158,17 @@ export default function BiltraxPage() {
     <div>
       <PageHead crumb="SFA" title="Biltrax" actions={
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button className="btn" style={{ background: "#22a45d", color: "#fff", borderColor: "transparent" }} onClick={() => setForm({ ...EMPTY })}>Add New</button>
+          {canAdd("Biltrax") && <button className="btn" style={{ background: "#22a45d", color: "#fff", borderColor: "transparent" }} onClick={() => setForm({ ...EMPTY })}>Add New</button>}
           <button className="btn" style={{ background: "#3fb6d3", color: "#fff", borderColor: "transparent" }} disabled={selected.size === 0} onClick={() => { setReassign(false); setAssignFor("bulk"); }}>Bulk Assign</button>
           <button className="btn" style={{ background: "#0f7a44", color: "#fff", borderColor: "transparent" }} disabled={selected.size === 0} onClick={() => setFwdOpen(true)}>Forward</button>
-          <button className="btn btn-danger" disabled={selected.size === 0} onClick={async () => {
+          {canDelete("Biltrax") && <button className="btn btn-danger" disabled={selected.size === 0} onClick={async () => {
             if (!window.confirm(`Delete ${selected.size} project(s)?`)) return;
             for (const id of selected) { try { await api.remove("biltrax", id); } catch {} }
             setSelected(new Set()); load();
-          }}>Delete</button>
-          <button className="btn" style={{ background: "#2b6fb8", color: "#fff", borderColor: "transparent" }} onClick={downloadFormat}>Download Format</button>
-          <label className="btn" style={{ background: "#1f3a68", color: "#fff", borderColor: "transparent", cursor: "pointer" }}>Import File<input type="file" accept=".csv" hidden onChange={(e) => importCsv(e.target.files[0])} /></label>
-          <button className="btn btn-soft" onClick={exportCsv}>Export</button>
+          }}>Delete</button>}
+          {canImport("Biltrax") && <button className="btn" style={{ background: "#2b6fb8", color: "#fff", borderColor: "transparent" }} onClick={downloadFormat}>Download Format</button>}
+          {canImport("Biltrax") && <label className="btn" style={{ background: "#1f3a68", color: "#fff", borderColor: "transparent", cursor: "pointer" }}>Import File<input type="file" accept=".csv" hidden onChange={(e) => importCsv(e.target.files[0])} /></label>}
+          {canExport("Biltrax") && <button className="btn btn-soft" onClick={exportCsv}>Export</button>}
         </div>
       } />
 
@@ -245,7 +246,7 @@ export default function BiltraxPage() {
                 </td>
                 <td style={{ ...td, whiteSpace: "nowrap" }}>
                   <button title="View" style={iconBtn("#2b6fb8")} onClick={() => setView(r)}><Eye size={15} /></button>
-                  <button title="Edit" style={iconBtn("#f59e0b")} onClick={() => setForm(r)}><Pencil size={15} /></button>
+                  {canModify("Biltrax") && <button title="Edit" style={iconBtn("#f59e0b")} onClick={() => setForm(r)}><Pencil size={15} /></button>}
                   <button title="Assign" style={iconBtn("#3fb6d3")} onClick={() => { setReassign(false); setAssignFor(r); }}><UserPlus size={15} /></button>
                   <button title="Message" style={iconBtn("#0b6cb0")} onClick={() => setChatFor(r)}>
                     <MessageSquare size={15} />
@@ -254,7 +255,7 @@ export default function BiltraxPage() {
                     )}
                   </button>
                   <button title="Forward" style={iconBtn("#0f7a44")} onClick={() => { setSelected(new Set([r._id])); setFwdOpen(true); }}><Share2 size={15} /></button>
-                  <button title="Delete" style={iconBtn("#e5484d")} onClick={() => del(r)}><Trash2 size={15} /></button>
+                  {canDelete("Biltrax") && <button title="Delete" style={iconBtn("#e5484d")} onClick={() => del(r)}><Trash2 size={15} /></button>}
                 </td>
                 <td style={td}>
                   <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 9px", borderRadius: 999,

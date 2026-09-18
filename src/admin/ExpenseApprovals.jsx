@@ -65,7 +65,7 @@ export default function ExpenseApprovals() {
   return (
     <>
       <PageHead crumb="Dashboards / Expense" title="Expense Approvals" actions={
-        <ToolButtons
+        <ToolButtons module="Expense" module="Expense"
           onRefresh={load}
           refreshing={loading}
           onExport={() => exportExpenseCsv(list)}

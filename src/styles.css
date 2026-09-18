@@ -515,3 +515,17 @@ body.dark-admin .btn-danger { background: linear-gradient(135deg,#ff6b6b,#ef4444
 /* Google-style live blue dot */
 .gmaps-bluedot { width: 18px; height: 18px; background: #4285F4; border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 0 rgba(66,133,244,0.5); animation: bluepulse 1.8s infinite; }
 @keyframes bluepulse { 0% { box-shadow: 0 0 0 0 rgba(66,133,244,0.5); } 70% { box-shadow: 0 0 0 16px rgba(66,133,244,0); } 100% { box-shadow: 0 0 0 0 rgba(66,133,244,0); } }
+
+/* ---- Loading spinner ----
+   Lists can hold a lot of rows, and on a slow phone the screen looked frozen
+   while they were being fetched. This gives an immediate sign of progress. */
+.eb-spin {
+  width: 26px; height: 26px; border-radius: 50%;
+  border: 3px solid #e3e8f5; border-top-color: var(--accent, #2b6fb8);
+  animation: ebspin .7s linear infinite;
+}
+@keyframes ebspin { to { transform: rotate(360deg); } }
+.eb-loading {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 46px 0; color: var(--muted); font-size: 12.5px; font-weight: 600;
+}

@@ -15,14 +15,22 @@ export default function AdminLogin() {
   const [p, setP] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [useOtp, setUseOtp] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [sent, setSent] = useState(false);
 
   const submit = async () => {
-    if (!u || !p) { setErr(tab === "team" ? "Please enter username and password" : "Please enter mobile and password"); return; }
+    if (!u) { setErr(tab === "team" ? "Please enter username" : "Please enter mobile / employee code"); return; }
+    if (tab !== "team" && useOtp) { if (!otp.trim()) { setErr("Please enter the OTP"); return; } }
+    else if (!p) { setErr("Please enter password"); return; }
     setBusy(true); setErr("");
     try {
       if (tab === "team") {
         /* Backend panel — username + password, validated against Admin Users (separate from app) */
         await api.adminLogin(u.trim(), p);
+      } else if (useOtp) {
+        /* Individual with OTP — the same code the app itself uses */
+        await api.verifyOtp(u.trim(), otp.trim());
       } else {
         /* Individual — app account (mobile + password) */
         await api.login(u.trim(), p);
@@ -105,9 +113,42 @@ export default function AdminLogin() {
           <button onClick={() => { setTab("individual"); setErr(""); }} style={tabBtn(!isTeam)}><User size={15} /> Individual</button>
         </div>
 
+        {!isTeam && (
+          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+            <button onClick={() => { setUseOtp(false); setErr(""); }} style={smallTab(!useOtp)}>Password</button>
+            <button onClick={() => { setUseOtp(true); setErr(""); setSent(false); }} style={smallTab(useOtp)}>OTP</button>
+          </div>
+        )}
         <label style={lbl}>{isTeam ? "Username" : "Mobile Number"}</label>
         <input value={u} onChange={(e) => { setU(e.target.value); setErr(""); }} placeholder={isTeam ? "Your admin username" : "Your mobile / employee code"} autoCapitalize="none" style={inp} />
 
+        {!isTeam && useOtp ? (
+          <>
+            {!sent ? (
+              <button className="btn btn-primary" style={{ width: "100%", marginBottom: 10 }}
+                disabled={busy || !u.trim()}
+                onClick={async () => {
+                  setBusy(true); setErr("");
+                  try { await api.sendOtp(u.trim()); setSent(true); }
+                  catch (e) { setErr(e.message || "Could not send OTP"); }
+                  setBusy(false);
+                }}>
+                {busy ? "Sending…" : "Send OTP"}
+              </button>
+            ) : (
+              <>
+                <label style={lbl}>OTP</label>
+                <input value={otp} onChange={(e) => { setOtp(e.target.value.replace(/\D/g, "")); setErr(""); }}
+                  inputMode="numeric" placeholder="6-digit code" style={inp} />
+                <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 10 }}>
+                  Sent to the email on your app account.
+                  <span onClick={() => setSent(false)} style={{ color: "var(--accent)", cursor: "pointer", marginLeft: 6, fontWeight: 700 }}>Resend</span>
+                </div>
+              </>
+            )}
+          </>
+        ) : (
+          <>
         <label style={lbl}>Password</label>
         <div style={{ position: "relative", marginBottom: 6 }}>
           <input type={show ? "text" : "password"} placeholder="••••••••" value={p}
@@ -118,6 +159,8 @@ export default function AdminLogin() {
             {show ? <EyeOff size={17} /> : <Eye size={17} />}
           </button>
         </div>
+          </>
+        )}
 
         {err && <div style={{ color: "#dc2626", fontSize: 13, fontWeight: 700, margin: "12px 0 0" }}>{err}</div>}
 
@@ -163,3 +206,9 @@ const lbl = { display: "block", fontSize: 13, fontWeight: 700, color: "#334155",
 const inp = { width: "100%", padding: "13px 16px", borderRadius: 12, border: "1.5px solid #e2e8f0", fontSize: 15, outline: "none", marginBottom: 16, boxSizing: "border-box", background: "#f8fafc" };
 const btn = (busy) => ({ width: "100%", padding: "14px 20px", borderRadius: 12, border: "none", background: busy ? "#6366f1" : "linear-gradient(135deg, #4f46e5, #6d5cf0)", color: "#fff", fontSize: 15, fontWeight: 700, cursor: busy ? "default" : "pointer", boxShadow: "0 8px 20px rgba(79,70,229,0.28)" });
 const tabBtn = (active) => ({ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px", borderRadius: 9, border: "none", cursor: "pointer", fontSize: 13.5, fontWeight: 700, background: active ? "#fff" : "transparent", color: active ? "#4f46e5" : "#64748b", boxShadow: active ? "0 2px 6px rgba(0,0,0,0.08)" : "none" });
+
+const smallTab = (on) => ({
+  flex: 1, padding: "7px 0", borderRadius: 9, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
+  border: "1px solid " + (on ? "#2b6fb8" : "#d7dcef"),
+  background: on ? "#e8f0ff" : "#fff", color: on ? "#1f3a68" : "#5a6484",
+});

@@ -135,7 +135,7 @@ export default function QuotationAdmin() {
   return (
     <div>
       <PageHead crumb="SFA" title="Quotation List" actions={
-        <ToolButtons
+        <ToolButtons module="Quotation" module="Quotation"
           onAdd={() => setShowAdd(true)}
           addLabel="Add Quotation"
           onRefresh={load}

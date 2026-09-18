@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, CloudOff, RefreshCw, Plus, Upload, FileText, Trash2, Pencil, Eye } from "lucide-react";
 import { api } from "../lib/api.js";
+import { can } from "../lib/perms.js";
 
 export function PageHead({ crumb, title, actions }) {
   return (
@@ -152,7 +153,10 @@ export function DataTable({ columns, rows, onDelete, onEdit, onView, onRowClick,
   );
 }
 
-export function ToolButtons({ onAdd, addLabel = "Add", onRefresh, onExport, onImport, onDownloadFormat, onHeaderConfig, onLogs, onReport, refreshing }) {
+export function ToolButtons({ onAdd, addLabel = "Add", onRefresh, onExport, onImport, onDownloadFormat, onHeaderConfig, onLogs, onReport, refreshing, module }) {
+  /* Roles & Permission decides which of these a role may use. Pass the module
+     name and the buttons that are switched off simply do not appear. */
+  const allow = (action) => (module ? can(module, action) : true);
   /* "Working…" while an import/export runs, so a slow one doesn't look stuck */
   const [runImp, setRunImp] = useState(false);
   const [runExp, setRunExp] = useState(false);
@@ -168,12 +172,12 @@ export function ToolButtons({ onAdd, addLabel = "Add", onRefresh, onExport, onIm
         <RefreshCw size={14} className={refreshing ? "spin" : ""} /> {refreshing ? "Refreshing…" : "Refresh"}
       </button>
       {onReport && <button className="btn btn-ghost" onClick={onReport}><FileText size={14} /> View Report</button>}
-      {onAdd && <button className="btn btn-primary" onClick={onAdd}><Plus size={14} /> {addLabel}</button>}
-      {onImport && <button className="btn btn-soft" disabled={runImp} onClick={wrap(onImport, setRunImp)}>
+      {onAdd && allow("Add") && <button className="btn btn-primary" onClick={onAdd}><Plus size={14} /> {addLabel}</button>}
+      {onImport && allow("Import") && <button className="btn btn-soft" disabled={runImp} onClick={wrap(onImport, setRunImp)}>
         <Upload size={14} /> {runImp ? "Importing…" : "Import"}
       </button>}
-      {onDownloadFormat && <button className="btn btn-ghost" onClick={onDownloadFormat}><Upload size={14} /> Download Format</button>}
-      {onExport && <button className="btn btn-soft" disabled={runExp} onClick={wrap(onExport, setRunExp)}>
+      {onDownloadFormat && allow("Import") && <button className="btn btn-ghost" onClick={onDownloadFormat}><Upload size={14} /> Download Format</button>}
+      {onExport && allow("Export") && <button className="btn btn-soft" disabled={runExp} onClick={wrap(onExport, setRunExp)}>
         <FileText size={14} /> {runExp ? "Exporting…" : "Export"}
       </button>}
     </>
