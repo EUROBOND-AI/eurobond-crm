@@ -97,7 +97,7 @@ export default function AdminLogin() {
           Hey, welcome back <span style={{ display: "inline-block" }}>👋</span>
         </h1>
         <p style={{ color: "#64748b", fontSize: 14.5, margin: "0 0 22px", lineHeight: 1.5 }}>
-          {isTeam ? "Sign in to the Eurobond CRM backend." : "Sign in with your app account."}
+          {isTeam ? "For the office backend team." : "For HODs and field staff — use your app login."}
         </p>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 20, background: "#f1f5f9", padding: 5, borderRadius: 12 }}>
@@ -105,6 +105,12 @@ export default function AdminLogin() {
           <button onClick={() => { setTab("individual"); setErr(""); }} style={tabBtn(!isTeam)}><User size={15} /> Individual</button>
         </div>
 
+        {isTeam && (
+          <div style={{ background: "#fff7e6", border: "1px solid #ffd591", borderRadius: 10, padding: "9px 11px", fontSize: 12, color: "#8a5a00", marginBottom: 14 }}>
+            HOD, Sub HOD, sales and specification staff should use the <b>Individual</b> tab —
+            that keeps the panel limited to your own team's data.
+          </div>
+        )}
         <label style={lbl}>{isTeam ? "Username" : "Mobile Number"}</label>
         <input value={u} onChange={(e) => { setU(e.target.value); setErr(""); }} placeholder={isTeam ? "Your admin username" : "Your mobile / employee code"} autoCapitalize="none" style={inp} />
 

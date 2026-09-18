@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Eye, Share2, Trash2, MessageSquare, Pencil, UserPlus, RefreshCw } from "lucide-react";
+import { Eye, Share2, Trash2, MessageSquare, Pencil, UserPlus } from "lucide-react";
 import { PageHead, StatCard, ToolButtons } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
 import { scopeRows, visibleUsers } from "../lib/scope.js";
@@ -159,7 +159,6 @@ export default function BiltraxPage() {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button className="btn" style={{ background: "#22a45d", color: "#fff", borderColor: "transparent" }} onClick={() => setForm({ ...EMPTY })}>Add New</button>
           <button className="btn" style={{ background: "#3fb6d3", color: "#fff", borderColor: "transparent" }} disabled={selected.size === 0} onClick={() => { setReassign(false); setAssignFor("bulk"); }}>Bulk Assign</button>
-          <button className="btn btn-primary" disabled={selected.size === 0} onClick={() => { setReassign(true); setAssignFor("bulk"); }}>Bulk Re-Assign</button>
           <button className="btn" style={{ background: "#0f7a44", color: "#fff", borderColor: "transparent" }} disabled={selected.size === 0} onClick={() => setFwdOpen(true)}>Forward</button>
           <button className="btn btn-danger" disabled={selected.size === 0} onClick={async () => {
             if (!window.confirm(`Delete ${selected.size} project(s)?`)) return;
@@ -248,7 +247,6 @@ export default function BiltraxPage() {
                   <button title="View" style={iconBtn("#2b6fb8")} onClick={() => setView(r)}><Eye size={15} /></button>
                   <button title="Edit" style={iconBtn("#f59e0b")} onClick={() => setForm(r)}><Pencil size={15} /></button>
                   <button title="Assign" style={iconBtn("#3fb6d3")} onClick={() => { setReassign(false); setAssignFor(r); }}><UserPlus size={15} /></button>
-                  <button title="Re-Assign" style={iconBtn("#6c5ce7")} onClick={() => { setReassign(true); setAssignFor(r); }}><RefreshCw size={15} /></button>
                   <button title="Message" style={iconBtn("#0b6cb0")} onClick={() => setChatFor(r)}>
                     <MessageSquare size={15} />
                     {Array.isArray(r.chat) && r.chat.length > 0 && (
