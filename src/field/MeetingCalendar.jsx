@@ -5,6 +5,21 @@ import { api, auth } from "../lib/api.js";
 
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+/* an appointment may be saved as 2026-09-25 or 25-09-2026 depending on where it
+   was entered; the calendar groups by YYYY-MM-DD, so normalise first */
+function toIso(v) {
+  const t = String(v || "").trim();
+  if (!t) return "";
+  if (/^\d{4}-\d{2}-\d{2}/.test(t)) return t.slice(0, 10);
+  const m = t.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})$/);
+  if (m) {
+    const y = m[3].length === 2 ? "20" + m[3] : m[3];
+    return `${y}-${String(m[2]).padStart(2, "0")}-${String(m[1]).padStart(2, "0")}`;
+  }
+  const d = new Date(t);
+  return isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
+}
+
 export default function MeetingCalendar() {
   const nav = useNavigate();
   const [cur, setCur] = useState(() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d; });
@@ -23,13 +38,13 @@ export default function MeetingCalendar() {
         const appts = (b.records || [])
           .map((r) => ({ _id: r.id, ...r.data }))
           .filter((r) => r.biltraxType === "Appointment" && r.appointmentDate)
-          .filter((r) => !me || r.assignPerson === me || r.createdBy === me)
+          .filter((r) => !me || r.assignPerson === me || r.createdBy === me || r.hod === me)
           .map((r) => ({
             name: r.projectName || "Biltrax project",
             contactName: r.professional1 || "",
             mobile: (String(r.professional1 || "").match(/\d{10}/) || [""])[0],
             place: r.landmark || r.address || "",
-            nextMeetingDate: r.appointmentDate,
+            nextMeetingDate: toIso(r.appointmentDate),
             nextMeetingRemark: r.latestSubStatus || "",
             isBiltrax: true,
           }));
@@ -42,9 +57,8 @@ export default function MeetingCalendar() {
   const byDate = useMemo(() => {
     const m = {};
     rows.forEach((r) => {
-      const dt = r.nextMeetingDate || r.next_meeting || "";
-      if (!dt) return;
-      const key = String(dt).slice(0, 10);
+      const key = toIso(r.nextMeetingDate || r.next_meeting || "");
+      if (!key) return;
       (m[key] = m[key] || []).push(r);
     });
     return m;

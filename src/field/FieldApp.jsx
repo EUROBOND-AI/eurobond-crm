@@ -103,8 +103,8 @@ const GPS_CFG = {
   intervalSec: 900,          // record one point every 15 minutes (900s) — clean timeline, low battery
   minDistanceKm: 0,
   idleMaxMs: 10 * 1000,
-  officeStart: "09:00",
-  officeEnd: "20:00",
+  officeStart: "00:00",
+  officeEnd: "23:55",
   officeHoursOnly: false,
 };
 const loadGpsCfg = () => {
@@ -743,9 +743,9 @@ function ScreenHead({ title, back = true, right = null }) {
 }
 
 /* ------------------------------------------------ HOME ------------------------------------------------ */
-const ATT_START_HOUR = 5;      // morning 5 AM
-const ATT_END_HOUR = 22;       // night — window closes at 10:30 PM (22.5)
-const ATT_END_MIN = 30;        // :30
+const ATT_START_HOUR = 0;      // midnight — attendance can be marked any time of day
+const ATT_END_HOUR = 23;       // window closes at 11:55 PM
+const ATT_END_MIN = 55;
 const withinAttWindow = () => { const d = new Date(); const mins = d.getHours() * 60 + d.getMinutes(); return mins >= ATT_START_HOUR * 60 && mins < ATT_END_HOUR * 60 + ATT_END_MIN; };
 function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expenses, followups, leaves, onStartAttendance, onStopAttendance }) {
   const [seg, setSeg] = useState("Matrics");
@@ -810,7 +810,7 @@ function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expense
           </div>
         ) : !withinAttWindow() && !attendanceOn ? (
           <div style={{ background: "#f1f3f8", border: "1.5px solid #d7dcef", borderRadius: 16, padding: "16px", textAlign: "center", fontWeight: 700, color: "var(--muted)", fontSize: 13 }}>
-            Attendance available 5:00 AM – 10:30 PM
+            Attendance available 12:00 AM – 11:55 PM
           </div>
         ) : (
           <SlideToStart on={attendanceOn} onToggle={() => { if (!attendanceOn) { onStartAttendance(); } else { onStopAttendance(); } }} />
@@ -1622,6 +1622,18 @@ function FieldExpenseNew({ add }) {
   const [doc, setDoc] = useState(ed?.photo || "");
   /* areas of my state, with their A/B/C tier — used for Origin to Destination */
   const [areaRows, setAreaRows] = useState([]);
+  /* pull the distance already recorded by attendance tracking for that day, so
+     the person does not have to work out their own kilometres */
+  const fillKmFor = async (dateStr) => {
+    if (!dateStr) return;
+    try {
+      const d = await api.attList(dateStr, dateStr);
+      const me = CU().name;
+      const mine = (d.sessions || []).filter((x) => x.name === me);
+      const km = mine.reduce((sum, x) => sum + (Number(x.distance_km) || 0), 0);
+      if (km > 0) setF((x) => ({ ...x, km: km.toFixed(2) }));
+    } catch {}
+  };
   useEffect(() => {
     const st = CU().state || "";
     if (!st) return;
@@ -1658,7 +1670,7 @@ function FieldExpenseNew({ add }) {
       <ScreenHead title={ed ? "Edit Draft" : "Add Expense"} />
       <div className="f-form">
         <label>Date <b>*</b></label>
-        <input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} style={{ width: "100%", marginBottom: 12 }} />
+        <input type="date" value={f.date} onChange={(e) => { const d = e.target.value; setF((x) => ({ ...x, date: d })); fillKmFor(d); }} style={{ width: "100%", marginBottom: 12 }} />
 
         <label>K.M. (if travel)</label>
         <input inputMode="decimal" value={f.km} onChange={(e) => setF({ ...f, km: e.target.value.replace(/[^\d.]/g, "") })} placeholder="Kilometers" style={{ width: "100%", marginBottom: 12 }} />
@@ -2263,7 +2275,7 @@ function FieldFollowUpNew({ add, editData }) {
   const removeContact = (i) => setContacts((cs) => cs.filter((_, idx) => idx !== i));
 
   const inp = { width: "100%", marginBottom: 12 };
-  const CATS = ["Distributor", "End User", "Architect", "Fabricator", "Consultant", "Dealer", "Builder", "Corporate", "Customer"];
+  const CATS = ["Distributor", "End User", "Architect", "Fabricator", "Consultant", "Dealer", "Builder", "Corporate", "Government", "Contractor"];
 
   /* Visiting card scan — Gemini OCR auto-fill */
   const scanCard = async (file) => {
@@ -2505,6 +2517,23 @@ function ProjectView({ rec, onClose }) {
           <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 9, padding: 10, margin: "10px 0", fontSize: 12.5 }}>
             <div style={{ fontWeight: 800, color: "#1f7a44" }}>Reply from {rec.replyBy || "team"}: {rec.specReplyStatus}</div>
             {rec.replyRemark && <div style={{ marginTop: 3 }}>{rec.replyRemark}</div>}
+            {/* the file sent back with the reply */}
+            {rec.replyAttachment && (
+              <div style={{ marginTop: 6 }}>
+                <span onClick={() => openAppPhoto(rec.replyAttachment)}
+                  style={{ color: "var(--accent)", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>📎 View attachment</span>
+              </div>
+            )}
+            {Array.isArray(rec.replies) && rec.replies.filter((x) => x.attachment).length > 0 && (
+              <div style={{ marginTop: 6, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {rec.replies.filter((x) => x.attachment).map((x, i) => (
+                  <span key={i} onClick={() => openAppPhoto(x.attachment)}
+                    style={{ color: "var(--accent)", fontWeight: 700, fontSize: 11.5, cursor: "pointer" }}>
+                    📎 {x.by || "Attachment"}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )}
         {(rec.replies || []).length > 0 && <div style={{ fontWeight: 800, fontSize: 12.5, margin: "10px 0 6px", color: "var(--navy)" }}>Reply / Remarks History</div>}
@@ -2779,6 +2808,24 @@ function FieldResources() {
 
 function FieldProjectNew() {
   const nav = useNavigate();
+  /* projects already saved against this person's customers — picking one fills
+     the customer details in so nothing has to be retyped */
+  const [myProjects, setMyProjects] = useState([]);
+  const [projCust, setProjCust] = useState({});
+  useEffect(() => {
+    api.customers("", true).then((d) => {
+      const names = [];
+      const map = {};
+      (d.customers || []).forEach((c) => {
+        const list = Array.isArray(c.projects) && c.projects.length
+          ? c.projects
+          : String(c.projectName || "").split(",").map((x) => x.trim()).filter(Boolean);
+        list.forEach((p2) => { if (p2 && !names.includes(p2)) { names.push(p2); map[p2] = c; } });
+      });
+      setMyProjects(names.sort());
+      setProjCust(map);
+    }).catch(() => {});
+  }, []);
   const isSpec = `${CU().role || ""} ${CU().designation || ""}`.toLowerCase().includes("spec");
   const edRef = useRef(undefined);
   if (edRef.current === undefined) { edRef.current = PROJ_EDIT.data || null; PROJ_EDIT.data = null; }
@@ -2878,7 +2925,26 @@ function FieldProjectNew() {
         </>)}
 
         <label>Project Name <b>*</b></label>
-        <input value={f.projectName} onChange={(e) => set("projectName", e.target.value)} style={inp} />
+        {/* pick one of the projects already saved against your customers, or type a new one */}
+        <select value={myProjects.includes(f.projectName) ? f.projectName : ""}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (!v) { set("projectName", ""); return; }
+            const c = projCust[v];
+            setF((x) => ({
+              ...x, projectName: v,
+              customerName: c?.name || x.customerName,
+              city: c?.place || x.city,
+              contacts: (c?.contacts && c.contacts.length ? c.contacts : x.contacts),
+              categoryFirm: c?.name || x.categoryFirm,
+              address: c?.address || x.address,
+            }));
+          }} style={inp}>
+          <option value="">— Select from my customers —</option>
+          {myProjects.map((p2) => <option key={p2}>{p2}</option>)}
+        </select>
+        <input value={f.projectName} onChange={(e) => set("projectName", e.target.value)}
+          placeholder="…or type a project name" style={inp} />
 
         <label>Project Type</label>
         <select value={f.projectType} onChange={(e) => set("projectType", e.target.value)} style={inp}>
@@ -2935,7 +3001,7 @@ function FieldProjectNew() {
             <label>Colour Code</label>
             <SearchSelect value={r.colourCode} onChange={(v) => setRow(i, "colourCode", v)} options={(colourMap[r.grade] || []).map((c) => c.colourCode || c.colour)} placeholder="Search colour…" disabled={!r.grade} />
             <div style={{ height: 8 }} />
-            <label>Qty</label>
+            <label>QTY (Sq meter)</label>
             <input inputMode="numeric" value={r.qty} onChange={(e) => setRow(i, "qty", e.target.value.replace(/\D/g, ""))} style={{ width: "100%" }} />
             {rows.length > 1 && <button onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} style={{ marginTop: 8, background: "#fdecec", color: "#c03636", border: "none", borderRadius: 8, padding: "6px 12px", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Remove</button>}
           </div>
@@ -6418,12 +6484,12 @@ export default function FieldApp() {
     return () => { window.removeEventListener("online", flush); clearInterval(t); };
   }, [attendanceOn]);
 
-  /* HARD STOP at 10:30 PM — runs on the phone itself, so attendance ends even
+  /* HARD STOP at 11:55 PM — runs on the phone itself, so attendance ends even
      with no internet. Stops the tracker, clears the session and turns attendance
      off (which also shuts the native service + Tracking notification down). */
   useEffect(() => {
     if (!attendanceOn) return;
-    const endMins = ATT_END_HOUR * 60 + ATT_END_MIN;      // 22:30
+    const endMins = ATT_END_HOUR * 60 + ATT_END_MIN;      // 23:55
     const check = async () => {
       const d = new Date();
       if (d.getHours() * 60 + d.getMinutes() < endMins) return;
@@ -6440,7 +6506,7 @@ export default function FieldApp() {
         if (Cap && Cap.Plugins && Cap.Plugins.LocalNotifications) {
           await Cap.Plugins.LocalNotifications.schedule({
             notifications: [{ id: 970001, title: "Attendance Auto Logout",
-              body: "Your attendance was closed automatically at 10:30 PM.",
+              body: "Your attendance was closed automatically at 11:55 PM.",
               channelId: "eurobond_crm", smallIcon: "ic_stat_notify" }],
           });
         }

@@ -20,12 +20,14 @@ export default function AreasPage() {
   useEffect(loadStates, []);
   useEffect(() => {
     if (!sel) { setAreas([]); return; }
-    api.areasByState(sel).then((d) => setAreas(d.areas || [])).catch(() => setAreas([]));
+    api.areasByState(sel)
+      .then((d) => setAreas(d.areaRows || (d.areas || []).map((n) => ({ name: n, tier: "A" }))))
+      .catch(() => setAreas([]));
   }, [sel]);
 
   const delArea = async (name) => {
     if (!confirm(`Delete area "${name}" from ${sel}?`)) return;
-    try { await api.areaDelete(sel, name); setAreas((a) => a.filter((x) => x !== name)); api.areaCount().then(setCount); }
+    try { await api.areaDelete(sel, name); setAreas((a) => a.filter((x) => (x.name || x) !== name)); api.areaCount().then(setCount); }
     catch (e) { alert(e.message); }
   };
   const delState = async () => {
@@ -115,18 +117,32 @@ export default function AreasPage() {
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: 8 }}>
-            {areas.map((a) => (
-              <div key={a} style={{ display: "flex", alignItems: "center", gap: 6, background: "#f6f8fd", borderRadius: 9, padding: "8px 11px", fontSize: 13 }}>
-                <MapPin size={13} color="var(--accent)" />
-                <span style={{ flex: 1 }}>{a}</span>
-                <button onClick={() => delArea(a)} title="Delete" style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", padding: 2, display: "grid", placeItems: "center" }}><Trash2 size={13} /></button>
-              </div>
-            ))}
+            {areas.map((a) => {
+              const nm = a.name || a;
+              const tr = a.tier || "A";
+              return (
+                <div key={nm} style={{ display: "flex", alignItems: "center", gap: 6, background: "#f6f8fd", borderRadius: 9, padding: "8px 11px", fontSize: 13 }}>
+                  <MapPin size={13} color="var(--accent)" />
+                  <span style={{ flex: 1 }}>{nm}</span>
+                  {/* the tier is what the expense screen shows as Area (A)/(B)/(C) */}
+                  <select value={tr}
+                    onChange={async (e) => {
+                      const t = e.target.value;
+                      setAreas((list) => list.map((x) => ((x.name || x) === nm ? { name: nm, tier: t } : x)));
+                      try { await api.areaAdd(sel, nm, t); } catch (err) { alert(err.message); }
+                    }}
+                    style={{ border: "1px solid var(--line)", borderRadius: 7, padding: "2px 4px", fontSize: 11.5, fontWeight: 700, background: "#fff" }}>
+                    <option value="A">A</option><option value="B">B</option><option value="C">C</option>
+                  </select>
+                  <button onClick={() => delArea(nm)} title="Delete" style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", padding: 2, display: "grid", placeItems: "center" }}><Trash2 size={13} /></button>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
 
-      {addOpen && <AddAreaModal states={states} onClose={() => setAddOpen(false)} onSaved={(st) => { setAddOpen(false); loadStates(); if (st === sel) api.areasByState(sel).then((d) => setAreas(d.areas || [])); }} />}
+      {addOpen && <AddAreaModal states={states} onClose={() => setAddOpen(false)} onSaved={(st) => { setAddOpen(false); loadStates(); if (st === sel) api.areasByState(sel).then((d) => setAreas(d.areaRows || (d.areas || []).map((n) => ({ name: n, tier: "A" })))); }} />}
     </div>
   );
 }

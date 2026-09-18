@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, CartesianGrid } from "recharts";
 import { PageHead, StatCard } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { scopeRows, visibleUsers } from "../lib/scope.js";
@@ -64,6 +65,28 @@ export default function BiltraxDashboard() {
     return Object.values(m).sort((a, b) => b.total - a.total);
   }, [list]);
 
+  /* chart data */
+  const stageData = useMemo(() => ([
+    { name: "Draft", value: stats.draft },
+    { name: "Processing", value: stats.processing },
+    { name: "Win", value: stats.won },
+  ]), [stats]);
+  const typeData = useMemo(() => ([
+    { name: "Requested", value: list.filter((r) => (r.biltraxType || "Requested") === "Requested").length },
+    { name: "Appointment", value: list.filter((r) => r.biltraxType === "Appointment").length },
+  ]), [list]);
+  const stateData = useMemo(() => {
+    const m = {};
+    list.forEach((r) => { const k = r.state || "—"; m[k] = (m[k] || 0) + 1; });
+    return Object.entries(m).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 8);
+  }, [list]);
+  const personChart = useMemo(() => byPerson.slice(0, 8).map((p) => ({
+    name: p.name.length > 14 ? p.name.slice(0, 13) + "…" : p.name,
+    Draft: p.draft, Processing: p.processing, Won: p.won,
+  })), [byPerson]);
+  const STAGE_COLORS = ["#8a93a8", "#2b6fb8", "#1f9d55"];
+  const TYPE_COLORS = ["#4f46e5", "#e08600"];
+
   const states = [...new Set(rows.map((r) => r.state).filter(Boolean))].sort();
   const hods = [...new Set(rows.map((r) => r.hod).filter(Boolean))].sort();
   const persons = [...new Set(rows.map((r) => r.assignPerson).filter(Boolean))].sort();
@@ -104,6 +127,77 @@ export default function BiltraxDashboard() {
             <StatCard label="Appointments" value={stats.appointment} />
             <StatCard label="Won Sq. Meter" value={stats.sqm.toLocaleString("en-IN")} />
             <StatCard label="Won Amount" value={"₹" + stats.amount.toLocaleString("en-IN")} />
+          </div>
+
+          {/* pipeline flow */}
+          <div style={{ background: "#fff", borderRadius: 12, boxShadow: "var(--shadow)", padding: 16, marginBottom: 16 }}>
+            <div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 12 }}>Pipeline Flow</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              {stageData.map((st, i) => (
+                <div key={st.name} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ minWidth: 130, textAlign: "center", padding: "14px 16px", borderRadius: 12,
+                    background: `linear-gradient(135deg, ${STAGE_COLORS[i]}, ${STAGE_COLORS[i]}cc)`, color: "#fff" }}>
+                    <div style={{ fontSize: 22, fontWeight: 800 }}>{st.value}</div>
+                    <div style={{ fontSize: 11.5, fontWeight: 700, opacity: .9 }}>{st.name}</div>
+                  </div>
+                  {i < stageData.length - 1 && <div style={{ fontSize: 22, color: "#ccd2e6" }}>→</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 14, marginBottom: 16 }}>
+            <div style={{ background: "#fff", borderRadius: 12, boxShadow: "var(--shadow)", padding: 16 }}>
+              <div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 10 }}>By Stage</div>
+              <ResponsiveContainer width="100%" height={230}>
+                <PieChart>
+                  <Pie data={stageData} dataKey="value" nameKey="name" innerRadius={52} outerRadius={82} paddingAngle={3}>
+                    {stageData.map((e, i) => <Cell key={i} fill={STAGE_COLORS[i]} />)}
+                  </Pie>
+                  <Tooltip /><Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div style={{ background: "#fff", borderRadius: 12, boxShadow: "var(--shadow)", padding: 16 }}>
+              <div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 10 }}>Requested vs Appointment</div>
+              <ResponsiveContainer width="100%" height={230}>
+                <PieChart>
+                  <Pie data={typeData} dataKey="value" nameKey="name" outerRadius={82}>
+                    {typeData.map((e, i) => <Cell key={i} fill={TYPE_COLORS[i]} />)}
+                  </Pie>
+                  <Tooltip /><Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div style={{ background: "#fff", borderRadius: 12, boxShadow: "var(--shadow)", padding: 16 }}>
+              <div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 10 }}>Top States</div>
+              <ResponsiveContainer width="100%" height={230}>
+                <BarChart data={stateData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-20} textAnchor="end" height={55} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Bar dataKey="value" name="Projects" fill="#2b6fb8" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div style={{ background: "#fff", borderRadius: 12, boxShadow: "var(--shadow)", padding: 16, marginBottom: 16 }}>
+            <div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 10 }}>Person-wise Split</div>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={personChart}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-20} textAnchor="end" height={60} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                <Tooltip /><Legend />
+                <Bar dataKey="Draft" stackId="a" fill="#8a93a8" />
+                <Bar dataKey="Processing" stackId="a" fill="#2b6fb8" />
+                <Bar dataKey="Won" stackId="a" fill="#1f9d55" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
 
           <div style={{ background: "#fff", borderRadius: 12, boxShadow: "var(--shadow)", overflowX: "auto" }}>
