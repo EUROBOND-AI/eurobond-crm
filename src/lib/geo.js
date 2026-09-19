@@ -150,7 +150,9 @@ const _tracker = {
   onPoint: null,
   sessionId: null,
   lastSavedMs: 0,
-  intervalMs: 900000,      // 15 min timeline cadence
+  /* Keep a point every 30 seconds. At 15-minute gaps the straight line between
+     two fixes skipped every turn, so the day's distance came out far too low. */
+  intervalMs: 30000,
   uploadFn: null,
   lastKept: null,          // last KEPT point {lat,lng} — for stationary/move detection
   diag: { watcherFires: 0, lastFireMs: 0, uploads: 0, lastUploadMs: 0, lastUploadOk: null, lastError: "", startedMs: 0 },
@@ -243,8 +245,8 @@ async function _handleLocation(loc) {
   _tracker.diag.lastFireMs = Date.now();
   if (pt.lat == null || pt.lng == null) return;
 
-  /* Simple rule (like BreezERP): keep ONE point every 15 minutes — wherever they are.
-     First point kept immediately. No accuracy/stationary filtering. */
+  /* Keep a point every intervalMs (30 s). The timeline thins these down to one
+     stop every five minutes for reading; the distance uses them all. */
   const now = Date.now();
   const isFirst = _tracker.lastSavedMs === 0;
   const timeDue = (now - _tracker.lastSavedMs) >= _tracker.intervalMs;

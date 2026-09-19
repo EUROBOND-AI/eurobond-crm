@@ -2281,9 +2281,26 @@ function FieldFollowUpNew({ add, editData }) {
               const place = a.amenity || a.building || a.shop || a.office || "";
               const road = [a.house_number, a.road || a.pedestrian || a.footway].filter(Boolean).join(" ");
               const locality = [a.neighbourhood, a.suburb, a.quarter, a.residential, a.city_district].filter((x, i, arr) => x && arr.indexOf(x) === i);
-              const parts = [place, road, ...locality, a.city || a.town || a.village, a.state].filter(Boolean);
-              addr = (parts.join(", ") + (a.postcode ? " " + a.postcode : "")).trim();
-              if (!addr && jn.display_name) addr = jn.display_name.replace(/, India$/, "");
+              const parts = [place, road, ...locality, a.village, a.town, a.city, a.county, a.state_district, a.state]
+                .filter((x, i, arr) => x && arr.indexOf(x) === i);
+              addr = (parts.join(", ") + (a.postcode ? ", " + a.postcode : "")).trim();
+              /* the full line is the complete address and reads the same way
+                 across the country, so prefer it over our shortened version */
+              const disp = jn.display_name ? jn.display_name.replace(/,\s*India\s*$/, "") : "";
+              if (disp) addr = disp;
+              /* no street mapped here -> add the nearest named feature in front */
+              const hasStreet = a.road || a.pedestrian || a.neighbourhood || a.suburb || a.building || a.amenity;
+              if (!hasStreet) {
+                try {
+                  const rp = await fetch(`https://photon.komoot.io/reverse?lat=${la}&lon=${ln}&limit=1`);
+                  if (rp.ok) {
+                    const jp = await rp.json();
+                    const pr = (jp.features && jp.features[0] && jp.features[0].properties) || {};
+                    const near = [pr.name, pr.street, pr.district].filter((x, i, arr) => x && arr.indexOf(x) === i).join(", ");
+                    if (near && !addr.toLowerCase().includes(near.toLowerCase())) addr = near + ", " + addr;
+                  }
+                } catch {}
+              }
             }
           }
         } catch {}
