@@ -278,6 +278,20 @@ export default function AttendancePage() {
               /* the full display line is the same shape everywhere in the country */
               const disp = j.display_name ? j.display_name.replace(/,\s*India\s*$/, "") : "";
               if (disp) full = disp;
+              /* where no street is mapped the answer is only district names, so
+                 add the nearest named feature in front of it */
+              const hasStreet = a.road || a.pedestrian || a.neighbourhood || a.suburb || a.building || a.amenity;
+              if (!hasStreet) {
+                try {
+                  const rp = await fetch(`https://photon.komoot.io/reverse?lat=${p.lat}&lon=${p.lng}&limit=1`);
+                  if (rp.ok) {
+                    const jp = await rp.json();
+                    const pr = (jp.features && jp.features[0] && jp.features[0].properties) || {};
+                    const near = [pr.name, pr.street, pr.district].filter((x, i, arr) => x && arr.indexOf(x) === i).join(", ");
+                    if (near && !full.toLowerCase().includes(near.toLowerCase())) full = near + ", " + full;
+                  }
+                } catch {}
+              }
             }
           }
         } catch {}

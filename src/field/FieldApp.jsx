@@ -12,7 +12,6 @@ import { api, auth, API_BASE } from "../lib/api.js";
 import BeatPlan, { BeatPlanConfirm } from "./BeatPlan.jsx";
 import MeetingCalendar from "./MeetingCalendar.jsx";
 import BiltraxList from "./BiltraxList.jsx";
-import CardScanner from "./CardScanner.jsx";
 import { buildExpensePdf } from "../lib/expensePdf.js";
 import { MODULES } from "../admin/moduleConfigs.jsx";
 
@@ -112,15 +111,30 @@ const GPS_CFG = {
   officeHoursOnly: false,
 };
 const loadGpsCfg = () => {
-  try { return { ...GPS_CFG, ...(JSON.parse(localStorage.getItem("eb_gps_cfg") || "{}")) }; }
-  catch { return GPS_CFG; }
+  try {
+    const saved = JSON.parse(localStorage.getItem("eb_gps_cfg") || "{}");
+    const cfg = { ...GPS_CFG, ...saved };
+    /* Phones that were tracking before still carry the old 15-minute interval in
+       their saved settings, which quietly overrode the new one and kept the
+       distance wrong. Anything that slow is dropped in favour of the default. */
+    if (!cfg.intervalSec || Number(cfg.intervalSec) > 120) {
+      cfg.intervalSec = GPS_CFG.intervalSec;
+      try {
+        if (saved.intervalSec && Number(saved.intervalSec) > 120) {
+          delete saved.intervalSec;
+          localStorage.setItem("eb_gps_cfg", JSON.stringify(saved));
+        }
+      } catch {}
+    }
+    return cfg;
+  } catch { return GPS_CFG; }
 };
 const withinOfficeHours = (cfg) => {
   if (!cfg.officeHoursOnly) return true;
   const now = new Date();
   const mins = now.getHours() * 60 + now.getMinutes();
-  const [sh, sm] = String(cfg.officeStart || "09:00").split(":").map(Number);
-  const [eh, em] = String(cfg.officeEnd || "20:00").split(":").map(Number);
+  const [sh, sm] = String(cfg.officeStart || "00:00").split(":").map(Number);
+  const [eh, em] = String(cfg.officeEnd || "23:55").split(":").map(Number);
   return mins >= sh * 60 + sm && mins <= eh * 60 + em;
 };
 /* pull admin settings once per login and cache */
@@ -2297,8 +2311,6 @@ function FieldFollowUpNew({ add, editData }) {
   const inp = { width: "100%", marginBottom: 12 };
   const CATS = ["Distributor", "End User", "Architect", "Fabricator", "Consultant", "Dealer", "Builder", "Corporate", "Government", "Contractor"];
 
-  const [scanOpen, setScanOpen] = useState(false);
-
   /* Visiting card scan — Gemini OCR auto-fill */
   const scanCard = async (file) => {
     if (!file) return;
@@ -2320,17 +2332,20 @@ function FieldFollowUpNew({ add, editData }) {
 
   return (
     <>
-      {scanOpen && <CardScanner onCapture={(f2) => scanCard(f2)} onClose={() => setScanOpen(false)} />}
       <ScreenHead title={ed ? "Edit Customer" : "Add New Customer"} />
       <div className="f-form">
         {/* Visiting card scan — top lo, entry pani taggutundi */}
         <div style={{ background: "linear-gradient(135deg,#eef1ff,#f4ecff)", borderRadius: 14, padding: "14px", marginBottom: 6 }}>
           <div style={{ fontWeight: 800, fontSize: 13.5, color: "var(--navy)", marginBottom: 4 }}>📇 Scan Visiting Card</div>
           <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 10 }}>Details auto-fill from the card</div>
-          <button onClick={() => setScanOpen(true)}
-            style={{ display: "block", width: "100%", textAlign: "center", padding: "12px", borderRadius: 10, border: "1.5px solid var(--navy)", background: "#fff", color: "var(--navy)", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-            📷 Scan Here
-          </button>
+          {/* back to the phone's own camera app — the in-app preview needed a
+              camera permission that is not granted on every device */}
+          <label style={{ display: "block", textAlign: "center", padding: "12px", borderRadius: 10, border: "1.5px solid var(--navy)", background: "#fff", color: "var(--navy)", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+            📷 Scan Here <input type="file" accept="image/*" capture="environment" hidden onChange={(e) => scanCard(e.target.files[0])} />
+          </label>
+          <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 7, textAlign: "center" }}>
+            Fill the frame with the card and keep it straight
+          </div>
           {scanBusy && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 8 }}>Scanning…</div>}
         </div>
 
