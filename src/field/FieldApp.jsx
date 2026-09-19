@@ -12,6 +12,7 @@ import { api, auth, API_BASE } from "../lib/api.js";
 import BeatPlan, { BeatPlanConfirm } from "./BeatPlan.jsx";
 import MeetingCalendar from "./MeetingCalendar.jsx";
 import BiltraxList from "./BiltraxList.jsx";
+import CardScanner from "./CardScanner.jsx";
 import { buildExpensePdf } from "../lib/expensePdf.js";
 import { MODULES } from "../admin/moduleConfigs.jsx";
 
@@ -100,7 +101,10 @@ const isMine = (n, me) => {
    or once every 5 min while idle. Outside office hours nothing is sent.
    Admin can override these from Masters -> App Settings.                        */
 const GPS_CFG = {
-  intervalSec: 900,          // record one point every 15 minutes (900s) — clean timeline, low battery
+  /* One point a minute. At 15-minute gaps the straight line between two points
+     missed every turn, so a 40 km day was reported as 13 km. The admin timeline
+     thins these down for display; the distance uses them all. */
+  intervalSec: 60,
   minDistanceKm: 0,
   idleMaxMs: 10 * 1000,
   officeStart: "00:00",
@@ -541,7 +545,7 @@ async function registerPush() {
               const d = await api.attToday();
               const sess = d && d.session;
               if (sess && String(sess.status).toUpperCase() === "RUNNING") {
-                setTrackerSession(sess.id, (loadGpsCfg().intervalSec ?? 900) * 1000, api.attPoints);
+                setTrackerSession(sess.id, (loadGpsCfg().intervalSec ?? 60) * 1000, api.attPoints);
                 /* make a noise too — the person switched something off and the
                    phone had frozen the app, so this push is the wake-up */
                 try {
@@ -2280,6 +2284,8 @@ function FieldFollowUpNew({ add, editData }) {
   const inp = { width: "100%", marginBottom: 12 };
   const CATS = ["Distributor", "End User", "Architect", "Fabricator", "Consultant", "Dealer", "Builder", "Corporate", "Government", "Contractor"];
 
+  const [scanOpen, setScanOpen] = useState(false);
+
   /* Visiting card scan — Gemini OCR auto-fill */
   const scanCard = async (file) => {
     if (!file) return;
@@ -2301,15 +2307,17 @@ function FieldFollowUpNew({ add, editData }) {
 
   return (
     <>
+      {scanOpen && <CardScanner onCapture={(f2) => scanCard(f2)} onClose={() => setScanOpen(false)} />}
       <ScreenHead title={ed ? "Edit Customer" : "Add New Customer"} />
       <div className="f-form">
         {/* Visiting card scan — top lo, entry pani taggutundi */}
         <div style={{ background: "linear-gradient(135deg,#eef1ff,#f4ecff)", borderRadius: 14, padding: "14px", marginBottom: 6 }}>
           <div style={{ fontWeight: 800, fontSize: 13.5, color: "var(--navy)", marginBottom: 4 }}>📇 Scan Visiting Card</div>
           <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 10 }}>Details auto-fill from the card</div>
-          <label style={{ display: "block", textAlign: "center", padding: "12px", borderRadius: 10, border: "1.5px solid var(--navy)", background: "#fff", color: "var(--navy)", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-            📷 Scan Here <input type="file" accept="image/*" capture="environment" hidden onChange={(e) => scanCard(e.target.files[0])} />
-          </label>
+          <button onClick={() => setScanOpen(true)}
+            style={{ display: "block", width: "100%", textAlign: "center", padding: "12px", borderRadius: 10, border: "1.5px solid var(--navy)", background: "#fff", color: "var(--navy)", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+            📷 Scan Here
+          </button>
           {scanBusy && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 8 }}>Scanning…</div>}
         </div>
 
@@ -6341,7 +6349,7 @@ export default function FieldApp() {
       syncGpsCfg();
       if (resuming && sessionRef.current) {
         /* resume: server nunchi ee session points load chesi timeline continue */
-        setTrackerSession(sessionRef.current, (loadGpsCfg().intervalSec ?? 900) * 1000, api.attPoints);
+        setTrackerSession(sessionRef.current, (loadGpsCfg().intervalSec ?? 60) * 1000, api.attPoints);
         api.attPointsList && api.attPointsList(sessionRef.current)
           .then((d) => { if (!cancelled && d && d.points) setTracking((t) => ({ ...t, points: d.points, km: d.km || t.km })); })
           .catch(() => {});
@@ -6350,7 +6358,7 @@ export default function FieldApp() {
         // fresh start -> get current location, then create server session with it
         const startWith = (coords) => {
           api.attStart({ ...visitInfoRef.current, ...coords })
-            .then((d) => { if (!cancelled) { sessionRef.current = d.session_id; localStorage.setItem("eb_att_on", "1"); setTrackerSession(d.session_id, (loadGpsCfg().intervalSec ?? 900) * 1000, api.attPoints); try { cancelAttendanceReminders(); scheduleLogoutReminders(); } catch {} } })
+            .then((d) => { if (!cancelled) { sessionRef.current = d.session_id; localStorage.setItem("eb_att_on", "1"); setTrackerSession(d.session_id, (loadGpsCfg().intervalSec ?? 60) * 1000, api.attPoints); try { cancelAttendanceReminders(); scheduleLogoutReminders(); } catch {} } })
             .catch((e) => setTracking((t) => ({ ...t, error: e.message })));
         };
         if (navigator.geolocation) {
@@ -6386,7 +6394,7 @@ export default function FieldApp() {
            notification — no separate LocalNotification needed (avoids a duplicate). */
       }
       /* watchdog: if the OS killed the tracker (notification swiped), restart it on resume */
-      restartHandlerRef.current = () => { if (!isTrackerActive()) { startTracker(handlePoint, handleErr); if (sessionRef.current) setTrackerSession(sessionRef.current, (loadGpsCfg().intervalSec ?? 900) * 1000, api.attPoints); } };
+      restartHandlerRef.current = () => { if (!isTrackerActive()) { startTracker(handlePoint, handleErr); if (sessionRef.current) setTrackerSession(sessionRef.current, (loadGpsCfg().intervalSec ?? 60) * 1000, api.attPoints); } };
       window.addEventListener("eb-restart-tracking", restartHandlerRef.current);
       stopRef.current = null;                     // stopping handled via stopTracker() on OFF
 

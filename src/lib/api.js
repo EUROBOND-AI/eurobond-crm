@@ -106,8 +106,9 @@ export const api = {
   async sendOtp(username) {
     return req("/auth.php?action=send_otp", { method: "POST", body: { username } });
   },
-  async verifyOtp(username, otp) {
-    const d = await req("/auth.php?action=verify_otp", { method: "POST", body: { username, otp } });
+  async verifyOtp(username, otp, panel = false) {
+    /* panel: true keeps the phone's session alive when signing in to the backend */
+    const d = await req("/auth.php?action=verify_otp", { method: "POST", body: { username, otp, panel } });
     auth.set(d.token, d.user);
     return d.user;
   },

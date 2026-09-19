@@ -15,25 +15,21 @@ export default function AdminLogin() {
   const [p, setP] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
-  const [useOtp, setUseOtp] = useState(false);
   const [otp, setOtp] = useState("");
   const [sent, setSent] = useState(false);
 
   const submit = async () => {
     if (!u) { setErr(tab === "team" ? "Please enter username" : "Please enter mobile / employee code"); return; }
-    if (tab !== "team" && useOtp) { if (!otp.trim()) { setErr("Please enter the OTP"); return; } }
+    if (tab !== "team") { if (!otp.trim()) { setErr("Please enter the OTP"); return; } }
     else if (!p) { setErr("Please enter password"); return; }
     setBusy(true); setErr("");
     try {
       if (tab === "team") {
         /* Backend panel — username + password, validated against Admin Users (separate from app) */
         await api.adminLogin(u.trim(), p);
-      } else if (useOtp) {
-        /* Individual with OTP — the same code the app itself uses */
-        await api.verifyOtp(u.trim(), otp.trim());
       } else {
-        /* Individual — app account (mobile + password) */
-        await api.login(u.trim(), p);
+        /* Individual with OTP — the same code the app itself uses */
+        await api.verifyOtp(u.trim(), otp.trim(), true);
       }
       try { sessionStorage.setItem("eb_admin_session", "1"); } catch {}
       nav("/admin/dashboards/home");
@@ -105,7 +101,7 @@ export default function AdminLogin() {
           Hey, welcome back <span style={{ display: "inline-block" }}>👋</span>
         </h1>
         <p style={{ color: "#64748b", fontSize: 14.5, margin: "0 0 22px", lineHeight: 1.5 }}>
-          {isTeam ? "Sign in to the Eurobond CRM backend." : "Sign in with your app account."}
+          {isTeam ? "Sign in to the Eurobond CRM backend." : "We will email a one-time code to your app account."}
         </p>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 20, background: "#f1f5f9", padding: 5, borderRadius: 12 }}>
@@ -113,16 +109,10 @@ export default function AdminLogin() {
           <button onClick={() => { setTab("individual"); setErr(""); }} style={tabBtn(!isTeam)}><User size={15} /> Individual</button>
         </div>
 
-        {!isTeam && (
-          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-            <button onClick={() => { setUseOtp(false); setErr(""); }} style={smallTab(!useOtp)}>Password</button>
-            <button onClick={() => { setUseOtp(true); setErr(""); setSent(false); }} style={smallTab(useOtp)}>OTP</button>
-          </div>
-        )}
         <label style={lbl}>{isTeam ? "Username" : "Mobile Number"}</label>
         <input value={u} onChange={(e) => { setU(e.target.value); setErr(""); }} placeholder={isTeam ? "Your admin username" : "Your mobile / employee code"} autoCapitalize="none" style={inp} />
 
-        {!isTeam && useOtp ? (
+        {!isTeam ? (
           <>
             {!sent ? (
               <button className="btn btn-primary" style={{ width: "100%", marginBottom: 10 }}
@@ -164,12 +154,14 @@ export default function AdminLogin() {
 
         {err && <div style={{ color: "#dc2626", fontSize: 13, fontWeight: 700, margin: "12px 0 0" }}>{err}</div>}
 
+        {(isTeam || sent) && (
         <button onClick={submit} disabled={busy} style={{ ...btn(busy), marginTop: 20 }}>
           {busy ? "Signing in…" : "Sign In"}
         </button>
+        )}
 
         <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 8, color: "#94a3b8", fontSize: 12.5 }}>
-          <ShieldCheck size={15} /> {isTeam ? "Username + password — added under Admin Users." : "App account (mobile). You'll only see your own data."}
+          <ShieldCheck size={15} /> {isTeam ? "Username + password — added under Admin Users." : "One-time code to your app account. Your phone stays signed in."}
         </div>
       </div>
     </div>

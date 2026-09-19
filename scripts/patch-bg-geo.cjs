@@ -131,7 +131,8 @@ try {
         if (location == null) return;
         final long now = System.currentTimeMillis();
         // one upload per ~14 min (matches the 15-min timeline; server also spaces)
-        if (ebLastUploadMs != 0 && (now - ebLastUploadMs) < 14 * 60 * 1000) return;
+        // one upload a minute — dense enough for the distance to be right
+        if (ebLastUploadMs != 0 && (now - ebLastUploadMs) < 55 * 1000) return;
         new Thread(new Runnable() {
             @Override public void run() {
                 final String[] ptHolder = new String[1];

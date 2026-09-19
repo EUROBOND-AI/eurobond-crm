@@ -168,6 +168,21 @@ export default function AttendancePage() {
 
   /* map modal for one session — Login/In-Between/Logout markers + travel points panel */
   const [routePoints, setRoutePoints] = useState([]);
+  /* The phone now records a point a minute, which is what makes the distance
+     right. That is too dense to read, so the timeline shows one every five
+     minutes — the kilometres still come from every point. */
+  const timelinePoints = useMemo(() => {
+    const out = [];
+    let lastT = 0;
+    (routePoints || []).forEach((p, i) => {
+      const t = p.recorded_at ? new Date(String(p.recorded_at).replace(" ", "T")).getTime() : i * 60000;
+      if (i === 0 || i === routePoints.length - 1 || !lastT || t - lastT >= 5 * 60 * 1000) {
+        out.push(p);
+        lastT = t;
+      }
+    });
+    return out;
+  }, [routePoints]);
   /* single source of truth for distance — same formula used for per-point AND total,
      so the last point's cumulative always equals "Total KM Traveled" */
   const cumKmAt = (pts, upto) => {
@@ -191,14 +206,20 @@ export default function AttendancePage() {
     let stop = false;
     const resolved = [];
     (async () => {
-      for (const p of routePoints.slice(0, 100)) {
+      /* resolve in small parallel batches so the list fills in one go instead of
+         showing "Finding address…" for a long time */
+      const queue = routePoints.slice(0, 150);
+      const BATCH = 6;
+      for (let bi = 0; bi < queue.length; bi += BATCH) {
         if (stop) break;
+        await Promise.all(queue.slice(bi, bi + BATCH).map(async (p) => {
+        if (stop) return;
         const key = `${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`;
         /* geocode if we don't have a browser address yet AND the stored one looks coarse
            (no street/road/society — e.g. only "Mumbai Zone 4, R/C Ward" from a fallback) */
         const stored = p.address || "";
         const looksCoarse = !stored || /zone \d|ward|district|suburban/i.test(stored) && stored.split(",").length <= 4;
-        if (ptAddr[key] || (stored && !looksCoarse)) continue;
+        if (ptAddr[key] || (stored && !looksCoarse)) return;
         let full = "";
         /* 1) Nominatim — has real street/road/society detail */
         try {
@@ -210,9 +231,12 @@ export default function AttendancePage() {
               const place = a.amenity || a.building || a.shop || a.office || a.hospital || a.school || a.college || "";
               const road = [a.house_number, a.road || a.pedestrian || a.footway].filter(Boolean).join(" ");
               const locality = [a.neighbourhood, a.suburb, a.quarter, a.residential, a.city_district].filter((x, i, arr) => x && arr.indexOf(x) === i);
-              const parts = [place, road, ...locality, a.city || a.town || a.village, a.state].filter(Boolean);
-              full = (parts.join(", ") + (a.postcode ? " " + a.postcode : "")).trim();
-              if (!full && j.display_name) full = j.display_name.replace(/, India$/, "");
+              const parts = [place, road, ...locality, a.village, a.town, a.city, a.county, a.state_district, a.state]
+                .filter((x, i, arr) => x && arr.indexOf(x) === i);
+              full = (parts.join(", ") + (a.postcode ? ", " + a.postcode : "")).trim();
+              /* keep whichever line carries more of the address */
+              const disp = j.display_name ? j.display_name.replace(/, India$/, "") : "";
+              if (disp && disp.length > full.length) full = disp;
             }
           }
         } catch {}
@@ -230,7 +254,8 @@ export default function AttendancePage() {
           /* keep it on the server so this point never needs geocoding again */
           resolved.push({ lat: p.lat, lng: p.lng, address: full });
         }
-        await new Promise((res) => setTimeout(res, 1100));   // Nominatim ~1 req/sec
+        }));
+        await new Promise((res) => setTimeout(res, 900));   // be polite to Nominatim between batches
       }
       if (resolved.length) { try { await api.attSaveAddress(resolved); } catch {} }
     })();
@@ -453,12 +478,12 @@ export default function AttendancePage() {
                     {(v.type || v.category) && <div style={{ fontSize: 10.5, color: "var(--muted)" }}>{v.category || ""} {v.type ? "· " + v.type : ""}</div>}
                   </div>
                 ))}
-                <div style={{ fontWeight: 800, fontSize: 12.5, color: "var(--muted)", margin: "14px 0 8px" }}>Timeline ({routePoints.length} points)</div>
+                <div style={{ fontWeight: 800, fontSize: 12.5, color: "var(--muted)", margin: "14px 0 8px" }}>Timeline ({timelinePoints.length} stops · {routePoints.length} points recorded)</div>
                 {(() => {
-                  return routePoints.slice(0, 100).map((p, i) => {
-                  const cum = cumKmAt(routePoints, i);
+                  return timelinePoints.slice(0, 150).map((p, i) => {
+                  const cum = cumKmAt(routePoints, routePoints.indexOf(p));
                   const running = String(viewSess.status || "").toUpperCase() === "RUNNING" || !viewSess.end_time;
-                  const isLast = i === routePoints.length - 1;
+                  const isLast = i === timelinePoints.length - 1;
                   const label = i === 0 ? "Start" : (isLast ? (running ? "Live" : "End") : "Point " + (i + 1));
                   const geoAddr = ptAddr[`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`];
                   const addr = geoAddr || p.address;
