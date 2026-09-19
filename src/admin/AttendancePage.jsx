@@ -16,16 +16,44 @@ const rawTime = (dt) => {
 };
 
 /* ---- session download: Excel (CSV) + PDF (print window) ---- */
-/* distance from points — same formula as the timeline/app (60m drift ignore, 5km jump skip) */
+/* distance from points — 30 m drift ignore, 5 km jump skip. Points now arrive
+   every ~30 s, so the smaller drift threshold no longer adds noise while short
+   moves are counted properly. */
 function kmFromPoints(points) {
   const hav = (a, b) => { const R = 6371, dLat = (b.lat - a.lat) * Math.PI / 180, dLng = (b.lng - a.lng) * Math.PI / 180; const x = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
   let cum = 0, last = null;
   for (const p of (points || [])) {
     const pt = { lat: Number(p.lat), lng: Number(p.lng) };
-    if (last) { const d = hav(last, pt); if (d * 1000 >= 60 && d < 5) { cum += d; last = pt; } else if (d >= 5) { last = pt; } }
+    if (last) { const d = hav(last, pt); if (d * 1000 >= 30 && d < 5) { cum += d; last = pt; } else if (d >= 5) { last = pt; } }
     else { last = pt; }
   }
   return cum;
+}
+
+/* Ask OSRM to place the track on the road network and give back the real driven
+   distance. Walking around inside a building then counts for nothing, and a
+   route that curves along a road is measured along the road rather than as a
+   straight line. Falls back to the point-to-point figure if the service is
+   unreachable. */
+async function roadKmFromPoints(points) {
+  const pts = (points || []).map((p) => [Number(p.lng), Number(p.lat)]).filter((x) => x[0] && x[1]);
+  if (pts.length < 2) return null;
+  /* OSRM takes up to 100 coordinates per match call */
+  const CH = 95;
+  let total = 0;
+  try {
+    for (let i = 0; i < pts.length - 1; i += CH - 1) {
+      const chunk = pts.slice(i, i + CH);
+      if (chunk.length < 2) break;
+      const coords = chunk.map((c) => `${c[0]},${c[1]}`).join(";");
+      const r = await fetch(`https://router.project-osrm.org/match/v1/driving/${coords}?overview=false&gaps=ignore&tidy=true`);
+      if (!r.ok) return null;
+      const j = await r.json();
+      if (j.code !== "Ok" || !Array.isArray(j.matchings)) return null;
+      total += j.matchings.reduce((sum, m) => sum + (m.distance || 0), 0);
+    }
+  } catch { return null; }
+  return total > 0 ? total / 1000 : null;
 }
 function downloadSessionExcel(s, points, visits) {
   const distKm = points && points.length ? kmFromPoints(points) : (Number(s.distance_km) || 0);
@@ -94,7 +122,11 @@ export default function AttendancePage() {
         try {
           const d = await api.attPointsList(s.id);
           const pts = d.points || d.route || [];
-          if (pts.length > 1) setLiveKm((m) => ({ ...m, [s.id]: kmFromPoints(pts) }));
+          if (pts.length > 1) {
+            setLiveKm((m) => ({ ...m, [s.id]: kmFromPoints(pts) }));
+            const rk = await roadKmFromPoints(pts);
+            if (rk && !stop) setLiveKm((m) => ({ ...m, [s.id]: rk }));
+          }
         } catch {}
       }
     })();
@@ -199,7 +231,16 @@ export default function AttendancePage() {
     }
     return cum;
   };
-  const totalKm = routePoints.length ? cumKmAt(routePoints, routePoints.length - 1) : 0;
+  const [roadKm, setRoadKm] = useState(null);
+  useEffect(() => {
+    let dead = false;
+    setRoadKm(null);
+    if (routePoints.length > 1) {
+      roadKmFromPoints(routePoints).then((k) => { if (!dead && k) setRoadKm(k); }).catch(() => {});
+    }
+    return () => { dead = true; };
+  }, [routePoints]);
+  const totalKm = roadKm != null ? roadKm : (routePoints.length ? cumKmAt(routePoints, routePoints.length - 1) : 0);
   const [ptAddr, setPtAddr] = useState({});
   /* reverse-geocode each timeline point to a full address (cached by lat,lng) */
   useEffect(() => {
@@ -223,7 +264,7 @@ export default function AttendancePage() {
         let full = "";
         /* 1) Nominatim — has real street/road/society detail */
         try {
-          const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${p.lat}&lon=${p.lng}&zoom=18&addressdetails=1`, { headers: { "Accept-Language": "en" } });
+          const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${p.lat}&lon=${p.lng}&zoom=18&addressdetails=1&namedetails=1`, { headers: { "Accept-Language": "en" } });
           if (r.ok) {
             const j = await r.json();
             const a = j.address || {};
@@ -234,9 +275,9 @@ export default function AttendancePage() {
               const parts = [place, road, ...locality, a.village, a.town, a.city, a.county, a.state_district, a.state]
                 .filter((x, i, arr) => x && arr.indexOf(x) === i);
               full = (parts.join(", ") + (a.postcode ? ", " + a.postcode : "")).trim();
-              /* keep whichever line carries more of the address */
-              const disp = j.display_name ? j.display_name.replace(/, India$/, "") : "";
-              if (disp && disp.length > full.length) full = disp;
+              /* the full display line is the same shape everywhere in the country */
+              const disp = j.display_name ? j.display_name.replace(/,\s*India\s*$/, "") : "";
+              if (disp) full = disp;
             }
           }
         } catch {}

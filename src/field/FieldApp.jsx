@@ -101,10 +101,10 @@ const isMine = (n, me) => {
    or once every 5 min while idle. Outside office hours nothing is sent.
    Admin can override these from Masters -> App Settings.                        */
 const GPS_CFG = {
-  /* One point a minute. At 15-minute gaps the straight line between two points
-     missed every turn, so a 40 km day was reported as 13 km. The admin timeline
-     thins these down for display; the distance uses them all. */
-  intervalSec: 60,
+  /* Record continuously — every ~30 seconds, and on every 10 m of movement.
+     Dense points are what make the distance match the road; both the app and the
+     admin still show one stop every five minutes so the list stays readable. */
+  intervalSec: 30,
   minDistanceKm: 0,
   idleMaxMs: 10 * 1000,
   officeStart: "00:00",
@@ -545,7 +545,7 @@ async function registerPush() {
               const d = await api.attToday();
               const sess = d && d.session;
               if (sess && String(sess.status).toUpperCase() === "RUNNING") {
-                setTrackerSession(sess.id, (loadGpsCfg().intervalSec ?? 60) * 1000, api.attPoints);
+                setTrackerSession(sess.id, (loadGpsCfg().intervalSec ?? 30) * 1000, api.attPoints);
                 /* make a noise too — the person switched something off and the
                    phone had frozen the app, so this push is the wake-up */
                 try {
@@ -1234,11 +1234,24 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
     let cum = 0, last = null;
     for (let i = 0; i < pts.length; i++) {
       const p = pts[i];
-      if (last) { const d = haversineKm(last, p); if (d * 1000 >= 60 && d < 5) cum += d; }
+      if (last) { const d = haversineKm(last, p); if (d * 1000 >= 30 && d < 5) cum += d; }
       out.push({ ...p, cumKm: cum, isStart: i === 0, isEnd: i === pts.length - 1 });
       last = p;
     }
-    return out.reverse(); // newest first
+    /* Points are recorded every ~30 s so the distance is accurate, but showing
+       every one of them is unreadable — keep one stop every five minutes (the
+       first and last always stay). The running kilometres above already counted
+       all of them. */
+    const thinned = [];
+    let lastShown = 0;
+    out.forEach((p, i) => {
+      const t = p.time || 0;
+      if (i === 0 || i === out.length - 1 || p.appClosed || !lastShown || t - lastShown >= 5 * 60 * 1000) {
+        thinned.push(p);
+        lastShown = t;
+      }
+    });
+    return thinned.reverse(); // newest first
   }, [serverPts, tracking.points]);
 
   const duration = durationMs;
@@ -6349,7 +6362,7 @@ export default function FieldApp() {
       syncGpsCfg();
       if (resuming && sessionRef.current) {
         /* resume: server nunchi ee session points load chesi timeline continue */
-        setTrackerSession(sessionRef.current, (loadGpsCfg().intervalSec ?? 60) * 1000, api.attPoints);
+        setTrackerSession(sessionRef.current, (loadGpsCfg().intervalSec ?? 30) * 1000, api.attPoints);
         api.attPointsList && api.attPointsList(sessionRef.current)
           .then((d) => { if (!cancelled && d && d.points) setTracking((t) => ({ ...t, points: d.points, km: d.km || t.km })); })
           .catch(() => {});
@@ -6358,7 +6371,7 @@ export default function FieldApp() {
         // fresh start -> get current location, then create server session with it
         const startWith = (coords) => {
           api.attStart({ ...visitInfoRef.current, ...coords })
-            .then((d) => { if (!cancelled) { sessionRef.current = d.session_id; localStorage.setItem("eb_att_on", "1"); setTrackerSession(d.session_id, (loadGpsCfg().intervalSec ?? 60) * 1000, api.attPoints); try { cancelAttendanceReminders(); scheduleLogoutReminders(); } catch {} } })
+            .then((d) => { if (!cancelled) { sessionRef.current = d.session_id; localStorage.setItem("eb_att_on", "1"); setTrackerSession(d.session_id, (loadGpsCfg().intervalSec ?? 30) * 1000, api.attPoints); try { cancelAttendanceReminders(); scheduleLogoutReminders(); } catch {} } })
             .catch((e) => setTracking((t) => ({ ...t, error: e.message })));
         };
         if (navigator.geolocation) {
@@ -6394,7 +6407,7 @@ export default function FieldApp() {
            notification — no separate LocalNotification needed (avoids a duplicate). */
       }
       /* watchdog: if the OS killed the tracker (notification swiped), restart it on resume */
-      restartHandlerRef.current = () => { if (!isTrackerActive()) { startTracker(handlePoint, handleErr); if (sessionRef.current) setTrackerSession(sessionRef.current, (loadGpsCfg().intervalSec ?? 60) * 1000, api.attPoints); } };
+      restartHandlerRef.current = () => { if (!isTrackerActive()) { startTracker(handlePoint, handleErr); if (sessionRef.current) setTrackerSession(sessionRef.current, (loadGpsCfg().intervalSec ?? 30) * 1000, api.attPoints); } };
       window.addEventListener("eb-restart-tracking", restartHandlerRef.current);
       stopRef.current = null;                     // stopping handled via stopTracker() on OFF
 

@@ -27,7 +27,7 @@ export default function CardScanner({ onCapture, onClose }) {
           setReady(true);
         }
       } catch (e) {
-        setErr("Camera not available. Use the gallery option below.");
+        setErr("Camera not available. Please allow camera access for the app.");
       }
     })();
     return () => {
@@ -95,11 +95,6 @@ export default function CardScanner({ onCapture, onClose }) {
           style={{ flex: 2, padding: 12, borderRadius: 10, border: "none", background: ready ? "#fff" : "#666", color: "#111", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
           📷 Capture
         </button>
-        <label style={{ flex: 1, padding: 12, borderRadius: 10, border: "1px solid #444", color: "#fff", fontWeight: 700, fontSize: 13, textAlign: "center", cursor: "pointer" }}>
-          Gallery
-          <input type="file" accept="image/*" hidden
-            onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) { onCapture(f); onClose(); } }} />
-        </label>
       </div>
     </div>
   );

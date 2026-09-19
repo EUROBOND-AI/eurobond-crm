@@ -131,8 +131,9 @@ try {
         if (location == null) return;
         final long now = System.currentTimeMillis();
         // one upload per ~14 min (matches the 15-min timeline; server also spaces)
-        // one upload a minute — dense enough for the distance to be right
-        if (ebLastUploadMs != 0 && (now - ebLastUploadMs) < 55 * 1000) return;
+        // upload continuously — the distance is only right when the points follow
+        // the road rather than jumping between far-apart fixes
+        if (ebLastUploadMs != 0 && (now - ebLastUploadMs) < 25 * 1000) return;
         new Thread(new Runnable() {
             @Override public void run() {
                 final String[] ptHolder = new String[1];
