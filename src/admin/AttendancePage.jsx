@@ -256,7 +256,11 @@ export default function AttendancePage() {
         /* geocode if we don't have a browser address yet AND the stored one looks coarse
            (no street/road/society — e.g. only "Mumbai Zone 4, R/C Ward" from a fallback) */
         const stored = p.address || "";
-        const looksCoarse = !stored || /zone \d|ward|district|suburban/i.test(stored) && stored.split(",").length <= 4;
+        /* "Mumbai, Maharashtra" is a city-level answer, not an address. Anything
+           this short gets looked up again so every row reads the same way. */
+        const looksCoarse = !stored
+          || stored.split(",").length <= 3
+          || (/zone \d|ward|district|suburban/i.test(stored) && stored.split(",").length <= 4);
         if (ptAddr[key] || (stored && !looksCoarse)) return;
         let full = "";
         /* 1) Nominatim — has real street/road/society detail */

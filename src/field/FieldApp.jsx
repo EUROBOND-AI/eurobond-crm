@@ -2435,6 +2435,10 @@ function FieldFollowUpNew({ add, editData }) {
           </>
         ) : null}
 
+        {/* The thank-you message is no longer sent on save — tap this once when
+            you want it to go out. */}
+        <WhatsAppOnce mobile={(contacts[0] || {}).whatsapp || (contacts[0] || {}).mobile} recordId={ed?._id} />
+
         <button
           className="f-submit" style={{ width: "100%" }}
           disabled={!f.partyName}
@@ -2638,6 +2642,7 @@ function ProjectFollowup({ rec, onClose, onSaved }) {
         <textarea value={remark} onChange={(e) => setRemark(e.target.value)} rows={3} style={{ width: "100%", marginBottom: 10 }} />
         <label style={{ fontWeight: 800, fontSize: 13 }}>Photo (optional)</label>
         <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files[0]; if (!file) return; const rd = new FileReader(); rd.onload = () => setPhoto(rd.result); rd.readAsDataURL(file); }} style={{ width: "100%", marginBottom: 12 }} />
+        <WhatsAppOnce mobile={rec?.mobile || (rec?.contacts && rec.contacts[0] && rec.contacts[0].mobile)} recordId={rec?._id || rec?.id} />
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={onClose} style={{ flex: 1, padding: 11, borderRadius: 10, border: "1.5px solid #d7dcef", background: "#fff", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
           <button onClick={save} disabled={busy || !remark} style={{ flex: 1, padding: 11, borderRadius: 10, border: "none", background: "var(--navy)", color: "#fff", fontWeight: 800, cursor: "pointer" }}>{busy ? "Saving…" : "Save"}</button>
@@ -4735,6 +4740,40 @@ function FieldEnquiry() {
       {winFor && <EnquiryWin r={winFor} onClose={() => setWinFor(null)} onDone={load} />}
       {reassignFor && <EnquiryReassign r={reassignFor} onClose={() => setReassignFor(null)} onDone={load} />}
     </>
+  );
+}
+
+
+/* One-tap thank-you WhatsApp. It disables itself the moment it is pressed, and
+   the server also records that the message went out for this record, so tapping
+   it again (or saving the customer twice) never sends a second message. */
+function WhatsAppOnce({ mobile, recordId, label = "Send WhatsApp to customer" }) {
+  const [state, setState] = useState("idle");   // idle | sending | sent | failed
+  const num = String(mobile || "").replace(/\D/g, "");
+  if (!num) return null;
+  const done = state === "sent";
+  return (
+    <button
+      disabled={state !== "idle"}
+      onClick={async () => {
+        setState("sending");
+        try {
+          const r = await api.visitWhatsApp(num, recordId || 0);
+          setState(r && (r.success || r.already) ? "sent" : "failed");
+        } catch { setState("failed"); }
+      }}
+      style={{
+        width: "100%", marginBottom: 10, padding: 11, borderRadius: 10, border: "none",
+        background: done ? "#e7f7ef" : state === "failed" ? "#fdecec" : "#25d366",
+        color: done ? "#0f7a44" : state === "failed" ? "#c0392b" : "#fff",
+        fontWeight: 800, fontSize: 13.5, cursor: state === "idle" ? "pointer" : "default",
+        opacity: state === "sending" ? 0.7 : 1,
+      }}>
+      {state === "sent" ? "✓ WhatsApp sent"
+        : state === "sending" ? "Sending…"
+        : state === "failed" ? "Could not send — tap Save and try from the list"
+        : `💬 ${label}`}
+    </button>
   );
 }
 
