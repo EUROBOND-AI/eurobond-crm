@@ -18,7 +18,7 @@ export function haversineKm(a, b) {
   return 2 * R * Math.asin(Math.sqrt(x));
 }
 
-const ACC_MAX = 50;        // metres — worse than this is guesswork
+const ACC_MAX = 120;       // metres — beyond this the fix is too vague to measure with
 const MIN_STEP = 25;       // metres — below this it is almost certainly drift
 const MIN_SPEED = 1.0;     // km/h — slower than a slow walk means standing still
 const MAX_SPEED = 180;     // km/h — faster than this is a bad fix

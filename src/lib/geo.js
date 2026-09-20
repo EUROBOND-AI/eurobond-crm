@@ -273,10 +273,12 @@ async function _handleLocation(loc) {
   const timeDue = (now - _tracker.lastSavedMs) >= _tracker.intervalMs;
   if (!isFirst && !timeDue) return;
 
-  /* A fix this vague is a guess from cell towers or wifi, and storing it is what
-     makes a parked phone appear to travel. Skip it and wait for a better one. */
+  /* Only throw away a fix that is truly meaningless. Indoors a phone regularly
+     reports 60-100 m, and the earlier 60 m cut-off silently blocked every point
+     while someone was in an office or at home. Drift is dealt with when the
+     distance is worked out, not by refusing to record the position. */
   const acc = Number(pt.accuracy || 0);
-  if (!isFirst && acc > 60) return;
+  if (!isFirst && acc > 500) return;
 
   if (_tracker.onPoint) { try { _tracker.onPoint(pt); } catch {} }
 
