@@ -1,3 +1,4 @@
+import { trackDistanceKm } from "./distance.js";
 // ---- Free GPS distance tracking (no paid API) ----
 // Uses the browser Geolocation API + Haversine formula.
 // Map tiles: OpenStreetMap via Leaflet (free).
@@ -88,20 +89,8 @@ export function haversineKm(a, b) {
 // - ignores points with poor accuracy (> 35 m)
 // - ignores tiny jumps (< 8 m) so the km doesn't inflate while standing still
 export function totalDistanceKm(points) {
-  let km = 0;
-  let last = null;
-  for (const p of points) {
-    if (last) {
-      const d = haversineKm(last, p);
-      // only count real movement: ignore GPS drift under 60m, skip teleport jumps over 5km
-      if (d * 1000 >= 60 && d < 5) { km += d; last = p; }
-      else if (d >= 5) { last = p; }   // teleport -> reset anchor, don't count
-      // else: drift under 60m -> keep same anchor, add nothing
-    } else {
-      last = p;
-    }
-  }
-  return km;
+  /* one shared implementation — see lib/distance.js for what gets filtered out */
+  return trackDistanceKm(points);
 }
 
 /* ---- Real phone notification (shows in the system notification bar) ----
@@ -283,6 +272,11 @@ async function _handleLocation(loc) {
   const isFirst = _tracker.lastSavedMs === 0;
   const timeDue = (now - _tracker.lastSavedMs) >= _tracker.intervalMs;
   if (!isFirst && !timeDue) return;
+
+  /* A fix this vague is a guess from cell towers or wifi, and storing it is what
+     makes a parked phone appear to travel. Skip it and wait for a better one. */
+  const acc = Number(pt.accuracy || 0);
+  if (!isFirst && acc > 60) return;
 
   if (_tracker.onPoint) { try { _tracker.onPoint(pt); } catch {} }
 

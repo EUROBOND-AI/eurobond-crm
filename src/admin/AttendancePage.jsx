@@ -5,6 +5,7 @@ import { PageHead, Pill } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { fmtKm } from "../lib/geo.js";
 import { visibleUsers } from "../lib/scope.js";
+import { trackDistanceKm } from "../lib/distance.js";
 
 const rawTime = (dt) => {
   if (!dt) return null;
@@ -16,18 +17,10 @@ const rawTime = (dt) => {
 };
 
 /* ---- session download: Excel (CSV) + PDF (print window) ---- */
-/* distance from points — 30 m drift ignore, 5 km jump skip. Points now arrive
-   every ~30 s, so the smaller drift threshold no longer adds noise while short
-   moves are counted properly. */
+/* Distance for the list and the timeline. The filtering lives in one place so
+   the app, the admin screen, the PDF and the Excel all agree. */
 function kmFromPoints(points) {
-  const hav = (a, b) => { const R = 6371, dLat = (b.lat - a.lat) * Math.PI / 180, dLng = (b.lng - a.lng) * Math.PI / 180; const x = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
-  let cum = 0, last = null;
-  for (const p of (points || [])) {
-    const pt = { lat: Number(p.lat), lng: Number(p.lng) };
-    if (last) { const d = hav(last, pt); if (d * 1000 >= 30 && d < 5) { cum += d; last = pt; } else if (d >= 5) { last = pt; } }
-    else { last = pt; }
-  }
-  return cum;
+  return trackDistanceKm(points);
 }
 
 /* Ask OSRM to place the track on the road network and give back the real driven
@@ -217,20 +210,9 @@ export default function AttendancePage() {
   }, [routePoints]);
   /* single source of truth for distance — same formula used for per-point AND total,
      so the last point's cumulative always equals "Total KM Traveled" */
-  const cumKmAt = (pts, upto) => {
-    const hav = (a, b) => { const R = 6371, dLat = (b.lat - a.lat) * Math.PI / 180, dLng = (b.lng - a.lng) * Math.PI / 180; const x = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
-    let cum = 0, last = null;
-    for (let i = 0; i <= upto && i < pts.length; i++) {
-      const p = { lat: Number(pts[i].lat), lng: Number(pts[i].lng) };
-      if (last) {
-        const d = hav(last, p);
-        if (d * 1000 >= 60 && d < 5) { cum += d; last = p; }   // real movement -> count + advance
-        else if (d >= 5) { last = p; }                          // teleport -> reset anchor, don't count
-        // drift <60m -> keep same anchor (matches app's totalDistanceKm exactly)
-      } else { last = p; }
-    }
-    return cum;
-  };
+  /* running total up to a point — same filtering as the day's total */
+  const cumKmAt = (pts, upto) => trackDistanceKm((pts || []).slice(0, Math.max(0, upto) + 1));
+
   const [roadKm, setRoadKm] = useState(null);
   useEffect(() => {
     let dead = false;

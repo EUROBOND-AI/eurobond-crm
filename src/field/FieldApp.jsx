@@ -361,6 +361,7 @@ function SlideToStart({ on, onToggle }) {
 }
 
 import L from "leaflet";
+import { trackDistanceKm } from "../lib/distance.js";
 
 const todayStr = () =>
   new Date().toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
@@ -1248,7 +1249,8 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
     let cum = 0, last = null;
     for (let i = 0; i < pts.length; i++) {
       const p = pts[i];
-      if (last) { const d = haversineKm(last, p); if (d * 1000 >= 30 && d < 5) cum += d; }
+      /* same filtering the admin uses, so both screens show one figure */
+      cum = trackDistanceKm(pts.slice(0, i + 1));
       out.push({ ...p, cumKm: cum, isStart: i === 0, isEnd: i === pts.length - 1 });
       last = p;
     }

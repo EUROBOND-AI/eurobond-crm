@@ -151,6 +151,9 @@ try {
                     pt.put("lat", location.getLatitude());
                     pt.put("lng", location.getLongitude());
                     pt.put("accuracy", location.getAccuracy());
+                    /* a very vague fix is a tower estimate, not a position —
+                       storing those is what made a parked phone gain kilometres */
+                    if (location.getAccuracy() > 60f && ebLastUploadMs != 0) return;
                     pt.put("time", location.getTime() > 0 ? location.getTime() : now);
                     /* real battery % and network state for the admin timeline */
                     try {
