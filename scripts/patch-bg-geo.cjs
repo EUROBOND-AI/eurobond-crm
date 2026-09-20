@@ -104,7 +104,9 @@ try {
         try {
             SharedPreferences p = getApplicationContext().getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE);
             String q = p.getString("eb_native_queue", "");
-            if (q.length() > 60000) return;                 // safety cap
+            /* an overnight stretch with no network is ~1200 points, so the old
+               60 KB cap silently dropped almost all of them */
+            if (q.length() > 900000) return;                 // safety cap
             p.edit().putString("eb_native_queue", q.isEmpty() ? ptJson : q + "|" + ptJson).apply();
         } catch (Exception e) {}
     }
@@ -651,7 +653,7 @@ try {
             int flag = PendingIntent.FLAG_UPDATE_CURRENT;
             try { flag |= PendingIntent.FLAG_IMMUTABLE; } catch (Throwable t) {}
             PendingIntent pi = ebServicePI(4802, i, flag);
-            long next = System.currentTimeMillis() + 60000; // ~60s — brings the notification back sooner
+            long next = System.currentTimeMillis() + 30000; // ~30s — matches the point cadence
 
             /* A second alarm aimed at the manifest receiver. A receiver runs even
                when the service itself can't be started (notifications switched off,

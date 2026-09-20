@@ -178,11 +178,43 @@ export function getTrackerDiag() {
 
 export function setTrackerHandler(fn) { _tracker.onPoint = fn; }
 export function isTrackerActive() { return _tracker.active; }
+/* A heartbeat that asks for a location on a timer.
+   The watcher only reports when the phone MOVES, so a stationary phone recorded
+   nothing at all — a night at home produced zero points. This keeps the cadence
+   time-based, which is also what makes the distance add up correctly. */
+let _beat = null;
+function startHeartbeat() {
+  if (_beat) return;
+  const tick = async () => {
+    try {
+      if (!_tracker.sessionId) return;
+      const Cap = typeof window !== "undefined" ? window.Capacitor : null;
+      const G = Cap && Cap.Plugins && Cap.Plugins.Geolocation;
+      if (G && G.getCurrentPosition) {
+        const pos = await G.getCurrentPosition({ enableHighAccuracy: true, timeout: 15000, maximumAge: 20000 });
+        if (pos && pos.coords) {
+          _handleLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy, time: Date.now() });
+        }
+      } else if (typeof navigator !== "undefined" && navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => _handleLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy, time: Date.now() }),
+          () => {},
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 20000 }
+        );
+      }
+    } catch {}
+  };
+  _beat = setInterval(tick, Math.max(15000, _tracker.intervalMs || 30000));
+  tick();
+}
+function stopHeartbeat() { if (_beat) { clearInterval(_beat); _beat = null; } }
+
 export function setTrackerSession(sessionId, intervalMs, uploadFn) {
   const changed = _tracker.sessionId !== sessionId;
   _tracker.sessionId = sessionId;
   if (intervalMs) _tracker.intervalMs = intervalMs;
   if (uploadFn) _tracker.uploadFn = uploadFn;
+  if (sessionId) startHeartbeat(); else stopHeartbeat();
   /* Write session + token + URL to native storage so the patched native service can
      upload locations directly (works when the JS/WebView is frozen in background). */
   try {
@@ -325,7 +357,10 @@ export async function startTracker(onPoint, onError) {
           backgroundTitle: "Eurobond CRM",
           requestPermissions: true,
           stale: true,
-          distanceFilter: 5,    // small filter: GPS drift alone keeps it firing so 15-min points land even when stationary/backgrounded
+          /* 0 = report continuously. With a filter set, a parked phone produced
+             no callbacks at all, which is why a night of tracking recorded
+             nothing and why points never arrived every 30 seconds. */
+          distanceFilter: 0,
         },
         (location, error) => {
           if (error) { onError && onError(new Error(error.message || "Location error")); return; }
@@ -389,7 +424,7 @@ export function watchLocation(onPoint, onError) {
           backgroundTitle: "Eurobond CRM — Tracking ON",
           requestPermissions: true,
           stale: false,
-          distanceFilter: 15,   // capture when moved ~15m (background-friendly, less battery)
+          distanceFilter: 0,    // report continuously; the 30 s cadence below decides what is kept
         },
         (location, error) => {
           if (error) {
