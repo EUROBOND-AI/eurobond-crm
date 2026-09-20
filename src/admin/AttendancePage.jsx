@@ -29,7 +29,13 @@ function kmFromPoints(points) {
    straight line. Falls back to the point-to-point figure if the service is
    unreachable. */
 async function roadKmFromPoints(points) {
-  const pts = (points || []).map((p) => [Number(p.lng), Number(p.lat)]).filter((x) => x[0] && x[1]);
+  /* Only the fixes that are good enough to measure with — feeding a stationary
+     cluster of vague points to the matcher makes it lay them along a road and
+     report a journey that never happened. */
+  const pts = (points || [])
+    .filter((p) => !Number(p.accuracy) || Number(p.accuracy) <= 75)
+    .map((p) => [Number(p.lng), Number(p.lat)])
+    .filter((x) => x[0] && x[1]);
   if (pts.length < 2) return null;
   /* OSRM takes up to 100 coordinates per match call */
   const CH = 95;
@@ -116,9 +122,15 @@ export default function AttendancePage() {
           const d = await api.attPointsList(s.id);
           const pts = d.points || d.route || [];
           if (pts.length > 1) {
-            setLiveKm((m) => ({ ...m, [s.id]: kmFromPoints(pts) }));
+            const filtered = kmFromPoints(pts);
+            setLiveKm((m) => ({ ...m, [s.id]: filtered }));
+            /* Road matching makes a real journey follow the streets, but it can
+               also invent distance where someone simply stood still. Use it only
+               when it agrees with the filtered figure. */
             const rk = await roadKmFromPoints(pts);
-            if (rk && !stop) setLiveKm((m) => ({ ...m, [s.id]: rk }));
+            if (rk && !stop && filtered > 0.3 && rk <= filtered * 1.6) {
+              setLiveKm((m) => ({ ...m, [s.id]: rk }));
+            }
           }
         } catch {}
       }
@@ -218,7 +230,10 @@ export default function AttendancePage() {
     let dead = false;
     setRoadKm(null);
     if (routePoints.length > 1) {
-      roadKmFromPoints(routePoints).then((k) => { if (!dead && k) setRoadKm(k); }).catch(() => {});
+      const filtered = trackDistanceKm(routePoints);
+      roadKmFromPoints(routePoints)
+        .then((k) => { if (!dead && k && filtered > 0.3 && k <= filtered * 1.6) setRoadKm(k); })
+        .catch(() => {});
     }
     return () => { dead = true; };
   }, [routePoints]);
