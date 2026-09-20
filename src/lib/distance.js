@@ -1,13 +1,9 @@
 /* Distance from a GPS track.
-   A phone sitting still still reports slightly different coordinates every few
-   seconds, and naively adding those up invents a kilometre or two a day. The
-   filters below are the usual way this is handled:
+   A phone lying on a desk still reports slightly different coordinates every few
+   seconds. Adding those up invents a kilometre or two a day, which then lands in
+   someone's expense claim. The filters below are the usual way this is handled.
 
-   1. drop fixes whose reported accuracy is too poor to trust
-   2. ignore a step smaller than the accuracy of the two fixes involved
-   3. ignore a step that implies an impossibly slow "walk" (that is drift)
-   4. ignore a step that implies an impossible speed (a GPS jump)
-   5. treat a cluster of points inside a small radius as standing still     */
+   Points are always stored — this only decides what counts as movement. */
 
 const R = 6371;
 export function haversineKm(a, b) {
@@ -18,17 +14,29 @@ export function haversineKm(a, b) {
   return 2 * R * Math.asin(Math.sqrt(x));
 }
 
-const ACC_MAX = 120;       // metres — beyond this the fix is too vague to measure with
-const MIN_STEP = 25;       // metres — below this it is almost certainly drift
-const MIN_SPEED = 1.0;     // km/h — slower than a slow walk means standing still
-const MAX_SPEED = 180;     // km/h — faster than this is a bad fix
-const STILL_RADIUS = 40;   // metres — points inside this are the same spot
+const ACC_MAX = 75;        // metres — a vaguer fix is shown but not measured with
+const MIN_STEP = 30;       // metres — the floor, even with a perfect fix
+const MIN_SPEED = 1.5;     // km/h — slower than this is drift, not walking
+const MAX_SPEED = 180;     // km/h — faster is a bad fix
+const STILL_RADIUS = 45;   // metres
+const STILL_SECS = 240;    // seconds inside that radius = standing still
 
 const tsOf = (p) => {
   if (p.time) return Number(p.time);
   if (p.recorded_at) return Date.parse(String(p.recorded_at).replace(" ", "T"));
   return 0;
 };
+
+/* Bearing between two points, used to tell a real journey (which keeps heading
+   the same way) from drift (which wanders back and forth). */
+function bearing(a, b) {
+  const φ1 = a.lat * Math.PI / 180, φ2 = b.lat * Math.PI / 180;
+  const Δλ = (b.lng - a.lng) * Math.PI / 180;
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+const turn = (b1, b2) => { const d = Math.abs(b1 - b2) % 360; return d > 180 ? 360 - d : d; };
 
 export function trackDistanceKm(points) {
   const pts = (points || [])
@@ -41,31 +49,42 @@ export function trackDistanceKm(points) {
     .filter((p) => p.lat && p.lng && (!p.acc || p.acc <= ACC_MAX));
 
   let cum = 0;
-  let anchor = null;      // last point we accepted as real movement
+  let anchor = null;       // last position accepted as real
+  let lastBearing = null;
 
-  for (const p of pts) {
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
     if (!anchor) { anchor = p; continue; }
 
     const km = haversineKm(anchor, p);
     const metres = km * 1000;
 
-    /* a step has to clear both the fixed floor and the accuracy of the fixes */
-    const noise = Math.max(MIN_STEP, (anchor.acc || 0) * 0.6, (p.acc || 0) * 0.6);
-    if (metres < noise) continue;                 // same spot, just drifting
+    /* A step has to be bigger than the uncertainty of BOTH fixes put together.
+       Two 40 m fixes can sit 80 m apart without anyone having moved. */
+    const noise = Math.max(MIN_STEP, (anchor.acc || 0) + (p.acc || 0));
+    if (metres < noise) continue;
 
     const secs = p.t && anchor.t ? (p.t - anchor.t) / 1000 : 0;
     if (secs > 0) {
       const kmh = km / (secs / 3600);
-      if (kmh < MIN_SPEED) { anchor = p; continue; }   // crawling = drift
-      if (kmh > MAX_SPEED) { anchor = p; continue; }   // impossible jump
+      if (kmh < MIN_SPEED) { anchor = p; lastBearing = null; continue; }
+      if (kmh > MAX_SPEED) { anchor = p; lastBearing = null; continue; }
     }
 
-    /* standing in one place for a while still produces steps that pass the
-       checks above; ignore anything that never leaves a small circle */
-    if (metres < STILL_RADIUS && secs > 240) { anchor = p; continue; }
+    /* Sitting in one place still throws up the odd big jump. If the position
+       hasn't really left a small circle over several minutes, it is not a trip. */
+    if (metres < STILL_RADIUS && secs > STILL_SECS) { anchor = p; lastBearing = null; continue; }
+
+    /* Drift wanders back and forth; a journey keeps going roughly one way. A
+       lone step that reverses on itself is ignored — the next point decides. */
+    const b = bearing(anchor, p);
+    if (lastBearing !== null && turn(lastBearing, b) > 140 && metres < 120) {
+      anchor = p; lastBearing = b; continue;
+    }
 
     cum += km;
     anchor = p;
+    lastBearing = b;
   }
   return cum;
 }
