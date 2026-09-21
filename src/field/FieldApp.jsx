@@ -8,7 +8,7 @@ import {
   Play, Square, Navigation, Smartphone, CheckCircle2, AlertCircle, Eye, EyeOff, Camera, Search, Filter, Pencil,
 } from "lucide-react";
 import { ebFlushQueue, ebQueueSize, watchLocation, startTracker, stopTracker, setTrackerHandler, setTrackerSession, isTrackerActive, showTrackingNotification, hideTrackingNotification, totalDistanceKm, haversineKm, fmtKm, fmtDuration } from "../lib/geo.js";
-import { api, auth, API_BASE } from "../lib/api.js";
+import { api, auth, API_BASE, clearApiCache } from "../lib/api.js";
 import BeatPlan, { BeatPlanConfirm } from "./BeatPlan.jsx";
 import MeetingCalendar from "./MeetingCalendar.jsx";
 import BiltraxList from "./BiltraxList.jsx";
@@ -1235,9 +1235,12 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
     if ((tab !== "Timeline" && tab !== "Map") || !sessionId) return;
     const load = () => api.attPointsList(sessionId).then((d) => { if (d && d.points) setServerPts(d.points); }).catch(() => {});
     load();
-    if (!attendanceOn) return;
+    /* also reload the moment the app comes back to the front */
+    const onBack = () => load();
+    window.addEventListener("eb-app-resumed", onBack);
+    if (!attendanceOn) return () => window.removeEventListener("eb-app-resumed", onBack);
     const t = setInterval(load, 30000);
-    return () => clearInterval(t);
+    return () => { clearInterval(t); window.removeEventListener("eb-app-resumed", onBack); };
   }, [tab, sessionId, attendanceOn]);
 
   const timelinePoints = useMemo(() => {
@@ -1660,10 +1663,20 @@ function FieldExpenseNew({ add }) {
   const fillKmFor = async (dateStr) => {
     if (!dateStr) return;
     try {
-      const d = await api.attList(dateStr, dateStr);
+      /* this person's sessions on the chosen day (any date, not just today) */
+      const l = await api.attList(dateStr, dateStr).catch(() => ({ sessions: [] }));
       const me = CU().name;
-      const mine = (d.sessions || []).filter((x) => x.name === me);
-      const km = mine.reduce((sum, x) => sum + (Number(x.distance_km) || 0), 0);
+      const sessions = (l.sessions || []).filter((x) => x.name === me);
+      /* The stored distance is only filled in when a day is closed, and the
+         older formula; measure from the points so it matches the timeline. */
+      let km = 0;
+      for (const ss of sessions) {
+        try {
+          const pp = await api.attPointsList(ss.id);
+          const pts = pp.points || pp.route || [];
+          km += pts.length > 1 ? trackDistanceKm(pts) : (Number(ss.distance_km) || 0);
+        } catch { km += Number(ss.distance_km) || 0; }
+      }
       if (km > 0) setF((x) => ({ ...x, km: km.toFixed(2) }));
     } catch {}
   };
@@ -1726,10 +1739,14 @@ function FieldExpenseNew({ add }) {
         <input inputMode="numeric" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value.replace(/\D/g, "") })} style={{ width: "100%", marginBottom: 12 }} />
 
         <label>Origin to Destination</label>
-        <select value={f.desc} onChange={(e) => setF({ ...f, desc: e.target.value })} style={{ width: "100%", marginBottom: 12 }}>
-          <option value="">Select area…</option>
-          {areaRows.map((a) => <option key={a.name} value={`${a.name} (${a.tier || "A"})`}>{a.name} ({a.tier || "A"})</option>)}
-        </select>
+        {/* searchable list — a state can have hundreds of areas */}
+        <SearchSelect
+          value={f.desc}
+          onChange={(v) => setF({ ...f, desc: v })}
+          options={areaRows.map((a) => `${a.name} (${a.tier || "A"})`)}
+          placeholder="Search area…"
+        />
+        <div style={{ height: 12 }} />
 
         <label>Description</label>
         <textarea rows={2} value={f.description || ""} onChange={(e) => setF({ ...f, description: e.target.value })}
@@ -4777,6 +4794,16 @@ function WhatsAppOnce({ mobile, recordId, label = "Send WhatsApp to customer" })
   );
 }
 
+
+/* Re-run a loader whenever the app returns from the background. */
+function useOnResume(fn) {
+  useEffect(() => {
+    const h = () => { try { fn(); } catch {} };
+    window.addEventListener("eb-app-resumed", h);
+    return () => window.removeEventListener("eb-app-resumed", h);
+  }, [fn]);
+}
+
 function enqBtn(color, bg) {
   return { flex: "1 1 auto", minWidth: 58, padding: "6px 4px", borderRadius: 8, border: "none", background: bg, color, fontWeight: 700, fontSize: 11, cursor: "pointer" };
 }
@@ -6341,6 +6368,8 @@ export default function FieldApp() {
     document.addEventListener("visibilitychange", onVis);
     window.addEventListener("focus", loadLists);
     /* Capacitor native: fires when app returns to foreground */
+    /* pick up any change an admin made to this profile since sign-in */
+    api.me().then((usr) => { if (usr && (usr.name || usr.mobile)) auth.user = { ...auth.user, ...usr }; }).catch(() => {});
     let capListener = null;
     let backListener = null;
     try {
@@ -6348,7 +6377,12 @@ export default function FieldApp() {
       if (Cap && Cap.Plugins && Cap.Plugins.App) {
         const r1 = Cap.Plugins.App.addListener("appStateChange", (state) => {
           if (state && state.isActive) {
+            /* coming back from the background: fetch fresh data, and tell every
+               open screen to reload too — otherwise they kept showing whatever
+               was on screen before the phone was put down */
             loadLists();
+            try { clearApiCache(); } catch {}
+            try { window.dispatchEvent(new Event("eb-app-resumed")); } catch {}
             api.me().then((usr) => { if (usr && (usr.name || usr.mobile)) auth.user = { ...auth.user, ...usr }; }).catch(() => {});
             /* WATCHDOG: attendance should be running but the tracker died (e.g. user swiped
                the notification / OS killed the service) → restart it so GPS resumes. */

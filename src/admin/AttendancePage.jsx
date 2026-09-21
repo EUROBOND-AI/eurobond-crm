@@ -167,6 +167,7 @@ export default function AttendancePage() {
   const [shown, setShown] = useState(false);
   const loadData = () => {
     setShown(true);
+    setPage(1);
     setLoading(true);
     /* a HOD must only see their own team's attendance */
     Promise.all([api.attList(date, dateTo), api.listUsers().catch(() => ({ users: [] }))])
@@ -183,6 +184,8 @@ export default function AttendancePage() {
   const cities = useMemo(() => [...new Set(sessions.map((s) => s.city).filter(Boolean))], [sessions]);
   const users = useMemo(() => [...new Set(sessions.map((s) => s.name).filter(Boolean))], [sessions]);
 
+  const [page, setPage] = useState(1);
+  const PAGE = 10;
   const filtered = sessions.filter((s) =>
     (!zone || s.zone === zone) && (!hodF || s.manager === hodF) && (!city || s.city === city) && (!user || s.name === user)
   );
@@ -239,14 +242,17 @@ export default function AttendancePage() {
   }, [routePoints]);
   const totalKm = roadKm != null ? roadKm : (routePoints.length ? cumKmAt(routePoints, routePoints.length - 1) : 0);
   const [ptAddr, setPtAddr] = useState({});
+  /* the timeline is held back until its addresses are ready, so it appears
+     complete instead of filling in one row at a time */
+  const [addrReady, setAddrReady] = useState(true);
   /* reverse-geocode each timeline point to a full address (cached by lat,lng) */
   useEffect(() => {
     let stop = false;
     const resolved = [];
+    setAddrReady(false);
     (async () => {
-      /* resolve in small parallel batches so the list fills in one go instead of
-         showing "Finding address…" for a long time */
-      const queue = routePoints.slice(0, 150);
+      /* only the stops actually shown — the dense track underneath is not listed */
+      const queue = timelinePoints.slice(0, 150);
       const BATCH = 6;
       for (let bi = 0; bi < queue.length; bi += BATCH) {
         if (stop) break;
@@ -311,12 +317,13 @@ export default function AttendancePage() {
           resolved.push({ lat: p.lat, lng: p.lng, address: full });
         }
         }));
-        await new Promise((res) => setTimeout(res, 900));   // be polite to Nominatim between batches
+        await new Promise((res) => setTimeout(res, 400));   // be polite to Nominatim between batches
       }
+      if (!stop) setAddrReady(true);
       if (resolved.length) { try { await api.attSaveAddress(resolved); } catch {} }
     })();
     return () => { stop = true; };
-  }, [routePoints]);
+  }, [timelinePoints]);
   const [custVisits, setCustVisits] = useState([]);
   useEffect(() => {
     if (!viewSess || !mapRef.current) return;
@@ -424,7 +431,7 @@ export default function AttendancePage() {
         <div className="table-wrap"><table className="grid">
           <thead><tr><th>Date</th><th>Zone</th><th>City</th><th>HOD</th><th>Emp Code</th><th>Emp Name</th><th>Type</th><th>Area</th><th>Login Time</th><th>Logout Time</th><th>Distance</th><th>Reading In</th><th>Reading Out</th><th>GPS Status</th><th>Status</th><th>Action</th></tr></thead>
           <tbody>
-            {filtered.map((s) => (
+            {filtered.slice((page - 1) * PAGE, page * PAGE).map((s) => (
               <tr key={s.id} style={s.marked_absent ? { background: "#fff5f5" } : undefined}>
                 <td>{s.work_date}</td>
                 <td>{s.zone || "—"}</td>
@@ -490,6 +497,31 @@ export default function AttendancePage() {
         </table></div>
       )}
 
+      {/* ten rows at a time — a full day for every person used to render at once */}
+      {shown && !loading && filtered.length > PAGE && (() => {
+        const pages = Math.ceil(filtered.length / PAGE);
+        const from = (page - 1) * PAGE + 1;
+        const to = Math.min(page * PAGE, filtered.length);
+        const pb = (on) => ({ minWidth: 34, padding: "6px 10px", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
+          border: "1px solid " + (on ? "#2b6fb8" : "#d7dcef"), background: on ? "#2b6fb8" : "#fff", color: on ? "#fff" : "#1f3a68" });
+        const nums = [];
+        for (let i = Math.max(1, page - 2); i <= Math.min(pages, page + 2); i++) nums.push(i);
+        return (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginTop: 14 }}>
+            <div style={{ fontSize: 12.5, color: "var(--muted)", fontWeight: 600 }}>
+              Showing {from}–{to} of {filtered.length}
+            </div>
+            <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+              <button style={pb(false)} disabled={page === 1} onClick={() => setPage(1)}>«</button>
+              <button style={pb(false)} disabled={page === 1} onClick={() => setPage((p2) => Math.max(1, p2 - 1))}>‹ Prev</button>
+              {nums.map((n) => <button key={n} style={pb(n === page)} onClick={() => setPage(n)}>{n}</button>)}
+              <button style={pb(false)} disabled={page === pages} onClick={() => setPage((p2) => Math.min(pages, p2 + 1))}>Next ›</button>
+              <button style={pb(false)} disabled={page === pages} onClick={() => setPage(pages)}>»</button>
+            </div>
+          </div>
+        );
+      })()}
+
       {viewSess && (
         <div className="modal-mask" onClick={() => setViewSess(null)}>
           <div className="modal" style={{ maxWidth: 720, width: "94%" }} onClick={(e) => e.stopPropagation()}>
@@ -535,7 +567,9 @@ export default function AttendancePage() {
                   </div>
                 ))}
                 <div style={{ fontWeight: 800, fontSize: 12.5, color: "var(--muted)", margin: "14px 0 8px" }}>Timeline ({timelinePoints.length} stops · {routePoints.length} points recorded)</div>
-                {(() => {
+                {!addrReady ? (
+                  <div className="eb-loading"><div className="eb-spin" />Loading timeline and addresses…</div>
+                ) : (() => {
                   return timelinePoints.slice(0, 150).map((p, i) => {
                   const cum = cumKmAt(routePoints, routePoints.indexOf(p));
                   const running = String(viewSess.status || "").toUpperCase() === "RUNNING" || !viewSess.end_time;

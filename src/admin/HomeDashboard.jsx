@@ -42,8 +42,14 @@ function Panel({ title, children, right }) {
 
 export default function HomeDashboard() {
   const [d, setD] = useState(null);
+  /* nothing loads until Show is pressed — opening the panel no longer pulls every
+     module's data straight away */
+  const [go, setGo] = useState(0);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    if (!go) return;
+    setBusy(true);
     (async () => {
       const safe = (p) => p.then((r) => r).catch(() => ({ records: [] }));
       const uu = await safe(api.listUsers()).then((r) => r.users || []).catch(() => []);
@@ -91,12 +97,22 @@ export default function HomeDashboard() {
         enqPie, projBars, expBars,
       });
     })();
-  }, []);
+  }, [go]);
+  useEffect(() => { if (d) setBusy(false); }, [d]);
 
   if (!d) return (
     <div>
       <PageHead crumb="Analytics" title="Dashboard" />
-      <div style={{ padding: 60, textAlign: "center", color: "var(--muted)" }}>Loading analytics…</div>
+      <div style={{ padding: 60, textAlign: "center" }}>
+        {busy ? (
+          <div className="eb-loading"><div className="eb-spin" />Loading analytics…</div>
+        ) : (
+          <>
+            <div style={{ color: "var(--muted)", fontWeight: 600, marginBottom: 16 }}>Click <b>Show</b> to load the dashboard.</div>
+            <button className="btn btn-primary" style={{ padding: "10px 30px", fontWeight: 700 }} onClick={() => setGo((x) => x + 1)}>Show</button>
+          </>
+        )}
+      </div>
     </div>
   );
 

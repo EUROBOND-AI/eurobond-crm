@@ -81,16 +81,22 @@ export async function buildExpensePdf(fmt, formatOnly = false) {
     const cell = { sr: String(i + 1), date: it.date || "", station: it.station || "", orig: it.desc || "", km: it.km || it.kilometers || it.distance || "", descr: it.description || "", category: it.category || "", amount: amt.toLocaleString("en-IN"),
       appr: (it.approvedAmount !== undefined && it.approvedAmount !== null && it.approvedAmount !== ""
         ? Number(it.approvedAmount) : amt).toLocaleString("en-IN") };
-    drawRow(y, rowH);
+    /* Wrap every cell first, then size the row to the tallest one. The row used
+       to have a fixed height, so a long value such as "Fuel/Petrol/Diesel"
+       wrapped onto a second line that spilled out below the box. */
+    const LINE = 3.4;                                   // mm per wrapped line at 8pt
+    const wrapped = cols.map((c) => pdf.splitTextToSize(String(cell[c.k] || ""), c.w - 3));
+    const maxLines = Math.max(1, ...wrapped.map((w) => w.length));
+    const h = Math.max(rowH, 2.6 + maxLines * LINE);
+    if (y + h > pageH - 30) { pdf.addPage(); y = 16; drawHeader(); pdf.setFont(undefined, "normal"); pdf.setFontSize(8); }
+    drawRow(y, h);
     let cx = startX;
-    cols.forEach((c) => {
-      const val = String(cell[c.k] || "");
-      const lines = pdf.splitTextToSize(val, c.w - 3);
+    cols.forEach((c, ci) => {
       const tx = c.align === "right" ? cx + c.w - 1.5 : c.align === "center" ? cx + c.w / 2 : cx + 1.5;
-      pdf.text(lines, tx, y + 4.8, { align: c.align });
+      pdf.text(wrapped[ci], tx, y + 4.3, { align: c.align, lineHeightFactor: 1.15 });
       cx += c.w;
     });
-    y += rowH;
+    y += h;
   });
 
   /* TOTAL row (clearly visible, aligned to table) */
