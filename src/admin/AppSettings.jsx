@@ -119,7 +119,7 @@ export default function AppSettings() {
         </Row>
         <div style={hint}>
           Cron command (Hostinger → Advanced → Cron Jobs, daily at 2:00 AM):<br />
-          <code style={code}>/usr/bin/php /home/uXXXX/domains/eurobondsealant.com/public_html/crm-api/cleanup.php</code>
+          <code style={code}>/usr/bin/php /home/eurobondsf/htdocs/salesforce.eurobond.co.in/crm-api/cleanup.php</code>
         </div>
       </Card>
 

@@ -1,6 +1,7 @@
 /* ============ Central API client — talks to Hostinger backend ============ */
 
-export const API_BASE = "https://eurobondsealant.com/crm-api";
+/* moved from shared hosting to the VPS — the old address forwards here too */
+export const API_BASE = "https://salesforce.eurobond.co.in/crm-api";
 if (typeof window !== "undefined") { try { window.__EB_API_BASE__ = API_BASE; } catch {} }
 
 const TOKEN_KEY = "eb_token";

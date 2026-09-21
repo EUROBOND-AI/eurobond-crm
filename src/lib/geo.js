@@ -6,7 +6,7 @@ import { trackDistanceKm } from "./distance.js";
 const R = 6371; // Earth radius in km
 
 /* keep this EXACTLY the same as API_BASE in src/lib/api.js */
-const API_BASE_FALLBACK = "https://eurobondsealant.com/crm-api";
+const API_BASE_FALLBACK = "https://salesforce.eurobond.co.in/crm-api";
 
 /* ---- Offline queue: when there is no network the point is stored on the phone
    and uploaded automatically once the connection is back, so the timeline has

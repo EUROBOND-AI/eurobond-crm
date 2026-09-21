@@ -195,7 +195,7 @@ export default function AdminLayout() {
 
   /* IndiaMart auto lead sync — runs on load + every 10 min while any admin page is open.
      For fully unattended sync (even when no one is logged in), set a Hostinger cron on:
-     https://eurobondsealant.com/crm-api/indiamart.php?action=sync&key=eurobond-setup-2026 */
+     https://salesforce.eurobond.co.in/crm-api/indiamart.php?action=sync&key=eurobond-setup-2026 */
   useEffect(() => {
     const run = () => { api.indiamartSync().catch(() => {}); };
     run();
