@@ -49,8 +49,13 @@ export default function BiltraxList() {
   useEffect(() => {
     api.list("biltrax", false).then((d) => {
       const me = CU().name;
-      setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data }))
-        .filter((r) => r.assignPerson === me));
+      const mine = (d.records || []).map((r) => ({ _id: r.id, ...r.data })).filter((r) => r.assignPerson === me);
+      setRows(mine);
+      /* evening before, that morning, 1 hour and 10 minutes before */
+      mine.filter((r) => r.biltraxType === "Appointment" && r.appointmentDate && r.status !== "Win")
+        .forEach((r) => {
+          try { window.ebScheduleReminder && window.ebScheduleReminder(r.projectName || "Biltrax project", r.appointmentDate, r.latestSubStatus || "", r.appointmentTime || "", "Appointment"); } catch {}
+        });
     }).catch(() => setRows([]));
   }, []);
 
@@ -91,7 +96,7 @@ export default function BiltraxList() {
               {(r.landmark || r.address) ? " · " + [r.landmark, r.address].filter(Boolean).join(", ") : ""}
             </div>
             {r.biltraxType === "Appointment" && r.appointmentDate
-              ? <div style={{ fontSize: 11.5, color: "var(--navy)", marginTop: 2, fontWeight: 600 }}>📅 {r.appointmentDate}</div>
+              ? <div style={{ fontSize: 11.5, color: "var(--navy)", marginTop: 2, fontWeight: 600 }}>📅 {r.appointmentDate}{r.appointmentTime ? " · " + r.appointmentTime : ""}</div>
               : null}
             {/* action buttons */}
             <div style={{ display: "flex", gap: 5, marginTop: 8, flexWrap: "wrap" }} onClick={(e) => e.stopPropagation()}>

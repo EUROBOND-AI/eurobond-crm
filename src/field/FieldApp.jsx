@@ -716,24 +716,48 @@ async function scheduleLogoutReminders() {
     if (notifications.length) await LN.schedule({ notifications });
   } catch {}
 }
-/* remind the person on the morning of a customer meeting */
-async function scheduleMeetingReminder(customerName, dateIso, note) {
+/* Reminders for anything planned for later — a customer meeting, an enquiry
+   call-back, a Biltrax appointment:
+     - the evening before (7 PM)
+     - the morning of the day (9 AM)
+     - 1 hour before, and 10 minutes before, when a time was given
+   Each plan gets its own set of ids, so saving it again replaces the old set
+   instead of piling up duplicates. */
+async function scheduleMeetingReminder(title, dateIso, note, timeHHMM, kind = "Meeting") {
   try {
     const Cap = typeof window !== "undefined" ? window.Capacitor : null;
     const LN = Cap && Cap.Plugins && Cap.Plugins.LocalNotifications;
     if (!LN || !dateIso) return;
-    const at = new Date(dateIso + "T09:30:00");
-    if (at.getTime() <= Date.now()) return;                 // already past
-    const id = 930000 + (Math.abs(hashCode(customerName + dateIso)) % 60000);
-    await LN.schedule({
-      notifications: [{
-        id, title: "Meeting Today",
-        body: `${customerName}${note ? " — " + note : ""}`,
-        channelId: "eurobond_reminder", smallIcon: "ic_stat_notify",
-        schedule: { at, allowWhileIdle: true },
-      }],
-    });
+    const day = String(dateIso).slice(0, 10);
+    const base = 930000 + (Math.abs(hashCode(kind + title + day)) % 60000) * 4;
+    const ids = [base, base + 1, base + 2, base + 3];
+    try { await LN.cancel({ notifications: ids.map((id) => ({ id })) }); } catch {}
+
+    const when = timeHHMM ? ` at ${fmt12(timeHHMM)}` : "";
+    const what = `${title}${note ? " — " + note : ""}`;
+    const list = [];
+    const push = (id, at, head, body) => { if (at.getTime() > Date.now()) list.push({
+      id, title: head, body, channelId: "eurobond_reminder", smallIcon: "ic_stat_notify",
+      schedule: { at, allowWhileIdle: true },
+    }); };
+
+    const eve = new Date(day + "T19:00:00"); eve.setDate(eve.getDate() - 1);
+    push(ids[0], eve, `${kind} tomorrow`, `${what}${when}`);
+    push(ids[1], new Date(day + "T09:00:00"), `${kind} today`, `${what}${when}`);
+    if (timeHHMM) {
+      const at = new Date(`${day}T${timeHHMM}:00`);
+      push(ids[2], new Date(at.getTime() - 60 * 60 * 1000), `${kind} in 1 hour`, what);
+      push(ids[3], new Date(at.getTime() - 10 * 60 * 1000), `${kind} in 10 minutes`, what);
+    }
+    if (list.length) await LN.schedule({ notifications: list });
   } catch {}
+}
+if (typeof window !== "undefined") window.ebScheduleReminder = scheduleMeetingReminder;
+function fmt12(hhmm) {
+  const [h, m] = String(hhmm || "").split(":").map(Number);
+  if (isNaN(h)) return hhmm;
+  const ap = h >= 12 ? "PM" : "AM";
+  return `${((h + 11) % 12) + 1}:${String(m || 0).padStart(2, "0")} ${ap}`;
 }
 function hashCode(str) { let h = 0; for (let i = 0; i < String(str).length; i++) h = (h << 5) - h + String(str).charCodeAt(i) | 0; return h; }
 
@@ -2273,6 +2297,7 @@ function FieldFollowUpNew({ add, editData }) {
     /* where this customer came from — carried over when an enquiry is converted */
     enquiryFrom: ed?.enquiryFrom || pf?.enquiryFrom || "",
     nextMeetingDate: ed?.nextMeetingDate || "",
+    nextMeetingTime: ed?.nextMeetingTime || "",
     nextMeetingRemark: ed?.nextMeetingRemark || "",
     state: ed?.state || pf?.state || "",
   });
@@ -2352,7 +2377,26 @@ function FieldFollowUpNew({ add, editData }) {
     if (!file) return;
     setScanBusy(true);
     try {
-      const dataUrl = await new Promise((res, rej) => { const rd = new FileReader(); rd.onload = () => res(rd.result); rd.onerror = rej; rd.readAsDataURL(file); });
+      /* A phone photo is 5–10 MB; sent as-is it often timed out on mobile data.
+         Shrink it to 1600 px (plenty for reading a card) before uploading. */
+      const dataUrl = await new Promise((res, rej) => {
+        const rd = new FileReader();
+        rd.onerror = rej;
+        rd.onload = () => {
+          const img = new Image();
+          img.onerror = () => res(rd.result);
+          img.onload = () => {
+            const MAX = 1600;
+            const k = Math.min(1, MAX / Math.max(img.width, img.height));
+            const c = document.createElement("canvas");
+            c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+            c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+            res(c.toDataURL("image/jpeg", 0.85));
+          };
+          img.src = rd.result;
+        };
+        rd.readAsDataURL(file);
+      });
       const r = await api.scanCard(dataUrl);
       if (r && r.fields) {
         const fld = r.fields;
@@ -2447,6 +2491,11 @@ function FieldFollowUpNew({ add, editData }) {
         <input type="date" value={f.nextMeetingDate || ""} onChange={(e) => setF({ ...f, nextMeetingDate: e.target.value })} style={inp} />
         {f.nextMeetingDate ? (
           <>
+            <label>Next Meeting Time</label>
+            <input type="time" value={f.nextMeetingTime || ""} onChange={(e) => setF({ ...f, nextMeetingTime: e.target.value })} style={inp} />
+            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: -6, marginBottom: 8 }}>
+              You will be reminded the evening before, that morning{f.nextMeetingTime ? ", 1 hour before and 10 minutes before" : ""}.
+            </div>
             <label>Next Meeting Note</label>
             <input value={f.nextMeetingRemark || ""} onChange={(e) => setF({ ...f, nextMeetingRemark: e.target.value })} placeholder="What is this meeting about?" style={inp} />
           </>
@@ -2471,9 +2520,8 @@ function FieldFollowUpNew({ add, editData }) {
               status: "To-Do", createdBy: CU().name,
               updates: [{ date: new Date().toISOString().slice(0, 10), type: f.type, remark: f.notes, at: new Date().toLocaleString("en-IN") }],
             });
-            /* WhatsApp: visit ayyaru ani chinna message (PingMate integration tarvat) */
-            sendVisitWhatsApp(primary.whatsapp || primary.mobile, f.partyName);
-            if (f.nextMeetingDate) scheduleMeetingReminder(f.partyName, f.nextMeetingDate, f.nextMeetingRemark);
+            /* no automatic WhatsApp on save — the one-tap button above sends it once */
+            if (f.nextMeetingDate) scheduleMeetingReminder(f.partyName, f.nextMeetingDate, f.nextMeetingRemark, f.nextMeetingTime, "Meeting");
             nav("/app/customers");
           }}
         >
@@ -2485,7 +2533,7 @@ function FieldFollowUpNew({ add, editData }) {
 }
 
 /* ------------------------------------------------ SIMPLE FORM SCREENS ------------------------------------------------ */
-const PROJ_TYPES = ["Commercial", "Residential", "Govt", "Hospitality", "Healthcare", "Corporate"];
+const PROJ_TYPES = ["Commercial", "Residential", "Commercial + Residential", "Industrial", "Petroleum", "Govt", "Hospitality", "Healthcare", "Corporate"];
 const EXPECTED_MONTHS = (() => {
   const out = []; const start = new Date(2026, 7, 1); // Aug 2026
   for (let i = 0; i < 76; i++) { const d = new Date(start.getFullYear(), start.getMonth() + i, 1); out.push(d.toLocaleString("en-US", { month: "short" }) + "-" + String(d.getFullYear()).slice(2)); }
@@ -2943,10 +2991,16 @@ function FieldProjectNew() {
   const setRow = (i, k, v) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
 
-  const CATS = ["Architect", "Consultant", "Builder", "Contractor", "Facade Consultant", "Govnt", "NA", "Agency", "Vendor", "Corporate"];
+  const CATS = ["Architect", "Consultant", "Builder", "Contractor", "Facade Consultant", "Govt", "Petroleum", "NA", "Agency", "Vendor", "Corporate"];
 
+  /* A quick double tap used to fire two saves before the button disabled
+     itself, leaving two copies — delete one in admin and the other looked like
+     it had "come back". The ref blocks the second tap immediately. */
+  const savingRef = useRef(false);
   const save = async () => {
     if (!f.projectName) { alert("Project Name required"); return; }
+    if (savingRef.current) return;
+    savingRef.current = true;
     setBusy(true);
     try {
       const payload = {
@@ -2984,7 +3038,7 @@ function FieldProjectNew() {
         try { await api.create("notification", { title: "New Project from Specs", message: `${CU().name} sent project "${f.projectName}"`, to: f.salesPerson, link: "/app/m/specToSales", at: new Date().toISOString() }); } catch {}
       }
       setOk(true); setTimeout(() => nav("/app/m/projectProjection"), 900);
-    } catch (e) { alert(e.message); setBusy(false); }
+    } catch (e) { alert(e.message); setBusy(false); savingRef.current = false; }
   };
 
   return (
@@ -3328,6 +3382,17 @@ function FieldTeamTracking() {
   const [sel, setSel] = useState(null);        // selected session for map
   const [pts, setPts] = useState([]);
   const [hodAddr, setHodAddr] = useState({});
+  /* one stop every five minutes; first and last always kept */
+  const keepIdx = useMemo(() => {
+    const tOf = (x) => (x && x.recorded_at ? Date.parse(String(x.recorded_at).replace(" ", "T")) : 0);
+    const keep = [];
+    let lastT = 0;
+    pts.forEach((p, idx) => {
+      const t = tOf(p);
+      if (idx === 0 || idx === pts.length - 1 || !lastT || t - lastT >= 5 * 60 * 1000) { keep.push(idx); lastT = t; }
+    });
+    return keep;
+  }, [pts]);
   /* reverse-geocode HOD timeline points that don't already have a stored address */
   useEffect(() => {
     let stop = false;
@@ -3399,7 +3464,7 @@ function FieldTeamTracking() {
           <button onClick={() => { setSel(null); setPts([]); }} style={{ background: "none", border: "none", cursor: "pointer", color: "inherit" }}><ChevronLeft size={22} /></button>
           <h2>{sel.name}</h2>
         </div>
-        <div style={{ padding: "0 0 12px" }}>
+        <div style={{ padding: "0 0 calc(110px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px" }}>
             <div>
               <div style={{ fontWeight: 800 }}>{sel.name}</div>
@@ -3408,11 +3473,14 @@ function FieldTeamTracking() {
             <span style={{ fontWeight: 800, fontSize: 12.5, color: statusColor(sel.app_status) }}>● {gpsLabel(sel.app_status)}</span>
           </div>
           <div style={{ padding: "4px 16px 12px" }}>
-            <div style={{ fontWeight: 800, fontSize: 12.5, color: "var(--muted)", margin: "6px 0 8px" }}>Timeline ({pts.length} points)</div>
+            {/* points arrive every ~30 s now; the old "newest 100" cut the Start off */}
+            <div style={{ fontWeight: 800, fontSize: 12.5, color: "var(--muted)", margin: "6px 0 8px" }}>
+              Timeline ({keepIdx.length} stops · {pts.length} points)
+            </div>
             {pts.length === 0 ? (
               <div style={{ textAlign: "center", color: "var(--muted)", padding: 20, fontSize: 13 }}>No location points yet today.</div>
-            ) : pts.slice().reverse().slice(0, 100).map((p, ri) => {
-              const i = pts.length - 1 - ri;   // original index
+            ) : keepIdx.slice().reverse().map((i, ri) => {
+              const p = pts[i];
               const isStart = i === 0, isEnd = i === pts.length - 1;
               const label = isStart ? "Start" : isEnd ? (sel.app_status === "Live" ? "Live" : "End") : "Point " + (i + 1);
               return (
@@ -4599,7 +4667,7 @@ function FieldSpecThread({ id }) {
         })}
       </div>
 
-      <div style={{ position: "fixed", bottom: "calc(74px + env(safe-area-inset-bottom))", left: 0, right: 0, maxWidth: 480, margin: "0 auto", display: "flex", gap: 8, alignItems: "center", padding: "10px 12px", background: "#fff", borderTop: "1px solid var(--line)", zIndex: 45 }}>
+      <div style={{ position: "fixed", bottom: "calc(74px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))", left: 0, right: 0, maxWidth: 480, margin: "0 auto", display: "flex", gap: 8, alignItems: "center", padding: "10px 12px", background: "#fff", borderTop: "1px solid var(--line)", zIndex: 45 }}>
         <label style={{ display: "grid", placeItems: "center", cursor: "pointer", color: "var(--muted)", width: 38 }}>
           📎<input type="file" style={{ display: "none" }} onChange={(e) => setFile(e.target.files[0])} />
         </label>
@@ -4721,7 +4789,7 @@ function FieldEnquiry() {
           <div key={i} style={{ background: "#fff", borderRadius: 10, padding: "10px 12px", marginBottom: 7, boxShadow: "var(--shadow)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 13 }}>
               <span>{r.company || r.customer || "Enquiry"}</span>
-              <span style={{ color: r.status === "Win" ? "#059669" : "#c99400", fontSize: 10.5 }}>{r.status || "Assigned"}</span>
+              <span style={{ color: r.status === "Win" ? "#059669" : r.status === "Processing" ? "#6c5ce7" : "#c99400", fontSize: 10.5 }}>{r.status || "Assigned"}</span>
             </div>
             <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
               {(r.leadFrom || r.leadSource || "")}{r.product ? " · " + r.product : ""}{(r.area || r.state) ? " · " + [r.area, r.state].filter(Boolean).join(", ") : ""}
@@ -4753,7 +4821,7 @@ function FieldEnquiry() {
         ))}
       </div>
 
-      {view && <EnquiryDetailView r={view} onClose={() => setView(null)} />}
+      {view && <EnquiryDetailView r={view} onClose={() => setView(null)} onDone={load} />}
       {winFor && <EnquiryWin r={winFor} onClose={() => setWinFor(null)} onDone={load} />}
       {reassignFor && <EnquiryReassign r={reassignFor} onClose={() => setReassignFor(null)} onDone={load} />}
     </>
@@ -4809,7 +4877,47 @@ function enqBtn(color, bg) {
 }
 
 /* Enquiry full details */
-function EnquiryDetailView({ r, onClose }) {
+function EnquiryDetailView({ r, onClose, onDone }) {
+  /* Remarks the sales person adds while working the enquiry. The first one
+     moves it to "Processing" in admin; each can plan the next call or visit,
+     which then shows in the calendar and triggers reminders. */
+  const [rec, setRec] = useState(r);
+  const [remark, setRemark] = useState("");
+  const [nextType, setNextType] = useState("Call");
+  const [nextDate, setNextDate] = useState("");
+  const [nextTime, setNextTime] = useState("");
+  const [saving, setSaving] = useState(false);
+  const saveRef = useRef(false);
+  const remarks = Array.isArray(rec.remarks) ? rec.remarks : [];
+  const chat = Array.isArray(rec.chat) ? rec.chat : [];
+
+  const addRemark = async () => {
+    if (!remark.trim()) { alert("Enter a remark"); return; }
+    if (saveRef.current) return;
+    saveRef.current = true; setSaving(true);
+    const now = new Date();
+    const entry = {
+      remark: remark.trim(), by: CU().name, at: now.toLocaleString("en-IN"), ts: now.getTime(),
+      ...(nextDate ? { nextType, nextDate, nextTime } : {}),
+    };
+    const st = String(rec.status || "").toLowerCase();
+    const next = {
+      ...rec,
+      remarks: [...remarks, entry],
+      lastRemark: entry.remark, lastRemarkBy: entry.by, lastRemarkAt: entry.at,
+      ...(nextDate ? { nextFollowType: nextType, nextFollowDate: nextDate, nextFollowTime: nextTime } : {}),
+      /* first remark moves it from Assigned to Processing (Win/Spam untouched) */
+      status: (st === "win" || st === "spam") ? rec.status : "Processing",
+    };
+    try {
+      await api.update("enquiry", rec._id, next);
+      if (nextDate) scheduleMeetingReminder(rec.company || rec.customer || "Enquiry", nextDate, entry.remark, nextTime, nextType);
+      setRec(next); setRemark(""); setNextDate(""); setNextTime("");
+      onDone && onDone();
+    } catch (e) { alert(e.message); }
+    saveRef.current = false; setSaving(false);
+  };
+
   const row = (label, val) => val ? <div style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "7px 0", borderBottom: "1px solid #f0f2f8", fontSize: 13 }}><span style={{ color: "var(--muted)" }}>{label}</span><span style={{ fontWeight: 600, textAlign: "right" }}>{val}</span></div> : null;
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 300, display: "flex", alignItems: "flex-end" }} onClick={onClose}>
@@ -4830,8 +4938,61 @@ function EnquiryDetailView({ r, onClose }) {
         {row("Order Value", r.orderValue)}
         {row("Enquiry Details", r.enquiryDetails)}
         {row("HOD", r.hod)}
-        {row("Status", r.status)}
+        {row("Status", rec.status)}
         {row("Assign Date", r.assignDate)}
+        {rec.nextFollowDate && row("Next " + (rec.nextFollowType || "Call"), `${rec.nextFollowDate}${rec.nextFollowTime ? " · " + fmt12(rec.nextFollowTime) : ""}`)}
+
+        {/* remarks + admin messages, newest last */}
+        {(remarks.length > 0 || chat.length > 0) && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 7 }}>📋 Remarks & messages</div>
+            {[...remarks.map((x) => ({ ...x, kind: "remark" })), ...chat.map((x) => ({ ...x, kind: "admin" }))]
+              .sort((a, b) => (a.ts || 0) - (b.ts || 0))
+              .map((x, i) => (
+                <div key={i} style={{ background: x.kind === "admin" ? "#eef4ff" : "#f7f9fc", borderRadius: 9, padding: "8px 10px", marginBottom: 6 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: x.kind === "admin" ? "#1f3a68" : "var(--navy)" }}>
+                    {x.by}{x.kind === "admin" ? " · Admin" : ""}
+                  </div>
+                  <div style={{ fontSize: 12.5 }}>{x.remark || x.text}</div>
+                  {x.nextDate && <div style={{ fontSize: 11, color: "#6c5ce7", fontWeight: 700, marginTop: 2 }}>
+                    Next {x.nextType || "call"}: {x.nextDate}{x.nextTime ? " · " + fmt12(x.nextTime) : ""}
+                  </div>}
+                  <div style={{ fontSize: 10, color: "var(--muted)" }}>{x.at}</div>
+                </div>
+              ))}
+          </div>
+        )}
+
+        {/* add a remark — not for won or spam enquiries */}
+        {!["win", "spam"].includes(String(rec.status || "").toLowerCase()) && (
+          <div style={{ marginTop: 14, background: "#fafbff", border: "1px solid #eef1f8", borderRadius: 12, padding: 12 }}>
+            <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 7 }}>✍️ Add Remark</div>
+            <textarea rows={3} value={remark} onChange={(e) => setRemark(e.target.value)} placeholder="What happened on this enquiry?"
+              style={{ width: "100%", padding: "9px 10px", borderRadius: 9, border: "1px solid #d7dcef", fontSize: 13, marginBottom: 8 }} />
+            <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+              {["Call", "Visit"].map((t) => (
+                <button key={t} onClick={() => setNextType(t)}
+                  style={{ flex: 1, padding: "7px 0", borderRadius: 9, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
+                    border: "1px solid " + (nextType === t ? "var(--navy)" : "#d7dcef"),
+                    background: nextType === t ? "var(--navy)" : "#fff", color: nextType === t ? "#fff" : "var(--muted)" }}>
+                  Next {t}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+              <input type="date" value={nextDate} onChange={(e) => setNextDate(e.target.value)}
+                style={{ flex: 1, padding: "8px 9px", borderRadius: 9, border: "1px solid #d7dcef", fontSize: 12.5 }} />
+              <input type="time" value={nextTime} onChange={(e) => setNextTime(e.target.value)} disabled={!nextDate}
+                style={{ flex: 1, padding: "8px 9px", borderRadius: 9, border: "1px solid #d7dcef", fontSize: 12.5 }} />
+            </div>
+            {nextDate && <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
+              Shows in your calendar. Reminders: evening before, that morning{nextTime ? ", 1 hour and 10 minutes before" : ""}.
+            </div>}
+            <button className="f-submit" style={{ width: "100%" }} disabled={saving} onClick={addRemark}>
+              {saving ? "Saving…" : "Save Remark"}
+            </button>
+          </div>
+        )}
         {r.status === "Win" && (
           <div style={{ marginTop: 14, background: "#e5f9f1", borderRadius: 12, padding: 14 }}>
             <div style={{ fontWeight: 800, color: "#0f7a44", marginBottom: 8 }}>🏆 Win Details</div>
@@ -5682,7 +5843,7 @@ function FieldGenericThread({ mod, id }) {
           );
         })}
       </div>
-      <div style={{ position: "fixed", bottom: "calc(74px + env(safe-area-inset-bottom))", left: 0, right: 0, maxWidth: 480, margin: "0 auto", padding: "8px 12px 10px", background: "#fff", borderTop: "1px solid var(--line)", zIndex: 45 }}>
+      <div style={{ position: "fixed", bottom: "calc(74px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))", left: 0, right: 0, maxWidth: 480, margin: "0 auto", padding: "8px 12px 10px", background: "#fff", borderTop: "1px solid var(--line)", zIndex: 45 }}>
         {mod === "projectProjection" && specUsers.length > 0 && (
           <select value={tag} onChange={(e) => setTag(e.target.value)}
             style={{ width: "100%", marginBottom: 8, padding: "8px 10px", borderRadius: 10, border: "1.5px solid #d7dcef", fontSize: 12.5, background: tag ? "#eef1ff" : "#fff", fontWeight: tag ? 700 : 400 }}>
@@ -6784,7 +6945,7 @@ export default function FieldApp() {
       )}
       <div className="phone">
         {/* top bar */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "calc(12px + env(safe-area-inset-top)) 16px 12px", background: "#fff", borderBottom: "1px solid #eceff8" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "calc(12px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) 16px 12px", background: "#fff", borderBottom: "1px solid #eceff8" }}>
           <button onClick={() => setMenu(true)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><Menu size={22} /></button>
           <div style={{ flex: 1, display: "flex", alignItems: "center" }}>
             <img src={logoImg} alt="Eurobond" style={{ height: 22 }} />

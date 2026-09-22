@@ -1,43 +1,43 @@
 import logoImg from "./assets/logo.jpg";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, lazy, Suspense } from "react";
 import { Routes, Route, Link, Navigate, useLocation } from "react-router-dom";
 import { api, auth } from "./lib/api.js";
 import { Monitor, Smartphone } from "lucide-react";
 import AdminLogin from "./admin/AdminLogin.jsx";
 import AdminLayout from "./admin/AdminLayout.jsx";
-import HomeDashboard from "./admin/HomeDashboard.jsx";
-import DealPipeline from "./admin/DealPipeline.jsx";
-import AreasPage from "./admin/AreasPage.jsx";
-import ExpenseDashboard from "./admin/ExpenseDashboard.jsx";
-import ExpenseApprovals from "./admin/ExpenseApprovals.jsx";
-import UserReportCard from "./admin/UserReportCard.jsx";
-import EnquiryDashboard from "./admin/EnquiryDashboard.jsx";
-import ModulePage from "./admin/ModulePage.jsx";
-import CheckinPage from "./admin/CheckinPage.jsx";
-import TourReport from "./admin/TourReport.jsx";
-import ApiKeysPage from "./admin/ApiKeysPage.jsx";
-import HealthPage from "./admin/HealthPage.jsx";
-import ActivityLogs from "./admin/ActivityLogs.jsx";
-import BiltraxPage from "./admin/BiltraxPage.jsx";
-import BiltraxDashboard from "./admin/BiltraxDashboard.jsx";
-import LoginHistory from "./admin/LoginHistory.jsx";
-import CustomersDashboard from "./admin/CustomersDashboard.jsx";
-import TargetDashboard from "./admin/TargetDashboard.jsx";
-import ProjectDashboard from "./admin/ProjectDashboard.jsx";
-import RolePermission from "./admin/RolePermission.jsx";
-import TeamAccess from "./admin/TeamAccess.jsx";
-import AppSettings from "./admin/AppSettings.jsx";
-import CustomersPage from "./admin/CustomersPage.jsx";
-import AttendanceSheet from "./admin/AttendanceSheet.jsx";
-import UsersPage from "./admin/UsersPage.jsx";
-import AdminUsersPage from "./admin/AdminUsersPage.jsx";
-import AttendancePage from "./admin/AttendancePage.jsx";
-import QuotationAdmin from "./admin/QuotationAdmin.jsx";
-import ProductsPage from "./admin/ProductsPage.jsx";
-import HolidaysPage from "./admin/HolidaysPage.jsx";
-import EnquiryPage from "./admin/EnquiryPage.jsx";
+const HomeDashboard = lazy(() => import("./admin/HomeDashboard.jsx"));
+const DealPipeline = lazy(() => import("./admin/DealPipeline.jsx"));
+const AreasPage = lazy(() => import("./admin/AreasPage.jsx"));
+const ExpenseDashboard = lazy(() => import("./admin/ExpenseDashboard.jsx"));
+const ExpenseApprovals = lazy(() => import("./admin/ExpenseApprovals.jsx"));
+const UserReportCard = lazy(() => import("./admin/UserReportCard.jsx"));
+const EnquiryDashboard = lazy(() => import("./admin/EnquiryDashboard.jsx"));
+const ModulePage = lazy(() => import("./admin/ModulePage.jsx"));
+const CheckinPage = lazy(() => import("./admin/CheckinPage.jsx"));
+const TourReport = lazy(() => import("./admin/TourReport.jsx"));
+const ApiKeysPage = lazy(() => import("./admin/ApiKeysPage.jsx"));
+const HealthPage = lazy(() => import("./admin/HealthPage.jsx"));
+const ActivityLogs = lazy(() => import("./admin/ActivityLogs.jsx"));
+const BiltraxPage = lazy(() => import("./admin/BiltraxPage.jsx"));
+const BiltraxDashboard = lazy(() => import("./admin/BiltraxDashboard.jsx"));
+const LoginHistory = lazy(() => import("./admin/LoginHistory.jsx"));
+const CustomersDashboard = lazy(() => import("./admin/CustomersDashboard.jsx"));
+const TargetDashboard = lazy(() => import("./admin/TargetDashboard.jsx"));
+const ProjectDashboard = lazy(() => import("./admin/ProjectDashboard.jsx"));
+const RolePermission = lazy(() => import("./admin/RolePermission.jsx"));
+const TeamAccess = lazy(() => import("./admin/TeamAccess.jsx"));
+const AppSettings = lazy(() => import("./admin/AppSettings.jsx"));
+const CustomersPage = lazy(() => import("./admin/CustomersPage.jsx"));
+const AttendanceSheet = lazy(() => import("./admin/AttendanceSheet.jsx"));
+const UsersPage = lazy(() => import("./admin/UsersPage.jsx"));
+const AdminUsersPage = lazy(() => import("./admin/AdminUsersPage.jsx"));
+const AttendancePage = lazy(() => import("./admin/AttendancePage.jsx"));
+const QuotationAdmin = lazy(() => import("./admin/QuotationAdmin.jsx"));
+const ProductsPage = lazy(() => import("./admin/ProductsPage.jsx"));
+const HolidaysPage = lazy(() => import("./admin/HolidaysPage.jsx"));
+const EnquiryPage = lazy(() => import("./admin/EnquiryPage.jsx"));
 import { MODULES } from "./admin/moduleConfigs.jsx";
-import FieldApp from "./field/FieldApp.jsx";
+const FieldApp = lazy(() => import("./field/FieldApp.jsx"));
 
 function Portal() {
   return (
@@ -85,6 +85,7 @@ export default function App() {
   useActivityLogger();
   const isNative = typeof window !== "undefined" && window.Capacitor && typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform();
   return (
+    <Suspense fallback={<div className="eb-loading" style={{ minHeight: "60vh" }}><div className="eb-spin" />Loading…</div>}>
     <Routes>
       <Route path="/" element={isNative ? <Navigate to="/app" replace /> : <Portal />} />
       <Route path="/admin/login" element={<AdminLogin />} />
@@ -128,5 +129,6 @@ export default function App() {
       <Route path="/app/*" element={<FieldApp />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   );
 }

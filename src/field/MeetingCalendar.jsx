@@ -31,8 +31,9 @@ export default function MeetingCalendar() {
     Promise.all([
       api.customers("", true).catch(() => ({ customers: [] })),
       api.list("biltrax", false).catch(() => ({ records: [] })),
+      api.list("enquiry", false).catch(() => ({ records: [] })),
     ])
-      .then(([c, b]) => {
+      .then(([c, b, e]) => {
         const me = (auth.user || {}).name;
         /* Biltrax appointments show here too, alongside customer meetings */
         const appts = (b.records || [])
@@ -45,10 +46,26 @@ export default function MeetingCalendar() {
             mobile: (String(r.professional1 || "").match(/\d{10}/) || [""])[0],
             place: r.landmark || r.address || "",
             nextMeetingDate: toIso(r.appointmentDate),
+            nextMeetingTime: r.appointmentTime || "",
             nextMeetingRemark: r.latestSubStatus || "",
             isBiltrax: true,
           }));
-        setRows([...(c.customers || []), ...appts]);
+        /* enquiry call-backs and visits planned from a remark */
+        const enq = (e.records || [])
+          .map((r) => ({ _id: r.id, ...r.data }))
+          .filter((r) => r.nextFollowDate && (!me || r.assignedTo === me || r.passto === me))
+          .filter((r) => !["win", "spam"].includes(String(r.status || "").toLowerCase()))
+          .map((r) => ({
+            name: r.company || r.customer || "Enquiry",
+            contactName: r.contactPerson || "",
+            mobile: r.contact || r.phone || "",
+            place: r.area || r.city || "",
+            nextMeetingDate: toIso(r.nextFollowDate),
+            nextMeetingTime: r.nextFollowTime || "",
+            nextMeetingRemark: `${r.nextFollowType || "Call"} · ${r.lastRemark || ""}`,
+            isEnquiry: true,
+          }));
+        setRows([...(c.customers || []), ...appts, ...enq]);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -71,7 +88,9 @@ export default function MeetingCalendar() {
   const cells = [...Array(startPad).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
   const iso = (d) => `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   const todayIso = new Date().toISOString().slice(0, 10);
-  const dayList = byDate[pick] || [];
+  /* earliest meeting first; those without a time go last */
+  const dayList = (byDate[pick] || []).slice().sort((a, b) =>
+    String(a.nextMeetingTime || "99:99").localeCompare(String(b.nextMeetingTime || "99:99")));
   const fmtPick = (() => {
     const d = new Date(pick);
     return isNaN(d.getTime()) ? pick : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
@@ -135,10 +154,17 @@ export default function MeetingCalendar() {
             <div style={{ fontWeight: 800, fontSize: 13.5 }}>
               {c.name}
               {c.isBiltrax && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 800, background: "#fff4e5", color: "#ad6800", padding: "2px 7px", borderRadius: 999 }}>Biltrax</span>}
+              {c.isEnquiry && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 800, background: "#f3efff", color: "#6c5ce7", padding: "2px 7px", borderRadius: 999 }}>Enquiry</span>}
             </div>
             <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>
               {[c.contactName, c.mobile, c.place].filter(Boolean).join(" · ")}
             </div>
+            {c.nextMeetingTime ? (
+              <div style={{ fontSize: 12, marginTop: 5, fontWeight: 800, color: "var(--navy)" }}>🕐 {(() => {
+                const [h, m] = String(c.nextMeetingTime).split(":").map(Number);
+                return isNaN(h) ? c.nextMeetingTime : `${((h + 11) % 12) + 1}:${String(m || 0).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
+              })()}</div>
+            ) : null}
             {c.nextMeetingRemark ? <div style={{ fontSize: 12, marginTop: 6, background: "#f4f7ff", padding: "7px 9px", borderRadius: 8 }}>📝 {c.nextMeetingRemark}</div> : null}
             {c.mobile ? <a href={`tel:${c.mobile}`} style={{ display: "inline-block", marginTop: 8, fontSize: 12, fontWeight: 700, color: "var(--accent)" }}>📞 Call</a> : null}
           </div>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Edit3, UserPlus, Trash2, Share2, X, Search, Ban, RefreshCw } from "lucide-react";
+import { Edit3, UserPlus, Trash2, Share2, X, Search, Ban, RefreshCw, MessageSquare } from "lucide-react";
 import { PageHead } from "../components/ui.jsx";
-import { api } from "../lib/api.js";
+import { api, auth } from "../lib/api.js";
 import { scopeRows } from "../lib/scope.js";
 
 const LEAD_SOURCES = [
@@ -12,8 +12,8 @@ const LEAD_SOURCES = [
 const UOMS = ["Sq.Mtr", "Sq.Ft", "Nos", "Kg", "Ton", "Sheet"];
 
 /* enquiry date (yyyy-mm-dd) for range filter */
-const statusBg = (s) => { const st = (s || "pending").toLowerCase(); return st === "win" ? "#e5f9f1" : st === "assigned" ? "#e8f0ff" : st === "spam" ? "#fdecec" : "#fef3e2"; };
-const statusFg = (s) => { const st = (s || "pending").toLowerCase(); return st === "win" ? "#059669" : st === "assigned" ? "#2563eb" : st === "spam" ? "#c0392b" : "#c07f00"; };
+const statusBg = (s) => { const st = (s || "pending").toLowerCase(); return st === "win" ? "#e5f9f1" : st === "assigned" ? "#e8f0ff" : st === "processing" ? "#f3efff" : st === "spam" ? "#fdecec" : "#fef3e2"; };
+const statusFg = (s) => { const st = (s || "pending").toLowerCase(); return st === "win" ? "#059669" : st === "assigned" ? "#2563eb" : st === "processing" ? "#6c5ce7" : st === "spam" ? "#c0392b" : "#c07f00"; };
 function enqDate(r) {
   /* prefer the actual enquiry/lead date over the sync (_created) date */
   if (r.date) {
@@ -51,6 +51,7 @@ export default function EnquiryPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [editRow, setEditRow] = useState(null);
   const [viewRow, setViewRow] = useState(null);
+  const [msgFor, setMsgFor] = useState(null);
   const [imSync, setImSync] = useState(false);
 
   const syncIndiamart = async () => {
@@ -69,7 +70,7 @@ export default function EnquiryPage() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
-  const TABS = ["Enquiries", "Pending to Assign", "Assigned", "Spam", "Reassign", "Win"];
+  const TABS = ["Enquiries", "Pending to Assign", "Assigned", "Processing", "Spam", "Reassign", "Win"];
 
   const load = () => api.list("enquiry", false)
     .then((d) => setRows((d.records || []).map((r) => ({ ...r.data, _id: r.id, _created: r.created_at }))))
@@ -89,7 +90,9 @@ export default function EnquiryPage() {
     switch (tab) {
       case "Enquiries": return true;
       case "Pending to Assign": return st === "pending" || !r.assignedTo;
+      /* the sales person has started working it — a remark has been added */
       case "Assigned": return st === "assigned";
+      case "Processing": return st === "processing";
       case "Spam": return st === "spam";
       case "Reassign": return !!r.reassigned;
       case "Win": return st === "win";
@@ -300,14 +303,14 @@ export default function EnquiryPage() {
               <tr style={{ background: "linear-gradient(135deg,#1f3a68,#2b6fb8)" }}>
                 <th style={th}><input type="checkbox" checked={pageRows.length > 0 && selected.size === pageRows.length} onChange={toggleAll} /></th>
                 <th style={th}>Action</th>
-                {["Sl#", "Lead From", "Year", "Month", "Date", "Company Name", "Contact number", "Contact Person", "Email Id", "State", "Area", "Product Request", "Enquiry details", "HOD", "Passto", "Status", "Assign Date", "Assign Time"].map((h) => <th key={h} style={th}>{h}</th>)}
+                {["Sl#", "Lead From", "Year", "Month", "Date", "Company Name", "Contact number", "Contact Person", "Email Id", "State", "Area", "Product Request", "Enquiry details", "HOD", "Passto", "Status", "Last Remark", "Next Call / Visit", "Assign Date", "Assign Time"].map((h) => <th key={h} style={th}>{h}</th>)}
               </tr>
             </thead>
             <tbody>
               {rows === null ? (
-                <tr><td colSpan={19} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
+                <tr><td colSpan={21} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
               ) : pageRows.length === 0 ? (
-                <tr><td colSpan={19} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>{applied.shown ? "No enquiries found for the selected date / filter." : "Select date & Enquiry From, then click Show to load enquiries."}</td></tr>
+                <tr><td colSpan={21} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>{applied.shown ? "No enquiries found for the selected date / filter." : "Select date & Enquiry From, then click Show to load enquiries."}</td></tr>
               ) : pageRows.map((r, i) => (
                 <tr key={r._id} style={{ background: selected.has(r._id) ? "#eef5ff" : "#fff" }}>
                   <td style={td}><input type="checkbox" checked={selected.has(r._id)} onChange={() => toggle(r._id)} /></td>
@@ -315,6 +318,7 @@ export default function EnquiryPage() {
                     <div style={{ display: "flex", alignItems: "center" }}>
                       <button title="Edit" style={iconBtn("#22a45d")} onClick={() => setEditRow(r)}><Edit3 size={14} /></button>
                       <button title="Assign" style={iconBtn("#e8833a")} onClick={() => { setReassign(false); setAssignFor(r); }}><UserPlus size={14} /></button>
+                      <button title="Message" style={iconBtn("#0b6cb0")} onClick={() => setMsgFor(r)}><MessageSquare size={14} /></button>
                       <button title="Delete" style={iconBtn("#e5484d")} onClick={() => del(r)}><Trash2 size={14} /></button>
                       {(r.assignedTo || r.passto) && <button title="Re-Assign" style={iconBtn("#6c5ce7")} onClick={() => { setReassign(true); setAssignFor(r); }}><RefreshCw size={14} /></button>}
                       <button title={String(r.status).toLowerCase() === "spam" ? "Remove from Spam" : "Mark as Spam"}
@@ -345,6 +349,15 @@ export default function EnquiryPage() {
                   <td style={td}>{r.hod || "—"}</td>
                   <td style={td}>{r.passto || r.assignedTo || "—"}</td>
                   <td style={td}><span style={{ fontSize: 11, fontWeight: 800, padding: "2px 9px", borderRadius: 8, background: statusBg(r.status), color: statusFg(r.status) }}>{r.status || "Pending"}</span></td>
+                  <td style={{ ...td, maxWidth: 220, whiteSpace: "normal" }}>
+                    {r.lastRemark ? (
+                      <>
+                        <div style={{ fontSize: 12.5 }}>{r.lastRemark}</div>
+                        <div style={{ fontSize: 10.5, color: "var(--muted)" }}>{r.lastRemarkBy || ""}{r.lastRemarkAt ? " · " + r.lastRemarkAt : ""}</div>
+                      </>
+                    ) : "—"}
+                  </td>
+                  <td style={td}>{r.nextFollowDate ? `${r.nextFollowType || "Call"} · ${r.nextFollowDate}${r.nextFollowTime ? " " + r.nextFollowTime : ""}` : "—"}</td>
                   <td style={td}>{r.assignDate || "—"}</td>
                   <td style={td}>{r.assignTime || "—"}</td>
                 </tr>
@@ -364,6 +377,7 @@ export default function EnquiryPage() {
 
       {(showAdd || editRow) && <EnquiryForm row={editRow} onClose={() => { setShowAdd(false); setEditRow(null); }} onSaved={() => { setShowAdd(false); setEditRow(null); load(); }} />}
       {viewRow && <AdminEnquiryView r={viewRow} onClose={() => setViewRow(null)} />}
+      {msgFor && <EnquiryMessage r={msgFor} onClose={() => setMsgFor(null)} onDone={load} />}
       {assignFor && <AssignModal users={users} reassign={reassign} count={assignFor === "bulk" ? selected.size : 1} onClose={() => { setAssignFor(null); setReassign(false); }} onAssign={doAssign} />}
     </div>
   );
@@ -552,6 +566,71 @@ function AdminEnquiryView({ r, onClose }) {
             )}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+
+/* Admin <-> sales person conversation on one enquiry. Messages and the app's
+   remarks show in one thread, and the assigned person is notified. */
+function EnquiryMessage({ r, onClose, onDone }) {
+  const me = auth.user || {};
+  const [msgs, setMsgs] = useState(Array.isArray(r.chat) ? r.chat : []);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const remarks = Array.isArray(r.remarks) ? r.remarks : [];
+
+  const send = async () => {
+    if (!text.trim()) return;
+    setBusy(true);
+    const entry = { by: me.name || "Admin", text: text.trim(), at: new Date().toLocaleString("en-IN"), ts: Date.now(), admin: true };
+    const next = [...msgs, entry];
+    try {
+      await api.update("enquiry", r._id || r.id, { ...r, chat: next });
+      const to = r.assignedTo || r.passto;
+      if (to) {
+        try {
+          await api.create("notification", {
+            title: "Message on enquiry",
+            message: `${r.company || r.customer || "Enquiry"}: ${entry.text}`,
+            to, link: "/app/m/enquiry", at: new Date().toISOString(),
+          });
+        } catch {}
+      }
+      setMsgs(next); setText("");
+      onDone && onDone();
+    } catch (e) { alert(e.message); }
+    setBusy(false);
+  };
+
+  const timeline = [
+    ...remarks.map((x) => ({ by: x.by, kind: "Remark", at: x.at, ts: x.ts || 0,
+      text: x.remark + (x.nextDate ? `  →  next ${x.nextType || "call"} ${x.nextDate}${x.nextTime ? " " + x.nextTime : ""}` : "") })),
+    ...msgs,
+  ].sort((a, b) => (a.ts || 0) - (b.ts || 0));
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.5)", zIndex: 9999, display: "grid", placeItems: "center", padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 480, padding: 20, maxHeight: "86vh", overflowY: "auto" }}>
+        <h3 style={{ marginTop: 0, fontSize: 16 }}>💬 {r.company || r.customer || "Enquiry"}</h3>
+        <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>Assigned to {r.assignedTo || r.passto || "—"}</div>
+        <div style={{ maxHeight: 320, overflowY: "auto", marginBottom: 12 }}>
+          {timeline.length === 0 ? <div style={{ color: "var(--muted)", fontSize: 13 }}>No remarks or messages yet.</div>
+          : timeline.map((m, i) => (
+            <div key={i} style={{ background: m.admin ? "#eef4ff" : "#f3fbf6", borderRadius: 10, padding: "9px 11px", marginBottom: 8 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 800, color: "#1f3a68" }}>{m.by}{m.kind ? ` · ${m.kind}` : ""}</div>
+              <div style={{ fontSize: 13, margin: "3px 0" }}>{m.text}</div>
+              <div style={{ fontSize: 10.5, color: "var(--muted)" }}>{m.at}</div>
+            </div>
+          ))}
+        </div>
+        <textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder="Write a message to the sales person…"
+          style={{ width: "100%", padding: "9px 11px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, marginBottom: 10 }} />
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn" style={{ flex: 1 }} onClick={onClose}>Close</button>
+          <button className="btn btn-primary" style={{ flex: 1 }} disabled={busy} onClick={send}>{busy ? "Sending…" : "Send"}</button>
+        </div>
       </div>
     </div>
   );

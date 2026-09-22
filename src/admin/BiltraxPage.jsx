@@ -279,7 +279,7 @@ export default function BiltraxPage() {
                 <td style={td}>{r.assignPerson || "—"}</td>
                 <td style={td}>{r.hod || "—"}</td>
                 <td style={td}>{r.assignedDate || "—"}</td>
-                <td style={td}>{r.appointmentDate || "—"}</td>
+                <td style={td}>{r.appointmentDate ? `${r.appointmentDate}${r.appointmentTime ? " " + r.appointmentTime : ""}` : "—"}</td>
                 <td style={td}>{r.status || "Pending"}</td>
               </tr>
             ))}
@@ -357,6 +357,10 @@ function BiltraxForm({ row, users, onClose, onSave }) {
         {f.biltraxType === "Appointment" && (
           <div><label style={lbl}>Appointment Date</label>
             <input type="date" value={f.appointmentDate} onChange={(e) => set("appointmentDate", e.target.value)} style={inp} /></div>
+        )}
+        {f.biltraxType === "Appointment" && (
+          <div><label style={lbl}>Appointment Time</label>
+            <input type="time" value={f.appointmentTime || ""} onChange={(e) => set("appointmentTime", e.target.value)} style={inp} /></div>
         )}
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 6 }}>

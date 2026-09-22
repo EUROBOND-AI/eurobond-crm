@@ -308,25 +308,25 @@ table.grid tbody tr.row-click:hover { background: #eef1ff; }
 .f-metric small { color: var(--muted); font-size: 11px; }
 .f-nav {
   position: absolute; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid var(--line);
-  display: flex; justify-content: space-around; align-items: center; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); z-index: 40;
+  display: flex; justify-content: space-around; align-items: center; padding: 6px 8px calc(6px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))); z-index: 40;
 }
 .f-nav a { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10.5px; font-weight: 800; color: var(--muted); width: 62px; }
 .f-nav a.active { color: var(--navy); }
 .f-fab {
-  position: absolute; right: 18px; bottom: calc(88px + env(safe-area-inset-bottom)); z-index: 30;
+  position: absolute; right: 18px; bottom: calc(88px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))); z-index: 30;
   width: 56px; height: 56px; border-radius: 50%; background: var(--navy); color: #fff; border: none;
   display: grid; place-items: center; box-shadow: 0 10px 24px rgba(11, 60, 140, 0.45);
 }
 .f-screen-head { display: flex; align-items: center; gap: 12px; padding: 15px 18px; background: #fff; border-bottom: 1px solid var(--line); font-family: var(--font-display); font-weight: 800; font-size: 17px; position: sticky; top: 0; z-index: 10; }
 .f-screen-head .grow { flex: 1; text-align: center; }
-.f-list-pad { padding: 16px 18px calc(88px + env(safe-area-inset-bottom)); }
-.f-form { padding: 18px; display: flex; flex-direction: column; gap: 13px; padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
+.f-list-pad { padding: 16px 18px calc(88px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))); }
+.f-form { padding: 18px; display: flex; flex-direction: column; gap: 13px; padding-bottom: calc(100px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))); }
 .f-form input, .f-form select, .f-form textarea { border: 1.5px solid #d7dcef; border-radius: 11px; padding: 13px 13px; font-size: 14.5px; outline: none; background: #fff; }
 .f-form label { font-weight: 800; font-size: 13px; margin-bottom: -6px; }
 .f-form label b { color: var(--red); }
 .f-submit { background: var(--navy); color: #fff; border: none; padding: 15px; border-radius: 11px; font-weight: 800; font-size: 15.5px; }
 .f-sheet-mask { position: absolute; inset: 0; background: rgba(10, 14, 34, 0.5); z-index: 55; display: flex; align-items: flex-end; }
-.f-sheet { background: #fdf9f2; width: 100%; border-radius: 22px 22px 0 0; padding: 22px 20px calc(26px + env(safe-area-inset-bottom)); animation: up 0.2s ease; }
+.f-sheet { background: #fdf9f2; width: 100%; border-radius: 22px 22px 0 0; padding: 22px 20px calc(26px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))); animation: up 0.2s ease; }
 @keyframes up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
 .f-sheet-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
 .f-sheet-grid button { border: none; background: none; display: flex; flex-direction: column; align-items: center; gap: 9px; font-weight: 800; font-size: 12.5px; color: var(--ink); }
@@ -337,7 +337,7 @@ table.grid tbody tr.row-click:hover { background: #eef1ff; }
 .map-box { height: 300px; margin: 0 18px; border-radius: 16px; overflow: hidden; box-shadow: var(--shadow); z-index: 1; position: relative; }
 .f-menu { position: absolute; inset: 0; background: #fff; z-index: 60; display: flex; flex-direction: column; animation: slideIn 0.2s ease; }
 @keyframes slideIn { from { transform: translateX(-30px); opacity: 0; } to { transform: none; opacity: 1; } }
-.f-menu-head { background: var(--navy); color: #fff; padding: calc(16px + env(safe-area-inset-top)) 20px 20px; border-radius: 0 0 30px 0; flex-shrink: 0; }
+.f-menu-head { background: var(--navy); color: #fff; padding: calc(16px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) 20px 20px; border-radius: 0 0 30px 0; flex-shrink: 0; }
 .f-menu-item { display: flex; align-items: center; gap: 12px; padding: 10px 20px; border: none; border-bottom: 1px solid var(--line); font-weight: 700; font-size: 13.5px; width: 100%; background: #fff; text-align: left; cursor: pointer; color: var(--ink); }
 .f-menu-item:active { background: #f4f6fc; }
 .f-menu-item .ic { width: 34px; height: 34px; border-radius: 50%; background: #f0f2fa; display: grid; place-items: center; font-size: 16px; }
@@ -398,9 +398,9 @@ body.dark input, body.dark select, body.dark textarea { background: #232a52; col
 
 
 /* ---- phone fit: content never hides behind bottom nav ---- */
-.f-form { padding-bottom: calc(120px + env(safe-area-inset-bottom)) !important; }
-.f-list-pad { padding-bottom: calc(110px + env(safe-area-inset-bottom)) !important; }
-.f-sheet { padding-bottom: calc(24px + env(safe-area-inset-bottom)) !important; }
+.f-form { padding-bottom: calc(120px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))) !important; }
+.f-list-pad { padding-bottom: calc(110px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))) !important; }
+.f-sheet { padding-bottom: calc(24px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))) !important; }
 
 /* ---- Sitting tag on live marker ---- */
 .sit-tag {
@@ -529,3 +529,11 @@ body.dark-admin .btn-danger { background: linear-gradient(135deg,#ff6b6b,#ef4444
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 10px; padding: 46px 0; color: var(--muted); font-size: 12.5px; font-weight: 600;
 }
+
+
+/* ---- System-bar safety net ----
+   On some phones the WebView reports no safe area at all even with a 3-button
+   navigation bar, which left the last menu items and page bottoms hidden behind
+   the buttons. The menu and long pages always keep a little room at the end. */
+.f-menu > div:last-child { padding-bottom: calc(24px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))) !important; }
+.f-menu { padding-bottom: 0; height: 100%; max-height: 100dvh; }
