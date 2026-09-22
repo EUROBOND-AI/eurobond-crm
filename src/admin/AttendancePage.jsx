@@ -112,31 +112,6 @@ export default function AttendancePage() {
   /* The server's distance_km only updates when the day is closed, so a running
      row showed 0 km. Work it out from the points, the same way the timeline does. */
   const [liveKm, setLiveKm] = useState({});
-  useEffect(() => {
-    let stop = false;
-    (async () => {
-      const need = (sessions || []).filter((s) => !Number(s.distance_km) && (s.points_count > 1));
-      for (const s of need.slice(0, 40)) {
-        if (stop) return;
-        try {
-          const d = await api.attPointsList(s.id);
-          const pts = d.points || d.route || [];
-          if (pts.length > 1) {
-            const filtered = kmFromPoints(pts);
-            setLiveKm((m) => ({ ...m, [s.id]: filtered }));
-            /* Road matching makes a real journey follow the streets, but it can
-               also invent distance where someone simply stood still. Use it only
-               when it agrees with the filtered figure. */
-            const rk = await roadKmFromPoints(pts);
-            if (rk && !stop && filtered > 0.3 && rk <= filtered * 1.6) {
-              setLiveKm((m) => ({ ...m, [s.id]: rk }));
-            }
-          }
-        } catch {}
-      }
-    })();
-    return () => { stop = true; };
-  }, [sessions]);
   const [loading, setLoading] = useState(false);
   const [zone, setZone] = useState("");
   const [hodF, setHodF] = useState("");
@@ -189,6 +164,39 @@ export default function AttendancePage() {
   const filtered = sessions.filter((s) =>
     (!zone || s.zone === zone) && (!hodF || s.manager === hodF) && (!city || s.city === city) && (!user || s.name === user)
   );
+  /* the ten rows currently on screen */
+  const visibleRows = useMemo(() => filtered.slice((page - 1) * PAGE, page * PAGE),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sessions, page, zone, hodF, city, user]);
+  useEffect(() => {
+    let stop = false;
+    (async () => {
+      /* The figure saved when a day closes came from the older formula, so it
+         disagreed with the View (46.69 vs 64.25 for the same day). Work every
+         row out from its points, exactly as the View does. Only the rows on the
+         current page are measured, so this stays quick. */
+      const need = (visibleRows || []).filter((s) => (s.points_count > 1 || !Number(s.distance_km)) && liveKm[s.id] == null);
+      for (const s of need) {
+        if (stop) return;
+        try {
+          const d = await api.attPointsList(s.id);
+          const pts = d.points || d.route || [];
+          if (pts.length > 1) {
+            const filtered = kmFromPoints(pts);
+            setLiveKm((m) => ({ ...m, [s.id]: filtered }));
+            /* Road matching makes a real journey follow the streets, but it can
+               also invent distance where someone simply stood still. Use it only
+               when it agrees with the filtered figure. */
+            const rk = await roadKmFromPoints(pts);
+            if (rk && !stop && filtered > 0.3 && rk <= filtered * 1.6) {
+              setLiveKm((m) => ({ ...m, [s.id]: rk }));
+            }
+          }
+        } catch {}
+      }
+    })();
+    return () => { stop = true; };
+  }, [visibleRows]);
 
   const exportCsv = () => {
     const head = '"Name","Code","Zone","City","Date","Start","End","Distance (km)","GPS Points","Status"';
@@ -196,7 +204,7 @@ export default function AttendancePage() {
       s.name, s.code || "", s.zone || "", s.city || "", s.work_date,
       s.start_time ? new Date(s.start_time).toLocaleTimeString("en-IN") : "",
       s.end_time ? new Date(s.end_time).toLocaleTimeString("en-IN") : "Running",
-      Number(s.distance_km || 0).toFixed(2), s.points_count,
+      Number(liveKm[s.id] != null ? liveKm[s.id] : (s.distance_km || 0)).toFixed(2), s.points_count,
       s.status === "DONE" ? "Completed" : "Running",
     ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
     const blob = new Blob([[head, ...lines].join("\n")], { type: "text/csv" });
