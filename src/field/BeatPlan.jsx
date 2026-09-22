@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, auth } from "../lib/api.js";
 
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const TYPES = ["Local", "Ex-station", "Out-station", "Off"];
 const CU = () => auth.user || {};
 
@@ -25,7 +25,7 @@ export default function BeatPlan() {
   const ws = useMemo(() => { const d = weekStart(); d.setDate(d.getDate() + offset * 7); return d; }, [offset]);
   const weekKey = iso(ws);
 
-  const [rows, setRows] = useState(DAYS.map(() => ({ type: "Local", areas: [], remark: "" })));
+  const [rows, setRows] = useState(DAYS.map((d) => ({ type: d === "Sunday" ? "Off" : "Local", areas: [], remark: "" })));
   const state = CU().state || "";          // always the person's own state
   const [areaOpts, setAreaOpts] = useState([]);
   const [existing, setExisting] = useState(null);
@@ -44,7 +44,7 @@ export default function BeatPlan() {
       const mine = (d.records || []).map((r) => ({ _id: r.id, ...r.data }))
         .find((r) => r.weekStart === weekKey && r.createdBy === CU().name);
       if (mine) { setExisting(mine); setRows(mine.days || rows); }
-      else { setExisting(null); setRows(DAYS.map(() => ({ type: "Local", areas: [], remark: "" }))); }
+      else { setExisting(null); setRows(DAYS.map((d) => ({ type: d === "Sunday" ? "Off" : "Local", areas: [], remark: "" }))); }
     }).catch(() => {});
   }, [weekKey]);
 
@@ -122,15 +122,10 @@ export default function BeatPlan() {
               <>
                 <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)", marginBottom: 5 }}>Areas {rows[i].areas.length ? `(${rows[i].areas.length})` : ""}</div>
                 {!state ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No state on your profile — ask admin to set it</div> : (
-                  <div style={{ maxHeight: 120, overflowY: "auto", display: "flex", flexWrap: "wrap", gap: 5 }}>
-                    {areaOpts.map((a) => (
-                      <span key={a} onClick={() => toggleArea(i, a)}
-                        style={{ padding: "5px 10px", borderRadius: 999, fontSize: 11.5, cursor: "pointer", fontWeight: 700,
-                          background: rows[i].areas.includes(a) ? "#e8f0ff" : "#f5f7fc",
-                          color: rows[i].areas.includes(a) ? "#0b3c8c" : "var(--muted)",
-                          border: rows[i].areas.includes(a) ? "1px solid #b9d0ff" : "1px solid transparent" }}>{a}</span>
-                    ))}
-                  </div>
+                  <AreaSearch
+                    options={areaOpts}
+                    picked={rows[i].areas}
+                    onToggle={(a) => toggleArea(i, a)} />
                 )}
               </>
             )}
@@ -239,3 +234,42 @@ export function BeatPlanConfirm({ onClose, onContinue }) {
 }
 
 const btnGhost = { flex: 1, padding: 11, borderRadius: 10, border: "1.5px solid #d7dcef", background: "#fff", fontWeight: 700, cursor: "pointer" };
+
+
+/* Pick areas by typing — a state can have hundreds of them, so the full list is
+   no longer laid out in a box. Chosen areas stay visible as removable chips. */
+function AreaSearch({ options, picked, onToggle }) {
+  const [q, setQ] = useState("");
+  const ql = q.trim().toLowerCase();
+  const hits = ql ? options.filter((a) => a.toLowerCase().includes(ql) && !picked.includes(a)).slice(0, 12) : [];
+  return (
+    <div>
+      {picked.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 7 }}>
+          {picked.map((a) => (
+            <span key={a} onClick={() => onToggle(a)}
+              style={{ padding: "5px 10px", borderRadius: 999, fontSize: 11.5, fontWeight: 700, cursor: "pointer",
+                background: "#e8f0ff", color: "#0b3c8c", border: "1px solid #b9d0ff" }}>
+              {a} ✕
+            </span>
+          ))}
+        </div>
+      )}
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search area…"
+        style={{ width: "100%", padding: "8px 10px", borderRadius: 9, border: "1px solid #d7dcef", fontSize: 12.5 }} />
+      {hits.length > 0 && (
+        <div style={{ border: "1px solid #e3e8f5", borderRadius: 9, marginTop: 4, maxHeight: 180, overflowY: "auto", background: "#fff" }}>
+          {hits.map((a) => (
+            <div key={a} onClick={() => { onToggle(a); setQ(""); }}
+              style={{ padding: "8px 11px", fontSize: 12.5, cursor: "pointer", borderBottom: "1px solid #f2f4fa" }}>
+              {a}
+            </div>
+          ))}
+        </div>
+      )}
+      {ql && hits.length === 0 && (
+        <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 5 }}>No matching area.</div>
+      )}
+    </div>
+  );
+}

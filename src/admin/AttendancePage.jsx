@@ -574,11 +574,25 @@ export default function AttendancePage() {
                   const cum = cumKmAt(routePoints, routePoints.indexOf(p));
                   const running = String(viewSess.status || "").toUpperCase() === "RUNNING" || !viewSess.end_time;
                   const isLast = i === timelinePoints.length - 1;
-                  const label = i === 0 ? "Start" : (isLast ? (running ? "Live" : "End") : "Point " + (i + 1));
+                  /* a closed day that the server ended at 11:55 PM reads "System
+                     Logout" on its last row instead of a plain "End" */
+                  const sysOut = isLast && !running && Number(viewSess?.system_logout) === 1;
+                  const label = i === 0 ? "Start" : (isLast ? (running ? "Live" : (sysOut ? "End · last point" : "End")) : "Point " + (i + 1));
+                  /* more than 20 minutes with nothing recorded before this stop */
+                  const prev = i > 0 ? timelinePoints[i - 1] : null;
+                  const tOf = (x) => (x && x.recorded_at ? Date.parse(String(x.recorded_at).replace(" ", "T")) : 0);
+                  const gapMin = prev ? Math.round((tOf(p) - tOf(prev)) / 60000) : 0;
                   const geoAddr = ptAddr[`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`];
                   const addr = geoAddr || p.address;
                   return (
-                  <div key={i} style={{ borderLeft: `3px solid ${i === 0 ? "#20bf6b" : (isLast && !running) ? "#e8422e" : isLast ? "#2f6fed" : "#c5cae0"}`, background: "#fff", borderRadius: 8, padding: "7px 10px", marginBottom: 6, boxShadow: "var(--shadow)" }}>
+                  <div key={i}>
+                  {gapMin > 20 && (
+                    <div style={{ background: "#fff7e6", border: "1px dashed #ffc069", color: "#ad6800", borderRadius: 8, padding: "6px 10px", marginBottom: 6, fontSize: 11.5, fontWeight: 700 }}>
+                      ⚠️ No location recorded for {gapMin >= 60 ? `${Math.floor(gapMin / 60)} h ${gapMin % 60} min` : `${gapMin} min`}
+                      — the distance for this stretch is a straight line and may be lower than the real trip
+                    </div>
+                  )}
+                  <div style={{ borderLeft: `3px solid ${i === 0 ? "#20bf6b" : (isLast && !running) ? "#e8422e" : isLast ? "#2f6fed" : "#c5cae0"}`, background: "#fff", borderRadius: 8, padding: "7px 10px", marginBottom: 6, boxShadow: "var(--shadow)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <span style={{ fontSize: 11, fontWeight: 800, color: i === 0 ? "#20bf6b" : (isLast && !running) ? "#e8422e" : isLast ? "#2f6fed" : "var(--muted)" }}>{label}</span>
                       <span style={{ fontSize: 11, fontWeight: 800, color: "var(--accent)" }}>{cum.toFixed(2)} km</span>
@@ -606,6 +620,21 @@ export default function AttendancePage() {
                       <span>🕐 {p.recorded_at ? String(p.recorded_at).slice(11, 16) : ""}</span>
                     </div>
                     <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>📍 {Number(p.lat).toFixed(5)}, {Number(p.lng).toFixed(5)}</div>
+                  </div>
+                  {/* the server closed this day automatically — show when */}
+                  {sysOut && (
+                    <div style={{ borderLeft: "3px solid #c0392b", background: "#fdecec", borderRadius: 8, padding: "7px 10px", marginBottom: 6 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: "#c0392b" }}>System Logout</span>
+                      </div>
+                      <div style={{ fontSize: 12, marginTop: 3, color: "#7a2020" }}>
+                        Attendance was closed automatically · 🕐 {viewSess?.end_time ? String(viewSess.end_time).slice(11, 16) : "23:55"}
+                      </div>
+                      <div style={{ fontSize: 10.5, color: "#a04040", marginTop: 2 }}>
+                        Last location was recorded at {p.recorded_at ? String(p.recorded_at).slice(11, 16) : "—"}
+                      </div>
+                    </div>
+                  )}
                   </div>
                   );
                 });
