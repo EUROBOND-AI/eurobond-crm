@@ -19,7 +19,7 @@ async function urlToDataUrl(url) {
 }
 
 /* Build the expense statement PDF — compact company format + Eurobond logo + bill pages */
-export async function buildExpensePdf(fmt, formatOnly = false) {
+export async function buildExpensePdf(fmt, formatOnly = false, opts = {}) {
   const { jsPDF } = await import("jspdf");
   const items = fmt.items || [];
   const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
@@ -112,6 +112,67 @@ export async function buildExpensePdf(fmt, formatOnly = false) {
   pdf.text("Checked By", mL, y);
   pdf.text("Traveller Signature : " + (fmt.user || ""), 78, y);
   pdf.text("Approved By", 165, y);
+
+  /* Accounts summary (admin copies only): approved amount per SAP account */
+  if (opts.adminSummary) {
+    const { accountFor } = await import("./sapExport.js");
+    const byAcc = new Map();
+    items.forEach((it) => {
+      if (it.rejected) return;
+      const amt = Number(it.approvedAmount ?? it.amount) || 0;
+      if (amt <= 0) return;
+      const [nm, code] = accountFor(it.category);
+      const cur = byAcc.get(code) || { nm, code, total: 0 };
+      cur.total += amt; byAcc.set(code, cur);
+    });
+    const srows = [...byAcc.values()];
+    if (srows.length) {
+      const scols = [
+        { t: "SI No", w: 12, a: "center" }, { t: "Depo Location", w: 30, a: "left" },
+        { t: "Person Name", w: 40, a: "left" }, { t: "Account Name", w: 58, a: "left" },
+        { t: "Account Code", w: 26, a: "center" }, { t: "Total", w: 24, a: "right" },
+      ];
+      const sw = scols.reduce((a, c) => a + c.w, 0);
+      const sx = (pageW - sw) / 2;
+      const rowAt = (yy, h) => {
+        let x = sx; pdf.rect(sx, yy, sw, h);
+        scols.forEach((c) => { pdf.line(x, yy, x, yy + h); x += c.w; });
+        pdf.line(x, yy, x, yy + h);
+      };
+      const need = 22 + (srows.length + 2) * 7;
+      y += 14;
+      if (y + need > pageH - 14) { pdf.addPage(); y = 18; }
+      pdf.setFont(undefined, "bold"); pdf.setFontSize(10);
+      pdf.text("SUMMARY — ACCOUNTS", pageW / 2, y, { align: "center" });
+      y += 4;
+      pdf.setFontSize(8);
+      rowAt(y, 7);
+      let hx = sx;
+      scols.forEach((c) => { pdf.text(c.t, hx + c.w / 2, y + 4.8, { align: "center" }); hx += c.w; });
+      y += 7;
+      pdf.setFont(undefined, "normal");
+      let grand = 0;
+      srows.forEach((r2, i) => {
+        grand += r2.total;
+        const vals = [String(i + 1), fmt.depo || "", fmt.user || "", r2.nm, String(r2.code), "Rs. " + r2.total.toLocaleString("en-IN")];
+        const wrapped = scols.map((c, ci) => pdf.splitTextToSize(vals[ci], c.w - 3));
+        const h = Math.max(7, 2.6 + Math.max(...wrapped.map((w) => w.length)) * 3.4);
+        rowAt(y, h);
+        let x = sx;
+        scols.forEach((c, ci) => {
+          const tx = c.a === "right" ? x + c.w - 1.5 : c.a === "center" ? x + c.w / 2 : x + 1.5;
+          pdf.text(wrapped[ci], tx, y + 4.3, { align: c.a });
+          x += c.w;
+        });
+        y += h;
+      });
+      pdf.setFont(undefined, "bold");
+      rowAt(y, 7);
+      pdf.text("TOTAL", sx + 2, y + 4.8);
+      pdf.text("Rs. " + grand.toLocaleString("en-IN"), sx + sw - 1.5, y + 4.8, { align: "right" });
+      y += 7;
+    }
+  }
 
   /* bill pages (skipped when formatOnly = true) */
   for (const it of (formatOnly ? [] : items)) {

@@ -43,7 +43,20 @@ export default function BeatPlan() {
     api.list("beatPlan", true).then((d) => {
       const mine = (d.records || []).map((r) => ({ _id: r.id, ...r.data }))
         .find((r) => r.weekStart === weekKey && r.createdBy === CU().name);
-      if (mine) { setExisting(mine); setRows(mine.days || rows); }
+      /* plans saved before Sunday was added have only six days — pad them, or
+         the Sunday row is undefined and the screen crashes */
+      if (mine) {
+        setExisting(mine);
+        const saved = Array.isArray(mine.days) ? mine.days : [];
+        setRows(DAYS.map((d, i) => {
+          const x = saved.find((y) => y && y.day === d) || saved[i] || {};
+          return {
+            type: x.type || (d === "Sunday" ? "Off" : "Local"),
+            areas: Array.isArray(x.areas) ? x.areas : [],
+            remark: x.remark || "",
+          };
+        }));
+      }
       else { setExisting(null); setRows(DAYS.map((d) => ({ type: d === "Sunday" ? "Off" : "Local", areas: [], remark: "" }))); }
     }).catch(() => {});
   }, [weekKey]);

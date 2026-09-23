@@ -189,6 +189,7 @@ export const api = {
   attStop: (session_id, extra) => req("/attendance.php?action=stop", { method: "POST", body: { session_id, ...(extra || {}) } }),
   attToday: () => req("/attendance.php?action=today"),
   attList: (from, to) => req(`/attendance.php?action=list&from=${from}&to=${to || from}`),
+  areasAll: () => req("/areas.php?action=all"),
   areaStates: () => req("/areas.php?action=states"),
   areaCount: () => req("/areas.php?action=count"),
   areaDelete: (state, name) => req("/areas.php?action=delete", { method: "POST", body: { state, name } }),

@@ -25,8 +25,8 @@ function beatSummary(d) {
 /* one column per weekday: "Local — Tiruvuru" */
 function beatDayCols(d) {
   const out = {};
-  const names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const keys = ["mon", "tue", "wed", "thu", "fri", "sat"];
+  const names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const keys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
   names.forEach((n, i) => {
     const day = Array.isArray(d?.days) ? d.days.find((x) => x.day === n) : null;
     if (!day || !day.type || day.type === "Off") { out[keys[i]] = day ? "Off" : ""; return; }

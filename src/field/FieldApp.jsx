@@ -1552,7 +1552,7 @@ function FieldExpense({ list, add, reload }) {
     if (tab === "Draft") return e.status === "Draft";
     if (tab === "Format") return e.status === "Format";
     if (tab === "Submitted") return e.status === "Submitted";
-    if (tab === "Approved") return e.status === "Approved";
+    if (tab === "Approved") return ["Approved", "Coordination", "Uploader"].includes(e.status);
     if (tab === "Rejected") return e.status === "Rejected" || e.status === "Reject";
     return false;
   });
@@ -1621,7 +1621,7 @@ function FieldExpense({ list, add, reload }) {
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)", fontSize: 12, marginTop: 4 }}>
                   <span>{(e.items || []).length} entries · {e.periodFrom} → {e.periodTo}</span>
-                  <span style={{ fontWeight: 700, color: e.status === "Approved" ? "#0f7a44" : e.status === "Rejected" ? "#c03636" : e.status === "Submitted" ? "#2563eb" : "#c07f00" }}>{e.status}</span>
+                  <span style={{ fontWeight: 700, color: ["Approved", "Coordination", "Uploader"].includes(e.status) ? "#0f7a44" : e.status === "Rejected" ? "#c03636" : e.status === "Submitted" ? "#2563eb" : "#c07f00" }}>{["Coordination", "Uploader"].includes(e.status) ? "Approved" : e.status}</span>
                 </div>
                 {e.rejectRemark && <div style={{ background: "#fdecec", color: "#c03636", fontSize: 11.5, padding: "6px 8px", borderRadius: 8, marginTop: 6 }}>Rejected: {e.rejectRemark}</div>}
                 <div style={{ fontSize: 11, color: "var(--accent)", marginTop: 6, fontWeight: 700 }}>Tap to open statement →</div>
@@ -1653,7 +1653,7 @@ function FieldExpense({ list, add, reload }) {
 }
 
 /* Expense categories (fixed list) */
-const EXP_CATEGORIES = ["Flight", "Train", "Bus", "Local Transportation / Taxi", "Car Rental", "Fuel / Petrol / Diesel", "Hotel", "Relative Stay", "Food & Meals", "Parking", "Toll Charges", "Car Maintenance", "Stationery", "Xerox / Photocopy", "Phone Recharge", "Miscellaneous"];
+const EXP_CATEGORIES = ["Flight", "Train", "Bus", "Local Transportation / Taxi", "Car Rental", "Fuel / Petrol / Diesel", "Hotel", "Relative Stay", "House Rent", "Food & Meals", "Parking", "Toll Charges", "Car Maintenance", "Bike Maintenance", "Stationery", "Xerox / Photocopy", "Courier", "Phone Recharge", "Business Promotion", "Damage & Customer Claim", "Miscellaneous"];
 /* map a category to the statement column (expense type) */
 const CAT_TYPE = {
   "Flight": "Tickets", "Train": "Tickets", "Bus": "Tickets",
@@ -1663,6 +1663,8 @@ const CAT_TYPE = {
   "Food & Meals": "Fooding",
   "Stationery": "Phone/Xerox/Stationary", "Xerox / Photocopy": "Phone/Xerox/Stationary", "Phone Recharge": "Phone/Xerox/Stationary",
   "Miscellaneous": "Miscellaneous",
+  "Bike Maintenance": "Local Conveyance", "House Rent": "Hotel", "Courier": "Phone/Xerox/Stationary",
+  "Business Promotion": "Miscellaneous", "Damage & Customer Claim": "Miscellaneous",
 };
 /* which Excel statement column a category falls under */
 const CAT_COL = {
@@ -1672,6 +1674,8 @@ const CAT_COL = {
   "Local Transportation / Taxi": "local", "Car Rental": "local", "Fuel / Petrol / Diesel": "local", "Car Maintenance": "local", "Parking": "local", "Toll Charges": "local",
   "Stationery": "phone", "Xerox / Photocopy": "phone", "Phone Recharge": "phone",
   "Miscellaneous": "miscl",
+  "Bike Maintenance": "local", "House Rent": "hotel", "Courier": "phone",
+  "Business Promotion": "miscl", "Damage & Customer Claim": "miscl",
 };
 
 function FieldExpenseNew({ add }) {
@@ -1844,7 +1848,8 @@ function ExpenseFormatView({ list, reload }) {
     } catch (e) { alert(e.message); }
   };
 
-  const statusColor = fmt.status === "Approved" ? "#0f7a44" : fmt.status === "Rejected" ? "#c03636" : fmt.status === "Submitted" ? "#2563eb" : "#c07f00";
+  const isApproved = ["Approved", "Coordination", "Uploader"].includes(fmt.status);
+  const statusColor = isApproved ? "#0f7a44" : fmt.status === "Rejected" ? "#c03636" : fmt.status === "Submitted" ? "#2563eb" : "#c07f00";
 
   return (
     <>
@@ -1892,7 +1897,7 @@ function ExpenseFormatView({ list, reload }) {
         {/* actions */}
         <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
           {/* the PDF is available only once admin has approved the statement */}
-          {fmt.status === "Approved"
+          {isApproved
             ? <button className="f-submit" style={{ flex: 1, background: "#3949ab" }} disabled={busy} onClick={downloadPdf}>{busy ? "…" : "⬇ Download PDF"}</button>
             : <button className="f-submit" style={{ flex: 1, background: "#5b6b8c" }} onClick={() => {
                 const withBill = (fmt.items || []).filter((it) => it.photo);

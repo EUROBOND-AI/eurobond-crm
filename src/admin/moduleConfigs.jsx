@@ -353,7 +353,7 @@ export const MODULES = {
       { key: "createdBy", label: "Person" }, { key: "hod", label: "HOD" },
       { key: "state", label: "State" },
       { key: "mon", label: "Mon" }, { key: "tue", label: "Tue" }, { key: "wed", label: "Wed" },
-      { key: "thu", label: "Thu" }, { key: "fri", label: "Fri" }, { key: "sat", label: "Sat" },
+      { key: "thu", label: "Thu" }, { key: "fri", label: "Fri" }, { key: "sat", label: "Sat" }, { key: "sun", label: "Sun" },
       { key: "planRemarks", label: "Remark" },
     ],
     form: null,

@@ -3,6 +3,7 @@ import { PageHead, StatCard, ToolButtons } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { buildExpensePdf } from "../lib/expensePdf.js";
 import { scopeRows } from "../lib/scope.js";
+import { HEADER_COLS, LINE_COLS, NUMATCARD_START, depoKey, headerRow, lineRows, downloadSheet } from "../lib/sapExport.js";
 
 /* Admin Expense — submitted statements with full format + bills, approve / reject.
    Photos/PDF open in the shared CRM lightbox (crm-lightbox event), not external links. */
@@ -24,6 +25,82 @@ export default function ExpenseApprovals() {
   const toggleCol = (c) => setHiddenCols((s) => { const n = new Set(s); n.has(c) ? n.delete(c) : n.add(c); localStorage.setItem("exp_hidden_cols", JSON.stringify([...n])); return n; });
   const colVisible = (c) => !hiddenCols.has(c);
   const applyShow = () => setApplied({ person: fPerson, hod: fHod, state: fState });
+  const [picked, setPicked] = useState(new Set());
+  const [areaState, setAreaState] = useState({});
+  const [refMaster, setRefMaster] = useState(null);   // { depo: lastUsed }
+  const [refOpen, setRefOpen] = useState(false);
+  const [working, setWorking] = useState(false);
+
+  /* area name -> state, for the cost centre of each line */
+  useEffect(() => {
+    api.areasAll().then((d) => {
+      const m = {};
+      (d.areas || []).forEach(([n, st]) => { if (n) m[String(n).trim().toLowerCase()] = st; });
+      setAreaState(m);
+    }).catch(() => {});
+  }, []);
+  /* last Customer ref number used per depot (Accounts can edit it) */
+  const loadRefMaster = async () => {
+    try {
+      const d = await api.settingsList();
+      const row = (d.settings || []).find((x) => x.skey === "sap_numatcard");
+      const saved = row ? JSON.parse(row.svalue || "{}") : {};
+      const m = { ...NUMATCARD_START, ...saved };
+      setRefMaster(m);
+      return m;
+    } catch { setRefMaster({ ...NUMATCARD_START }); return { ...NUMATCARD_START }; }
+  };
+  useEffect(() => { loadRefMaster(); }, []);
+  const saveRefMaster = (m) => api.settingsSave("sap_numatcard", JSON.stringify(m), "SAP Customer ref number (last used per depot)");
+
+  const userOf = (r) => users.find((u) => u.name === (r.user || r.createdBy || r._by)) || {};
+  const togglePick = (id) => setPicked((x) => { const n = new Set(x); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  /* Approved -> Coordination To Accounts */
+  const moveToCoordination = async (ids) => {
+    if (!ids.length) return;
+    if (!window.confirm(`Move ${ids.length} statement(s) to Coordination To Accounts?`)) return;
+    setWorking(true);
+    for (const id of ids) {
+      const r = rows.find((x) => x._id === id); if (!r) continue;
+      try { await api.update("expense", id, { ...r, status: "Coordination", coordinationAt: new Date().toISOString() }); } catch {}
+    }
+    setPicked(new Set()); setWorking(false); load();
+  };
+
+  /* Coordination -> Uploaders. The day this happens is the SAP Tax Date, and
+     each statement gets the next Customer ref number of its depot. */
+  const sendToUploader = async (ids) => {
+    if (!ids.length) return;
+    if (!window.confirm(`Send ${ids.length} statement(s) to Accounts (Uploaders)?`)) return;
+    setWorking(true);
+    const m = { ...(await loadRefMaster()) };
+    const now = new Date().toISOString();
+    for (const id of ids) {
+      const r = rows.find((x) => x._id === id); if (!r) continue;
+      const dk = depoKey(r.depo || userOf(r).depo);
+      let ref = r.sapRefNo;
+      if (!ref && dk) { ref = (Number(m[dk]) || 0) + 1; m[dk] = ref; }
+      try { await api.update("expense", id, { ...r, status: "Uploader", sentToAccountsAt: now, sapRefNo: ref ?? "" }); } catch {}
+    }
+    try { await saveRefMaster(m); } catch {}
+    setRefMaster(m);
+    setPicked(new Set()); setWorking(false); load();
+  };
+
+  const downloadHeader = async (list2) => {
+    if (!list2.length) { alert("Select at least one statement"); return; }
+    const today = new Date();
+    const rowsOut = list2.map((r) => headerRow(r, userOf(r), today));
+    await downloadSheet(`SAP-Header-${today.toISOString().slice(0, 10)}.xlsx`, HEADER_COLS, rowsOut);
+  };
+  const downloadLines = async (r) => {
+    const u = userOf(r);
+    const out = lineRows(r, areaState, u.state);
+    if (!out.length) { alert("No approved lines in this statement."); return; }
+    const safe = String(r.user || "person").replace(/[^a-z0-9]+/gi, "-");
+    await downloadSheet(`SAP-Lines-${safe}-${(r.periodTo || "").slice(0, 7)}.xlsx`, LINE_COLS, out);
+  };
 
   const load = () => {
     setLoading(true);
@@ -36,12 +113,14 @@ export default function ExpenseApprovals() {
   useEffect(() => { api.listUsers().then((d) => setUsers((d.users || []).filter((u) => u.status == 1))).catch(() => {}); }, []);
 
   const statements = scopeRows(rows.filter((r) => r.isFormat), users, ["user", "createdBy", "createdByName"]);
-  const tabs = ["Submitted", "Approved", "Rejected"];
+  const tabs = ["Submitted", "Approved", "Coordination To Accounts", "Uploaders", "Rejected"];
   /* data appears only after the user clicks Show */
   const list = !applied ? [] : statements.filter((r) => {
     let ok = false;
     if (tab === "Submitted") ok = r.status === "Submitted";
     else if (tab === "Approved") ok = r.status === "Approved";
+    else if (tab === "Coordination To Accounts") ok = r.status === "Coordination";
+    else if (tab === "Uploaders") ok = r.status === "Uploader";
     else if (tab === "Rejected") ok = r.status === "Rejected" || r.status === "Reject";
     if (!ok) return false;
     if (applied) {
@@ -111,9 +190,36 @@ export default function ExpenseApprovals() {
 
       <div style={{ display: "flex", gap: 8, margin: "14px 0" }}>
         {tabs.map((t) => (
-          <button key={t} onClick={() => setTab(t)} className="btn" style={{ background: tab === t ? "#2b6fb8" : undefined, color: tab === t ? "#fff" : undefined, borderColor: tab === t ? "transparent" : undefined }}>{t}</button>
+          <button key={t} onClick={() => { setTab(t); setPicked(new Set()); }} className="btn" style={{ background: tab === t ? "#2b6fb8" : undefined, color: tab === t ? "#fff" : undefined, borderColor: tab === t ? "transparent" : undefined }}>{t}</button>
         ))}
       </div>
+
+      {/* what can be done with the ticked statements on this tab */}
+      {applied && ["Approved", "Coordination To Accounts", "Uploaders"].includes(tab) && list.length > 0 && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+          <span style={{ fontSize: 12.5, color: "var(--muted)", fontWeight: 700 }}>{picked.size} selected</span>
+          {tab === "Approved" && (
+            <button className="btn btn-primary" disabled={!picked.size || working} onClick={() => moveToCoordination([...picked])}>
+              ➜ Move to Coordination To Accounts
+            </button>
+          )}
+          {tab === "Coordination To Accounts" && (
+            <button className="btn btn-primary" disabled={!picked.size || working} onClick={() => sendToUploader([...picked])}>
+              ➜ Send to Uploader
+            </button>
+          )}
+          {tab === "Uploaders" && (
+            <>
+              <button className="btn btn-primary" disabled={!picked.size} onClick={() => downloadHeader(list.filter((r) => picked.has(r._id)))}>
+                ⬇ Header Uploader (selected)
+              </button>
+              <button className="btn btn-soft" onClick={() => downloadHeader(list)}>⬇ Header Uploader (all {list.length})</button>
+              <button className="btn btn-ghost" onClick={() => setRefOpen(true)}>Customer Ref No. master</button>
+            </>
+          )}
+          {working && <span style={{ fontSize: 12.5, color: "var(--muted)" }}>Working…</span>}
+        </div>
+      )}
 
       <div style={{ background: "#fff", borderRadius: 14, boxShadow: "var(--shadow)", overflow: "hidden" }}>
         {loading ? <div style={{ padding: 40, color: "var(--muted)" }}>Loading…</div>
@@ -122,20 +228,50 @@ export default function ExpenseApprovals() {
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead><tr style={{ background: "#f4f6fc", textAlign: "left" }}>
-                {["Employee", "Emp Code", "Period", "Entries", "Amount", "Submitted", "Status"].filter(colVisible).concat(["Action"]).map((h) => <th key={h} style={{ padding: "11px 14px", fontWeight: 800, fontSize: 12, color: "#4a5578" }}>{h}</th>)}
+                {["Approved", "Coordination To Accounts", "Uploaders"].includes(tab) && (
+                  <th style={{ padding: "11px 14px" }}>
+                    <input type="checkbox" checked={list.length > 0 && list.every((r) => picked.has(r._id))}
+                      onChange={(e) => setPicked(e.target.checked ? new Set(list.map((r) => r._id)) : new Set())} />
+                  </th>
+                )}
+                {["Employee", "Emp Code", "Period", "Entries", "Amount", "Submitted", "Status"].filter(colVisible)
+                  .concat(tab === "Uploaders" ? ["Depot", "Ref No"] : [])
+                  .concat(["Action"]).map((h) => <th key={h} style={{ padding: "11px 14px", fontWeight: 800, fontSize: 12, color: "#4a5578" }}>{h}</th>)}
               </tr></thead>
               <tbody>
                 {list.map((r) => (
-                  <tr key={r._id} style={{ borderTop: "1px solid #eef1f8" }}>
+                  <tr key={r._id} style={{ borderTop: "1px solid #eef1f8", background: picked.has(r._id) ? "#f2f6ff" : "transparent" }}>
+                    {["Approved", "Coordination To Accounts", "Uploaders"].includes(tab) && (
+                      <td style={{ padding: "10px 14px" }}><input type="checkbox" checked={picked.has(r._id)} onChange={() => togglePick(r._id)} /></td>
+                    )}
                     {colVisible("Employee") && <td style={{ padding: "10px 14px", fontWeight: 700 }}><span onClick={() => setView(r)} style={{ color: "var(--accent)", cursor: "pointer" }}>{r.user || r._by}</span></td>}
                     {colVisible("Emp Code") && <td style={{ padding: "10px 14px" }}>{r.empCode || "—"}</td>}
                     {colVisible("Period") && <td style={{ padding: "10px 14px" }}>{r.periodFrom} → {r.periodTo}</td>}
                     {colVisible("Entries") && <td style={{ padding: "10px 14px" }}>{(r.items || []).length}</td>}
                     {colVisible("Amount") && <td style={{ padding: "10px 14px", fontWeight: 700 }}>₹{(r.amount || 0).toLocaleString("en-IN")}</td>}
                     {colVisible("Submitted") && <td style={{ padding: "10px 14px" }}>{r.submittedAt || "—"}</td>}
-                    {colVisible("Status") && <td style={{ padding: "10px 14px" }}><span style={{ fontWeight: 700, color: r.status === "Approved" ? "#0f7a44" : r.status === "Rejected" ? "#c03636" : "#2563eb" }}>{r.status}</span></td>}
-                    <td style={{ padding: "10px 14px", display: "flex", gap: 6 }}>
+                    {colVisible("Status") && <td style={{ padding: "10px 14px" }}><span style={{ fontWeight: 700, color: r.status === "Approved" ? "#0f7a44" : r.status === "Rejected" ? "#c03636" : "#2563eb" }}>{r.status === "Coordination" ? "Coordination" : r.status === "Uploader" ? "With Accounts" : r.status}</span></td>}
+                    {tab === "Uploaders" && <td style={{ padding: "10px 14px" }}>{r.depo || userOf(r).depo || "—"}</td>}
+                    {tab === "Uploaders" && <td style={{ padding: "10px 14px", fontWeight: 700 }}>{r.sapRefNo || "—"}</td>}
+                    <td style={{ padding: "10px 14px", display: "flex", gap: 6, flexWrap: "wrap" }}>
                       <button className="btn btn-primary" style={{ padding: "5px 12px" }} onClick={() => setView(r)}>Open</button>
+                      {tab === "Approved" && (
+                        <button className="btn btn-soft" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => moveToCoordination([r._id])}>➜ Coordination</button>
+                      )}
+                      {tab === "Coordination To Accounts" && (
+                        <>
+                          <button className="btn btn-soft" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => buildExpensePdf(r, true, { adminSummary: true }).catch((e) => alert(e.message))}>PDF</button>
+                          <button className="btn btn-soft" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => buildExpensePdf(r, false, { adminSummary: true }).catch((e) => alert(e.message))}>PDF + Bills</button>
+                          <button className="btn btn-primary" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => sendToUploader([r._id])}>➜ Uploader</button>
+                        </>
+                      )}
+                      {tab === "Uploaders" && (
+                        <>
+                          <button className="btn btn-soft" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => downloadHeader([r])}>⬇ Header</button>
+                          <button className="btn btn-primary" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => downloadLines(r)}>⬇ Lines</button>
+                          <button className="btn btn-soft" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => buildExpensePdf(r, true, { adminSummary: true }).catch((e) => alert(e.message))}>PDF</button>
+                        </>
+                      )}
                       <button className="btn btn-danger" style={{ padding: "5px 10px", fontSize: 12 }}
                         onClick={async () => {
                           if (!window.confirm("Delete this expense statement? This cannot be undone.")) return;
@@ -170,6 +306,58 @@ export default function ExpenseApprovals() {
         </div>
       )}
 
+      {/* summary in the exact SAP header format, for a quick check before download */}
+      {applied && tab === "Uploaders" && list.length > 0 && (
+        <div style={{ background: "#fff", borderRadius: 14, boxShadow: "var(--shadow)", marginTop: 16, overflowX: "auto" }}>
+          <div style={{ padding: "12px 14px", fontWeight: 800, fontSize: 13.5 }}>Header Uploader — Summary</div>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              {HEADER_COLS.map((hr, hi) => (
+                <tr key={hi} style={{ background: hi === 0 ? "#1f3a68" : "#e8eefb" }}>
+                  {hr.map((h, i) => <th key={i} style={{ padding: "7px 9px", textAlign: "left", whiteSpace: "nowrap", color: hi === 0 ? "#fff" : "#1f3a68", fontWeight: 800 }}>{h}</th>)}
+                </tr>
+              ))}
+            </thead>
+            <tbody>
+              {list.map((r) => {
+                const vals = headerRow(r, userOf(r), new Date());
+                return (
+                  <tr key={r._id} style={{ borderTop: "1px solid #eef1f8" }}>
+                    {vals.map((v, i) => <td key={i} style={{ padding: "7px 9px", whiteSpace: i === 12 ? "normal" : "nowrap", minWidth: i === 12 ? 260 : undefined }}>{String(v)}</td>)}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {refOpen && refMaster && (
+        <div className="modal-mask" onClick={() => setRefOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <h3 style={{ marginTop: 0 }}>Customer Ref No. — last used per depot</h3>
+            <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 0 }}>
+              The next statement sent to Accounts gets this number + 1. Change it only if SAP was updated by hand.
+            </p>
+            <div style={{ maxHeight: 360, overflowY: "auto", display: "grid", gridTemplateColumns: "1fr 110px", gap: 6, alignItems: "center" }}>
+              {Object.keys(refMaster).sort().map((k) => (
+                <div key={k} style={{ display: "contents" }}>
+                  <span style={{ fontSize: 13, textTransform: "capitalize" }}>{k === "ho" ? "HO" : k}</span>
+                  <input type="number" value={refMaster[k]} onChange={(e) => setRefMaster((m) => ({ ...m, [k]: Number(e.target.value) || 0 }))}
+                    style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid var(--line)", fontSize: 13 }} />
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+              <button className="btn" style={{ flex: 1 }} onClick={() => { setRefOpen(false); loadRefMaster(); }}>Cancel</button>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={async () => {
+                try { await saveRefMaster(refMaster); setRefOpen(false); } catch (e) { alert(e.message); }
+              }}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {view && <ExpenseReview r={view} onClose={() => setView(null)} onDone={() => { setView(null); load(); }} />}
     </>
   );
@@ -190,12 +378,12 @@ function ExpenseReview({ r, onClose, onDone }) {
 
   const downloadPdf = async () => {
     setBusy(true);
-    try { await buildExpensePdf(r, true); } catch (e) { alert("PDF failed: " + e.message); }
+    try { await buildExpensePdf(r, true, { adminSummary: true }); } catch (e) { alert("PDF failed: " + e.message); }
     setBusy(false);
   };
   const downloadPdfBills = async () => {
     setBusy(true);
-    try { await buildExpensePdf(r, false); } catch (e) { alert("PDF failed: " + e.message); }
+    try { await buildExpensePdf(r, false, { adminSummary: true }); } catch (e) { alert("PDF failed: " + e.message); }
     setBusy(false);
   };
 
