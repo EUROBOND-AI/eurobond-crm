@@ -364,7 +364,27 @@ export default function ModulePage({ cfgKey }) {
     if (!confirm("Delete this record?")) return;
     try {
       await api.remove(cfgKey, r._id);
-      setRows(rows.filter((x) => x._id !== r._id));
+      /* a project mentioned across sales and specification exists as two records;
+         remove the linked copy as well, otherwise it looks like the row came back */
+      if (cfgKey === "projectProjection") {
+        const linked = rows.filter((x) => x._id !== r._id && (
+          String(x.parentProjectId || "") === String(r._id) ||
+          String(r.parentProjectId || "") === String(x._id) ||
+          (x.projectName && r.projectName && x.projectName === r.projectName &&
+            (x.createdBy === r.createdBy || x.salesPerson === r.salesPerson || x.specPerson === r.specPerson) &&
+            (x.createdAt || "") === (r.createdAt || ""))
+        ));
+        for (const l of linked) { try { await api.remove(cfgKey, l._id); } catch {} }
+      }
+      /* confirm with the server rather than trusting the screen */
+      const after = await api.list(cfgKey, false).catch(() => null);
+      if (after) {
+        const still = (after.records || []).some((x) => String(x.id) === String(r._id));
+        if (still) { alert("The server still has this record — please tell Karthik the id: " + r._id); }
+        setRows((after.records || []).map((x) => ({ _id: x.id, ...x.data, _by: x.created_by_name, _at: x.created_at })));
+      } else {
+        setRows(rows.filter((x) => x._id !== r._id));
+      }
     } catch (e) {
       alert("Could not delete: " + e.message);
     }

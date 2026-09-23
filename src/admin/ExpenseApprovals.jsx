@@ -88,6 +88,45 @@ export default function ExpenseApprovals() {
     setPicked(new Set()); setWorking(false); load();
   };
 
+  /* the header uploader as a PDF, for filing with Accounts */
+  const summaryPdf = async (list2) => {
+    if (!list2.length) return;
+    const { jsPDF } = await import("jspdf");
+    const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
+    const pageW = 297, mL = 8;
+    const from = list2.map((r) => r.periodFrom).filter(Boolean).sort()[0] || "";
+    const to = list2.map((r) => r.periodTo).filter(Boolean).sort().slice(-1)[0] || "";
+    pdf.setFont(undefined, "bold"); pdf.setFontSize(12);
+    pdf.text("EXPENSE UPLOADER — SUMMARY", pageW / 2, 12, { align: "center" });
+    pdf.setFontSize(9); pdf.setFont(undefined, "normal");
+    pdf.text(`Period : ${from} to ${to}`, pageW / 2, 18, { align: "center" });
+
+    const cols = HEADER_COLS[0].map((h, i) => ({ t: h, w: i === 12 ? 62 : (i === 0 || i === 3 ? 14 : 17) }));
+    const totalW = cols.reduce((a, c) => a + c.w, 0);
+    const sx = Math.max(mL, (pageW - totalW) / 2);
+    let y = 24;
+    const rowAt = (yy, h) => { let x = sx; pdf.rect(sx, yy, totalW, h); cols.forEach((c) => { pdf.line(x, yy, x, yy + h); x += c.w; }); pdf.line(x, yy, x, yy + h); };
+    const head = () => {
+      pdf.setFont(undefined, "bold"); pdf.setFontSize(6.2);
+      rowAt(y, 7); let x = sx;
+      cols.forEach((c) => { pdf.text(pdf.splitTextToSize(c.t, c.w - 2), x + c.w / 2, y + 3, { align: "center" }); x += c.w; });
+      y += 7; pdf.setFont(undefined, "normal"); pdf.setFontSize(6.4);
+    };
+    head();
+    const today = new Date();
+    list2.forEach((r) => {
+      const vals = headerRow(r, userOf(r), today).map((v) => String(v ?? ""));
+      const wrapped = cols.map((c, i) => pdf.splitTextToSize(vals[i], c.w - 2));
+      const h = Math.max(6, 2.2 + Math.max(...wrapped.map((w) => w.length)) * 2.6);
+      if (y + h > 200) { pdf.addPage(); y = 14; head(); }
+      rowAt(y, h);
+      let x = sx;
+      cols.forEach((c, i) => { pdf.text(wrapped[i], x + 1, y + 3.4); x += c.w; });
+      y += h;
+    });
+    pdf.save(`Expense-Uploader-Summary-${from || ""}-to-${to || ""}.pdf`);
+  };
+
   const downloadHeader = async (list2) => {
     if (!list2.length) { alert("Select at least one statement"); return; }
     const today = new Date();
@@ -214,6 +253,7 @@ export default function ExpenseApprovals() {
                 ⬇ Header Uploader (selected)
               </button>
               <button className="btn btn-soft" onClick={() => downloadHeader(list)}>⬇ Header Uploader (all {list.length})</button>
+              <button className="btn btn-soft" disabled={!list.length} onClick={() => summaryPdf(picked.size ? list.filter((r) => picked.has(r._id)) : list)}>⬇ Summary PDF</button>
               <button className="btn btn-ghost" onClick={() => setRefOpen(true)}>Customer Ref No. master</button>
             </>
           )}
@@ -303,32 +343,6 @@ export default function ExpenseApprovals() {
             </div>
             <div style={{ marginTop: 14, fontSize: 11.5, color: "var(--muted)" }}>Your choice is saved on this device.</div>
           </div>
-        </div>
-      )}
-
-      {/* summary in the exact SAP header format, for a quick check before download */}
-      {applied && tab === "Uploaders" && list.length > 0 && (
-        <div style={{ background: "#fff", borderRadius: 14, boxShadow: "var(--shadow)", marginTop: 16, overflowX: "auto" }}>
-          <div style={{ padding: "12px 14px", fontWeight: 800, fontSize: 13.5 }}>Header Uploader — Summary</div>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead>
-              {HEADER_COLS.map((hr, hi) => (
-                <tr key={hi} style={{ background: hi === 0 ? "#1f3a68" : "#e8eefb" }}>
-                  {hr.map((h, i) => <th key={i} style={{ padding: "7px 9px", textAlign: "left", whiteSpace: "nowrap", color: hi === 0 ? "#fff" : "#1f3a68", fontWeight: 800 }}>{h}</th>)}
-                </tr>
-              ))}
-            </thead>
-            <tbody>
-              {list.map((r) => {
-                const vals = headerRow(r, userOf(r), new Date());
-                return (
-                  <tr key={r._id} style={{ borderTop: "1px solid #eef1f8" }}>
-                    {vals.map((v, i) => <td key={i} style={{ padding: "7px 9px", whiteSpace: i === 12 ? "normal" : "nowrap", minWidth: i === 12 ? 260 : undefined }}>{String(v)}</td>)}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
         </div>
       )}
 

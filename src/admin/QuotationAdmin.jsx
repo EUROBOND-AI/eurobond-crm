@@ -439,8 +439,8 @@ function quotePageHtml(q) {
     <td style="text-align:center;border:1px solid #999;padding:7px;width:8%">${i + 1}</td>
     <td style="text-align:center;border:1px solid #999;padding:7px;width:38%">${it.grade || ""}${it.thickness ? `<span style="font-size:10px;color:#666;display:block">(${it.thickness})</span>` : ""}${it.fins ? " (Running Feet)" : ""}</td>
     <td style="text-align:center;border:1px solid #999;padding:7px;width:22%">${it.colourCode ? it.colourCode + " · " : ""}${it.colour || ""}</td>
-    <td style="text-align:center;border:1px solid #999;padding:7px;width:16%">${!it.fins && it.ratePerSqm ? "INR - " + it.ratePerSqm : "—"}</td>
-    <td style="text-align:center;border:1px solid #999;padding:7px;width:16%">INR - ${it.rate}</td>
+    <td style="text-align:center;border:1px solid #999;padding:7px;width:16%">${!it.fins && it.ratePerSqm ? it.ratePerSqm : "—"}</td>
+    <td style="text-align:center;border:1px solid #999;padding:7px;width:16%">${it.rate}</td>
   </tr>`).join("");
   return `<div class="page" style="position:relative;width:794px;min-height:1123px;padding:158px 68px 128px;font-family:Arial;font-size:13px;color:#1a1a1a;box-sizing:border-box;background-image:url('${LETTERHEAD}');background-size:794px 1123px;background-repeat:no-repeat">
     <div style="display:flex;justify-content:space-between"><b>DATE: ${q.createdAt || new Date().toLocaleDateString("en-GB")}</b><b>${q.quoteNo || q.id}</b></div>
@@ -474,8 +474,8 @@ function quoteHtml(q) {
     <td style="text-align:center;border:1px solid #999;padding:8px">${i + 1}</td>
     <td style="text-align:left;border:1px solid #999;padding:8px">${it.grade || ""}${it.thickness ? `<br><span style="font-size:10px;color:#666">(${it.thickness})</span>` : ""}${it.fins ? " (Running Feet)" : ""}</td>
     <td style="text-align:center;border:1px solid #999;padding:8px">${it.colourCode ? it.colourCode + " · " : ""}${it.colour || ""}</td>
-    <td style="text-align:center;border:1px solid #999;padding:8px">${!it.fins && it.ratePerSqm ? "INR - " + it.ratePerSqm : "—"}</td>
-    <td style="text-align:center;border:1px solid #999;padding:8px">INR - ${it.rate}</td>
+    <td style="text-align:center;border:1px solid #999;padding:8px">${!it.fins && it.ratePerSqm ? it.ratePerSqm : "—"}</td>
+    <td style="text-align:center;border:1px solid #999;padding:8px">${it.rate}</td>
   </tr>`).join("");
   return `<html><head><meta charset="utf-8"><title>${q.quoteNo || q.id}</title></head>
   <body style="font-family:Arial;color:#1a1a1a;font-size:13px;max-width:800px;margin:auto;padding:20px">
@@ -511,8 +511,8 @@ function downloadQuotePdf(q) {
     <td class="srno">${i + 1}</td>
     <td class="desc">${it.grade || ""}${it.thickness ? `<span class="thk">(${it.thickness})</span>` : ""}${it.fins ? " (Running Feet)" : ""}</td>
     <td class="colour">${it.colourCode ? it.colourCode + " · " : ""}${it.colour || ""}</td>
-    <td class="rate">${!it.fins && it.ratePerSqm ? "INR - " + it.ratePerSqm : "—"}</td>
-    <td class="rate">INR - ${it.rate}</td>
+    <td class="rate">${!it.fins && it.ratePerSqm ? it.ratePerSqm : "—"}</td>
+    <td class="rate">${it.rate}</td>
   </tr>`).join("");
   const tc = q.tc || {};
   w.document.write(`<html><head><title>${q.quoteNo || q.id}</title>
@@ -522,7 +522,11 @@ function downloadQuotePdf(q) {
     html, body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     body{font-family:Arial;color:#1a1a1a;font-size:12.5px;margin:0;padding:0}
     .page{position:relative;width:210mm;min-height:297mm;padding:42mm 18mm 34mm 18mm;}
-    .page::before{content:"";position:absolute;inset:0;background-image:url('${LETTERHEAD}');background-size:210mm 297mm;background-repeat:no-repeat;z-index:-1;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    /* a real <img> rather than a CSS background: a background is a print layer
+       that PDF editors drop as soon as the file is edited */
+    .page{position:relative;}
+    .page > .lh{position:absolute;top:0;left:0;width:210mm;height:297mm;z-index:0;}
+    .page > .body{position:relative;z-index:1;}
     .top{display:flex;justify-content:space-between;align-items:flex-start}
     .qno{font-weight:bold}
     table{width:100%;border-collapse:collapse;margin:12px 0}
@@ -539,6 +543,8 @@ function downloadQuotePdf(q) {
     p{margin:8px 0}
   </style></head><body>
     <div class="page">
+      <img class="lh" src="${LETTERHEAD}" alt="" />
+      <div class="body">
       <div class="top">
         <div><b>DATE: ${q.createdAt || new Date().toLocaleDateString("en-GB")}</b></div>
         <div class="qno">${q.quoteNo || q.id}</div>
@@ -572,6 +578,7 @@ function downloadQuotePdf(q) {
         ${q.createdBy || ""}<br>
         ${q.createdByDesignation || q.designation || ""}<br>
         ${q.createdByPhone ? "Mob : " + q.createdByPhone : ""}
+      </div>
       </div>
     </div>
   </body></html>`);

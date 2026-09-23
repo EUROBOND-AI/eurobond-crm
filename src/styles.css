@@ -56,9 +56,13 @@ input, select, textarea { font-family: inherit; font-size: 13px; }
   width: 240px; min-width: 240px;
   background: linear-gradient(180deg, #2a3260 0%, #1e2547 100%);
   color: var(--sidebar-text); display: flex; flex-direction: column;
-  overflow-y: auto; scrollbar-width: thin;
+  overflow: hidden; scrollbar-width: thin;
   box-shadow: 4px 0 24px rgba(20, 25, 55, 0.28); z-index: 5;
 }
+/* the logo and the search box stay put; only the module list scrolls */
+.side-scroll { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.side-scroll::-webkit-scrollbar { width: 5px; }
+.side-scroll::-webkit-scrollbar-thumb { background: #3c4573; border-radius: 3px; }
 .sidebar::-webkit-scrollbar { width: 5px; }
 .sidebar::-webkit-scrollbar-thumb { background: #3c4573; border-radius: 3px; }
 .brand {

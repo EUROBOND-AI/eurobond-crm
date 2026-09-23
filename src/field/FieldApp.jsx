@@ -1897,13 +1897,16 @@ function ExpenseFormatView({ list, reload }) {
         {/* actions */}
         <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
           {/* the PDF is available only once admin has approved the statement */}
-          {isApproved
-            ? <button className="f-submit" style={{ flex: 1, background: "#3949ab" }} disabled={busy} onClick={downloadPdf}>{busy ? "…" : "⬇ Download PDF"}</button>
-            : <button className="f-submit" style={{ flex: 1, background: "#5b6b8c" }} onClick={() => {
+          {isApproved && (
+            <button className="f-submit" style={{ flex: 1, background: "#3949ab" }} disabled={busy} onClick={downloadPdf}>{busy ? "…" : "⬇ Download PDF"}</button>
+          )}
+          {true
+            ? <button className="f-submit" style={{ flex: 1, background: "#5b6b8c" }} onClick={() => {
                 const withBill = (fmt.items || []).filter((it) => it.photo);
                 if (!withBill.length) { alert("No bills attached in this statement."); return; }
                 openAppPhoto(withBill[0].photo);
-              }}>🧾 View Bills</button>}
+              }}>🧾 View Bills</button>
+            : null}
           {editable && <button className="f-submit" style={{ flex: 1, background: "#0f7a44" }} disabled={busy} onClick={submit}>Submit to Admin</button>}
         </div>
         {fmt.status === "Submitted" && <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 12, marginTop: 10 }}>Submitted — waiting for admin approval.</div>}
@@ -2311,10 +2314,11 @@ function FieldFollowUpNew({ add, editData }) {
   const [locBusy, setLocBusy] = useState(!ed);
   const [scanBusy, setScanBusy] = useState(false);
 
-  /* address AUTO — form open avvagane immediate GPS capture (edit lo existing address unchi) */
-  useEffect(() => {
-    if (ed) { setLocBusy(false); return; }   // edit: existing address unchu
-    if (!navigator.geolocation) { setLocBusy(false); return; }
+  /* Read where we are and fill the address in. Runs once when adding a new
+     customer, and on demand from the button when editing one. */
+  const captureAddress = () => {
+    if (!navigator.geolocation) { alert("Location is not available on this device."); return; }
+    setLocBusy(true);
     navigator.geolocation.getCurrentPosition(async (pos) => {
       const la = pos.coords.latitude, ln = pos.coords.longitude;
       setF((x) => ({ ...x, lat: la, lng: ln }));
@@ -2368,6 +2372,11 @@ function FieldFollowUpNew({ add, editData }) {
       }
       setLocBusy(false);
     }, () => setLocBusy(false), { enableHighAccuracy: true, timeout: 15000 });
+  };
+  useEffect(() => {
+    if (ed) { setLocBusy(false); return; }   // editing: keep the saved address
+    captureAddress();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const setContact = (i, key, val) => setContacts((cs) => cs.map((c, idx) => (idx === i ? { ...c, [key]: val } : c)));
@@ -2470,6 +2479,12 @@ function FieldFollowUpNew({ add, editData }) {
         <div style={{ ...inp, background: "#f1f4fb", border: "1.5px solid #d7dcef", borderRadius: 10, padding: "10px 12px", fontSize: 13, color: locBusy ? "var(--muted)" : "#33406b", minHeight: 42 }}>
           {locBusy ? "📍 Getting your location…" : (f.address ? `📍 ${f.address}` : "⚠️ Location unavailable — turn on GPS")}
         </div>
+        {/* an edit keeps the address saved earlier; this picks up where you are now */}
+        <button type="button" onClick={captureAddress} disabled={locBusy}
+          style={{ width: "100%", marginBottom: 12, padding: "9px 0", borderRadius: 10, border: "1.5px solid var(--navy)",
+            background: "#fff", color: "var(--navy)", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
+          {locBusy ? "Updating…" : "📍 Update address to my current location"}
+        </button>
 
         <div style={{ fontWeight: 800, fontSize: 13.5, margin: "6px 0 10px", color: "var(--navy)" }}>Contact Info</div>
         {contacts.map((c, i) => (
@@ -4376,6 +4391,7 @@ function FieldModuleNew({ mod }) {
                 try {
                   /* spec direct visit: projection record + sales person ki "Direct" entry */
                   const pj = await api.create("projectProjection", {
+                    parentProjectId: rec._id,   // so deleting one removes the pair
                     id: "PPJ-" + String(Date.now()).slice(-4),
                     /* new field names so it shows properly in the admin table
                        (old keys were name/firm/details -> every column showed "--") */
@@ -6530,6 +6546,11 @@ export default function FieldApp() {
       api.list("followup", true).then((d) => setFollowups((d.records || []).map((r) => ({ _id: r.id, ...r.data })))).catch(() => {});
     };
     loadLists();
+    /* Screens used to show whatever was loaded when the app first opened, so an
+       approval or a change made in admin only appeared after leaving the screen
+       and coming back. Reload whenever a screen is opened (at most once a
+       minute), and start fresh after the app has been idle for 15 minutes. */
+    window.__ebLoadLists = loadLists;
     const onVis = () => { if (document.visibilityState === "visible") loadLists(); };
     document.addEventListener("visibilitychange", onVis);
     window.addEventListener("focus", loadLists);

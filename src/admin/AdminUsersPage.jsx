@@ -14,6 +14,18 @@ export default function AdminUsersPage() {
   const [form, setForm] = useState(null);
   const [busy, setBusy] = useState(false);
   const [appUsers, setAppUsers] = useState([]);
+  /* search and filter, with nothing listed until Show is pressed */
+  const [q, setQ] = useState("");
+  const [fRole, setFRole] = useState("");
+  const [fStatus, setFStatus] = useState("");
+  const [shown, setShown] = useState(false);
+  const visible = !shown ? [] : (rows || []).filter((r) => {
+    if (fRole && (r.role || "") !== fRole) return false;
+    if (fStatus && String(r.status ?? 1) !== fStatus) return false;
+    const t = q.trim().toLowerCase();
+    if (!t) return true;
+    return `${r.name} ${r.username} ${r.email} ${r.role}`.toLowerCase().includes(t);
+  });
 
   const load = () => api.list("adminUser", false)
     .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data }))))
@@ -51,6 +63,23 @@ export default function AdminUsersPage() {
         <ShieldCheck size={16} /> Only users added here can log into the <b>Backend panel</b> using their <b>username + password</b> (completely separate from the app's mobile + OTP login). Their role decides which admin modules they see.
       </div>
 
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 14, boxShadow: "var(--shadow)" }}>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, username, email…"
+          style={{ padding: "8px 11px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 12.5, width: 240 }} />
+        <select value={fRole} onChange={(e) => setFRole(e.target.value)} style={{ padding: "8px 11px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 12.5 }}>
+          <option value="">All Roles</option>
+          {[...new Set((rows || []).map((r) => r.role).filter(Boolean))].sort().map((x) => <option key={x}>{x}</option>)}
+        </select>
+        <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} style={{ padding: "8px 11px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 12.5 }}>
+          <option value="">All Status</option>
+          <option value="1">Active</option>
+          <option value="0">Inactive</option>
+        </select>
+        <button className="btn btn-primary" onClick={() => setShown(true)}>Show</button>
+        {shown && <button className="btn btn-ghost" onClick={() => { setShown(false); setQ(""); setFRole(""); setFStatus(""); }}>Clear</button>}
+        {shown && <span style={{ fontSize: 12.5, color: "var(--muted)", fontWeight: 600 }}>{visible.length} of {(rows || []).length}</span>}
+      </div>
+
       <div style={{ background: "#fff", borderRadius: 14, boxShadow: "var(--shadow)", overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -60,9 +89,11 @@ export default function AdminUsersPage() {
             <tbody>
               {rows === null ? (
                 <tr><td colSpan={7} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
-              ) : rows.length === 0 ? (
-                <tr><td colSpan={7} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No admin users yet. Add one to grant backend access.</td></tr>
-              ) : rows.map((r, idx) => (
+              ) : !shown ? (
+                <tr><td colSpan={7} style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Set your filters and click <b>Show</b>.</td></tr>
+              ) : visible.length === 0 ? (
+                <tr><td colSpan={7} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No admin users match these filters.</td></tr>
+              ) : visible.map((r, idx) => (
                 <tr key={r._id} style={{ borderTop: "1px solid #eef1f8" }}>
                   <td style={{ padding: "11px 14px", color: "var(--muted)", fontWeight: 700 }}>{idx + 1}</td>
                   <td style={{ padding: "11px 14px", fontWeight: 700 }}>{r.name}</td>

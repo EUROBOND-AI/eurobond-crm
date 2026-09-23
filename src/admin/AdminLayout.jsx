@@ -262,6 +262,7 @@ export default function AdminLayout() {
           </span>
         </div>
         <ModuleSearch nav={nav} />
+        <div className="side-scroll">
         {NAV.map((g) => {
           /* filter children/items by role permission (Admin: allowedNav === null → show all) */
           const items = g.items.map((it) => {
@@ -282,6 +283,7 @@ export default function AdminLayout() {
           );
         })}
         <div style={{ height: 30 }} />
+        </div>
       </aside>
       <div className="main-col">
         <header className="topbar">
