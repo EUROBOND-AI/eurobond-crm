@@ -18,6 +18,7 @@ const ACC_MAX = 75;        // metres — a vaguer fix is shown but not measured 
 const MIN_STEP = 30;       // metres — the floor, even with a perfect fix
 const MIN_SPEED = 1.5;     // km/h — slower than this is drift, not walking
 const MAX_SPEED = 180;     // km/h — faster is a bad fix
+const MAX_STEP_KM = 25;    // one step longer than this is a bad fix, not a trip
 const STILL_RADIUS = 45;   // metres
 const STILL_SECS = 240;    // seconds inside that radius = standing still
 
@@ -68,7 +69,15 @@ export function trackDistanceKm(points) {
     if (secs > 0) {
       const kmh = km / (secs / 3600);
       if (kmh < MIN_SPEED) { anchor = p; lastBearing = null; continue; }
-      if (kmh > MAX_SPEED) { anchor = p; lastBearing = null; continue; }
+      /* A fix that lands hundreds of kilometres away and then comes straight
+         back is a bad reading, not a journey. Keep the previous position as the
+         anchor so the way "back" is not counted either — moving the anchor onto
+         the bad point is what turned one stray fix into 533 km. */
+      if (kmh > MAX_SPEED) continue;
+    } else if (km > MAX_STEP_KM) {
+      /* no usable time on one of the two points: fall back to a plain distance
+         sanity check instead of trusting it */
+      continue;
     }
 
     /* Sitting in one place still throws up the odd big jump. If the position

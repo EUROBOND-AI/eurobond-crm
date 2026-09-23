@@ -1063,6 +1063,29 @@ try {
     }
   } catch (e) { console.log("[patch-bg-geo] signing note:", e.message); }
 
+  /* ---- Keep the Android version in step with package.json ----
+     The name shown on the phone (Settings > Apps, and the Play Console) came
+     from build.gradle and had to be edited by hand every time. It now follows
+     the version in package.json: 1.3.1 -> versionName "1.3.1", versionCode 10301. */
+  try {
+    const gradle = path.join(__dirname, "..", "android", "app", "build.gradle");
+    const pkgJson = path.join(__dirname, "..", "package.json");
+    if (fs.existsSync(gradle) && fs.existsSync(pkgJson)) {
+      const ver = String(JSON.parse(fs.readFileSync(pkgJson, "utf8")).version || "1.0.0");
+      const [maj, min, pat] = ver.split(".").map((x) => parseInt(x, 10) || 0);
+      const code = maj * 10000 + min * 100 + pat;
+      let g = fs.readFileSync(gradle, "utf8");
+      const before = g;
+      g = g.replace(/versionName\s+"[^"]*"/, 'versionName "' + ver + '"');
+      g = g.replace(/versionCode\s+\d+/, "versionCode " + code);
+      if (g !== before) {
+        fs.writeFileSync(gradle, g, "utf8");
+        console.log("[patch-bg-geo] android version set to " + ver + " (code " + code + ") \u2713");
+      }
+    }
+  } catch (e) { console.log("[patch-bg-geo] version note:", e.message); }
+
+
   /* ---- EB_WAKE_RECEIVER: a manifest-registered receiver that restarts the
      tracking service. A receiver still runs even when the service itself could
      not start (for example while notifications were switched off), so this is

@@ -535,7 +535,7 @@ function downloadQuotePdf(q) {
     td.srno{text-align:center;width:8%}
     td.desc{text-align:left;width:38%}
     td.colour{text-align:center;width:22%}
-    td.rate{text-align:right;width:16%}
+    td.rate{text-align:center;width:16%}
     .thk{font-size:10px;color:#666;display:block;margin-top:2px}
     .tc div{margin:2px 0}
     .sign{margin-top:26px}

@@ -351,7 +351,9 @@ export default function AttendancePage() {
     api.attTrack(viewSess.id).then((d) => {
       /* show ALL uploaded points — don't drop weak-accuracy ones (phones often report
          ±60-100m indoors, and dropping them made the admin timeline look empty) */
-      const raw = (d.points || []);
+      /* drop obviously wrong fixes before drawing: one stray point used to add a
+         whole extra line on the map and hundreds of kilometres to the total */
+      const raw = (d.points || []).filter((p) => !Number(p.accuracy) || Number(p.accuracy) <= 200);
       setRoutePoints(raw);
       const pts = raw.map((p) => [Number(p.lat), Number(p.lng)]);
       if (pts.length) {

@@ -2400,12 +2400,12 @@ function FieldFollowUpNew({ add, editData }) {
           const img = new Image();
           img.onerror = () => res(rd.result);
           img.onload = () => {
-            const MAX = 1600;
+            const MAX = 1200;
             const k = Math.min(1, MAX / Math.max(img.width, img.height));
             const c = document.createElement("canvas");
             c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
             c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-            res(c.toDataURL("image/jpeg", 0.85));
+            res(c.toDataURL("image/jpeg", 0.78));
           };
           img.src = rd.result;
         };
@@ -2426,21 +2426,22 @@ function FieldFollowUpNew({ add, editData }) {
 
   return (
     <>
+      {scanBusy && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.55)", zIndex: 500, display: "grid", placeItems: "center" }}>
+          <div style={{ background: "#fff", borderRadius: 16, padding: "26px 34px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+            <div className="eb-spin" style={{ width: 34, height: 34 }} />
+            <div style={{ fontWeight: 700, fontSize: 13.5, color: "var(--navy)" }}>Scanning…</div>
+          </div>
+        </div>
+      )}
       <ScreenHead title={ed ? "Edit Customer" : "Add New Customer"} />
       <div className="f-form">
         {/* Visiting card scan — top lo, entry pani taggutundi */}
         <div style={{ background: "linear-gradient(135deg,#eef1ff,#f4ecff)", borderRadius: 14, padding: "14px", marginBottom: 6 }}>
-          <div style={{ fontWeight: 800, fontSize: 13.5, color: "var(--navy)", marginBottom: 4 }}>📇 Scan Visiting Card</div>
-          <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 10 }}>Details auto-fill from the card</div>
-          {/* back to the phone's own camera app — the in-app preview needed a
-              camera permission that is not granted on every device */}
+          {/* just the button — the phone's own camera opens */}
           <label style={{ display: "block", textAlign: "center", padding: "12px", borderRadius: 10, border: "1.5px solid var(--navy)", background: "#fff", color: "var(--navy)", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
             📷 Scan Here <input type="file" accept="image/*" capture="environment" hidden onChange={(e) => scanCard(e.target.files[0])} />
           </label>
-          <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 7, textAlign: "center" }}>
-            Fill the frame with the card and keep it straight
-          </div>
-          {scanBusy && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 8 }}>Scanning…</div>}
         </div>
 
         {f.enquiryFrom ? (
