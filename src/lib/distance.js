@@ -39,6 +39,36 @@ function bearing(a, b) {
 }
 const turn = (b1, b2) => { const d = Math.abs(b1 - b2) % 360; return d > 180 ? 360 - d : d; };
 
+/* The points worth drawing: the same ones the distance is measured from, so the
+   line on the map matches the kilometres and a stray fix cannot send it off to
+   another district and back. Returns the original objects, in order. */
+export function cleanTrack(points) {
+  const kept = [];
+  const pts = (points || []).map((p, i) => ({
+    i,
+    lat: Number(p.lat ?? p.latitude),
+    lng: Number(p.lng ?? p.longitude),
+    acc: Number(p.accuracy ?? p.acc ?? 0),
+    t: tsOf(p),
+  })).filter((p) => p.lat && p.lng && (!p.acc || p.acc <= ACC_MAX));
+
+  let anchor = null;
+  for (const p of pts) {
+    if (!anchor) { anchor = p; kept.push(p.i); continue; }
+    const km = haversineKm(anchor, p);
+    const secs = p.t && anchor.t ? (p.t - anchor.t) / 1000 : 0;
+    if (secs > 0) {
+      const kmh = km / (secs / 3600);
+      if (kmh > MAX_SPEED) continue;            // bad fix — leave it out
+    } else if (km > MAX_STEP_KM) {
+      continue;
+    }
+    kept.push(p.i);
+    anchor = p;
+  }
+  return kept.map((i) => points[i]);
+}
+
 export function trackDistanceKm(points) {
   const pts = (points || [])
     .map((p) => ({

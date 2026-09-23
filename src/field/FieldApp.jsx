@@ -361,7 +361,7 @@ function SlideToStart({ on, onToggle }) {
 }
 
 import L from "leaflet";
-import { trackDistanceKm } from "../lib/distance.js";
+import { trackDistanceKm, cleanTrack } from "../lib/distance.js";
 
 const todayStr = () =>
   new Date().toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
@@ -1257,7 +1257,8 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
      Poll only while tracking; after stop, load once and keep (no re-flicker). */
   useEffect(() => {
     if ((tab !== "Timeline" && tab !== "Map") || !sessionId) return;
-    const load = () => api.attPointsList(sessionId).then((d) => { if (d && d.points) setServerPts(d.points); }).catch(() => {});
+    /* same points as the distance, so the app map and the admin map agree */
+    const load = () => api.attPointsList(sessionId).then((d) => { if (d && d.points) setServerPts(cleanTrack(d.points)); }).catch(() => {});
     load();
     /* also reload the moment the app comes back to the front */
     const onBack = () => load();

@@ -5,7 +5,7 @@ import { PageHead, Pill } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { fmtKm } from "../lib/geo.js";
 import { visibleUsers } from "../lib/scope.js";
-import { trackDistanceKm } from "../lib/distance.js";
+import { trackDistanceKm, cleanTrack } from "../lib/distance.js";
 
 const rawTime = (dt) => {
   if (!dt) return null;
@@ -351,9 +351,10 @@ export default function AttendancePage() {
     api.attTrack(viewSess.id).then((d) => {
       /* show ALL uploaded points — don't drop weak-accuracy ones (phones often report
          ±60-100m indoors, and dropping them made the admin timeline look empty) */
-      /* drop obviously wrong fixes before drawing: one stray point used to add a
-         whole extra line on the map and hundreds of kilometres to the total */
-      const raw = (d.points || []).filter((p) => !Number(p.accuracy) || Number(p.accuracy) <= 200);
+      /* Draw from the same points the kilometres are measured from. A stray fix
+         used to pull the line off to another district and back — that was the
+         second line on the map. */
+      const raw = cleanTrack(d.points || []);
       setRoutePoints(raw);
       const pts = raw.map((p) => [Number(p.lat), Number(p.lng)]);
       if (pts.length) {
