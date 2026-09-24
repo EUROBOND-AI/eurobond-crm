@@ -272,26 +272,61 @@ function BiltraxWin({ r, onClose, onDone }) {
 
 /* A follow-up is a date plus a remark, kept on the project. */
 function BiltraxFollowUp({ r, onClose, onDone }) {
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const today = new Date().toISOString().slice(0, 10);
   const [remark, setRemark] = useState("");
+  const [nextType, setNextType] = useState("Call");
+  const [nextDate, setNextDate] = useState("");
+  const [nextTime, setNextTime] = useState("");
+  const [nextNote, setNextNote] = useState("");
   const [busy, setBusy] = useState(false);
 
   const save = async () => {
     if (!remark.trim()) { alert("Enter a remark"); return; }
     setBusy(true);
-    const entry = { date, remark: remark.trim(), by: CU().name, at: new Date().toLocaleString("en-IN") };
+    const now = new Date();
+    const entry = {
+      date: today, remark: remark.trim(), by: CU().name, at: now.toLocaleString("en-IN"), ts: now.getTime(),
+      ...(nextDate ? { nextType, nextDate, nextTime, nextNote } : {}),
+    };
     try {
-      await api.update("biltrax", r._id, { ...r, followups: [...(r.followups || []), entry] });
+      await api.update("biltrax", r._id, {
+        ...r,
+        followups: [...(r.followups || []), entry],
+        /* a remark means work has started — the admin list moves it to Processing */
+        lastRemark: entry.remark, lastRemarkBy: entry.by, lastRemarkAt: entry.at,
+        ...(nextDate ? { nextFollowType: nextType, nextFollowDate: nextDate, nextFollowTime: nextTime, nextFollowNote: nextNote } : {}),
+      });
+      if (nextDate) {
+        try { window.ebScheduleReminder && window.ebScheduleReminder(r.projectName || "Biltrax project", nextDate, nextNote || entry.remark, nextTime, nextType); } catch {}
+      }
       onDone(); onClose();
     } catch (e) { alert(e.message); setBusy(false); }
   };
 
+  const tabBtn = (on) => ({
+    flex: 1, padding: "7px 0", borderRadius: 9, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
+    border: "1px solid " + (on ? "#0b3c8c" : "#d7dcef"), background: on ? "#0b3c8c" : "#fff", color: on ? "#fff" : "#6b7280",
+  });
+
   return (
     <Sheet title="📝 Add Follow-up" onClose={onClose}>
-      <label style={lbl}>Follow-up Date</label>
-      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inp} />
       <label style={lbl}>Remark *</label>
       <textarea rows={4} value={remark} onChange={(e) => setRemark(e.target.value)} style={inp} />
+      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+        {["Call", "Visit"].map((t) => (
+          <button key={t} type="button" onClick={() => setNextType(t)} style={tabBtn(nextType === t)}>Next {t}</button>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 6 }}>
+        <input type="date" value={nextDate} onChange={(e) => setNextDate(e.target.value)} style={{ ...inp, flex: 1 }} />
+        <input type="time" value={nextTime} onChange={(e) => setNextTime(e.target.value)} disabled={!nextDate} style={{ ...inp, flex: 1 }} />
+      </div>
+      {nextDate && (
+        <>
+          <label style={lbl}>Next Meeting Note</label>
+          <input value={nextNote} onChange={(e) => setNextNote(e.target.value)} placeholder="What is this meeting about?" style={inp} />
+        </>
+      )}
       <button className="f-submit" style={{ width: "100%" }} disabled={busy} onClick={save}>{busy ? "Saving…" : "Save Follow-up"}</button>
     </Sheet>
   );

@@ -53,8 +53,14 @@ export default function BiltraxPage() {
   };
   useEffect(load, []);
 
-  /* Draft = not assigned yet · Processing = assigned, still open · Win = closed */
-  const stageOf = (r) => (r.status === "Win" ? "Win" : (r.assignPerson ? "Processing" : "Draft"));
+  /* Draft = nobody on it yet · Assigned = given to someone · Processing = they
+     have added a remark · Win = closed */
+  const stageOf = (r) => {
+    if (r.status === "Win") return "Win";
+    const worked = (Array.isArray(r.followups) && r.followups.length) || r.lastRemark;
+    if (worked) return "Processing";
+    return r.assignPerson ? "Assigned" : "Draft";
+  };
 
   const list = useMemo(() => (!shown ? [] : rows.filter((r) => {
     if (stageOf(r) !== tab) return false;
@@ -84,7 +90,7 @@ export default function BiltraxPage() {
   const exportCsv = () => {
     const head = ["Type", "Project Link", "Project Name", "Latest Sub Status", "Landmark", "Address", "State",
       "Associated Companies", "Building Use", "Professional Detail 1", "Professional Detail 2",
-      "Professional Detail 3", "Professional Detail 4", "Assign Person", "HOD", "Assigned Date", "Appointment Date", "Status"];
+      "Professional Detail 3", "Professional Detail 4", "Assign Person", "HOD", "Assigned Date", "Appointment Date", "Last Remark", "Next Call / Visit", "Status"];
     const body = list.map((r) => [r.biltraxType, r.projectLink, r.projectName, r.latestSubStatus, r.landmark,
       r.address, r.state, r.associatedCompanies, r.buildingUse, r.professional1, r.professional2, r.professional3,
       r.professional4, r.assignPerson, r.hod, r.assignedDate, r.appointmentDate, r.status]);
@@ -208,7 +214,7 @@ export default function BiltraxPage() {
 
       {/* status tabs */}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
-        {["Draft", "Processing", "Win"].map((t) => {
+        {["Draft", "Assigned", "Processing", "Win"].map((t) => {
           const on = tab === t;
           return <button key={t} onClick={() => { setTab(t); setSelected(new Set()); }}
             style={{ padding: "8px 14px", borderRadius: 10, fontSize: 12.5, fontWeight: 700, cursor: "pointer", border: "1px solid " + (on ? "#2b6fb8" : "#ccd2e6"), background: on ? "linear-gradient(135deg,#1f3a68,#2b6fb8)" : "#fff", color: on ? "#fff" : "#5a6484" }}>
@@ -227,19 +233,19 @@ export default function BiltraxPage() {
               </th>
               {["Action", "Type", "Project Link", "Project Name", "Latest Sub Status", "Landmark", "Address", "State",
               "Associated Companies", "Building Use", "Professional Detail 1", "Professional Detail 2",
-              "Professional Detail 3", "Professional Detail 4", "Assign Person", "HOD", "Assigned Date", "Appointment Date", "Status"]
+              "Professional Detail 3", "Professional Detail 4", "Assign Person", "HOD", "Assigned Date", "Appointment Date", "Last Remark", "Next Call / Visit", "Status"]
               .map((h) => <th key={h} style={th}>{h}</th>)}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={20} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
+              <tr><td colSpan={22} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
             ) : !shown ? (
-              <tr><td colSpan={20} style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>
+              <tr><td colSpan={22} style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>
                 Set your filters and click <b>Show</b> to load the list.
               </td></tr>
             ) : list.length === 0 ? (
-              <tr><td colSpan={20} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>No Biltrax projects match these filters.</td></tr>
+              <tr><td colSpan={22} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>No Biltrax projects match these filters.</td></tr>
             ) : pager.slice.map((r) => (
               <tr key={r._id} style={{ background: selected.has(r._id) ? "#f2f6ff" : "transparent" }}>
                 <td style={td}>
@@ -282,6 +288,15 @@ export default function BiltraxPage() {
                 <td style={td}>{r.hod || "—"}</td>
                 <td style={td}>{r.assignedDate || "—"}</td>
                 <td style={td}>{r.appointmentDate ? `${r.appointmentDate}${r.appointmentTime ? " " + r.appointmentTime : ""}` : "—"}</td>
+                <td style={{ ...td, maxWidth: 220, whiteSpace: "normal" }}>
+                  {r.lastRemark ? (
+                    <>
+                      <div style={{ fontSize: 12.5 }}>{r.lastRemark}</div>
+                      <div style={{ fontSize: 10.5, color: "var(--muted)" }}>{r.lastRemarkBy || ""}{r.lastRemarkAt ? " · " + r.lastRemarkAt : ""}</div>
+                    </>
+                  ) : "—"}
+                </td>
+                <td style={td}>{r.nextFollowDate ? `${r.nextFollowType || "Call"} · ${r.nextFollowDate}${r.nextFollowTime ? " " + r.nextFollowTime : ""}` : "—"}</td>
                 <td style={td}>{r.status || "Pending"}</td>
               </tr>
             ))}

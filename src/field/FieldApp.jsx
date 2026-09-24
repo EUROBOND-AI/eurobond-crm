@@ -2130,12 +2130,6 @@ function FieldFollowUp({ items, add }) {
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               <button onClick={() => doCall(x.contactNumber)} style={actBtn("#1f9d55")}>📞 Call</button>
               <button onClick={() => doWhats(x.whatsapp || x.contactNumber)} style={actBtn("#25d366")}>💬 WhatsApp</button>
-              {/* road directions from where you are to this customer */}
-              <button onClick={() => {
-                const dest = (x.lat && x.lng) ? `${x.lat},${x.lng}` : encodeURIComponent([x.address, x.place, x.state].filter(Boolean).join(", "));
-                if (!dest) { alert("No address saved for this customer."); return; }
-                window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`, "_blank");
-              }} style={actBtn("#1a73e8")}>🧭 Direction</button>
               <button onClick={() => doShare(x)} style={actBtn("#3949ab")}>↗ Share</button>
             </div>
             <button onClick={() => setUpdModal(i)} style={{ width: "100%", marginTop: 8, padding: "8px", borderRadius: 9, border: "1.5px dashed var(--navy)", background: "#fff", color: "var(--navy)", fontWeight: 700, fontSize: 12.5 }}>
@@ -2332,6 +2326,23 @@ function FieldFollowUpNew({ add, editData }) {
   const [locBusy, setLocBusy] = useState(!ed);
   const [scanBusy, setScanBusy] = useState(false);
 
+  /* Find the coordinates of a written address (used after a card scan and when
+     the address is edited by hand), so distances and Near By work from the
+     customer's own place. */
+  const geocodeAddressToForm = async (addr) => {
+    const q = String(addr || "").trim();
+    if (!q) return;
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=in&q=${encodeURIComponent(q)}`, { headers: { "Accept-Language": "en" } });
+      if (!r.ok) return;
+      const j = await r.json();
+      const hit = Array.isArray(j) ? j[0] : null;
+      if (hit && hit.lat && hit.lon) {
+        setF((x) => ({ ...x, lat: Number(hit.lat), lng: Number(hit.lon), addressGeocoded: 1 }));
+      }
+    } catch {}
+  };
+
   /* Read where we are and fill the address in. Runs once when adding a new
      customer, and on demand from the button when editing one. */
   const captureAddress = () => {
@@ -2434,6 +2445,11 @@ function FieldFollowUpNew({ add, editData }) {
         const fld = r.fields;
         setF((x) => ({ ...x, partyName: fld.firm || fld.name || x.partyName, address: fld.address || x.address }));
         setContacts((cs) => { const c = [...cs]; c[0] = { ...c[0], name: fld.name || c[0].name, mobile: fld.mobile || c[0].mobile, whatsapp: fld.mobile || c[0].whatsapp, email: fld.email || c[0].email }; return c; });
+        /* The coordinates captured on opening the form are where the person is
+           standing, not where the customer is. A card for a Delhi office read in
+           Mumbai would otherwise show up under Near By Customers. Look the
+           printed address up and store its real position instead. */
+        if (fld.address) await geocodeAddressToForm(fld.address);
         alert("Card scanned — details auto-filled. Please verify before saving.");
       } else {
         alert(r?.error ? (r.error + (r.detail ? "\n\n" + r.detail : "")) : "Could not read the card. Please fill manually.");
@@ -2498,7 +2514,10 @@ function FieldFollowUpNew({ add, editData }) {
         <div style={{ ...inp, background: "#f1f4fb", border: "1.5px solid #d7dcef", borderRadius: 10, padding: "10px 12px", fontSize: 13, color: locBusy ? "var(--muted)" : "#33406b", minHeight: 42 }}>
           {locBusy ? "📍 Getting your location…" : (f.address ? `📍 ${f.address}` : "⚠️ Location unavailable — turn on GPS")}
         </div>
-        {/* an edit keeps the address saved earlier; this picks up where you are now */}
+        {/* correct the address by hand when the card or GPS got it wrong */}
+        <input value={f.address || ""} onChange={(e) => setF({ ...f, address: e.target.value })}
+          onBlur={(e) => { if (e.target.value.trim()) geocodeAddressToForm(e.target.value); }}
+          placeholder="Type or correct the address" style={{ ...inp, marginBottom: 8 }} />
         <button type="button" onClick={captureAddress} disabled={locBusy}
           style={{ width: "100%", marginBottom: 12, padding: "9px 0", borderRadius: 10, border: "1.5px solid var(--navy)",
             background: "#fff", color: "var(--navy)", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
@@ -2592,10 +2611,20 @@ function FieldProjectList() {
   const [fwdRec, setFwdRec] = useState(null);
   const isSpec = `${CU().role || ""} ${CU().designation || ""}`.toLowerCase().includes("spec");
 
-  const load = () => api.list("projectProjection", false)
-    .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data })).filter((x) => x.createdBy === CU().name)))
-    .catch(() => setRows([]));
-  useEffect(() => { load(); }, []);
+  /* only this person's projects, and only what is needed for the list — a
+     smaller answer comes back noticeably quicker on mobile data */
+  const load = () => {
+    setRows(null);
+    return api.list("projectProjection", true)
+      .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data }))))
+      .catch(() => setRows([]));
+  };
+  useEffect(() => {
+    load();
+    const again = () => load();
+    window.addEventListener("eb-app-resumed", again);
+    return () => window.removeEventListener("eb-app-resumed", again);
+  }, []);
 
   const STATUSES = ["All", "Open", "Win", "Lost", "Hold"];
   const filtered = (rows || []).filter((r) => filter === "All" || (r.status || "Open") === filter);
@@ -5672,6 +5701,13 @@ function FieldCustomers({ nearbyOnly = false }) {
             <div style={{ display: "flex", gap: 5, marginTop: 7, flexWrap: "wrap" }}>
               {r.mobile && <button onClick={() => (window.location.href = `tel:${r.mobile}`)} style={{ ...actBtn("#1f9d55"), padding: "6px 8px", fontSize: 11 }}>📞</button>}
               {r.mobile && <button onClick={() => window.open(`https://wa.me/91${r.mobile}`, "_blank")} style={{ ...actBtn("#25d366"), padding: "6px 8px", fontSize: 11 }}>💬</button>}
+              {/* road directions from where you are to this customer */}
+              <button onClick={() => {
+                const dest = (r.lat && r.lng) ? `${r.lat},${r.lng}`
+                  : encodeURIComponent([r.address, r.place, r.state].filter(Boolean).join(", "));
+                if (!dest) { alert("No address saved for this customer."); return; }
+                window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`, "_blank");
+              }} style={{ ...actBtn("#1a73e8"), background: "#e8f1ff", color: "#1a73e8", padding: "6px 8px", fontSize: 11 }}>🧭 Direction</button>
               <button onClick={() => setViewCust(r)} style={{ ...actBtn("#3949ab"), background: "#eef1ff", color: "#3949ab", padding: "6px 8px", fontSize: 11 }}>👁 View</button>
               <button onClick={() => { CUST_EDIT.data = r; nav("/app/customer/edit"); }} style={{ ...actBtn("#f59e0b"), background: "#fef3e2", color: "#c07f00", padding: "6px 8px", fontSize: 11 }}>✎ Edit</button>
               <button onClick={() => { QUOTE_PREFILL.data = { customer: r.name, partyName: r.name, contactName: r.contactName || r.name, contactNumber: r.mobile, mobile: r.mobile, email: r.email, clientEmail: r.email, address: r.address || r.place, category: r.category, projects: r.projects || (r.projectName ? String(r.projectName).split(",").map((x) => x.trim()).filter(Boolean) : []), type: r.type }; nav("/app/m/quotation/new"); }} style={{ ...actBtn("#0b3c8c"), background: "#e8f0ff", color: "#0b3c8c", padding: "6px 8px", fontSize: 11 }}>📄 Quote</button>
