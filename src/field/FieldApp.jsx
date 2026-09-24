@@ -1,6 +1,6 @@
 import logoImg from "../assets/logo.jpg";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Routes, Route, Link, NavLink, useNavigate, Navigate, useParams } from "react-router-dom";
+import { Routes, Route, Link, NavLink, useNavigate, Navigate, useParams, useLocation } from "react-router-dom";
 import {
   Home, CalendarCheck, Target, User, Users, Plus, Menu, Bell, ChevronRight, ChevronLeft,
   MapPin, Clock, Wallet, ClipboardList, LogOut, Phone, Mail, Building2, X,
@@ -81,7 +81,10 @@ const isMine = (n, me) => {
   if (n.forUser !== undefined && n.forUser !== null && n.forUser !== "") {
     /* addressed by id — also accept the name, in case the id was not saved */
     if (String(n.forUser) === String(me.id)) return true;
-    if (n.to) return n.to === me.name || n.to === me.code || n.to === me.mobile;
+    if (n.to) {
+      const eq = (a, b) => String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
+      return eq(n.to, me.name) || eq(n.to, me.code) || eq(n.to, me.mobile);
+    }
     return false;
   }
   /* A message that starts with "Your ..." is personal. If it carries no target at
@@ -92,7 +95,9 @@ const isMine = (n, me) => {
     if (/\byour\b/.test(txt)) return false;
     return true;
   }
-  return n.to === me.name || n.to === me.code || n.to === me.mobile;
+  /* names are typed in several places, so compare without case or spare spaces */
+  const same = (a, b) => String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
+  return same(n.to, me.name) || same(n.to, me.code) || same(n.to, me.mobile);
 };
 
 /* ---------------- GPS / OFFICE-HOURS CONFIG (server-load control) ----------------
@@ -1375,7 +1380,7 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
               <b style={{ fontSize: 14 }}>{new Date(histDate).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short" })}</b>
               <span onClick={() => { setHistDate(null); setHistSess(null); }} style={{ cursor: "pointer", color: "var(--accent)", fontWeight: 700, fontSize: 12.5 }}>← Today</span>
             </div>
-            {histLoading ? <div className="eb-loading"><div className="eb-spin" />Loading…</div>
+            {histLoading ? <div className="eb-loading"><div className="eb-spin" /></div>
               : histSess === false ? <div style={{ color: "var(--muted)", fontSize: 13, padding: 10, textAlign: "center" }}>No attendance record for this day.</div>
                 : histSess ? (
                   <div style={{ display: "grid", gap: 7, fontSize: 13 }}>
@@ -2125,6 +2130,12 @@ function FieldFollowUp({ items, add }) {
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               <button onClick={() => doCall(x.contactNumber)} style={actBtn("#1f9d55")}>📞 Call</button>
               <button onClick={() => doWhats(x.whatsapp || x.contactNumber)} style={actBtn("#25d366")}>💬 WhatsApp</button>
+              {/* road directions from where you are to this customer */}
+              <button onClick={() => {
+                const dest = (x.lat && x.lng) ? `${x.lat},${x.lng}` : encodeURIComponent([x.address, x.place, x.state].filter(Boolean).join(", "));
+                if (!dest) { alert("No address saved for this customer."); return; }
+                window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`, "_blank");
+              }} style={actBtn("#1a73e8")}>🧭 Direction</button>
               <button onClick={() => doShare(x)} style={actBtn("#3949ab")}>↗ Share</button>
             </div>
             <button onClick={() => setUpdModal(i)} style={{ width: "100%", marginTop: 8, padding: "8px", borderRadius: 9, border: "1.5px dashed var(--navy)", background: "#fff", color: "var(--navy)", fontWeight: 700, fontSize: 12.5 }}>
@@ -2250,6 +2261,7 @@ function FieldFollowUpQuick({ add }) {
   const cust = qRef.current;
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [remark, setRemark] = useState("");
+  const [nextMeet, setNextMeet] = useState({ type: "Call", date: "", time: "", note: "" });
   const [busy, setBusy] = useState(false);
 
   if (!cust) { nav("/app/customers"); return null; }
@@ -2264,11 +2276,11 @@ function FieldFollowUpQuick({ add }) {
           {cust.mobile && <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 2 }}>{cust.mobile}</div>}
         </div>
 
-        <label>Follow-up Date <b>*</b></label>
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: "100%", marginBottom: 14 }} />
-
+        {/* today's date is used automatically — plan the next contact below */}
         <label>Remark <b>*</b></label>
-        <textarea rows={4} value={remark} onChange={(e) => setRemark(e.target.value)} placeholder="What happened in this follow-up…" style={{ width: "100%", marginBottom: 16 }} />
+        <textarea rows={4} value={remark} onChange={(e) => setRemark(e.target.value)} placeholder="What happened in this follow-up…" style={{ width: "100%", marginBottom: 14 }} />
+
+        <NextMeetingFields value={nextMeet} onChange={setNextMeet} />
 
         <button className="f-submit" style={{ width: "100%" }} disabled={!remark || busy}
           onClick={async () => {
@@ -2280,8 +2292,13 @@ function FieldFollowUpQuick({ add }) {
                 address: cust.address, projects: cust.projects, contacts: cust.contacts,
                 type: "Follow Up", date, notes: remark,
                 status: "Follow Up", createdBy: CU().name,
+                ...(nextMeet.date ? {
+                  nextMeetingDate: nextMeet.date, nextMeetingTime: nextMeet.time,
+                  nextMeetingRemark: nextMeet.note, nextMeetingType: nextMeet.type,
+                } : {}),
                 updates: [{ date, type: "Follow Up", remark, at: new Date().toLocaleString("en-IN") }],
               });
+              if (nextMeet.date) scheduleMeetingReminder(cust.name, nextMeet.date, nextMeet.note || remark, nextMeet.time, nextMeet.type);
               nav("/app/customers");
             } catch (e) { alert(e.message); setBusy(false); }
           }}>Save</button>
@@ -2441,7 +2458,7 @@ function FieldFollowUpNew({ add, editData }) {
         <div style={{ background: "linear-gradient(135deg,#eef1ff,#f4ecff)", borderRadius: 14, padding: "14px", marginBottom: 6 }}>
           {/* just the button — the phone's own camera opens */}
           <label style={{ display: "block", textAlign: "center", padding: "12px", borderRadius: 10, border: "1.5px solid var(--navy)", background: "#fff", color: "var(--navy)", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-            📷 Scan Here <input type="file" accept="image/*" capture="environment" hidden onChange={(e) => scanCard(e.target.files[0])} />
+            📷 Card Scan Here <input type="file" accept="image/*" capture="environment" hidden onChange={(e) => scanCard(e.target.files[0])} />
           </label>
         </div>
 
@@ -2594,7 +2611,7 @@ function FieldProjectList() {
           ))}
         </div>
         {rows === null ? (
-          <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>Loading…</div>
+          <div className="eb-loading"><div className="eb-spin" /></div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>No projects yet. Tap + Add.</div>
         ) : filtered.map((r, i) => (
@@ -2710,12 +2727,17 @@ function ProjectFollowup({ rec, onClose, onSaved }) {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [remark, setRemark] = useState("");
   const [photo, setPhoto] = useState("");
+  const [nextMeet, setNextMeet] = useState({ type: "Call", date: "", time: "", note: "" });
   const [busy, setBusy] = useState(false);
   const save = async () => {
     setBusy(true);
     try {
-      const fups = [...(rec.followups || []), { date, remark, photo }];
-      await api.update("projectProjection", rec._id, { ...rec, followups: fups });
+      const fups = [...(rec.followups || []), { date, remark, photo, ...(nextMeet.date ? { nextType: nextMeet.type, nextDate: nextMeet.date, nextTime: nextMeet.time, nextNote: nextMeet.note } : {}) }];
+      await api.update("projectProjection", rec._id, {
+        ...rec, followups: fups,
+        ...(nextMeet.date ? { nextFollowType: nextMeet.type, nextFollowDate: nextMeet.date, nextFollowTime: nextMeet.time, nextFollowNote: nextMeet.note } : {}),
+      });
+      if (nextMeet.date) scheduleMeetingReminder(rec.projectName || "Project", nextMeet.date, nextMeet.note || remark, nextMeet.time, nextMeet.type);
       onSaved();
     } catch (e) { alert(e.message); setBusy(false); }
   };
@@ -2723,12 +2745,12 @@ function ProjectFollowup({ rec, onClose, onSaved }) {
     <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.55)", zIndex: 9999, display: "grid", placeItems: "center", padding: 16 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, maxWidth: 400, width: "100%", padding: 18 }}>
         <h3 style={{ marginTop: 0 }}>Add Followup</h3>
-        <label style={{ fontWeight: 800, fontSize: 13 }}>Date</label>
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: "100%", marginBottom: 10 }} />
+        {/* today's date is filled in automatically — only the remark is needed */}
         <label style={{ fontWeight: 800, fontSize: 13 }}>Remark</label>
         <textarea value={remark} onChange={(e) => setRemark(e.target.value)} rows={3} style={{ width: "100%", marginBottom: 10 }} />
         <label style={{ fontWeight: 800, fontSize: 13 }}>Photo (optional)</label>
         <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files[0]; if (!file) return; const rd = new FileReader(); rd.onload = () => setPhoto(rd.result); rd.readAsDataURL(file); }} style={{ width: "100%", marginBottom: 12 }} />
+        <NextMeetingFields value={nextMeet} onChange={setNextMeet} />
         <WhatsAppOnce mobile={rec?.mobile || (rec?.contacts && rec.contacts[0] && rec.contacts[0].mobile)} recordId={rec?._id || rec?.id} />
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={onClose} style={{ flex: 1, padding: 11, borderRadius: 10, border: "1.5px solid #d7dcef", background: "#fff", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
@@ -2938,7 +2960,7 @@ function FieldResources() {
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" style={{ width: "100%", padding: "9px 12px 9px 33px", borderRadius: 11, border: "1.5px solid #d7dcef", fontSize: 13, background: "#fff" }} />
         </div>
         {rows === null ? (
-          <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>Loading…</div>
+          <div className="eb-loading"><div className="eb-spin" /></div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>No resources yet.</div>
         ) : filtered.map((r, i) => (
@@ -3318,7 +3340,7 @@ function TargetView({ targets, filter, setFilter, isSpec, title }) {
         </div>
 
         {targets === null ? (
-          <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>Loading…</div>
+          <div className="eb-loading"><div className="eb-spin" /></div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 26, fontSize: 13 }}>
             <Target size={32} style={{ opacity: 0.4, marginBottom: 8 }} />
@@ -3528,7 +3550,7 @@ function FieldTeamTracking() {
       <div style={{ padding: "8px 16px", fontSize: 12, color: "var(--muted)" }}>Live location of your team — today only.</div>
       <div className="f-list-pad">
         {sessions === null ? (
-          <div style={{ textAlign: "center", color: "var(--muted)", padding: 30 }}>Loading…</div>
+          <div className="eb-loading"><div className="eb-spin" /></div>
         ) : sessions.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 30 }}>No team members have started tracking today.</div>
         ) : sessions.map((s) => (
@@ -3612,7 +3634,7 @@ function FieldTeamCustomers() {
       <div style={{ padding: "8px 16px", fontSize: 12, color: "var(--muted)" }}>Customers added by each team member.</div>
       <div className="f-list-pad">
         {data === null ? (
-          <div style={{ textAlign: "center", color: "var(--muted)", padding: 30 }}>Loading…</div>
+          <div className="eb-loading"><div className="eb-spin" /></div>
         ) : data.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 30 }}>No team members found.</div>
         ) : data.map((m, i) => (
@@ -3711,7 +3733,7 @@ function FieldTeamPerformance() {
           </select>
         </div>
         {rows === null ? (
-          <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>Loading…</div>
+          <div className="eb-loading"><div className="eb-spin" /></div>
         ) : rows.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>
             <Users size={32} style={{ opacity: 0.4, marginBottom: 8 }} />
@@ -3819,7 +3841,7 @@ function FieldLeaveApproval() {
       <ScreenHead title="Leave Approval" />
       <div className="f-list-pad" style={{ paddingTop: 14 }}>
         {rows === null ? (
-          <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>Loading…</div>
+          <div className="eb-loading"><div className="eb-spin" /></div>
         ) : (
           <>
             <div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 8, fontFamily: "Bricolage Grotesque" }}>Pending ({pending.length})</div>
@@ -4027,7 +4049,7 @@ function FieldSpecThreadList({ mod }) {
             <button key={s} onClick={() => setFilter(s)} style={{ padding: "7px 13px", borderRadius: 8, border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer", background: filter === s ? "var(--navy)" : "#eef1ff", color: filter === s ? "#fff" : "var(--navy)" }}>{s}</button>
           ))}
         </div>
-        {rows === null ? <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>Loading…</div>
+        {rows === null ? <div className="eb-loading"><div className="eb-spin" /></div>
         : filtered.length === 0 ? <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>Nothing here yet.</div>
         : filtered.map((r, i) => {
           const iAmReceiver = isS2S ? (r.specPerson === me) : (r.salesPerson === me);
@@ -4261,7 +4283,7 @@ function FieldModule({ mod }) {
       <ScreenHead title={cfg.appLabel || cfg.crumb} right={(cfg.appReadOnly || mod === "salesToSpec" || mod === "specToSales" || mod === "projectProjection") ? null : <button className="f-submit" style={{ padding: "8px 14px", fontSize: 12.5 }} onClick={() => nav(`/app/m/${mod}/new`)}>+ Add</button>} />
       <div className="f-list-pad" style={{ paddingTop: 14 }}>
         {rows === null ? (
-          <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>Loading…</div>
+          <div className="eb-loading"><div className="eb-spin" /></div>
         ) : rows.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>No records yet. Tap + Add to create one.</div>
         ) : rows.map((r, i) => (
@@ -4551,7 +4573,7 @@ function FieldNotifications() {
       )}
       <div className="f-list-pad" style={{ paddingTop: 14 }}>
         {rows === null ? (
-          <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>Loading…</div>
+          <div className="eb-loading"><div className="eb-spin" /></div>
         ) : visible.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>
             <Bell size={34} style={{ opacity: 0.4, marginBottom: 10 }} />
@@ -4660,7 +4682,7 @@ function FieldSpecThread({ id }) {
     setBusy(false);
   };
 
-  if (!rec) return <><ScreenHead title="Spec Approval" /><div className="eb-loading"><div className="eb-spin" />Loading…</div></>;
+  if (!rec) return <><ScreenHead title="Spec Approval" /><div className="eb-loading"><div className="eb-spin" /></div></>;
   const thread = rec.thread || [];
 
   return (
@@ -4724,7 +4746,7 @@ function FieldProjectDetail({ id }) {
     setBusy(false);
   };
 
-  if (!rec) return <><ScreenHead title="Project" /><div className="eb-loading"><div className="eb-spin" />Loading…</div></>;
+  if (!rec) return <><ScreenHead title="Project" /><div className="eb-loading"><div className="eb-spin" /></div></>;
   const visits = rec.visits || [];
 
   return (
@@ -4806,7 +4828,7 @@ function FieldEnquiry() {
         </div>
       </div>
       <div className="f-list-pad" style={{ paddingTop: 8 }}>
-        {rows === null ? <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>Loading…</div>
+        {rows === null ? <div className="eb-loading"><div className="eb-spin" /></div>
         : filtered.length === 0 ? <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>No enquiries assigned yet.</div>
         : filtered.map((r, i) => (
           <div key={i} style={{ background: "#fff", borderRadius: 10, padding: "10px 12px", marginBottom: 7, boxShadow: "var(--shadow)" }}>
@@ -4895,6 +4917,42 @@ function useOnResume(fn) {
   }, [fn]);
 }
 
+
+/* Plan the next contact: call or visit, a date and time, and what it is about.
+   Saving it puts the entry in the calendar and sets the reminders. */
+function NextMeetingFields({ value, onChange }) {
+  const set = (k, v) => onChange({ ...value, [k]: v });
+  const box = { width: "100%", padding: "8px 10px", borderRadius: 9, border: "1px solid #d7dcef", fontSize: 12.5 };
+  return (
+    <div style={{ background: "#fafbff", border: "1px solid #eef1f8", borderRadius: 11, padding: 11, marginBottom: 12 }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+        {["Call", "Visit"].map((t) => (
+          <button key={t} type="button" onClick={() => set("type", t)}
+            style={{ flex: 1, padding: "7px 0", borderRadius: 9, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
+              border: "1px solid " + (value.type === t ? "var(--navy)" : "#d7dcef"),
+              background: value.type === t ? "var(--navy)" : "#fff", color: value.type === t ? "#fff" : "var(--muted)" }}>
+            Next {t}
+          </button>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+        <input type="date" value={value.date} onChange={(e) => set("date", e.target.value)} style={{ ...box, flex: 1 }} />
+        <input type="time" value={value.time} onChange={(e) => set("time", e.target.value)} disabled={!value.date} style={{ ...box, flex: 1 }} />
+      </div>
+      {value.date && (
+        <>
+          <label style={{ fontSize: 12, fontWeight: 700 }}>Next Meeting Note</label>
+          <input value={value.note} onChange={(e) => set("note", e.target.value)} placeholder="What is this meeting about?"
+            style={{ ...box, margin: "4px 0 6px" }} />
+          <div style={{ fontSize: 11, color: "var(--muted)" }}>
+            Goes into your calendar. Reminders: evening before, that morning{value.time ? ", 1 hour and 10 minutes before" : ""}.
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function enqBtn(color, bg) {
   return { flex: "1 1 auto", minWidth: 58, padding: "6px 4px", borderRadius: 8, border: "none", background: bg, color, fontWeight: 700, fontSize: 11, cursor: "pointer" };
 }
@@ -4909,6 +4967,7 @@ function EnquiryDetailView({ r, onClose, onDone }) {
   const [nextType, setNextType] = useState("Call");
   const [nextDate, setNextDate] = useState("");
   const [nextTime, setNextTime] = useState("");
+  const [nextNote, setNextNote] = useState("");
   const [saving, setSaving] = useState(false);
   const saveRef = useRef(false);
   const remarks = Array.isArray(rec.remarks) ? rec.remarks : [];
@@ -4921,21 +4980,21 @@ function EnquiryDetailView({ r, onClose, onDone }) {
     const now = new Date();
     const entry = {
       remark: remark.trim(), by: CU().name, at: now.toLocaleString("en-IN"), ts: now.getTime(),
-      ...(nextDate ? { nextType, nextDate, nextTime } : {}),
+      ...(nextDate ? { nextType, nextDate, nextTime, nextNote } : {}),
     };
     const st = String(rec.status || "").toLowerCase();
     const next = {
       ...rec,
       remarks: [...remarks, entry],
       lastRemark: entry.remark, lastRemarkBy: entry.by, lastRemarkAt: entry.at,
-      ...(nextDate ? { nextFollowType: nextType, nextFollowDate: nextDate, nextFollowTime: nextTime } : {}),
+      ...(nextDate ? { nextFollowType: nextType, nextFollowDate: nextDate, nextFollowTime: nextTime, nextFollowNote: nextNote } : {}),
       /* first remark moves it from Assigned to Processing (Win/Spam untouched) */
       status: (st === "win" || st === "spam") ? rec.status : "Processing",
     };
     try {
       await api.update("enquiry", rec._id, next);
-      if (nextDate) scheduleMeetingReminder(rec.company || rec.customer || "Enquiry", nextDate, entry.remark, nextTime, nextType);
-      setRec(next); setRemark(""); setNextDate(""); setNextTime("");
+      if (nextDate) scheduleMeetingReminder(rec.company || rec.customer || "Enquiry", nextDate, nextNote || entry.remark, nextTime, nextType);
+      setRec(next); setRemark(""); setNextDate(""); setNextTime(""); setNextNote("");
       onDone && onDone();
     } catch (e) { alert(e.message); }
     saveRef.current = false; setSaving(false);
@@ -5008,9 +5067,16 @@ function EnquiryDetailView({ r, onClose, onDone }) {
               <input type="time" value={nextTime} onChange={(e) => setNextTime(e.target.value)} disabled={!nextDate}
                 style={{ flex: 1, padding: "8px 9px", borderRadius: 9, border: "1px solid #d7dcef", fontSize: 12.5 }} />
             </div>
-            {nextDate && <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
-              Shows in your calendar. Reminders: evening before, that morning{nextTime ? ", 1 hour and 10 minutes before" : ""}.
-            </div>}
+            {nextDate && (
+              <>
+                <label style={{ fontSize: 12, fontWeight: 700 }}>Next Meeting Note</label>
+                <input value={nextNote} onChange={(e) => setNextNote(e.target.value)} placeholder="What is this meeting about?"
+                  style={{ width: "100%", padding: "8px 10px", borderRadius: 9, border: "1px solid #d7dcef", fontSize: 12.5, margin: "4px 0 8px" }} />
+                <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
+                  Shows in your calendar. Reminders: evening before, that morning{nextTime ? ", 1 hour and 10 minutes before" : ""}.
+                </div>
+              </>
+            )}
             <button className="f-submit" style={{ width: "100%" }} disabled={saving} onClick={addRemark}>
               {saving ? "Saving…" : "Save Remark"}
             </button>
@@ -5195,7 +5261,7 @@ function FieldQuotationList() {
     <>
       <ScreenHead title="Quotation" right={<button onClick={() => { QUOTE_PREFILL.data = null; nav("/app/m/quotation/new"); }} style={{ background: "var(--navy)", color: "#fff", border: "none", borderRadius: 20, padding: "7px 14px", fontWeight: 800, fontSize: 13 }}>+ Add</button>} />
       <div className="f-list-pad" style={{ paddingTop: 12 }}>
-        {rows === null ? <div style={{ color: "var(--muted)", padding: 20 }}>Loading…</div>
+        {rows === null ? <div className="eb-loading"><div className="eb-spin" /></div>
           : rows.length === 0 ? <div style={{ color: "var(--muted)", padding: 30, textAlign: "center" }}>No quotations yet.</div>
             : rows.map((q) => (
               <div key={q._id} style={{ background: "#fff", borderRadius: 10, padding: "10px 12px", marginBottom: 7, boxShadow: "var(--shadow)" }}>
@@ -5499,6 +5565,7 @@ function FieldQuotationNew({ prefill }) {
                   tc, status: "Pending",
                   createdBy: CU().name, createdById: CU().id, createdByPhone: CU().mobile || CU().phone || "",
                   createdByDesignation: CU().designation || CU().role || "",
+                  createdByEmail: CU().email || "",
                   createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
                 });
                 try { await api.create("notification", { title: "New Quotation", message: `${CU().name} created quotation ${quoteNo} for ${f.partyName}`, forRole: "Admin", link: "/admin/sfa/quotation", at: new Date().toISOString() }); } catch {}
@@ -5755,7 +5822,7 @@ function FieldGenericThread({ mod, id }) {
     setBusy(false);
   };
 
-  if (!rec) return <><ScreenHead title="Details" /><div className="eb-loading"><div className="eb-spin" />Loading…</div></>;
+  if (!rec) return <><ScreenHead title="Details" /><div className="eb-loading"><div className="eb-spin" /></div></>;
   const thread = rec.thread || [];
 
   return (
@@ -6398,8 +6465,68 @@ function AppPhotoViewer() {
   );
 }
 
+
+/* Nothing used for fifteen minutes: reload everything and go back to Home.
+   A screen left open never fires visibilitychange, so idle time is measured
+   from the last touch and checked on a timer as well as when the app returns
+   to the front. */
+function useIdleReset(nav) {
+  const lastSeen = useRef(Date.now());
+  const loc = useLocation();
+
+  useEffect(() => {
+    const IDLE = 15 * 60 * 1000;
+
+    const refresh = () => {
+      try { clearApiCache(); } catch {}
+      try { window.__ebLoadLists && window.__ebLoadLists(); } catch {}
+      try { window.dispatchEvent(new Event("eb-app-resumed")); } catch {}
+    };
+    const reset = () => {
+      lastSeen.current = Date.now();
+      refresh();
+      nav("/app", { replace: true });
+    };
+    const onInteract = () => {
+      if (Date.now() - lastSeen.current > IDLE) reset();
+      else lastSeen.current = Date.now();
+    };
+    const onVis = () => {
+      if (document.visibilityState === "hidden") { lastSeen.current = Date.now(); return; }
+      if (Date.now() - lastSeen.current > IDLE) reset();
+      else { lastSeen.current = Date.now(); refresh(); }
+    };
+
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("pointerdown", onInteract, true);
+    window.addEventListener("keydown", onInteract, true);
+    const t = setInterval(() => { if (Date.now() - lastSeen.current > IDLE) reset(); }, 30000);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("pointerdown", onInteract, true);
+      window.removeEventListener("keydown", onInteract, true);
+      clearInterval(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* opening a screen also pulls fresh data, at most once a minute */
+  const lastLoad = useRef(0);
+  useEffect(() => {
+    const now = Date.now();
+    if (now - lastLoad.current > 60 * 1000) {
+      lastLoad.current = now;
+      try { clearApiCache(); } catch {}
+      try { window.__ebLoadLists && window.__ebLoadLists(); } catch {}
+      try { window.dispatchEvent(new Event("eb-app-resumed")); } catch {}
+    }
+  }, [loc.pathname]);
+}
+
 export default function FieldApp() {
   const nav = useNavigate();
+  useIdleReset(nav);                  // 15 minutes idle -> Home, with fresh data
   useNotifTapHandler();               // phone notification tap -> open screen + mark read
   const [authed, setAuthed] = useState(auth.isLoggedIn);
   const [menu, setMenu] = useState(false);

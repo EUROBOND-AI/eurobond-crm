@@ -3,6 +3,7 @@ import { Phone, MapPin, Eye, X } from "lucide-react";
 import { PageHead, StatCard, ToolButtons } from "../components/ui.jsx";
 import { scopeRows } from "../lib/scope.js";
 import { api } from "../lib/api.js";
+import { usePager, Pager } from "../components/Pager.jsx";
 
 /* Address cell — chinnaga chupinchi "read more" tho expand */
 function AddressCell({ text }) {
@@ -81,6 +82,7 @@ export default function CustomersPage() {
     });
     return l;
   }, [rows, q, colSearch, applied, users]);
+  const pager = usePager(list, 10, q || "");
 
   const importCsv = async (file) => {
     if (!file) return;
@@ -317,7 +319,7 @@ export default function CustomersPage() {
                 <tr><td colSpan={12} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>
                   {applied || q.trim() ? "No customers found for the selected filter." : "Use filters and click Show to load customers (or type in search)."}
                 </td></tr>
-              ) : list.map((r, i) => (
+              ) : pager.slice.map((r, i) => (
                 <tr key={i} style={{ borderTop: "1px solid #eef1f8" }}>
                   <td style={{ padding: "11px 14px" }}><input type="checkbox" checked={sel.has(r.mobile || r.name)} onChange={() => toggleSel(r.mobile || r.name)} /></td>
                   {colVisible("Customer") && <td style={{ padding: "11px 14px", fontWeight: 700 }}>
@@ -364,6 +366,7 @@ export default function CustomersPage() {
           </table>
         </div>
       </div>
+      <Pager pager={pager} />
 
       {cfgOpen && (
         <div className="modal-mask" onClick={() => setCfgOpen(false)}>

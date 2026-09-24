@@ -159,6 +159,8 @@ export default function EnquiryPage() {
           status: "Assigned",
           assignDate: new Date().toLocaleDateString("en-GB"),
           assignTime: new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
+          /* which backend login did this — about ten people share the panel */
+          assignedBy: auth.user?.name || auth.user?.username || "Admin",
           reassigned: isReassign ? true : !!row.reassigned,
           reassignDate: isReassign ? new Date().toLocaleDateString("en-GB") : (row.reassignDate || ""),
         });
@@ -169,8 +171,8 @@ export default function EnquiryPage() {
   };
 
   const exportCsv = () => {
-    const head = ["Sl#", "Lead From", "Year", "Month", "Date", "Company", "Contact", "Email", "State", "Area", "HOD", "Passto", "Product", "Enquiry Details", "Status", "Assign Date", "Assign Time"];
-    const body = list.map((r, i) => [i + 1, r.leadFrom || r.leadSource, r.year, r.month, r.date, r.company || r.customer, r.contact || r.phone, r.email, r.state, r.area || r.city, r.hod, r.passto || r.assignedTo, r.product, r.enquiryDetails, r.status || "Pending", r.assignDate, r.assignTime || ""]);
+    const head = ["Sl#", "Lead From", "Year", "Month", "Date", "Company", "Contact", "Email", "State", "Area", "HOD", "Passto", "Product", "Enquiry Details", "Status", "Assign Date", "Assign Time", "Assigned By"];
+    const body = list.map((r, i) => [i + 1, r.leadFrom || r.leadSource, r.year, r.month, r.date, r.company || r.customer, r.contact || r.phone, r.email, r.state, r.area || r.city, r.hod, r.passto || r.assignedTo, r.product, r.enquiryDetails, r.status || "Pending", r.assignDate, r.assignTime || "", r.assignedBy || ""]);
     const csv = [head, ...body].map((row) => row.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
@@ -229,6 +231,7 @@ export default function EnquiryPage() {
     <div>
       <PageHead crumb="SFA" title="Enquiry List" actions={
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button className="btn btn-soft" onClick={load} title="Reload from the server">↻ Refresh</button>
           <button className="btn" style={{ background: "#22a45d", color: "#fff", borderColor: "transparent" }} onClick={() => setShowAdd(true)}>Add New</button>
           <button className="btn" style={{ background: "#3fb6d3", color: "#fff", borderColor: "transparent" }} disabled={selected.size === 0} onClick={() => setAssignFor("bulk")}>Bulk Assign</button>
           <button className="btn btn-primary" disabled={selected.size === 0} onClick={() => { setReassign(true); setAssignFor("bulk"); }}>Bulk Re-Assign</button>
@@ -303,14 +306,14 @@ export default function EnquiryPage() {
               <tr style={{ background: "linear-gradient(135deg,#1f3a68,#2b6fb8)" }}>
                 <th style={th}><input type="checkbox" checked={pageRows.length > 0 && selected.size === pageRows.length} onChange={toggleAll} /></th>
                 <th style={th}>Action</th>
-                {["Sl#", "Lead From", "Year", "Month", "Date", "Company Name", "Contact number", "Contact Person", "Email Id", "State", "Area", "Product Request", "Enquiry details", "HOD", "Passto", "Status", "Last Remark", "Next Call / Visit", "Assign Date", "Assign Time"].map((h) => <th key={h} style={th}>{h}</th>)}
+                {["Sl#", "Lead From", "Year", "Month", "Date", "Company Name", "Contact number", "Contact Person", "Email Id", "State", "Area", "Product Request", "Enquiry details", "HOD", "Passto", "Status", "Last Remark", "Next Call / Visit", "Assign Date", "Assign Time", "Assigned By"].map((h) => <th key={h} style={th}>{h}</th>)}
               </tr>
             </thead>
             <tbody>
               {rows === null ? (
-                <tr><td colSpan={21} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
+                <tr><td colSpan={22} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
               ) : pageRows.length === 0 ? (
-                <tr><td colSpan={21} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>{applied.shown ? "No enquiries found for the selected date / filter." : "Select date & Enquiry From, then click Show to load enquiries."}</td></tr>
+                <tr><td colSpan={22} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>{applied.shown ? "No enquiries found for the selected date / filter." : "Select date & Enquiry From, then click Show to load enquiries."}</td></tr>
               ) : pageRows.map((r, i) => (
                 <tr key={r._id} style={{ background: selected.has(r._id) ? "#eef5ff" : "#fff" }}>
                   <td style={td}><input type="checkbox" checked={selected.has(r._id)} onChange={() => toggle(r._id)} /></td>
@@ -360,6 +363,7 @@ export default function EnquiryPage() {
                   <td style={td}>{r.nextFollowDate ? `${r.nextFollowType || "Call"} · ${r.nextFollowDate}${r.nextFollowTime ? " " + r.nextFollowTime : ""}` : "—"}</td>
                   <td style={td}>{r.assignDate || "—"}</td>
                   <td style={td}>{r.assignTime || "—"}</td>
+                  <td style={td}>{r.assignedBy || "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -541,6 +545,7 @@ function AdminEnquiryView({ r, onClose }) {
         {row("Status", r.status)}
         {row("Assign Date", r.assignDate)}
         {row("Assign Time", r.assignTime)}
+        {row("Assigned By", r.assignedBy)}
         {(r.reassigned || r.reassignRemark || r.reassignedBy) && (
           <div style={{ marginTop: 12, background: "#f3efff", border: "1px solid #ddd3ff", borderRadius: 12, padding: 14 }}>
             <div style={{ fontWeight: 800, color: "#5b3fd6", marginBottom: 8 }}>🔄 Reassign Info</div>

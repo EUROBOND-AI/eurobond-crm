@@ -6,6 +6,7 @@ import { scopeRows } from "../lib/scope.js";
 import { LETTERHEAD } from "./letterhead.js";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { usePager, Pager } from "../components/Pager.jsx";
 
 /* Admin Quotation — same "From" reflects, quotation-to-quotation format,
    Action: Approve -> app shows approved + PDF auto-generates (company format).
@@ -31,16 +32,24 @@ export default function QuotationAdmin() {
   /* Older quotations have no designation on the record, so look it up from App
      Users and attach it just before printing. */
   const desigRef = useRef({});
+  const emailRef = useRef({});
   useEffect(() => {
     api.listUsers().then((d) => {
       const m = {};
-      (d.users || []).forEach((u) => { if (u.name) m[u.name] = u.designation || u.role || ""; });
+      const e = {};
+      (d.users || []).forEach((u) => {
+        if (!u.name) return;
+        m[u.name] = u.designation || u.role || "";
+        e[u.name] = u.email || "";
+      });
       desigRef.current = m;
+      emailRef.current = e;
     }).catch(() => {});
   }, []);
   const withDesignation = (q) => ({
     ...q,
     createdByDesignation: q.createdByDesignation || q.designation || desigRef.current[q.createdBy] || "",
+    createdByEmail: q.createdByEmail || emailRef.current[q.createdBy] || "",
   });
   const [rows, setRows] = useState(null);
   const [colSearch, setColSearch] = useState({});
@@ -84,6 +93,7 @@ export default function QuotationAdmin() {
     });
     return l;
   }, [rows, colSearch, applied, qUsers]);
+  const pager = usePager(list, 10, "");
 
   const approve = async (q) => {
     setBusy(true);
@@ -197,7 +207,7 @@ export default function QuotationAdmin() {
                 <tr><td colSpan={14} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
               ) : list.length === 0 ? (
                 <tr><td colSpan={14} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>{applied ? "No quotations found for the selected filter." : "Use filters and click Show to load quotations."}</td></tr>
-              ) : list.map((r, i) => (
+              ) : pager.slice.map((r, i) => (
                 <tr key={i} style={{ borderTop: "1px solid #eef1f8" }}>
                   {colVisible("Quotation No") && <td style={{ padding: "11px 14px", fontWeight: 700 }}>
                     <span onClick={() => setView(r)} style={{ color: "var(--accent)", cursor: "pointer", textDecoration: "underline" }}>{r.quoteNo || r.id}</span>
@@ -431,6 +441,24 @@ async function buildQuotePdfBase64(q) {
   }
 }
 
+
+/* A scanned card can come back in block capitals, so every address is written
+   the same way here: each line in Title Case, PIN codes and short state codes
+   left alone. */
+function tidyAddress(addr) {
+  return String(addr || "")
+    .split(/\s*,\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => part.split(/\s+/).map((w) => {
+      if (/^\d/.test(w) || w.length <= 2) return w.toUpperCase() === w && w.length <= 3 ? w : w;
+      return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+    }).join(" "))
+    .join(",<br>");
+}
+const tidyName = (n) => String(n || "").trim().split(/\s+/)
+  .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : w)).join(" ");
+
 /* A4 page HTML with letterhead background (for html2canvas capture) */
 function quotePageHtml(q) {
   const items = q.items || [{ grade: q.grade, colour: q.colour, rate: q.rate, ratePerSqm: q.ratePerSqm }];
@@ -536,6 +564,12 @@ function downloadQuotePdf(q) {
     td.desc{text-align:left;width:38%}
     td.colour{text-align:center;width:22%}
     td.rate{text-align:center;width:16%}
+    /* terms line up in one column with a clear gap, whatever the label length */
+    table.tc{border-collapse:collapse;margin:6px 0 10px;width:100%}
+    table.tc td{border:none;padding:3px 0;vertical-align:top;font-size:13px}
+    table.tc td.k{width:170px;white-space:nowrap}
+    table.tc td.c{width:14px;text-align:center}
+    table.tc td.v{padding-left:6px}
     .thk{font-size:10px;color:#666;display:block;margin-top:2px}
     .tc div{margin:2px 0}
     .sign{margin-top:26px}
@@ -550,26 +584,28 @@ function downloadQuotePdf(q) {
         <div class="qno">${q.quoteNo || q.id}</div>
       </div>
       <div style="margin-top:14px">
-        <b>To,</b><br>${q.contactName || q.partyName || ""}<br>${(q.address || "").replace(/,/g, ",<br>")}
+        <b>To,</b><br>${tidyName(q.contactName || q.partyName || "")}<br>${tidyAddress(q.address)}
       </div>
       <div style="margin-top:10px">Project Name : ${q.projectName || ""}</div>
-      <div style="margin-top:12px"><b>Kind Attn. ${q.contactName || ""} ${q.contactNumber ? "(Mob.No. " + q.contactNumber + ")" : ""}</b></div>
+      <div style="margin-top:12px"><b>Kind Attn. ${tidyName(q.contactName || "")} ${q.contactNumber ? "(Mob.No. " + q.contactNumber + ")" : ""}${q.clientEmail || q.contactEmail ? " (Email : " + (q.clientEmail || q.contactEmail) + ")" : ""}</b></div>
       <div style="margin-top:6px"><b>Sub :-Quotation For Eurobond-ALUMINIUM COMPOSITE PANEL</b></div>
       <p>Sir,<br>In reference to the discusssion held with you regarding the said subject, we are please to quote our most preferred rates & others terms and condition for the same as follows.</p>
       <table>
         <thead><tr><th>Sr.No</th><th>Description</th><th>Color Code/Series</th><th>Rate/Sq.Mtr (INR)</th><th>Rate/Sq.Ft (INR)</th></tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table>
-      <h3>Terms & Conditions:-</h3>
-      <div class="tc">
-        <div>Taxes &nbsp; : ${tc.taxes || ""}</div>
-        <div>Freight &nbsp; : ${tc.freight || ""}</div>
-        <div>Delivery Time &nbsp; : ${tc.delivery || ""}</div>
-        <div>Payment &nbsp; : ${tc.payment || ""}</div>
-        <div>Validity &nbsp; : ${tc.validity || ""}</div>
-        <div>Billing &nbsp; : ${tc.billing || "Billing will be in Sq. Mt."}</div>
-        ${tc.remarks ? `<div>Remarks &nbsp; : ${tc.remarks}</div>` : ""}
-      </div>
+      <h3>Terms &amp; Conditions:-</h3>
+      <table class="tc">
+        ${[
+          ["Taxes", tc.taxes],
+          ["Freight", tc.freight],
+          ["Delivery Time", tc.delivery],
+          ["Payment", tc.payment],
+          ["Validity", tc.validity],
+          ["Billing", tc.billing || "Billing will be in Sq. Mt."],
+          ...(tc.remarks ? [["Remarks", tc.remarks]] : []),
+        ].map(([k, v]) => `<tr><td class="k">${k}</td><td class="c">:</td><td class="v">${v || ""}</td></tr>`).join("")}
+      </table>
       <p><b>Note : Unloading of the material will in scope of Client.</b></p>
       <p>Anticipating healthy business relation with your esteemed organization.</p>
       <div class="sign">
@@ -577,6 +613,7 @@ function downloadQuotePdf(q) {
         <b>EURO PANEL PRODUCTS LIMITED</b><br>
         ${q.createdBy || ""}<br>
         ${q.createdByDesignation || q.designation || ""}<br>
+        ${q.createdByEmail ? "Email : " + q.createdByEmail + "<br>" : ""}
         ${q.createdByPhone ? "Mob : " + q.createdByPhone : ""}
       </div>
       </div>

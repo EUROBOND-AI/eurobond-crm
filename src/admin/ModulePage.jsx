@@ -5,6 +5,7 @@ import { PageHead, Tabs, DataTable, ToolButtons, FormModal, StatCard } from "../
 import { api, auth } from "../lib/api.js";
 import { scopeRows } from "../lib/scope.js";
 import { AdminSearchSelect } from "./QuotationAdmin.jsx";
+import { usePager, Pager } from "../components/Pager.jsx";
 
 /* flatten arrays into readable text for admin table columns */
 function projContactsText(contacts) {
@@ -167,6 +168,7 @@ export default function ModulePage({ cfgKey }) {
       return tab === firstTab && !knownTabs.includes(st);
     });
   }, [rows, tab, cfg, fUser, fHod, fSpec, fSales, fStatus, fStateM, projSide, fCity, fZone, fLead, fAssign, fFrom, fTo, allUsers]);
+  const pager = usePager(visible, 10, String(tab || ""));
 
   const distinct = (key) => {
     let src = rows;
@@ -544,7 +546,7 @@ export default function ModulePage({ cfgKey }) {
             </span>
           ) : undefined}
           columns={shownColumns}
-          rows={visible}
+          rows={pager.slice}
           actions={cfg.actions !== false}
           selectable
           onBulkDelete={handleBulkDelete}
@@ -554,6 +556,7 @@ export default function ModulePage({ cfgKey }) {
           onEdit={(cfg.form && cfgKey !== "projectProjection") ? (r) => { setEditing(r); setShowForm(true); } : null}
         />
       )}
+      <Pager pager={pager} />
 
       {chatRow && <AdminChatModal row={chatRow} cfgKey={cfgKey} onClose={() => setChatRow(null)} onSent={(updated) => { setRows(rows.map((x) => (x._id === updated._id ? updated : x))); setChatRow(updated); }} />}
       {projView && <AdminProjectView rec={projView} onClose={() => setProjView(null)} />}

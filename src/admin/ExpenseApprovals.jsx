@@ -4,6 +4,7 @@ import { api } from "../lib/api.js";
 import { buildExpensePdf } from "../lib/expensePdf.js";
 import { scopeRows } from "../lib/scope.js";
 import { HEADER_COLS, LINE_COLS, NUMATCARD_START, depoKey, headerRow, lineRows, downloadSheet } from "../lib/sapExport.js";
+import { usePager, Pager } from "../components/Pager.jsx";
 
 /* Admin Expense — submitted statements with full format + bills, approve / reject.
    Photos/PDF open in the shared CRM lightbox (crm-lightbox event), not external links. */
@@ -172,6 +173,7 @@ export default function ExpenseApprovals() {
     }
     return true;
   });
+  const pager = usePager(list, 10, tab);
 
   const stats = useMemo(() => {
     const sum = (l) => l.reduce((s, r) => s + (Number(r.amount) || 0), 0);
@@ -279,7 +281,7 @@ export default function ExpenseApprovals() {
                   .concat(["Action"]).map((h) => <th key={h} style={{ padding: "11px 14px", fontWeight: 800, fontSize: 12, color: "#4a5578" }}>{h}</th>)}
               </tr></thead>
               <tbody>
-                {list.map((r) => (
+                {pager.slice.map((r) => (
                   <tr key={r._id} style={{ borderTop: "1px solid #eef1f8", background: picked.has(r._id) ? "#f2f6ff" : "transparent" }}>
                     {["Approved", "Coordination To Accounts", "Uploaders"].includes(tab) && (
                       <td style={{ padding: "10px 14px" }}><input type="checkbox" checked={picked.has(r._id)} onChange={() => togglePick(r._id)} /></td>
@@ -325,6 +327,7 @@ export default function ExpenseApprovals() {
           </div>
         )}
       </div>
+      <Pager pager={pager} />
 
       {cfgOpen && (
         <div className="modal-mask" onClick={() => setCfgOpen(false)}>

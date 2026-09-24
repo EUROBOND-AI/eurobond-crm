@@ -4,6 +4,7 @@ import { PageHead, StatCard, ToolButtons } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
 import { scopeRows, visibleUsers } from "../lib/scope.js";
 import { canAdd, canDelete, canExport, canImport, canModify } from "../lib/perms.js";
+import { usePager, Pager } from "../components/Pager.jsx";
 
 const BILTRAX_TYPES = ["Requested", "Appointment"];
 const th = { padding: "10px 10px", fontWeight: 800, fontSize: 11.5, color: "#fff", textAlign: "left", whiteSpace: "nowrap" };
@@ -65,6 +66,7 @@ export default function BiltraxPage() {
     const t = q.toLowerCase();
     return `${r.projectName} ${r.address} ${r.landmark} ${r.assignPerson}`.toLowerCase().includes(t);
   })), [rows, shown, tab, fType, fState, fHod, fPerson, q]);
+  const pager = usePager(list, 10, tab + fType + fState + fHod + fPerson + q);
 
   const save = async (data) => {
     try {
@@ -238,7 +240,7 @@ export default function BiltraxPage() {
               </td></tr>
             ) : list.length === 0 ? (
               <tr><td colSpan={20} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>No Biltrax projects match these filters.</td></tr>
-            ) : list.map((r) => (
+            ) : pager.slice.map((r) => (
               <tr key={r._id} style={{ background: selected.has(r._id) ? "#f2f6ff" : "transparent" }}>
                 <td style={td}>
                   <input type="checkbox" checked={selected.has(r._id)}
@@ -286,6 +288,7 @@ export default function BiltraxPage() {
           </tbody>
         </table>
       </div>
+      <Pager pager={pager} />
 
       {form && <BiltraxForm row={form} users={users} onClose={() => setForm(null)} onSave={save} />}
       {view && <BiltraxView r={view} onClose={() => setView(null)} />}
