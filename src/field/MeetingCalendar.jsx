@@ -17,14 +17,18 @@ function toIso(v) {
     return `${y}-${String(m[2]).padStart(2, "0")}-${String(m[1]).padStart(2, "0")}`;
   }
   const d = new Date(t);
-  return isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
+  if (isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 export default function MeetingCalendar() {
   const nav = useNavigate();
   const [cur, setCur] = useState(() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d; });
   const [rows, setRows] = useState([]);
-  const [pick, setPick] = useState(new Date().toISOString().slice(0, 10));
+  const [pick, setPick] = useState(() => {
+    const x = new Date();
+    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -70,15 +74,24 @@ export default function MeetingCalendar() {
       .finally(() => setLoading(false));
   }, []);
 
-  /* group meetings by date */
+  /* today's date as it reads on the phone (toISOString() would give UTC, which
+     is a day behind in India during the early hours) */
+  const todayLocal = (() => {
+    const x = new Date();
+    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+  })();
+
+  /* group meetings by date — a meeting whose day has passed is done with and is
+     no longer listed */
   const byDate = useMemo(() => {
     const m = {};
     rows.forEach((r) => {
       const key = toIso(r.nextMeetingDate || r.next_meeting || "");
-      if (!key) return;
+      if (!key || key < todayLocal) return;
       (m[key] = m[key] || []).push(r);
     });
     return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows]);
 
   const year = cur.getFullYear(), month = cur.getMonth();
@@ -87,7 +100,7 @@ export default function MeetingCalendar() {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const cells = [...Array(startPad).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
   const iso = (d) => `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = todayLocal;
   /* earliest meeting first; those without a time go last */
   const dayList = (byDate[pick] || []).slice().sort((a, b) =>
     String(a.nextMeetingTime || "99:99").localeCompare(String(b.nextMeetingTime || "99:99")));
@@ -144,7 +157,7 @@ export default function MeetingCalendar() {
           {fmtPick} · {dayList.length} meeting{dayList.length === 1 ? "" : "s"}
         </div>
 
-        {loading ? <div style={{ color: "var(--muted)", fontSize: 13 }}>Loading…</div>
+        {loading ? <div className="eb-loading"><div className="eb-spin" /></div>
         : dayList.length === 0 ? (
           <div style={{ background: "#fff", borderRadius: 12, padding: 20, textAlign: "center", color: "var(--muted)", fontSize: 13, boxShadow: "var(--shadow)" }}>
             No meetings on this day.

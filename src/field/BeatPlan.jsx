@@ -16,7 +16,13 @@ export function weekStart(d = new Date()) {
   x.setHours(0, 0, 0, 0);
   return x;
 }
-const iso = (d) => d.toISOString().slice(0, 10);
+/* the date as it reads on the phone. toISOString() converts to UTC first, which
+   in India is five and a half hours behind — every day was stored one day out,
+   so Thursday showed Friday's plan. */
+const iso = (d) => {
+  const x = d instanceof Date ? d : new Date(d);
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+};
 const dateOfDay = (ws, i) => { const d = new Date(ws); d.setDate(d.getDate() + i); return d; };
 
 export default function BeatPlan() {
@@ -168,12 +174,16 @@ export function BeatPlanConfirm({ onClose, onContinue }) {
 
   useEffect(() => {
     const wk = iso(weekStart());
-    const todayIso = new Date().toISOString().slice(0, 10);
+    const todayIso = iso(new Date());
     api.list("beatPlan", true).then((d) => {
       const mine = (d.records || []).map((r) => ({ _id: r.id, ...r.data }))
         .find((r) => r.weekStart === wk && r.createdBy === CU().name);
       setPlan(mine || null);
-      setToday(mine ? (mine.days || []).find((x) => x.date === todayIso) : null);
+      /* plans saved before the date fix carry a day-old date, so fall back to
+         matching the weekday name */
+      const dayName = DAYS[(new Date().getDay() + 6) % 7];
+      const rows2 = mine ? (mine.days || []) : [];
+      setToday(rows2.find((x) => x.date === todayIso) || rows2.find((x) => x.day === dayName) || null);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
@@ -182,7 +192,7 @@ export function BeatPlanConfirm({ onClose, onContinue }) {
     setBusy(true);
     try {
       await api.create("beatPlanReject", {
-        weekStart: plan?.weekStart || "", date: new Date().toISOString().slice(0, 10),
+        weekStart: plan?.weekStart || "", date: iso(new Date()),
         day: today?.day || "", plannedType: today?.type || "", plannedAreas: today?.areas || [],
         reason: reason.trim(), createdBy: CU().name, hod: CU().manager || "",
         at: new Date().toISOString(),
@@ -202,7 +212,7 @@ export function BeatPlanConfirm({ onClose, onContinue }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.55)", zIndex: 9999, display: "grid", placeItems: "center", padding: 16 }}>
       <div style={{ background: "#fff", borderRadius: 16, maxWidth: 380, width: "100%", padding: 20 }}>
-        {loading ? <div style={{ padding: 20, textAlign: "center", color: "var(--muted)" }}>Loading your beat plan…</div>
+        {loading ? <div className="eb-loading"><div className="eb-spin" /></div>
         : reject ? (
           <>
             <h3 style={{ marginTop: 0, fontSize: 16 }}>Why are you not following the plan?</h3>

@@ -5680,7 +5680,7 @@ function FieldCustomers({ nearbyOnly = false }) {
         )}
 
         {list === null ? (
-          <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>Loading customers…</div>
+          <div className="eb-loading"><div className="eb-spin" /></div>
         ) : list.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>
             <Users size={32} style={{ opacity: 0.4, marginBottom: 8 }} />
@@ -5703,9 +5703,12 @@ function FieldCustomers({ nearbyOnly = false }) {
               {r.mobile && <button onClick={() => window.open(`https://wa.me/91${r.mobile}`, "_blank")} style={{ ...actBtn("#25d366"), padding: "6px 8px", fontSize: 11 }}>💬</button>}
               {/* road directions from where you are to this customer */}
               <button onClick={() => {
-                const dest = (r.lat && r.lng) ? `${r.lat},${r.lng}`
-                  : encodeURIComponent([r.address, r.place, r.state].filter(Boolean).join(", "));
-                if (!dest) { alert("No address saved for this customer."); return; }
+                /* a scanned card often carries only a short address, so the
+                   customer and area names are sent along to find the place */
+                const parts = [r.address, r.place, r.state].filter(Boolean);
+                const query = [r.name, ...parts].filter(Boolean).join(", ");
+                const dest = (r.lat && r.lng) ? `${r.lat},${r.lng}` : encodeURIComponent(query);
+                if (!r.lat && !parts.length && !r.name) { alert("No address saved for this customer."); return; }
                 window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`, "_blank");
               }} style={{ ...actBtn("#1a73e8"), background: "#e8f1ff", color: "#1a73e8", padding: "6px 8px", fontSize: 11 }}>🧭 Direction</button>
               <button onClick={() => setViewCust(r)} style={{ ...actBtn("#3949ab"), background: "#eef1ff", color: "#3949ab", padding: "6px 8px", fontSize: 11 }}>👁 View</button>
