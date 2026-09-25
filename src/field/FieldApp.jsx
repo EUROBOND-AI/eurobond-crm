@@ -5666,6 +5666,10 @@ function FieldCustomers({ nearbyOnly = false }) {
   const [q, setQ] = useState("");
   const [myLoc, setMyLoc] = useState(null);
   const [viewCust, setViewCust] = useState(null);
+  /* the Home tile counts today's customers, so the list opens on the same day */
+  const [scope, setScope] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get("all") ? "all" : "today"; } catch { return "today"; }
+  });
   const rangeM = Number(CU().nearby_range_m || CU().nearbyRange || 500);   // per-user (admin set)
 
   useEffect(() => {
@@ -5688,23 +5692,50 @@ function FieldCustomers({ nearbyOnly = false }) {
   const list = useMemo(() => {
     if (!rows) return null;
     let base = rows;
+    if (!nearbyOnly && scope === "today") {
+      const now = new Date();
+      const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      const dayOf = (v) => {
+        const t = String(v || "").trim();
+        if (/^\d{4}-\d{2}-\d{2}/.test(t)) return t.slice(0, 10);
+        const d = new Date(t);
+        if (isNaN(d.getTime())) return "";
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      };
+      base = base.filter((r) => dayOf(r.last_followup || r.createdAt || r.date || r._at) === todayKey);
+    }
     if (!nearbyOnly) return base;
     if (!myLoc || myLoc === "denied") return base;
     return base
       .map((r) => ({ ...r, dist: r.lat && r.lng ? haversineKm(myLoc, { lat: Number(r.lat), lng: Number(r.lng) }) : null }))
       .filter((r) => r.dist != null && r.dist * 1000 <= rangeM)
       .sort((a, b) => a.dist - b.dist);
-  }, [rows, myLoc, nearbyOnly, rangeM]);
+  }, [rows, myLoc, nearbyOnly, rangeM, scope]);
 
   return (
     <>
-      <ScreenHead title={nearbyOnly ? "Near By Customers" : "Customers"} />
-      <div className="f-list-pad" style={{ paddingTop: 12 }}>
-        {!nearbyOnly && (
+      <ScreenHead
+        title={nearbyOnly ? "Near By Customers" : "Customers"}
+        right={!nearbyOnly && (
           <button onClick={() => nav("/app/followup/new")}
-            style={{ width: "100%", marginBottom: 12, padding: "13px", borderRadius: 12, border: "none", background: "var(--navy)", color: "#fff", fontWeight: 800, fontSize: 14.5, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: "0 8px 20px rgba(11,60,140,.3)" }}>
-            <Plus size={18} /> Add New
+            style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "6px 11px", borderRadius: 9, border: "none", background: "var(--navy)", color: "#fff", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
+            <Plus size={14} /> Add
           </button>
+        )}
+      />
+      <div className="f-list-pad" style={{ paddingTop: 12 }}>
+        {/* opened from the Home tile: today's customers first, with one tap to see the rest */}
+        {!nearbyOnly && (
+          <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+            {[["today", "Added today"], ["all", "All customers"]].map(([k, lbl]) => (
+              <button key={k} onClick={() => setScope(k)}
+                style={{ flex: 1, padding: "7px 0", borderRadius: 9, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
+                  border: "1px solid " + (scope === k ? "var(--navy)" : "#d7dcef"),
+                  background: scope === k ? "var(--navy)" : "#fff", color: scope === k ? "#fff" : "var(--muted)" }}>
+                {lbl}
+              </button>
+            ))}
+          </div>
         )}
         <div style={{ position: "relative", marginBottom: 12 }}>
           <Search size={15} color="var(--muted)" style={{ position: "absolute", left: 12, top: 12 }} />
@@ -5747,13 +5778,15 @@ function FieldCustomers({ nearbyOnly = false }) {
               {r.mobile && <button onClick={() => window.open(`https://wa.me/91${r.mobile}`, "_blank")} style={{ ...actBtn("#25d366"), padding: "6px 8px", fontSize: 11 }}>💬</button>}
               {/* road directions from where you are to this customer */}
               <button onClick={() => {
-                /* a scanned card often carries only a short address, so the
-                   customer and area names are sent along to find the place */
+                /* Send the written address as the destination so Google shows it
+                   in "Choose destination" exactly as it is saved. The saved
+                   coordinates go along only as a hint for short addresses. */
                 const parts = [r.address, r.place, r.state].filter(Boolean);
-                const query = [r.name, ...parts].filter(Boolean).join(", ");
-                const dest = (r.lat && r.lng) ? `${r.lat},${r.lng}` : encodeURIComponent(query);
-                if (!r.lat && !parts.length && !r.name) { alert("No address saved for this customer."); return; }
-                window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`, "_blank");
+                const text = parts.join(", ") || r.name || "";
+                if (!text && !(r.lat && r.lng)) { alert("No address saved for this customer."); return; }
+                const dest = encodeURIComponent(text || `${r.lat},${r.lng}`);
+                const hint = (r.lat && r.lng) ? `&destination_place_id=&center=${r.lat},${r.lng}` : "";
+                window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving${hint}`, "_blank");
               }} style={{ ...actBtn("#1a73e8"), background: "#e8f1ff", color: "#1a73e8", padding: "6px 8px", fontSize: 11 }}>🧭 Direction</button>
               <button onClick={() => setViewCust(r)} style={{ ...actBtn("#3949ab"), background: "#eef1ff", color: "#3949ab", padding: "6px 8px", fontSize: 11 }}>👁 View</button>
               <button onClick={() => { CUST_EDIT.data = r; nav("/app/customer/edit"); }} style={{ ...actBtn("#f59e0b"), background: "#fef3e2", color: "#c07f00", padding: "6px 8px", fontSize: 11 }}>✎ Edit</button>
