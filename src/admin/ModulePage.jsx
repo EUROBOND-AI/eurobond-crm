@@ -6,6 +6,7 @@ import { api, auth } from "../lib/api.js";
 import { scopeRows } from "../lib/scope.js";
 import { AdminSearchSelect } from "./QuotationAdmin.jsx";
 import { usePager, Pager } from "../components/Pager.jsx";
+import { canAdd, canDelete, canModify, canExport, canImport } from "../lib/perms.js";
 
 /* flatten arrays into readable text for admin table columns */
 function projContactsText(contacts) {
@@ -137,7 +138,15 @@ export default function ModulePage({ cfgKey }) {
   const firstTab = cfg.tabs?.[0]?.key;
 
   const visible = useMemo(() => {
-    let list = scopeRows(rows, allUsers);
+    /* The notification module holds every message in the system, including the
+       ones sent to field staff. The panel lists only what was sent to the
+       backend team or created from here. */
+    let base = rows || [];
+    if (cfgKey === "notification") {
+      const me = (auth.user || {}).name;
+      base = base.filter((n) => n.to === "ADMIN" || /admin/i.test(String(n.forRole || "")) || n.createdBy === me || n._by === me);
+    }
+    let list = scopeRows(base, allUsers);
     if (fUser) list = list.filter((r) => (r.createdBy || "") === fUser);
     if (fHod) list = list.filter((r) => (r.hod || "") === fHod);
     if (fSpec) list = list.filter((r) => (r.specPerson || "") === fSpec);
@@ -549,11 +558,11 @@ export default function ModulePage({ cfgKey }) {
           rows={pager.slice}
           actions={cfg.actions !== false}
           selectable
-          onBulkDelete={handleBulkDelete}
+          onBulkDelete={canDelete(cfg.title) ? handleBulkDelete : null}
           onBulkForward={cfgKey === "projectProjection" ? (ids) => setFwdRow({ bulk: ids.map((id) => rows.find((r) => r._id === id)).filter(Boolean) }) : null}
           onRowClick={["projectProjection", "salesToSpec", "specToSales"].includes(cfgKey) ? (r) => setProjView(r) : (cfg.approveFlow || cfg.isSpecThread) ? (r) => setChatRow(r) : null}
-          onDelete={handleDelete}
-          onEdit={(cfg.form && cfgKey !== "projectProjection") ? (r) => { setEditing(r); setShowForm(true); } : null}
+          onDelete={canDelete(cfg.title) ? handleDelete : null}
+          onEdit={(cfg.form && cfgKey !== "projectProjection" && canModify(cfg.title)) ? (r) => { setEditing(r); setShowForm(true); } : null}
         />
       )}
       <Pager pager={pager} />

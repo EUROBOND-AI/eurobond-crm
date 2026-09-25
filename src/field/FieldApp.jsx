@@ -5,11 +5,12 @@ import {
   Home, CalendarCheck, Target, User, Users, Plus, Menu, Bell, ChevronRight, ChevronLeft,
   MapPin, Clock, Wallet, ClipboardList, LogOut, Phone, Mail, Building2, X,
   PlaneTakeoff, FileText, CalendarDays, Briefcase, ListChecks, Map as MapIcon,
-  Play, Square, Navigation, Smartphone, CheckCircle2, AlertCircle, Eye, EyeOff, Camera, Search, Filter, Pencil,
+  Play, Square, Navigation, Smartphone, CheckCircle2, AlertCircle, Eye, EyeOff, Camera, Search, Filter, Pencil, RefreshCw,
 } from "lucide-react";
 import { ebFlushQueue, ebQueueSize, watchLocation, startTracker, stopTracker, setTrackerHandler, setTrackerSession, isTrackerActive, showTrackingNotification, hideTrackingNotification, totalDistanceKm, haversineKm, fmtKm, fmtDuration } from "../lib/geo.js";
 import { api, auth, API_BASE, clearApiCache } from "../lib/api.js";
 import BeatPlan, { BeatPlanConfirm } from "./BeatPlan.jsx";
+import ErrorBoundary from "../components/ErrorBoundary.jsx";
 import MeetingCalendar from "./MeetingCalendar.jsx";
 import BiltraxList from "./BiltraxList.jsx";
 import { buildExpensePdf } from "../lib/expensePdf.js";
@@ -775,17 +776,47 @@ async function cancelLogoutReminders() {
 }
 
 /* ------------------------------------------------ SHARED HEAD ------------------------------------------------ */
+/* Reloads the screen's data. Spins while it works, so a slow network still
+   looks like something is happening. */
+function RefreshBtn() {
+  const [busy, setBusy] = useState(false);
+  const go = async () => {
+    if (busy) return;
+    setBusy(true);
+    try { clearApiCache(); } catch {}
+    try { window.__ebLoadLists && window.__ebLoadLists(); } catch {}
+    try { window.dispatchEvent(new Event("eb-app-resumed")); } catch {}
+    setTimeout(() => setBusy(false), 900);
+  };
+  return (
+    <button onClick={go} title="Refresh"
+      style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "grid", placeItems: "center", color: "inherit" }}>
+      {busy ? <span className="eb-spin" style={{ width: 17, height: 17, borderWidth: 2 }} /> : <RefreshCw size={17} />}
+    </button>
+  );
+}
+
 function ScreenHead({ title, back = true, right = null }) {
   const nav = useNavigate();
+  const loc = useLocation();
+  /* Going back from the first screen after a notification or a fresh start had
+     no app page behind it, which left an empty screen. Fall back to Home. */
+  const goBack = () => {
+    const first = !loc.key || loc.key === "default";
+    if (first || window.history.length <= 1) nav("/app", { replace: true });
+    else nav(-1);
+  };
   return (
     <div className="f-screen-head">
       {back && (
-        <button onClick={() => nav(-1)} style={{ background: "none", border: "none", cursor: "pointer", color: "inherit" }}>
+        <button onClick={goBack} style={{ background: "none", border: "none", cursor: "pointer", color: "inherit" }}>
           <ChevronLeft size={22} />
         </button>
       )}
       <div className="grow" style={{ fontFamily: "Bricolage Grotesque", fontWeight: 700, fontSize: 16 }}>{title}</div>
       {right}
+      {/* pull the latest from the server without leaving the screen */}
+      <RefreshBtn />
     </div>
   );
 }
@@ -832,13 +863,26 @@ function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expense
 
   const fuDone = followups.filter((f) => (f.status || "").toLowerCase() === "completed").length;
   const leavePending = leaves.filter((l) => (l.status || "").toLowerCase() === "pending").length;
-  const expMonth = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  /* the home tiles are about today and this month, not everything ever saved */
+  const isoLocal = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const todayKey = isoLocal(new Date());
+  const monthKey = todayKey.slice(0, 7);
+  const dayOf = (v) => {
+    const t = String(v || "").trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(t)) return t.slice(0, 10);
+    const d = new Date(t);
+    return isNaN(d.getTime()) ? "" : isoLocal(d);
+  };
+  const custToday = followups.filter((f) => dayOf(f.createdAt || f.date || f._at) === todayKey).length;
+  const expMonth = expenses
+    .filter((e) => dayOf(e.periodTo || e.createdAt || e.date || e._at).slice(0, 7) === monthKey)
+    .reduce((s, e) => s + (Number(e.amount) || 0), 0);
 
   const metrics = [
     { label: "Calendar", icon: <CalendarDays size={15} />, big: monthMeetings, note: "meetings this month", to: "/app/calendar" },
-    { label: "Customer", icon: <ClipboardList size={15} />, big: `${followups.length}`, note: "total customers", to: "/app/customers" },
+    { label: "Customer", icon: <ClipboardList size={15} />, big: `${custToday}`, note: "added today", to: "/app/customers" },
     { label: "Leave", icon: <CalendarDays size={15} />, big: leavePending, note: "pending approvals", to: "/app/leave" },
-    { label: "Expense", icon: <Wallet size={15} />, big: "₹" + expMonth.toLocaleString("en-IN"), note: "total claimed", to: "/app/expense" },
+    { label: "Expense", icon: <Wallet size={15} />, big: "₹" + expMonth.toLocaleString("en-IN"), note: "claimed this month", to: "/app/expense" },
   ];
 
   return (
@@ -2276,7 +2320,7 @@ function FieldFollowUpQuick({ add }) {
 
         <NextMeetingFields value={nextMeet} onChange={setNextMeet} />
 
-        <button className="f-submit" style={{ width: "100%" }} disabled={!remark || busy}
+        <button className="f-submit" style={{ width: "100%" }} disabled={busy}
           onClick={async () => {
             setBusy(true);
             try {
@@ -2783,7 +2827,7 @@ function ProjectFollowup({ rec, onClose, onSaved }) {
         <WhatsAppOnce mobile={rec?.mobile || (rec?.contacts && rec.contacts[0] && rec.contacts[0].mobile)} recordId={rec?._id || rec?.id} />
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={onClose} style={{ flex: 1, padding: 11, borderRadius: 10, border: "1.5px solid #d7dcef", background: "#fff", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
-          <button onClick={save} disabled={busy || !remark} style={{ flex: 1, padding: 11, borderRadius: 10, border: "none", background: "var(--navy)", color: "#fff", fontWeight: 800, cursor: "pointer" }}>{busy ? "Saving…" : "Save"}</button>
+          <button onClick={save} disabled={busy} style={{ flex: 1, padding: 11, borderRadius: 10, border: "none", background: "var(--navy)", color: "#fff", fontWeight: 800, cursor: "pointer" }}>{busy ? "Saving…" : "Save"}</button>
         </div>
       </div>
     </div>
@@ -5003,7 +5047,7 @@ function EnquiryDetailView({ r, onClose, onDone }) {
   const chat = Array.isArray(rec.chat) ? rec.chat : [];
 
   const addRemark = async () => {
-    if (!remark.trim()) { alert("Enter a remark"); return; }
+    if (!remark.trim() && !nextDate) { alert("Write a remark or plan the next call/visit."); return; }
     if (saveRef.current) return;
     saveRef.current = true; setSaving(true);
     const now = new Date();
@@ -7147,6 +7191,7 @@ export default function FieldApp() {
         </div>
 
         <div className="phone-body">
+          <ErrorBoundary routeKey={location.pathname}>
           <Routes>
             <Route index element={<FieldHome attendanceOn={attendanceOn} doneToday={doneToday} setAttendanceOn={setAttendanceOn} tracking={tracking} expenses={expenses} followups={followups} leaves={leaves} onStartAttendance={async () => {
               try {
@@ -7226,6 +7271,7 @@ export default function FieldApp() {
             <Route path="profile" element={<FieldProfile onLogout={() => { api.logout(); setAuthed(false); setAttendanceOn(false); nav("/"); }} />} />
             <Route path="*" element={<Navigate to="/app" replace />} />
           </Routes>
+          </ErrorBoundary>
         </div>
 
         {/* bottom nav */}

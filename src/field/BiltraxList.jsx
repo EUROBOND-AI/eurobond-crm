@@ -281,7 +281,7 @@ function BiltraxFollowUp({ r, onClose, onDone }) {
   const [busy, setBusy] = useState(false);
 
   const save = async () => {
-    if (!remark.trim()) { alert("Enter a remark"); return; }
+    if (!remark.trim() && !nextDate) { alert("Write a remark or plan the next call/visit."); return; }
     setBusy(true);
     const now = new Date();
     const entry = {

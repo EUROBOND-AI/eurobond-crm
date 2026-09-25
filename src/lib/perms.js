@@ -20,8 +20,11 @@ export async function loadPerms() {
     if (!role || role === "admin" || role === "system") { GRID = "ALL"; return GRID; }
     try {
       const d = await api.list("roles", false);
+      /* role names are typed in two places ("HOD (Sales)" vs "hod (sales)"),
+         so match on the plain letters rather than the exact string */
+      const plain = (x) => norm(x).replace(/[^a-z0-9]/g, "");
       const rec = (d.records || []).map((r) => r.data)
-        .find((r) => norm(r.name) === role);
+        .find((r) => plain(r.name) === plain(role));
       GRID = rec && rec.grid ? rec.grid : "ALL";   // no row for this role -> don't block
     } catch {
       GRID = "ALL";

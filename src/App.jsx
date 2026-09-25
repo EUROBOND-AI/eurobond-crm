@@ -4,6 +4,7 @@ import { Routes, Route, Link, Navigate, useLocation } from "react-router-dom";
 import { api, auth } from "./lib/api.js";
 import { Monitor, Smartphone } from "lucide-react";
 import AdminLogin from "./admin/AdminLogin.jsx";
+import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import AdminLayout from "./admin/AdminLayout.jsx";
 const HomeDashboard = lazy(() => import("./admin/HomeDashboard.jsx"));
 const DealPipeline = lazy(() => import("./admin/DealPipeline.jsx"));
@@ -85,7 +86,8 @@ export default function App() {
   useActivityLogger();
   const isNative = typeof window !== "undefined" && window.Capacitor && typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform();
   return (
-    <Suspense fallback={<div className="eb-loading" style={{ minHeight: "60vh" }}><div className="eb-spin" />Loading…</div>}>
+    <ErrorBoundary routeKey={location.pathname}>
+    <Suspense fallback={<div className="eb-loading" style={{ minHeight: "60vh" }}><div className="eb-spin" /></div>}>
     <Routes>
       <Route path="/" element={isNative ? <Navigate to="/app" replace /> : <Portal />} />
       <Route path="/admin/login" element={<AdminLogin />} />
@@ -130,5 +132,6 @@ export default function App() {
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     </Suspense>
+    </ErrorBoundary>
   );
 }
