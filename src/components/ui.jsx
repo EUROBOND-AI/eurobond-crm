@@ -255,6 +255,7 @@ export function FreezeToggle() {
   useEffect(() => {
     document.body.classList.toggle("freeze-head", on);
     try { localStorage.setItem("eb_freeze_head", on ? "1" : "0"); } catch {}
+    try { window.dispatchEvent(new Event("eb-freeze-changed")); } catch {}
   }, [on]);
   return (
     <button className="btn btn-ghost" title={on ? "Filters stay at the top while you scroll" : "The whole page scrolls"}

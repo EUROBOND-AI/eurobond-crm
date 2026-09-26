@@ -180,6 +180,39 @@ export default function AdminLayout() {
 
   /* record which admin screen was opened (Activity Logs) */
   const _loc = useLocation();
+
+  /* Give the table the height that is left below the headings, so the filters
+     and totals above it stay put and only the rows scroll. Re-measured when the
+     page changes, when the window resizes, and when the table's own size
+     changes (a filter opening, rows arriving). */
+  useEffect(() => {
+    let raf = 0;
+    const fit = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const on = document.body.classList.contains("freeze-head");
+        document.querySelectorAll(".content .table-wrap").forEach((el) => {
+          if (!on) { el.style.maxHeight = ""; return; }
+          const top = el.getBoundingClientRect().top;
+          const left = window.innerHeight - top - 78;      // room for the pager
+          el.style.maxHeight = Math.max(220, left) + "px";
+        });
+      });
+    };
+    fit();
+    const t = setTimeout(fit, 400);                        // after the data lands
+    window.addEventListener("resize", fit);
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(fit) : null;
+    const host = document.querySelector(".content");
+    if (ro && host) ro.observe(host);
+    window.addEventListener("eb-freeze-changed", fit);
+    return () => {
+      clearTimeout(t); cancelAnimationFrame(raf);
+      window.removeEventListener("resize", fit);
+      window.removeEventListener("eb-freeze-changed", fit);
+      if (ro) ro.disconnect();
+    };
+  }, [_loc.pathname]);
   const _lastLogged = useRef("");
   useEffect(() => {
     const path = _loc.pathname;

@@ -544,19 +544,12 @@ body.dark-admin .btn-danger { background: linear-gradient(135deg,#ff6b6b,#ef4444
 
 
 /* ---- Frozen headings ----
-   With this on, everything above the table (the page title, the toolbar, the
-   stat cards and the filter row) stays in place and only the rows scroll.
-   The button in the toolbar turns it off for anyone who prefers the whole page
-   to move. `.content` is the scrolling element, so sticky is measured from it. */
-body.freeze-head .content > :not(.table-wrap):not(.grid-card) {
-  position: sticky;
-  z-index: 18;
-  background: var(--bg, #f4f6fc);
-}
-body.freeze-head .content > *:nth-child(1) { top: 0; }
-body.freeze-head .content > *:nth-child(2) { top: 62px; }
-body.freeze-head .content > *:nth-child(3) { top: 118px; }
-body.dark-admin.freeze-head .content > :not(.table-wrap):not(.grid-card) { background: #12151f; }
+   Everything above the table (title, toolbar, totals, filters) keeps its place
+   and only the rows move, because the table itself becomes the scrolling box.
+   Its height is measured on screen, so it works whatever the page shows above.
+   The button in the toolbar turns it off, and then the whole page scrolls. */
+body.freeze-head .content { overflow-y: hidden; }
+body.freeze-head .content .table-wrap { overflow: auto; }
 
-/* the column headings stay visible whatever the setting */
+/* column headings stay visible whatever the setting */
 .table-wrap thead th, table.grid thead th { position: sticky; top: 0; z-index: 12; }

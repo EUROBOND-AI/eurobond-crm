@@ -799,31 +799,27 @@ function RefreshBtn() {
 /* Where each screen was opened from. Browser history sent Back into the form
    that was just saved, and that form had already cleared its data, so the
    screen came up blank. This keeps a trail of real screens instead. */
-const EB_TRAIL = [];
-const isFormPath = (p) => /\/(new|edit)(\/|$)/.test(String(p || ""));
+/* Where the Back arrow goes, worked out from the address itself. Browser
+   history used to send it into the form that was just saved, or to a screen
+   that no longer had its data, and the page came up empty. Every destination
+   below is a real screen, so that cannot happen. */
+function parentOf(path) {
+  const p = String(path || "").replace(/\/+$/, "");
+  let m;
+  if ((m = p.match(/^(\/app\/m\/[^/]+)\/(new|edit).*$/))) return m[1];
+  if (/^\/app\/expense\/(new|format)/.test(p)) return "/app/expense";
+  if (/^\/app\/leave\/new/.test(p)) return "/app/leave";
+  if (/^\/app\/(followup|customer)\//.test(p)) return "/app/customers";
+  if (/^\/app\/project\/new/.test(p)) return "/app/m/projectProjection";
+  return "/app";
+}
 
 function ScreenHead({ title, back = true, right = null }) {
   const nav = useNavigate();
   const loc = useLocation();
-
-  useEffect(() => {
-    const here = loc.pathname;
-    if (EB_TRAIL[EB_TRAIL.length - 1] !== here) EB_TRAIL.push(here);
-    if (EB_TRAIL.length > 20) EB_TRAIL.shift();
-  }, [loc.pathname]);
-
-  /* step back to the last ordinary screen; never into a form, never off the app */
   const goBack = () => {
-    for (let i = EB_TRAIL.length - 2; i >= 0; i--) {
-      const p = EB_TRAIL[i];
-      if (p && p !== loc.pathname && !isFormPath(p)) {
-        EB_TRAIL.length = i + 1;
-        nav(p, { replace: true });
-        return;
-      }
-    }
-    EB_TRAIL.length = 0;
-    nav("/app", { replace: true });
+    const to = parentOf(loc.pathname);
+    nav(to === loc.pathname ? "/app" : to, { replace: true });
   };
   return (
     <div className="f-screen-head">

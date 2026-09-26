@@ -28,6 +28,36 @@ function kmFromPoints(points) {
    route that curves along a road is measured along the road rather than as a
    straight line. Falls back to the point-to-point figure if the service is
    unreachable. */
+
+/* Look up one position's full address, the same way the timeline does.
+   Answers are remembered for the session so a week of exports asks once per
+   place rather than once per point. */
+const EB_ADDR_CACHE = new Map();
+async function addressFor(lat, lng) {
+  const key = `${Number(lat).toFixed(5)},${Number(lng).toFixed(5)}`;
+  if (EB_ADDR_CACHE.has(key)) return EB_ADDR_CACHE.get(key);
+  let full = "";
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`, { headers: { "Accept-Language": "en" } });
+    if (r.ok) {
+      const j = await r.json();
+      full = j.display_name || "";
+    }
+  } catch {}
+  if (!full) {
+    try {
+      const r2 = await fetch(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}&lang=en`);
+      if (r2.ok) {
+        const j2 = await r2.json();
+        const pr = (j2.features && j2.features[0] && j2.features[0].properties) || {};
+        full = [pr.name, pr.street, pr.district, pr.city, pr.state, pr.postcode].filter(Boolean).join(", ");
+      }
+    } catch {}
+  }
+  EB_ADDR_CACHE.set(key, full);
+  return full;
+}
+
 async function roadKmFromPoints(points) {
   /* Only the fixes that are good enough to measure with — feeding a stationary
      cluster of vague points to the matcher makes it lay them along a road and
@@ -228,7 +258,30 @@ export default function AttendancePage() {
       setWeekBusy(`${i + 1} / ${filtered.length}`);
       let pts = [];
       try { const d = await api.attPointsList(ss.id); pts = cleanTrack(d.points || []); } catch {}
-      pts.forEach((p, n) => {
+
+      /* one stop every five minutes, the same rows the timeline lists */
+      const tOf = (x) => (x && x.recorded_at ? Date.parse(String(x.recorded_at).replace(" ", "T")) : 0);
+      const stops = [];
+      let lastT = 0;
+      pts.forEach((p, idx) => {
+        const t = tOf(p);
+        if (idx === 0 || idx === pts.length - 1 || !lastT || t - lastT >= 5 * 60 * 1000) { stops.push(p); lastT = t; }
+      });
+
+      /* fill in any address the server has not worked out yet, six at a time */
+      const missing = stops.filter((p) => !p.address);
+      const saved = [];
+      for (let b = 0; b < missing.length; b += 6) {
+        setWeekBusy(`${i + 1} / ${filtered.length} · addresses ${Math.min(b + 6, missing.length)}/${missing.length}`);
+        await Promise.all(missing.slice(b, b + 6).map(async (p) => {
+          const a = await addressFor(p.lat, p.lng);
+          if (a) { p.address = a; saved.push({ lat: p.lat, lng: p.lng, address: a }); }
+        }));
+        await new Promise((res) => setTimeout(res, 350));
+      }
+      if (saved.length) { try { await api.attSaveAddress(saved); } catch {} }
+
+      stops.forEach((p, n) => {
         rows.push([
           ss.name, ss.code || '', ss.zone || '', ss.city || '', ss.work_date,
           n + 1,
@@ -237,7 +290,7 @@ export default function AttendancePage() {
           p.address || '',
           p.battery != null ? p.battery : '',
           (p.online === 1 || p.online === true) ? 'Online' : (p.online === 0 || p.online === false) ? 'Offline' : '',
-          trackDistanceKm(pts.slice(0, n + 1)).toFixed(2),
+          trackDistanceKm(pts.slice(0, pts.indexOf(p) + 1)).toFixed(2),
         ]);
       });
     }
