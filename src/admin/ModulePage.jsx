@@ -5,8 +5,8 @@ import { PageHead, Tabs, DataTable, ToolButtons, FormModal, StatCard } from "../
 import { api, auth } from "../lib/api.js";
 import { scopeRows } from "../lib/scope.js";
 import { AdminSearchSelect } from "./QuotationAdmin.jsx";
-import { usePager, Pager } from "../components/Pager.jsx";
 import { canAdd, canDelete, canModify, canExport, canImport } from "../lib/perms.js";
+import { usePager, Pager } from "../components/Pager.jsx";
 
 /* flatten arrays into readable text for admin table columns */
 function projContactsText(contacts) {
@@ -136,6 +136,17 @@ export default function ModulePage({ cfgKey }) {
 
   const knownTabs = (cfg.tabs || []).map((t) => t.key);
   const firstTab = cfg.tabs?.[0]?.key;
+
+  /* A list row carries a marker where a photo was, so the full record is
+     fetched when one is actually opened. */
+  const openFull = async (r, set) => {
+    set(r);
+    if (!r || !r._id || !JSON.stringify(r).includes("__heavy__")) return;
+    try {
+      const d = await api.get(cfgKey, r._id);
+      if (d && d.record) set({ _id: d.record.id, ...d.record.data, _by: d.record.created_by_name, _at: d.record.created_at });
+    } catch {}
+  };
 
   const visible = useMemo(() => {
     /* The notification module holds every message in the system, including the
@@ -539,7 +550,7 @@ export default function ModulePage({ cfgKey }) {
         <DataTable
           extraActions={cfgKey === "projectProjection" ? (r) => (
             <span style={{ display: "inline-flex", gap: 4, marginRight: 6 }}>
-              <button className="btn" style={{ padding: "3px 8px", fontSize: 11, background: "#e4e8ff", color: "#3949ab" }} onClick={(e) => { e.stopPropagation(); setProjView(r); }}>View</button>
+              <button className="btn" style={{ padding: "3px 8px", fontSize: 11, background: "#e4e8ff", color: "#3949ab" }} onClick={(e) => { e.stopPropagation(); openFull(r, setProjView); }}>View</button>
               <button className="btn" style={{ padding: "3px 8px", fontSize: 11, background: "#efe7fb", color: "#8854d0" }} onClick={(e) => { e.stopPropagation(); setFwdRow(r); }}>Forward</button>
               <button className="btn" style={{ padding: "3px 8px", fontSize: 11, background: "#e4f3ff", color: "#0b6cb0" }} onClick={(e) => { e.stopPropagation(); setMsgRow(r); }}>💬 Message</button>
             </span>
@@ -560,7 +571,7 @@ export default function ModulePage({ cfgKey }) {
           selectable
           onBulkDelete={canDelete(cfg.title) ? handleBulkDelete : null}
           onBulkForward={cfgKey === "projectProjection" ? (ids) => setFwdRow({ bulk: ids.map((id) => rows.find((r) => r._id === id)).filter(Boolean) }) : null}
-          onRowClick={["projectProjection", "salesToSpec", "specToSales"].includes(cfgKey) ? (r) => setProjView(r) : (cfg.approveFlow || cfg.isSpecThread) ? (r) => setChatRow(r) : null}
+          onRowClick={["projectProjection", "salesToSpec", "specToSales"].includes(cfgKey) ? (r) => openFull(r, setProjView) : (cfg.approveFlow || cfg.isSpecThread) ? (r) => openFull(r, setChatRow) : null}
           onDelete={canDelete(cfg.title) ? handleDelete : null}
           onEdit={(cfg.form && cfgKey !== "projectProjection" && canModify(cfg.title)) ? (r) => { setEditing(r); setShowForm(true); } : null}
         />

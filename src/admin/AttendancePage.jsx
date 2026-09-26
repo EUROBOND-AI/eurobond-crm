@@ -214,6 +214,45 @@ export default function AttendancePage() {
     a.click();
   };
 
+  /* Every recorded point of the chosen range, with its full address — the file
+     Accounts asks for once a week. The rows on screen are used as-is, so the
+     date range and filters above decide what goes in. */
+  const [weekBusy, setWeekBusy] = useState(null);
+  const exportWeek = async () => {
+    if (!filtered.length) { alert("Choose a date range and click Show first."); return; }
+    const head = ['Name', 'Emp Code', 'Zone', 'City', 'Date', 'Point #', 'Time',
+      'Latitude', 'Longitude', 'Address', 'Battery %', 'Network', 'Cumulative KM'];
+    const rows = [];
+    for (let i = 0; i < filtered.length; i++) {
+      const ss = filtered[i];
+      setWeekBusy(`${i + 1} / ${filtered.length}`);
+      let pts = [];
+      try { const d = await api.attPointsList(ss.id); pts = cleanTrack(d.points || []); } catch {}
+      pts.forEach((p, n) => {
+        rows.push([
+          ss.name, ss.code || '', ss.zone || '', ss.city || '', ss.work_date,
+          n + 1,
+          p.recorded_at ? String(p.recorded_at).slice(11, 16) : '',
+          Number(p.lat).toFixed(6), Number(p.lng).toFixed(6),
+          p.address || '',
+          p.battery != null ? p.battery : '',
+          (p.online === 1 || p.online === true) ? 'Online' : (p.online === 0 || p.online === false) ? 'Offline' : '',
+          trackDistanceKm(pts.slice(0, n + 1)).toFixed(2),
+        ]);
+      });
+    }
+    setWeekBusy(null);
+    if (!rows.length) { alert("No location points in this range."); return; }
+    const csv = [head, ...rows]
+      .map((r) => r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `attendance-points-${date}-to-${dateTo}.csv`;
+    a.click();
+  };
+
   /* map modal for one session — Login/In-Between/Logout markers + travel points panel */
   const [routePoints, setRoutePoints] = useState([]);
   /* The phone now records a point a minute, which is what makes the distance
@@ -406,7 +445,13 @@ export default function AttendancePage() {
       <PageHead
         crumb="SFA / Attendance"
         title="Attendance Report"
-        actions={<button className="btn btn-soft" onClick={exportCsv}><FileText size={14} /> Export</button>}
+        actions={<>
+          <button className="btn btn-soft" onClick={exportCsv}><FileText size={14} /> Export</button>
+          <button className="btn btn-primary" disabled={!!weekBusy} onClick={exportWeek}
+            title="Every point of the chosen dates, with its full address">
+            <FileText size={14} /> {weekBusy ? `Preparing ${weekBusy}…` : "Week Export"}
+          </button>
+        </>}
       />
 
       <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>

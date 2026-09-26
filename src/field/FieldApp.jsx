@@ -796,15 +796,34 @@ function RefreshBtn() {
   );
 }
 
+/* Where each screen was opened from. Browser history sent Back into the form
+   that was just saved, and that form had already cleared its data, so the
+   screen came up blank. This keeps a trail of real screens instead. */
+const EB_TRAIL = [];
+const isFormPath = (p) => /\/(new|edit)(\/|$)/.test(String(p || ""));
+
 function ScreenHead({ title, back = true, right = null }) {
   const nav = useNavigate();
   const loc = useLocation();
-  /* Going back from the first screen after a notification or a fresh start had
-     no app page behind it, which left an empty screen. Fall back to Home. */
+
+  useEffect(() => {
+    const here = loc.pathname;
+    if (EB_TRAIL[EB_TRAIL.length - 1] !== here) EB_TRAIL.push(here);
+    if (EB_TRAIL.length > 20) EB_TRAIL.shift();
+  }, [loc.pathname]);
+
+  /* step back to the last ordinary screen; never into a form, never off the app */
   const goBack = () => {
-    const first = !loc.key || loc.key === "default";
-    if (first || window.history.length <= 1) nav("/app", { replace: true });
-    else nav(-1);
+    for (let i = EB_TRAIL.length - 2; i >= 0; i--) {
+      const p = EB_TRAIL[i];
+      if (p && p !== loc.pathname && !isFormPath(p)) {
+        EB_TRAIL.length = i + 1;
+        nav(p, { replace: true });
+        return;
+      }
+    }
+    EB_TRAIL.length = 0;
+    nav("/app", { replace: true });
   };
   return (
     <div className="f-screen-head">

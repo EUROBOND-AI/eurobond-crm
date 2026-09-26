@@ -3,7 +3,7 @@ import { PageHead, StatCard, ToolButtons } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { buildExpensePdf } from "../lib/expensePdf.js";
 import { scopeRows } from "../lib/scope.js";
-import { HEADER_COLS, LINE_COLS, NUMATCARD_START, depoKey, headerRow, lineRows, downloadSheet } from "../lib/sapExport.js";
+import { HEADER_COLS, LINE_COLS, NUMATCARD_START, depoKey, headerRow, lineRows, downloadSheet, LOCATION, FIXED } from "../lib/sapExport.js";
 import { usePager, Pager } from "../components/Pager.jsx";
 
 /* Admin Expense — submitted statements with full format + bills, approve / reject.
@@ -82,7 +82,25 @@ export default function ExpenseApprovals() {
       const dk = depoKey(r.depo || userOf(r).depo);
       let ref = r.sapRefNo;
       if (!ref && dk) { ref = (Number(m[dk]) || 0) + 1; m[dk] = ref; }
-      try { await api.update("expense", id, { ...r, status: "Uploader", sentToAccountsAt: now, sapRefNo: ref ?? "" }); } catch {}
+      /* Work the SAP values out now and keep them on the record, so the SAP
+         button sends exactly what the two uploader files contain. */
+      const u = userOf(r);
+      const hv = headerRow({ ...r, sentToAccountsAt: now, sapRefNo: ref ?? "" }, u, new Date(), ref ?? "");
+      const sapHeader = {
+        series: hv[1], bplId: hv[4], docDate: hv[5], docDueDate: hv[6], taxDate: hv[7],
+        cardCode: hv[8], numAtCard: hv[9], currency: hv[10], rate: hv[11],
+        comments: hv[12], controlAccount: hv[13],
+      };
+      const sapLines = lineRows(r, areaState, u.state).map((l) => ({
+        description: l[2], accountCode: l[3], lineTotal: l[4], taxCode: l[5],
+        locationCode: l[6], wtLiable: l[7], currency: l[8], costingCode: l[9],
+      }));
+      try {
+        await api.update("expense", id, {
+          ...r, status: "Uploader", sentToAccountsAt: now, sapRefNo: ref ?? "",
+          sapHeader, sapLines,
+        });
+      } catch {}
     }
     try { await saveRefMaster(m); } catch {}
     setRefMaster(m);
@@ -126,6 +144,27 @@ export default function ExpenseApprovals() {
       y += h;
     });
     pdf.save(`Expense-Uploader-Summary-${from || ""}-to-${to || ""}.pdf`);
+  };
+
+  /* Create the SAP draft straight from here — the same values as the files. */
+  const pushSap = async (ids) => {
+    if (!ids.length) { alert("Select at least one statement"); return; }
+    if (!window.confirm(`Create ${ids.length} draft(s) in SAP?`)) return;
+    setWorking(true);
+    try {
+      const r = ids.length === 1 ? await api.sapPush(ids[0]) : await api.sapPushBulk(ids);
+      const res = r.results || [];
+      const ok = res.filter((x) => x.success);
+      const skipped = res.filter((x) => x.skipped);
+      const bad = res.filter((x) => x.error);
+      let msg = `${ok.length} draft(s) created in SAP.`;
+      if (skipped.length) msg += `\n${skipped.length} were already sent.`;
+      if (bad.length) msg += "\n\nNot sent:\n" + bad.map((x) => "• " + x.error).join("\n");
+      alert(msg);
+      load();
+    } catch (e) { alert(e.message); }
+    setWorking(false);
+    setPicked(new Set());
   };
 
   const downloadHeader = async (list2) => {
@@ -256,6 +295,10 @@ export default function ExpenseApprovals() {
               </button>
               <button className="btn btn-soft" onClick={() => downloadHeader(list)}>⬇ Header Uploader (all {list.length})</button>
               <button className="btn btn-soft" disabled={!list.length} onClick={() => summaryPdf(picked.size ? list.filter((r) => picked.has(r._id)) : list)}>⬇ Summary PDF</button>
+              <button className="btn" style={{ background: "#0a6ed1", color: "#fff", borderColor: "transparent" }}
+                disabled={!picked.size || working} onClick={() => pushSap([...picked])}>
+                ⇪ SAP (selected)
+              </button>
               <button className="btn btn-ghost" onClick={() => setRefOpen(true)}>Customer Ref No. master</button>
             </>
           )}
@@ -312,6 +355,10 @@ export default function ExpenseApprovals() {
                           <button className="btn btn-soft" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => downloadHeader([r])}>⬇ Header</button>
                           <button className="btn btn-primary" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => downloadLines(r)}>⬇ Lines</button>
                           <button className="btn btn-soft" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => buildExpensePdf(r, true, { adminSummary: true }).catch((e) => alert(e.message))}>PDF</button>
+                          <button className="btn" style={{ padding: "5px 10px", fontSize: 12, background: r.sapDocEntry ? "#e7f7ef" : "#0a6ed1", color: r.sapDocEntry ? "#0f7a44" : "#fff", borderColor: "transparent" }}
+                            disabled={working || !!r.sapDocEntry} onClick={() => pushSap([r._id])}>
+                            {r.sapDocEntry ? `✓ SAP ${r.sapDocNum || ""}` : "⇪ SAP"}
+                          </button>
                         </>
                       )}
                       <button className="btn btn-danger" style={{ padding: "5px 10px", fontSize: 12 }}

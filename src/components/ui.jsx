@@ -143,12 +143,8 @@ export function DataTable({ columns, rows, onDelete, onEdit, onView, onRowClick,
         </table>
         {filtered.length === 0 && <EmptyState />}
       </div>
-      <div className="table-foot">
-        Showing <b>1</b> to <b>{filtered.length}</b> of <b>{filtered.length}</b> entries →
-        <div className="pager">
-          <ChevronLeft size={16} /> Go to <input defaultValue={1} /> page <ChevronRight size={16} />
-        </div>
-      </div>
+      {/* the real pager sits under the table on each page — this row only
+          looked like one and never paged anything */}
     </div>
   );
 }
@@ -167,6 +163,7 @@ export function ToolButtons({ onAdd, addLabel = "Add", onRefresh, onExport, onIm
   };
   return (
     <>
+      <FreezeToggle />
       <button className="btn btn-pink" onClick={onHeaderConfig}><Eye size={14} /> Header Config</button>
       <button className="btn btn-soft" onClick={onRefresh} disabled={refreshing}>
         <RefreshCw size={14} className={refreshing ? "spin" : ""} /> {refreshing ? "Refreshing…" : "Refresh"}
@@ -245,5 +242,24 @@ export function FooterNote() {
     <p className="footer-note">
       Copyright ©2026 <b>Eurobond CRM</b> · Developed and Designed by <b>Karthik G</b>
     </p>
+  );
+}
+
+
+/* Keeps the filters and totals in place while the rows scroll. The choice is
+   remembered on this device. */
+export function FreezeToggle() {
+  const [on, setOn] = useState(() => {
+    try { return localStorage.getItem("eb_freeze_head") !== "0"; } catch { return true; }
+  });
+  useEffect(() => {
+    document.body.classList.toggle("freeze-head", on);
+    try { localStorage.setItem("eb_freeze_head", on ? "1" : "0"); } catch {}
+  }, [on]);
+  return (
+    <button className="btn btn-ghost" title={on ? "Filters stay at the top while you scroll" : "The whole page scrolls"}
+      onClick={() => setOn((x) => !x)}>
+      {on ? "📌 Frozen" : "📌 Freeze"}
+    </button>
   );
 }

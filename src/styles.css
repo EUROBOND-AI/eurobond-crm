@@ -541,3 +541,22 @@ body.dark-admin .btn-danger { background: linear-gradient(135deg,#ff6b6b,#ef4444
    the buttons. The menu and long pages always keep a little room at the end. */
 .f-menu > div:last-child { padding-bottom: calc(24px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))) !important; }
 .f-menu { padding-bottom: 0; height: 100%; max-height: 100dvh; }
+
+
+/* ---- Frozen headings ----
+   With this on, everything above the table (the page title, the toolbar, the
+   stat cards and the filter row) stays in place and only the rows scroll.
+   The button in the toolbar turns it off for anyone who prefers the whole page
+   to move. `.content` is the scrolling element, so sticky is measured from it. */
+body.freeze-head .content > :not(.table-wrap):not(.grid-card) {
+  position: sticky;
+  z-index: 18;
+  background: var(--bg, #f4f6fc);
+}
+body.freeze-head .content > *:nth-child(1) { top: 0; }
+body.freeze-head .content > *:nth-child(2) { top: 62px; }
+body.freeze-head .content > *:nth-child(3) { top: 118px; }
+body.dark-admin.freeze-head .content > :not(.table-wrap):not(.grid-card) { background: #12151f; }
+
+/* the column headings stay visible whatever the setting */
+.table-wrap thead th, table.grid thead th { position: sticky; top: 0; z-index: 12; }
