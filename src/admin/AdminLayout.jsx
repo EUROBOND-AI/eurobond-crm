@@ -365,13 +365,6 @@ export default function AdminLayout() {
             <div className="welcome">
               <small>Welcome</small><br />
               <strong>{admin.name}</strong>
-              {/* the settings icon made way for Freeze, so changing the password
-                  lives here instead */}
-              <br />
-              <span onClick={() => setShowPass(true)}
-                style={{ fontSize: 10.5, color: "var(--accent)", cursor: "pointer", textDecoration: "underline" }}>
-                Change password
-              </span>
             </div>
             <AdminBell nav={nav} />
             <button className="icon-btn" title="Dark / Light" onClick={() => {

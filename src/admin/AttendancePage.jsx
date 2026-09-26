@@ -467,6 +467,15 @@ export default function AttendancePage() {
     })();
     return () => { stop = true; };
   }, [timelinePoints]);
+  /* The file carries the stops the timeline shows, not every raw reading —
+     a day is a thousand points but only fifty-odd places. */
+  const exportStops = useMemo(
+    () => timelinePoints.map((p) => ({
+      ...p,
+      address: p.address || ptAddr[`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`] || "",
+    })),
+    [timelinePoints, ptAddr]
+  );
   const [custVisits, setCustVisits] = useState([]);
   useEffect(() => {
     if (!viewSess || !mapRef.current) return;
@@ -680,8 +689,8 @@ export default function AttendancePage() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <h3 style={{ margin: 0 }}>{viewSess.name} — route ({totalKm.toFixed(2)} km)</h3>
               <div style={{ display: "flex", gap: 6 }}>
-                <button className="btn btn-soft" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => downloadSessionExcel(viewSess, routePoints.map((p) => ({ ...p, address: p.address || ptAddr[`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`] || "" })), custVisits)}>⬇ Excel</button>
-                <button className="btn btn-pink" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => downloadSessionPdf(viewSess, custVisits, routePoints.map((p) => ({ ...p, address: p.address || ptAddr[`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`] || "" })))}>⬇ PDF</button>
+                <button className="btn btn-soft" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => downloadSessionExcel(viewSess, exportStops, custVisits)}>⬇ Excel</button>
+                <button className="btn btn-pink" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => downloadSessionPdf(viewSess, custVisits, exportStops)}>⬇ PDF</button>
                 <button className="btn btn-ghost" onClick={() => setViewSess(null)}><X size={14} /></button>
               </div>
             </div>

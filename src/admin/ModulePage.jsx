@@ -148,7 +148,7 @@ export default function ModulePage({ cfgKey }) {
     } catch {}
   };
 
-  const visible = useMemo(() => {
+  const filteredNoTab = useMemo(() => {
     /* The notification module holds every message in the system, including the
        ones sent to field staff. The panel lists only what was sent to the
        backend team or created from here. */
@@ -180,6 +180,15 @@ export default function ModulePage({ cfgKey }) {
     if (fZone) list = list.filter((r) => (r.zone || "") === fZone);
     if (fLead) list = list.filter((r) => (r.leadSource || "") === fLead);
     if (fAssign) list = list.filter((r) => (r.assignedTo || "") === fAssign || (r.specPerson || "") === fAssign || (r.salesPerson || "") === fAssign);
+    return list;
+  }, [rows, cfg, fUser, fHod, fSpec, fSales, fStatus, fStateM, projSide, fCity, fZone, fLead, fAssign, fFrom, fTo, allUsers, cfgKey]);
+
+  /* the rows the tab is then chosen from — the totals count these, so filtering
+     to twenty rows no longer still reads the full table */
+  const statBase = filteredNoTab;
+
+  const visible = useMemo(() => {
+    const list = filteredNoTab;
     if (!cfg.tabField || cfg.noTabFilter) return list;
     return list.filter((r) => {
       const st = String(r[cfg.tabField] ?? "");
@@ -187,7 +196,7 @@ export default function ModulePage({ cfgKey }) {
       // records with unknown/old status appear under the first tab
       return tab === firstTab && !knownTabs.includes(st);
     });
-  }, [rows, tab, cfg, fUser, fHod, fSpec, fSales, fStatus, fStateM, projSide, fCity, fZone, fLead, fAssign, fFrom, fTo, allUsers]);
+  }, [filteredNoTab, tab, cfg, firstTab, knownTabs]);
   const pager = usePager(visible, 10, String(tab || ""));
 
   const distinct = (key) => {
@@ -448,9 +457,11 @@ export default function ModulePage({ cfgKey }) {
       {cfg.tabs && cfg.tabField && !cfg.noTabFilter && !loading
         && (shown || !["projectProjection", "salesToSpec", "specToSales", "target", "leave", "expense", "beatPlan"].includes(cfgKey)) && (
         <div className="stat-row">
-          <StatCard label="Total" value={rows.length} sub="All records" color="#4a7bff" />
+          {/* counted from what the filters actually leave, not the whole table —
+              filtering to twenty rows used to still read the full total */}
+          <StatCard label="Total" value={statBase.length} sub="Matching records" color="#4a7bff" />
           {cfg.tabs.slice(0, 4).map((t, i) => (
-            <StatCard key={t.key} label={t.label} value={rows.filter((r) => String(r[cfg.tabField]) === t.key).length} sub={t.label + " records"} color={["#8b5cf6", "#10b981", "#f59e0b", "#ec4899"][i % 4]} />
+            <StatCard key={t.key} label={t.label} value={statBase.filter((r) => String(r[cfg.tabField]) === t.key).length} sub={t.label + " records"} color={["#8b5cf6", "#10b981", "#f59e0b", "#ec4899"][i % 4]} />
           ))}
         </div>
       )}

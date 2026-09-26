@@ -214,12 +214,22 @@ export default function ExpenseApprovals() {
   });
   const pager = usePager(list, 10, tab);
 
+  /* counted from what the filters leave, so the cards agree with the list */
   const stats = useMemo(() => {
+    const base = applied ? statements.filter((r) => {
+      if (applied.person && !((r.user || r._by || "").toLowerCase().includes(applied.person.toLowerCase()))) return false;
+      if (applied.state && !((r.location || "").toLowerCase().includes(applied.state.toLowerCase()))) return false;
+      if (applied.hod) {
+        const u = users.find((x) => x.name === (r.user || r._by));
+        if (!u || !((u.manager || "").toLowerCase().includes(applied.hod.toLowerCase()))) return false;
+      }
+      return true;
+    }) : statements;
     const sum = (l) => l.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-    const sub = statements.filter((r) => r.status === "Submitted");
-    const app = statements.filter((r) => r.status === "Approved");
-    return { subN: sub.length, subAmt: sum(sub), appN: app.length, appAmt: sum(app) };
-  }, [statements]);
+    const sub = base.filter((r) => r.status === "Submitted");
+    const app = base.filter((r) => ["Approved", "Coordination", "Uploader"].includes(r.status));
+    return { subN: sub.length, subAmt: sum(sub), appN: app.length, appAmt: sum(app), allN: base.length };
+  }, [statements, applied, users]);
 
   return (
     <>
@@ -265,7 +275,7 @@ export default function ExpenseApprovals() {
       <div className="stat-row">
         <StatCard label="Pending" value={stats.subN} sub={`₹${stats.subAmt.toLocaleString("en-IN")} to review`} color="#2563eb" />
         <StatCard label="Approved" value={stats.appN} sub={`₹${stats.appAmt.toLocaleString("en-IN")}`} color="#0f7a44" />
-        <StatCard label="Statements" value={statements.length} sub="All" />
+        <StatCard label="Statements" value={stats.allN} sub="Matching" />
       </div>
 
       <div style={{ display: "flex", gap: 8, margin: "14px 0" }}>

@@ -211,13 +211,15 @@ export default function CustomersPage() {
     a.download = "customers.csv"; a.click();
   };
 
-  const withMobile = (rows || []).filter((r) => r.mobile).length;
+  /* every total counts what the filters leave, so the cards match the list */
+  const statRows = list || [];
+  const withMobile = statRows.filter((r) => r.mobile).length;
   /* duplicate detection: same mobile appearing more than once */
   const mobileCounts = {};
-  (rows || []).forEach((r) => { if (r.mobile) mobileCounts[r.mobile] = (mobileCounts[r.mobile] || 0) + 1; });
+  statRows.forEach((r) => { if (r.mobile) mobileCounts[r.mobile] = (mobileCounts[r.mobile] || 0) + 1; });
   const dupMobiles = new Set(Object.keys(mobileCounts).filter((m) => mobileCounts[m] > 1));
-  const dupCount = (rows || []).filter((r) => r.mobile && dupMobiles.has(r.mobile)).length;
-  const totalEntries = (rows || []).reduce((s, r) => s + (r.followups || 0), 0);
+  const dupCount = statRows.filter((r) => r.mobile && dupMobiles.has(r.mobile)).length;
+  const totalEntries = statRows.reduce((s, r) => s + (r.followups || 0), 0);
 
   return (
     <div style={{ padding: "0 4px 40px" }}>
@@ -252,11 +254,11 @@ export default function CustomersPage() {
 
       {/* count cards — Enquiry style */}
       <div className="stat-row">
-        <StatCard label="Total" value={rows ? rows.length : 0} sub="All customers" />
+        <StatCard label="Total" value={statRows.length} sub="Matching customers" />
         <StatCard label="Total Entries" value={totalEntries} sub="Follow-up records" />
         <StatCard label="With Mobile" value={withMobile} sub="Have contact number" />
         <StatCard label="Duplicates" value={dupCount} sub="Same mobile repeated" color={dupCount > 0 ? "#ef4444" : "#94a3b8"} />
-        <StatCard label="Showing" value={list.length} sub="After filters" />
+        <StatCard label="In Database" value={rows ? rows.length : 0} sub="All customers" color="#94a3b8" />
       </div>
 
       {/* filters + Show */}
