@@ -2,7 +2,7 @@ import logoImg from "../assets/logo.jpg";
 import { useState, useEffect, useRef } from "react";
 import { Outlet, NavLink, useNavigate, Navigate, useLocation } from "react-router-dom";
 import {
-  Search, Bell, Moon, Maximize, Settings, LayoutDashboard, Megaphone, Users,
+  Search, Bell, Moon, Maximize, Pin, LayoutDashboard, Megaphone, Users,
   BarChart3, Boxes, LifeBuoy, BellRing, ChevronDown, LogOut,
 } from "lucide-react";
 import { FooterNote } from "../components/ui.jsx";
@@ -365,6 +365,13 @@ export default function AdminLayout() {
             <div className="welcome">
               <small>Welcome</small><br />
               <strong>{admin.name}</strong>
+              {/* the settings icon made way for Freeze, so changing the password
+                  lives here instead */}
+              <br />
+              <span onClick={() => setShowPass(true)}
+                style={{ fontSize: 10.5, color: "var(--accent)", cursor: "pointer", textDecoration: "underline" }}>
+                Change password
+              </span>
             </div>
             <AdminBell nav={nav} />
             <button className="icon-btn" title="Dark / Light" onClick={() => {
@@ -372,7 +379,7 @@ export default function AdminLayout() {
               localStorage.setItem("eb_admin_dark", dark ? "1" : "0");
             }}><Moon size={16} /></button>
             <button className="icon-btn" title="Fullscreen" onClick={() => { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }}><Maximize size={16} /></button>
-            <button className="icon-btn" title="Change password" onClick={() => setShowPass(true)}><Settings size={16} /></button>
+            <FreezeIconBtn />
             <button className="icon-btn" title="Logout" onClick={() => { api.logout(); nav("/"); }}><LogOut size={16} /></button>
           </div>
         </header>
@@ -523,5 +530,35 @@ function BgTaskBadge() {
         <span style={{ display: "block", fontSize: 11.5, fontWeight: 500, opacity: 0.85 }}>{t.label}</span>
       </span>
     </div>
+  );
+}
+
+
+/* Keeps this page's headings in place while the rows scroll. The choice is kept
+   per page, so freezing one list leaves the others as they were. */
+function FreezeIconBtn() {
+  const loc = useLocation();
+  const here = loc.pathname;
+  const readAll = () => { try { return JSON.parse(localStorage.getItem("eb_freeze_pages") || "{}"); } catch { return {}; } };
+  const [on, setOn] = useState(() => readAll()[here] === true);
+
+  useEffect(() => { setOn(readAll()[here] === true); /* eslint-disable-next-line */ }, [here]);
+
+  useEffect(() => {
+    document.body.classList.toggle("freeze-head", on);
+    try {
+      const all = readAll();
+      if (on) all[here] = true; else delete all[here];
+      localStorage.setItem("eb_freeze_pages", JSON.stringify(all));
+    } catch {}
+    try { window.dispatchEvent(new Event("eb-freeze-changed")); } catch {}
+  }, [on, here]);
+
+  return (
+    <button className="icon-btn" onClick={() => setOn((x) => !x)}
+      title={on ? "Headings frozen on this page — click to unfreeze" : "Freeze the headings on this page"}
+      style={on ? { background: "#2b6fb8", color: "#fff", borderColor: "transparent" } : undefined}>
+      <Pin size={16} />
+    </button>
   );
 }

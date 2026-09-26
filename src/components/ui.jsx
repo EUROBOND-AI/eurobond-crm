@@ -163,7 +163,6 @@ export function ToolButtons({ onAdd, addLabel = "Add", onRefresh, onExport, onIm
   };
   return (
     <>
-      <FreezeToggle />
       <button className="btn btn-pink" onClick={onHeaderConfig}><Eye size={14} /> Header Config</button>
       <button className="btn btn-soft" onClick={onRefresh} disabled={refreshing}>
         <RefreshCw size={14} className={refreshing ? "spin" : ""} /> {refreshing ? "Refreshing…" : "Refresh"}
@@ -242,35 +241,5 @@ export function FooterNote() {
     <p className="footer-note">
       Copyright ©2026 <b>Eurobond CRM</b> · Developed and Designed by <b>Karthik G</b>
     </p>
-  );
-}
-
-
-/* Keeps the filters and totals in place while the rows scroll. The choice is
-   remembered on this device. */
-export function FreezeToggle() {
-  /* The choice belongs to the page you are on, not to the whole panel — freezing
-     Project Projection should not freeze Customers as well. */
-  const here = typeof window !== "undefined" ? window.location.pathname : "";
-  const readAll = () => { try { return JSON.parse(localStorage.getItem("eb_freeze_pages") || "{}"); } catch { return {}; } };
-  const [on, setOn] = useState(() => readAll()[here] === true);
-
-  useEffect(() => { setOn(readAll()[here] === true); /* eslint-disable-next-line */ }, [here]);
-
-  useEffect(() => {
-    document.body.classList.toggle("freeze-head", on);
-    try {
-      const all = readAll();
-      if (on) all[here] = true; else delete all[here];
-      localStorage.setItem("eb_freeze_pages", JSON.stringify(all));
-    } catch {}
-    try { window.dispatchEvent(new Event("eb-freeze-changed")); } catch {}
-    return () => document.body.classList.remove("freeze-head");
-  }, [on, here]);
-  return (
-    <button className="btn btn-ghost" title={on ? "Filters stay at the top while you scroll" : "The whole page scrolls"}
-      onClick={() => setOn((x) => !x)}>
-      {on ? "📌 Frozen" : "📌 Freeze"}
-    </button>
   );
 }
