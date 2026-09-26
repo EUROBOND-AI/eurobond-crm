@@ -29,7 +29,7 @@ export default function CustomersPage() {
   const [sel, setSel] = useState(new Set());
   const [fwdOpen, setFwdOpen] = useState(null);
   const [users, setUsers] = useState([]);
-  const CUST_COLS = ["Customer", "Category", "Contact", "Mobile", "Email", "Projects", "State", "Place", "Address", "Entries", "Enquiry From", "By", "HOD"];
+  const CUST_COLS = ["Customer", "Category", "Contact", "Mobile", "Email", "Projects", "State", "Place", "Address", "New Entry", "Follow-up Entry", "Enquiry From", "By", "HOD"];
   const [hiddenCols, setHiddenCols] = useState(() => { try { return new Set(JSON.parse(localStorage.getItem("cust_hidden_cols") || "[]")); } catch { return new Set(); } });
   const [cfgOpen, setCfgOpen] = useState(false);
   const toggleCol = (c) => setHiddenCols((s) => { const n = new Set(s); n.has(c) ? n.delete(c) : n.add(c); localStorage.setItem("cust_hidden_cols", JSON.stringify([...n])); return n; });
@@ -190,7 +190,9 @@ export default function CustomersPage() {
       "Contact Person", "Mobile", "Email",
       "Contact Person 2", "Mobile 2", "Email 2",
       "Contact Person 3", "Mobile 3", "Email 3",
-      "State", "City", "Address", "Projects", "Enquiry From", "Remark", "Sales Person", "Date"];
+      "State", "City", "Address", "Projects", "Enquiry From", "Remark",
+      "New Entry", "Follow-up Entry",
+      "Sales Person", "HOD", "Date"];
     const con = (r, i) => (Array.isArray(r.contacts) && r.contacts[i]) ? r.contacts[i] : {};
     const body = list.map((r) => {
       const c1 = con(r, 0), c2 = con(r, 1), c3 = con(r, 2);
@@ -202,7 +204,8 @@ export default function CustomersPage() {
         c3.name || "", c3.mobile || "", c3.email || "",
         r.state || "", r.place || "", r.address || "",
         projects, r.enquiryFrom || "", r.notes || r.remark || "",
-        r.by || "", (r.last_followup || r.createdAt || "").slice(0, 16),
+        r.newEntries ?? "", r.followupEntries ?? "",
+        r.by || "", r.hod || "", (r.last_followup || r.createdAt || "").slice(0, 16),
       ];
     });
     const csv = [head, ...body].map((row) => row.map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -219,7 +222,8 @@ export default function CustomersPage() {
   statRows.forEach((r) => { if (r.mobile) mobileCounts[r.mobile] = (mobileCounts[r.mobile] || 0) + 1; });
   const dupMobiles = new Set(Object.keys(mobileCounts).filter((m) => mobileCounts[m] > 1));
   const dupCount = statRows.filter((r) => r.mobile && dupMobiles.has(r.mobile)).length;
-  const totalEntries = statRows.reduce((s, r) => s + (r.followups || 0), 0);
+  const totalNew = statRows.reduce((s, r) => s + (r.newEntries || 0), 0);
+  const totalFollow = statRows.reduce((s, r) => s + (r.followupEntries || 0), 0);
 
   return (
     <div style={{ padding: "0 4px 40px" }}>
@@ -255,7 +259,8 @@ export default function CustomersPage() {
       {/* count cards — Enquiry style */}
       <div className="stat-row">
         <StatCard label="Total" value={statRows.length} sub="Matching customers" />
-        <StatCard label="Total Entries" value={totalEntries} sub="Follow-up records" />
+        <StatCard label="New Entries" value={totalNew} sub="Customers added" />
+        <StatCard label="Follow-up Entries" value={totalFollow} sub="Visits logged" color="#0f7a44" />
         <StatCard label="With Mobile" value={withMobile} sub="Have contact number" />
         <StatCard label="Duplicates" value={dupCount} sub="Same mobile repeated" color={dupCount > 0 ? "#ef4444" : "#94a3b8"} />
         <StatCard label="In Database" value={rows ? rows.length : 0} sub="All customers" color="#94a3b8" />
@@ -301,12 +306,12 @@ export default function CustomersPage() {
                     checked={list.length > 0 && list.every((r) => sel.has(r.mobile || r.name))}
                     onChange={(e) => setSel(e.target.checked ? new Set(list.map((r) => r.mobile || r.name)) : new Set())} />
                 </th>
-                {["Customer", "Category", "Contact", "Mobile", "Email", "Projects", "State", "Place", "Address", "Entries", "Enquiry From", "By", "HOD"].filter(colVisible).concat(["Action"]).map((h) => (
+                {["Customer", "Category", "Contact", "Mobile", "Email", "Projects", "State", "Place", "Address", "New Entry", "Follow-up Entry", "Enquiry From", "By", "HOD"].filter(colVisible).concat(["Action"]).map((h) => (
                   <th key={h} style={{ padding: "11px 14px", fontWeight: 800, fontSize: 12, color: "#4a5578", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
               <tr style={{ background: "#fafbff" }}>
-                {[[null], ["name", "Customer"], ["category", "Category"], ["contactName", "Contact"], ["mobile", "Mobile"], ["email", "Email"], [null, "Projects"], ["state", "State"], ["place", "Place"], ["address", "Address"], [null, "Entries"], ["by", "By"], [null, "HOD"], [null, "Action"]].filter(([, col]) => !col || col === "Action" || colVisible(col)).map(([k], i) => (
+                {[[null], ["name", "Customer"], ["category", "Category"], ["contactName", "Contact"], ["mobile", "Mobile"], ["email", "Email"], [null, "Projects"], ["state", "State"], ["place", "Place"], ["address", "Address"], [null, "New Entry"], [null, "Follow-up Entry"], ["by", "By"], [null, "HOD"], [null, "Action"]].filter(([, col]) => !col || col === "Action" || colVisible(col)).map(([k], i) => (
                   <th key={i} style={{ padding: "6px 10px" }}>
                     {k && <input value={colSearch[k] || ""} onChange={(e) => setColSearch((c) => ({ ...c, [k]: e.target.value }))} placeholder="Search…"
                       style={{ width: "100%", padding: "5px 8px", borderRadius: 7, border: "1px solid var(--line)", fontSize: 11.5, background: "#fff", fontWeight: 400 }} />}
@@ -336,7 +341,8 @@ export default function CustomersPage() {
                   {colVisible("State") && <td style={{ padding: "11px 14px" }}>{r.state || (users.find((u) => u.name === r.by)?.state) || "—"}</td>}
                   {colVisible("Place") && <td style={{ padding: "11px 14px" }}>{r.place ? <span><MapPin size={12} /> {r.place}</span> : "—"}</td>}
                   {colVisible("Address") && <AddressCell text={r.address} />}
-                  {colVisible("Entries") && <td style={{ padding: "11px 14px", textAlign: "center", fontWeight: 700 }}>{r.followups}</td>}
+                  {colVisible("New Entry") && <td style={{ padding: "11px 14px", textAlign: "center", fontWeight: 700 }}>{r.newEntries ?? "—"}</td>}
+                  {colVisible("Follow-up Entry") && <td style={{ padding: "11px 14px", textAlign: "center", fontWeight: 700, color: (r.followupEntries || 0) > 0 ? "#0f7a44" : undefined }}>{r.followupEntries ?? "—"}</td>}
                   {colVisible("Enquiry From") && <td style={{ padding: "11px 14px" }}>{r.enquiryFrom || "—"}</td>}
                   {colVisible("By") && <td style={{ padding: "11px 14px", color: "var(--muted)" }}>{r.by || "—"}</td>}
                   {colVisible("HOD") && <td style={{ padding: "11px 14px", color: "var(--muted)" }}>{r.hod || (users.find((u) => u.name === r.by)?.manager) || "—"}</td>}

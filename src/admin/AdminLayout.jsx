@@ -365,6 +365,8 @@ export default function AdminLayout() {
             <div className="welcome">
               <small>Welcome</small><br />
               <strong>{admin.name}</strong>
+              {/* the panel and the phone app are built from one version number */}
+              <br /><span style={{ fontSize: 10, opacity: 0.6 }}>v{__APP_VERSION__}</span>
             </div>
             <AdminBell nav={nav} />
             <button className="icon-btn" title="Dark / Light" onClick={() => {
