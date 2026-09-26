@@ -32,7 +32,22 @@ function kmFromPoints(points) {
 /* Look up one position's full address, the same way the timeline does.
    Answers are remembered for the session so a week of exports asks once per
    place rather than once per point. */
-const EB_ADDR_CACHE = new Map();
+const EB_ADDR_CACHE = (() => {
+  try { return new Map(Object.entries(JSON.parse(localStorage.getItem("eb_addr_cache") || "{}"))); }
+  catch { return new Map(); }
+})();
+let ebAddrSaveTimer = 0;
+function ebAddrPersist() {
+  clearTimeout(ebAddrSaveTimer);
+  ebAddrSaveTimer = setTimeout(() => {
+    try {
+      const o = {};
+      let n = 0;
+      for (const [k, v] of EB_ADDR_CACHE) { if (v && n++ < 4000) o[k] = v; }
+      localStorage.setItem("eb_addr_cache", JSON.stringify(o));
+    } catch {}
+  }, 1500);
+}
 async function addressFor(lat, lng) {
   const key = `${Number(lat).toFixed(5)},${Number(lng).toFixed(5)}`;
   if (EB_ADDR_CACHE.has(key)) return EB_ADDR_CACHE.get(key);
@@ -55,6 +70,7 @@ async function addressFor(lat, lng) {
     } catch {}
   }
   EB_ADDR_CACHE.set(key, full);
+  ebAddrPersist();
   return full;
 }
 
@@ -250,50 +266,66 @@ export default function AttendancePage() {
   const [weekBusy, setWeekBusy] = useState(null);
   const exportWeek = async () => {
     if (!filtered.length) { alert("Choose a date range and click Show first."); return; }
+    const key5 = (p) => `${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`;
+
+    /* 1. every session's points at once, rather than one after another */
+    setWeekBusy(`loading ${filtered.length} day(s)`);
+    const days = [];
+    for (let b = 0; b < filtered.length; b += 8) {
+      const part = await Promise.all(filtered.slice(b, b + 8).map(async (ss) => {
+        let pts = [];
+        try { const d = await api.attPointsList(ss.id); pts = cleanTrack(d.points || []); } catch {}
+        /* one stop every five minutes — the rows the timeline lists */
+        const tOf = (x) => (x && x.recorded_at ? Date.parse(String(x.recorded_at).replace(" ", "T")) : 0);
+        const stops = [];
+        let lastT = 0;
+        pts.forEach((p, idx) => {
+          const t = tOf(p);
+          if (idx === 0 || idx === pts.length - 1 || !lastT || t - lastT >= 5 * 60 * 1000) { stops.push(p); lastT = t; }
+        });
+        return { ss, pts, stops };
+      }));
+      days.push(...part);
+      setWeekBusy(`loading ${Math.min(b + 8, filtered.length)} / ${filtered.length} day(s)`);
+    }
+
+    /* 2. the places that still have no address — each looked up once, however
+          many points or days share it (people stand in the same spots) */
+    const need = new Map();
+    days.forEach(({ stops }) => stops.forEach((p) => {
+      if (p.address) return;
+      const k = key5(p);
+      if (!EB_ADDR_CACHE.has(k) && !need.has(k)) need.set(k, p);
+    }));
+    const todo = [...need.values()];
+    const saved = [];
+    for (let b = 0; b < todo.length; b += 8) {
+      setWeekBusy(`addresses ${Math.min(b + 8, todo.length)} / ${todo.length}`);
+      await Promise.all(todo.slice(b, b + 8).map(async (p) => {
+        const a = await addressFor(p.lat, p.lng);
+        if (a) saved.push({ lat: p.lat, lng: p.lng, address: a });
+      }));
+    }
+    if (saved.length) { try { await api.attSaveAddress(saved); } catch {} }
+
+    /* 3. build the file */
     const head = ['Name', 'Emp Code', 'Zone', 'City', 'Date', 'Point #', 'Time',
       'Latitude', 'Longitude', 'Address', 'Battery %', 'Network', 'Cumulative KM'];
     const rows = [];
-    for (let i = 0; i < filtered.length; i++) {
-      const ss = filtered[i];
-      setWeekBusy(`${i + 1} / ${filtered.length}`);
-      let pts = [];
-      try { const d = await api.attPointsList(ss.id); pts = cleanTrack(d.points || []); } catch {}
-
-      /* one stop every five minutes, the same rows the timeline lists */
-      const tOf = (x) => (x && x.recorded_at ? Date.parse(String(x.recorded_at).replace(" ", "T")) : 0);
-      const stops = [];
-      let lastT = 0;
-      pts.forEach((p, idx) => {
-        const t = tOf(p);
-        if (idx === 0 || idx === pts.length - 1 || !lastT || t - lastT >= 5 * 60 * 1000) { stops.push(p); lastT = t; }
-      });
-
-      /* fill in any address the server has not worked out yet, six at a time */
-      const missing = stops.filter((p) => !p.address);
-      const saved = [];
-      for (let b = 0; b < missing.length; b += 6) {
-        setWeekBusy(`${i + 1} / ${filtered.length} · addresses ${Math.min(b + 6, missing.length)}/${missing.length}`);
-        await Promise.all(missing.slice(b, b + 6).map(async (p) => {
-          const a = await addressFor(p.lat, p.lng);
-          if (a) { p.address = a; saved.push({ lat: p.lat, lng: p.lng, address: a }); }
-        }));
-        await new Promise((res) => setTimeout(res, 350));
-      }
-      if (saved.length) { try { await api.attSaveAddress(saved); } catch {} }
-
+    days.forEach(({ ss, pts, stops }) => {
       stops.forEach((p, n) => {
         rows.push([
           ss.name, ss.code || '', ss.zone || '', ss.city || '', ss.work_date,
           n + 1,
           p.recorded_at ? String(p.recorded_at).slice(11, 16) : '',
           Number(p.lat).toFixed(6), Number(p.lng).toFixed(6),
-          p.address || '',
+          p.address || EB_ADDR_CACHE.get(key5(p)) || '',
           p.battery != null ? p.battery : '',
           (p.online === 1 || p.online === true) ? 'Online' : (p.online === 0 || p.online === false) ? 'Offline' : '',
           trackDistanceKm(pts.slice(0, pts.indexOf(p) + 1)).toFixed(2),
         ]);
       });
-    }
+    });
     setWeekBusy(null);
     if (!rows.length) { alert("No location points in this range."); return; }
     const csv = [head, ...rows]

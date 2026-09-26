@@ -181,36 +181,55 @@ export default function AdminLayout() {
   /* record which admin screen was opened (Activity Logs) */
   const _loc = useLocation();
 
-  /* Give the table the height that is left below the headings, so the filters
-     and totals above it stay put and only the rows scroll. Re-measured when the
-     page changes, when the window resizes, and when the table's own size
-     changes (a filter opening, rows arriving). */
+  /* Give the list its own scrolling box, sized to whatever room is left below
+     the headings. Everything above it — title, buttons, totals, filters, the
+     search line — then stays put and only the rows move. Pages build their
+     tables in different wrappers, so the table is found first and its own
+     container is the one that scrolls. */
   useEffect(() => {
     let raf = 0;
     const fit = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
         const on = document.body.classList.contains("freeze-head");
-        document.querySelectorAll(".content .table-wrap").forEach((el) => {
-          if (!on) { el.style.maxHeight = ""; return; }
-          const top = el.getBoundingClientRect().top;
-          const left = window.innerHeight - top - 78;      // room for the pager
-          el.style.maxHeight = Math.max(220, left) + "px";
+        const host = document.querySelector(".content");
+        if (!host) return;
+        /* the box each table sits in — the wrapper that already scrolls sideways */
+        const boxes = new Set();
+        host.querySelectorAll("table").forEach((t) => {
+          let el = t.parentElement;
+          for (let k = 0; k < 3 && el && el !== host; k++) {
+            const ov = getComputedStyle(el).overflowX;
+            if (ov === "auto" || ov === "scroll" || el.classList.contains("table-wrap")) break;
+            el = el.parentElement;
+          }
+          if (el && el !== host) boxes.add(el);
+        });
+        boxes.forEach((el) => {
+          /* only write when the value really changes — the watcher below reacts
+             to style changes, and rewriting the same value would loop */
+          const want = on ? Math.max(220, window.innerHeight - el.getBoundingClientRect().top - 70) + "px" : "";
+          const wantOv = on ? "auto" : "";
+          if (el.style.maxHeight !== want) el.style.maxHeight = want;
+          if (el.style.overflowY !== wantOv) el.style.overflowY = wantOv;
         });
       });
     };
     fit();
-    const t = setTimeout(fit, 400);                        // after the data lands
+    const timers = [setTimeout(fit, 250), setTimeout(fit, 900), setTimeout(fit, 2000)];
     window.addEventListener("resize", fit);
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(fit) : null;
-    const host = document.querySelector(".content");
-    if (ro && host) ro.observe(host);
     window.addEventListener("eb-freeze-changed", fit);
+    const host = document.querySelector(".content");
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(fit) : null;
+    if (ro && host) ro.observe(host);
+    const mo = typeof MutationObserver !== "undefined" ? new MutationObserver(fit) : null;
+    if (mo && host) mo.observe(host, { childList: true, subtree: true });
     return () => {
-      clearTimeout(t); cancelAnimationFrame(raf);
+      timers.forEach(clearTimeout); cancelAnimationFrame(raf);
       window.removeEventListener("resize", fit);
       window.removeEventListener("eb-freeze-changed", fit);
       if (ro) ro.disconnect();
+      if (mo) mo.disconnect();
     };
   }, [_loc.pathname]);
   const _lastLogged = useRef("");
