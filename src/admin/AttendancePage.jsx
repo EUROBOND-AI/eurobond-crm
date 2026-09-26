@@ -350,26 +350,44 @@ export default function AttendancePage() {
   };
 
   /* map modal for one session — Login/In-Between/Logout markers + travel points panel */
+  /* Two different things, and mixing them up is what made a full day look empty.
+     allPoints is everything the phone sent. routePoints is the subset the
+     kilometres are measured from: standing in one place produces dozens of
+     fixes that wander a few metres, and counting those would invent distance,
+     so they are left out of the measurement.
+     The timeline and the count of what was recorded belong to allPoints. Built
+     from routePoints instead, a day spent in one office showed thirty-odd rows
+     out of four hundred and then warned about gaps that never happened. */
+  const [allPoints, setAllPoints] = useState([]);
   const [routePoints, setRoutePoints] = useState([]);
-  /* The phone now records a point a minute, which is what makes the distance
-     right. That is too dense to read, so the timeline shows one every five
+  /* A point a minute is too dense to read, so the timeline shows one every five
      minutes — the kilometres still come from every point. */
   const timelinePoints = useMemo(() => {
     const out = [];
     let lastT = 0;
-    (routePoints || []).forEach((p, i) => {
+    (allPoints || []).forEach((p, i) => {
       const t = p.recorded_at ? new Date(String(p.recorded_at).replace(" ", "T")).getTime() : i * 60000;
-      if (i === 0 || i === routePoints.length - 1 || !lastT || t - lastT >= 5 * 60 * 1000) {
+      if (i === 0 || i === allPoints.length - 1 || !lastT || t - lastT >= 5 * 60 * 1000) {
         out.push(p);
         lastT = t;
       }
     });
     return out;
-  }, [routePoints]);
+  }, [allPoints]);
   /* single source of truth for distance — same formula used for per-point AND total,
      so the last point's cumulative always equals "Total KM Traveled" */
   /* running total up to a point — same filtering as the day's total */
   const cumKmAt = (pts, upto) => trackDistanceKm((pts || []).slice(0, Math.max(0, upto) + 1));
+  /* How far they had travelled by the time of a given stop. The stop comes from
+     everything the phone sent, while the distance is measured from the smaller
+     set, so the two are matched on the clock rather than by position in a list. */
+  const tsOf = (p) => (p && p.recorded_at ? Date.parse(String(p.recorded_at).replace(" ", "T")) : 0);
+  const cumKmUpTo = (pts, stop) => {
+    const t = tsOf(stop);
+    if (!t) return 0;
+    const upto = (pts || []).filter((q) => tsOf(q) <= t);
+    return trackDistanceKm(upto);
+  };
 
   const [roadKm, setRoadKm] = useState(null);
   useEffect(() => {
@@ -480,6 +498,7 @@ export default function AttendancePage() {
   useEffect(() => {
     if (!viewSess || !mapRef.current) return;
     setRoutePoints([]);
+    setAllPoints([]);
     const m = L.map(mapRef.current, { attributionControl: true }).setView([20.59, 78.96], 5);
     m.attributionControl.setPrefix("Gonti");
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© GK", maxZoom: 19 }).addTo(m);
@@ -498,6 +517,7 @@ export default function AttendancePage() {
       /* Draw from the same points the kilometres are measured from. A stray fix
          used to pull the line off to another district and back — that was the
          second line on the map. */
+      setAllPoints(d.points || []);
       const raw = cleanTrack(d.points || []);
       setRoutePoints(raw);
       const pts = raw.map((p) => [Number(p.lat), Number(p.lng)]);
@@ -727,12 +747,12 @@ export default function AttendancePage() {
                     {(v.type || v.category) && <div style={{ fontSize: 10.5, color: "var(--muted)" }}>{v.category || ""} {v.type ? "· " + v.type : ""}</div>}
                   </div>
                 ))}
-                <div style={{ fontWeight: 800, fontSize: 12.5, color: "var(--muted)", margin: "14px 0 8px" }}>Timeline ({timelinePoints.length} stops · {routePoints.length} points recorded)</div>
+                <div style={{ fontWeight: 800, fontSize: 12.5, color: "var(--muted)", margin: "14px 0 8px" }}>Timeline ({timelinePoints.length} stops · {allPoints.length} points recorded)</div>
                 {!addrReady ? (
                   <div className="eb-loading"><div className="eb-spin" />Loading timeline and addresses…</div>
                 ) : (() => {
                   return timelinePoints.slice(0, 150).map((p, i) => {
-                  const cum = cumKmAt(routePoints, routePoints.indexOf(p));
+                  const cum = cumKmUpTo(routePoints, p);
                   const running = String(viewSess.status || "").toUpperCase() === "RUNNING" || !viewSess.end_time;
                   const isLast = i === timelinePoints.length - 1;
                   /* a closed day that the server ended at 11:55 PM reads "System
