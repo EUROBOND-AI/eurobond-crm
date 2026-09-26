@@ -23,7 +23,7 @@ try {
 
   /* Bump this whenever the native Java changes, so an old patched copy is
      detected and repatched instead of being silently skipped. */
-  const PATCH_VERSION = "EB_PATCH_V3_BATTERY_NET";
+  const PATCH_VERSION = "EB_PATCH_V5_SELF_UPDATES";
   const alreadyPatched = src.includes(PATCH_VERSION);
   if (src.includes("EB_NATIVE_UPLOAD") && !alreadyPatched) {
     console.log("[patch-bg-geo] older patch found — reinstall the plugin so the new native code applies:");
@@ -42,6 +42,7 @@ try {
     "import android.app.PendingIntent;",
     "import android.content.Context;",
     "import android.os.PowerManager;",
+    "import android.util.Log;",
     "import android.content.BroadcastReceiver;",
     "import android.content.IntentFilter;",
     "import android.location.LocationManager;",
@@ -65,7 +66,7 @@ try {
     /private static final int NOTIFICATION_ID = 28351;/,
     `private static final int NOTIFICATION_ID = 28351;
 
-    // EB_NATIVE_UPLOAD EB_PATCH_V3_BATTERY_NET: post a location straight to the server from native code,
+    // EB_NATIVE_UPLOAD EB_PATCH_V5_SELF_UPDATES: post a location straight to the server from native code,
     // so uploads work even when the JS/WebView is frozen in the background.
     private long ebLastUploadMs = 0;
     private com.google.android.gms.location.FusedLocationProviderClient ebSelfClient = null;
@@ -78,7 +79,15 @@ try {
     private void ebStartSelfUpdates() {
         try {
             if (!ebSessionActive()) return;
-            if (!watchers.isEmpty()) return;
+            /* This used to stand down whenever the JS side had registered a
+               watcher, on the reasoning that the watcher would do the job. It
+               does not: that watcher is built with a distance filter and a wait
+               time, so a phone sitting in a pocket produces nothing, and once
+               the app is in the background Android stops delivering to it
+               almost entirely. The result was a day that recorded points while
+               the app was on screen and nothing afterwards. Our own request runs
+               either way now; a duplicate fix costs nothing, because an upload
+               is only sent once every twenty-five seconds. */
             if (ebSelfCallback != null) return;
             ebSelfClient = com.google.android.gms.location.LocationServices
                 .getFusedLocationProviderClient(getApplicationContext());
@@ -135,7 +144,11 @@ try {
         // one upload per ~14 min (matches the 15-min timeline; server also spaces)
         // upload continuously — the distance is only right when the points follow
         // the road rather than jumping between far-apart fixes
-        if (ebLastUploadMs != 0 && (now - ebLastUploadMs) < 25 * 1000) return;
+        if (ebLastUploadMs != 0 && (now - ebLastUploadMs) < 25 * 1000) {
+            Log.d("EBGPS", "fix held back — only " + ((now - ebLastUploadMs) / 1000) + "s since the last one");
+            return;
+        }
+        Log.d("EBGPS", "fix taken, sending it up");
         new Thread(new Runnable() {
             @Override public void run() {
                 final String[] ptHolder = new String[1];
@@ -145,7 +158,10 @@ try {
                     String url = prefs.getString("eb_upload_url", null);
                     String token = prefs.getString("eb_token", null);
                     String sessionId = prefs.getString("eb_session_id", null);
-                    if (url == null || sessionId == null) return;
+                    if (url == null || sessionId == null) {
+                        Log.d("EBGPS", "nothing to send to: url=" + url + " session=" + sessionId);
+                        return;
+                    }
 
                     JSONObject pt = new JSONObject();
                     pt.put("lat", location.getLatitude());
@@ -193,6 +209,7 @@ try {
                     os.write(body.toString().getBytes("UTF-8"));
                     os.flush(); os.close();
                     int rc = c.getResponseCode();
+                    Log.d("EBGPS", "server answered " + rc);
                     /* mark the slot as used ONLY on success, so a failed upload is
                        retried on the next alarm tick instead of being dropped */
                     if (rc >= 200 && rc < 300) {
@@ -755,6 +772,7 @@ try {
                 }
             } catch (Throwable t) {}
             ebStartSelfUpdates();   // fresh process -> no watchers, so drive it ourselves
+            Log.d("EBGPS", "alarm woke the service");
             ebPollOnce();       // grab a fresh location on the alarm tick
             ebScheduleAlarm();  // re-arm for the next tick
             /* keep the 1s re-assert loop running after an alarm restart too —
@@ -872,7 +890,10 @@ try {
 
   // ---- faster native location interval so points keep coming ----
   src = src.replace(/locationRequest\.setInterval\(\d+\);/, "locationRequest.setInterval(60000);");
-  src = src.replace(/locationRequest\.setMaxWaitTime\(\d+\);/, "locationRequest.setMaxWaitTime(60000);");
+  /* No batching. A wait time lets Android hold fixes back and hand them over in
+     a bundle later, which is exactly how a stretch of the day ends up empty and
+     then jumps. Zero means each fix is delivered as it is taken. */
+  src = src.replace(/locationRequest\.setMaxWaitTime\(\d+\);/, "locationRequest.setMaxWaitTime(0);");
 
   fs.writeFileSync(file, src, "utf8");
   console.log("[patch-bg-geo] patched: NATIVE upload + Doze alarm + sticky service ✓");
