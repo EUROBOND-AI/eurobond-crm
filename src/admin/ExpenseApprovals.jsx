@@ -320,7 +320,7 @@ export default function ExpenseApprovals() {
                   </th>
                 )}
                 {["Employee", "Emp Code", "Period", "Entries", "Amount", "Submitted", "Status"].filter(colVisible)
-                  .concat(tab === "Uploaders" ? ["Depot", "Ref No"] : [])
+                  .concat(tab === "Uploaders" ? ["Depot", "Ref No", "SAP"] : [])
                   .concat(["Action"]).map((h) => <th key={h} style={{ padding: "11px 14px", fontWeight: 800, fontSize: 12, color: "#4a5578" }}>{h}</th>)}
               </tr></thead>
               <tbody>
@@ -338,6 +338,17 @@ export default function ExpenseApprovals() {
                     {colVisible("Status") && <td style={{ padding: "10px 14px" }}><span style={{ fontWeight: 700, color: r.status === "Approved" ? "#0f7a44" : r.status === "Rejected" ? "#c03636" : "#2563eb" }}>{r.status === "Coordination" ? "Coordination" : r.status === "Uploader" ? "With Accounts" : r.status}</span></td>}
                     {tab === "Uploaders" && <td style={{ padding: "10px 14px" }}>{r.depo || userOf(r).depo || "—"}</td>}
                     {tab === "Uploaders" && <td style={{ padding: "10px 14px", fontWeight: 700 }}>{r.sapRefNo || "—"}</td>}
+                    {tab === "Uploaders" && (
+                      <td style={{ padding: "10px 14px", fontSize: 12 }}>
+                        {r.sapDocNum || r.sapDocEntry ? (
+                          <span style={{ color: "#0f7a44", fontWeight: 700 }}>✓ In SAP{r.sapDocNum ? ` · ${r.sapDocNum}` : ""}</span>
+                        ) : r.sapError ? (
+                          <span style={{ color: "#c0392b", fontWeight: 700 }} title={r.sapError}>✕ {String(r.sapError).slice(0, 40)}</span>
+                        ) : (
+                          <span style={{ color: "var(--muted)" }}>Waiting for SAP</span>
+                        )}
+                      </td>
+                    )}
                     <td style={{ padding: "10px 14px", display: "flex", gap: 6, flexWrap: "wrap" }}>
                       <button className="btn btn-primary" style={{ padding: "5px 12px" }} onClick={() => setView(r)}>Open</button>
                       {tab === "Approved" && (
