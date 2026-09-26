@@ -9,6 +9,7 @@ import { FooterNote } from "../components/ui.jsx";
 import { auth, api, API_BASE } from "../lib/api.js";
 import { MODULES } from "./moduleConfigs.jsx";
 import { loadPerms, canView } from "../lib/perms.js";
+import { subscribeTask } from "../lib/bgTask.js";
 
 const NAV = [
   {
@@ -307,6 +308,7 @@ export default function AdminLayout() {
   };
   return (
     <div className="admin-shell">
+      <BgTaskBadge />
       <aside className="sidebar">
         <div className="brand" style={{ padding: "14px 14px 10px" }}>
           <span style={{ background: "#fff", borderRadius: 10, padding: "7px 10px", display: "inline-block" }}>
@@ -498,6 +500,28 @@ function AdminBell({ nav }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+
+/* Shows what is still running, wherever you are in the panel. */
+function BgTaskBadge() {
+  const [t, setT] = useState({ running: false, label: "", title: "" });
+  useEffect(() => subscribeTask(setT), []);
+  if (!t.running) return null;
+  return (
+    <div style={{
+      position: "fixed", right: 20, bottom: 20, zIndex: 9999,
+      background: "#1f3a68", color: "#fff", borderRadius: 12, padding: "11px 16px",
+      boxShadow: "0 10px 30px rgba(15,30,70,.35)", display: "flex", alignItems: "center", gap: 10,
+      fontSize: 13, fontWeight: 600, maxWidth: 320,
+    }}>
+      <span className="eb-spin" style={{ width: 16, height: 16, borderWidth: 2, borderTopColor: "#fff", flexShrink: 0 }} />
+      <span>
+        {t.title}
+        <span style={{ display: "block", fontSize: 11.5, fontWeight: 500, opacity: 0.85 }}>{t.label}</span>
+      </span>
     </div>
   );
 }

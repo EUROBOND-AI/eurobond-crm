@@ -6,6 +6,7 @@ import { api } from "../lib/api.js";
 import { fmtKm } from "../lib/geo.js";
 import { visibleUsers } from "../lib/scope.js";
 import { trackDistanceKm, cleanTrack } from "../lib/distance.js";
+import { taskStart, taskProgress, taskDone, subscribeTask } from "../lib/bgTask.js";
 
 const rawTime = (dt) => {
   if (!dt) return null;
@@ -264,15 +265,21 @@ export default function AttendancePage() {
      Accounts asks for once a week. The rows on screen are used as-is, so the
      date range and filters above decide what goes in. */
   const [weekBusy, setWeekBusy] = useState(null);
+  /* the badge keeps the progress; this only mirrors it for the button label */
+  useEffect(() => subscribeTask((t) => setWeekBusy(t.running ? t.label : null)), []);
   const exportWeek = async () => {
     if (!filtered.length) { alert("Choose a date range and click Show first."); return; }
+    /* a snapshot, so leaving this screen cannot change what is being exported */
+    const sessions = filtered.slice();
+    taskStart("Week Export");
+    try {
     const key5 = (p) => `${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`;
 
     /* 1. every session's points at once, rather than one after another */
-    setWeekBusy(`loading ${filtered.length} day(s)`);
+    taskProgress(`loading ${sessions.length} day(s)`);
     const days = [];
-    for (let b = 0; b < filtered.length; b += 8) {
-      const part = await Promise.all(filtered.slice(b, b + 8).map(async (ss) => {
+    for (let b = 0; b < sessions.length; b += 8) {
+      const part = await Promise.all(sessions.slice(b, b + 8).map(async (ss) => {
         let pts = [];
         try { const d = await api.attPointsList(ss.id); pts = cleanTrack(d.points || []); } catch {}
         /* one stop every five minutes — the rows the timeline lists */
@@ -286,7 +293,7 @@ export default function AttendancePage() {
         return { ss, pts, stops };
       }));
       days.push(...part);
-      setWeekBusy(`loading ${Math.min(b + 8, filtered.length)} / ${filtered.length} day(s)`);
+      taskProgress(`loading ${Math.min(b + 8, sessions.length)} / ${sessions.length} day(s)`);
     }
 
     /* 2. the places that still have no address — each looked up once, however
@@ -300,7 +307,7 @@ export default function AttendancePage() {
     const todo = [...need.values()];
     const saved = [];
     for (let b = 0; b < todo.length; b += 8) {
-      setWeekBusy(`addresses ${Math.min(b + 8, todo.length)} / ${todo.length}`);
+      taskProgress(`addresses ${Math.min(b + 8, todo.length)} / ${todo.length}`);
       await Promise.all(todo.slice(b, b + 8).map(async (p) => {
         const a = await addressFor(p.lat, p.lng);
         if (a) saved.push({ lat: p.lat, lng: p.lng, address: a });
@@ -326,7 +333,7 @@ export default function AttendancePage() {
         ]);
       });
     });
-    setWeekBusy(null);
+    taskDone();
     if (!rows.length) { alert("No location points in this range."); return; }
     const csv = [head, ...rows]
       .map((r) => r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","))
@@ -336,6 +343,10 @@ export default function AttendancePage() {
     a.href = URL.createObjectURL(blob);
     a.download = `attendance-points-${date}-to-${dateTo}.csv`;
     a.click();
+    } catch (e) {
+      taskDone();
+      alert("Export failed: " + (e && e.message ? e.message : e));
+    }
   };
 
   /* map modal for one session — Login/In-Between/Logout markers + travel points panel */

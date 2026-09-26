@@ -443,7 +443,10 @@ export default function ModulePage({ cfgKey }) {
           />
         }
       />
-      {cfg.tabs && cfg.tabField && !cfg.noTabFilter && !loading && (
+      {/* The totals belong with the results, so on the modules that wait for
+          Show they appear once there is something to count. */}
+      {cfg.tabs && cfg.tabField && !cfg.noTabFilter && !loading
+        && (shown || !["projectProjection", "salesToSpec", "specToSales", "target", "leave", "expense", "beatPlan"].includes(cfgKey)) && (
         <div className="stat-row">
           <StatCard label="Total" value={rows.length} sub="All records" color="#4a7bff" />
           {cfg.tabs.slice(0, 4).map((t, i) => (
