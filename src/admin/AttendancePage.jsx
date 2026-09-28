@@ -273,28 +273,59 @@ export default function AttendancePage() {
     const sessions = filtered.slice();
     taskStart("Week Export");
     try {
-      /* One line per person per day: who, where they are based, the date and how
-         far they travelled. Nothing here needs an address, which is what used to
-         make this file take minutes — every point was being looked up. */
+      const key5 = (p) => `${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`;
+
+      /* Where each person ended their day, and how far they went to get there.
+         One line per person per day. Only the last position of each day needs an
+         address, so this stays quick — looking up every point of every day is
+         what used to make the file take minutes. */
       taskProgress(`loading ${sessions.length} day(s)`);
-      const rows = [];
+      const days = [];
       for (let b = 0; b < sessions.length; b += 8) {
         const part = await Promise.all(sessions.slice(b, b + 8).map(async (ss) => {
           let km = Number(ss.distance_km) || 0;
+          let last = null;
           try {
             const d = await api.attPointsList(ss.id);
             const pts = cleanTrack(d.points || []);
             if (pts.length > 1) km = trackDistanceKm(pts);
+            last = pts[pts.length - 1] || null;
           } catch { /* keep the stored figure */ }
-          return [ss.name, ss.city || "", ss.work_date, km.toFixed(2)];
+          return { ss, km, last };
         }));
-        rows.push(...part);
+        days.push(...part);
         taskProgress(`loading ${Math.min(b + 8, sessions.length)} / ${sessions.length} day(s)`);
       }
+
+      /* each place looked up once, however many days share it */
+      const need = new Map();
+      days.forEach(({ last }) => {
+        if (!last || last.address) return;
+        const k = key5(last);
+        if (!EB_ADDR_CACHE.has(k) && !need.has(k)) need.set(k, last);
+      });
+      const todo = [...need.values()];
+      const saved = [];
+      for (let b = 0; b < todo.length; b += 8) {
+        taskProgress(`addresses ${Math.min(b + 8, todo.length)} / ${todo.length}`);
+        await Promise.all(todo.slice(b, b + 8).map(async (p) => {
+          const a = await addressFor(p.lat, p.lng);
+          if (a) saved.push({ lat: p.lat, lng: p.lng, address: a });
+        }));
+      }
+      if (saved.length) { try { await api.attSaveAddress(saved); } catch {} }
+
+      const rows = days.map(({ ss, km, last }) => [
+        ss.name,
+        ss.city || "",
+        ss.work_date,
+        last ? (last.address || EB_ADDR_CACHE.get(key5(last)) || "") : "",
+        km.toFixed(2),
+      ]);
       taskDone();
       if (!rows.length) { alert("Nothing to export for this range."); return; }
 
-      const head = ["Name", "City", "Date", "Cumulative KM"];
+      const head = ["Name", "City", "Date", "Address", "Cumulative KM"];
       const csv = [head, ...rows]
         .map((r) => r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","))
         .join("\n");

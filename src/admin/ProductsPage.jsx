@@ -61,12 +61,23 @@ export default function ProductsPage() {
       const text = await file.text();
       const lines = text.split(/\r?\n/).filter((l) => l.trim());
       const header = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/^"|"$/g, ""));
-      const idx = (keys) => header.findIndex((h) => keys.some((k) => h.includes(k)));
-      const pIdx = idx(["product name", "product", "grade name"]);
-      const tIdx = idx(["thickness"]);
-      const cIdx = idx(["code"]);
-      const colIdx = idx(["colour", "color"]);
-      const gIdx = header.findIndex((h) => h === "grade" || h.includes("grade"));
+      /* Matching a header by "contains" put three different columns on the same
+         one: "Colour Code" contains both "colour" and "code", and
+         "Product Name (Grade Name)" contains "grade". Each column is now looked
+         for by its own full name first, and only then by a looser match that
+         rules the others out. */
+      const exact = (...names) => header.findIndex((h) => names.includes(h));
+      const pick = (full, loose, not = []) => {
+        const e = exact(...full);
+        if (e >= 0) return e;
+        return header.findIndex((h) => loose.some((k) => h.includes(k)) && !not.some((n) => h.includes(n)));
+      };
+      const pIdx   = pick(["product name (grade name)", "product name", "product"], ["product"]);
+      const tIdx   = pick(["thickness"], ["thickness"]);
+      const cIdx   = pick(["colour code", "color code", "code"], ["code"], ["grade"]);
+      const colIdx = pick(["colour", "color"], ["colour", "color"], ["code"]);
+      const gIdx   = pick(["grade code", "grade"], ["grade"], ["product", "name"]);
+      const prIdx  = pick(["standard price (per sq.ft)", "standard price", "price"], ["price", "rate"]);
       if (pIdx < 0) { alert("CSV needs at least a 'Product Name' column."); setBusy(false); return; }
       const parsed = [];
       for (let i = 1; i < lines.length; i++) {
@@ -74,7 +85,8 @@ export default function ProductsPage() {
         const clean = (n) => (n >= 0 ? (cols[n] || "").trim().replace(/^"|"$/g, "") : "");
         const pn = clean(pIdx);
         if (!pn) continue;
-        parsed.push({ productName: pn, thickness: clean(tIdx), code: clean(cIdx), colour: clean(colIdx), grade: clean(gIdx) });
+        parsed.push({ productName: pn, thickness: clean(tIdx), code: clean(cIdx), colour: clean(colIdx),
+                      grade: clean(gIdx), price: clean(prIdx).replace(/[^\d.]/g, "") });
       }
       if (parsed.length === 0) { alert("No valid rows found."); setBusy(false); return; }
       const r = await api.productsImport(parsed);
