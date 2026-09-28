@@ -2364,7 +2364,15 @@ function FieldFollowUpQuick({ add }) {
                   nextMeetingDate: nextMeet.date, nextMeetingTime: nextMeet.time,
                   nextMeetingRemark: nextMeet.note, nextMeetingType: nextMeet.type,
                 } : {}),
-                updates: [{ date, type: "Follow Up", remark, at: new Date().toLocaleString("en-IN") }],
+                /* A line that plans the next call or visit is labelled as that,
+                   not as "Follow Up" — the history read as five identical
+                   entries when three of them were appointments being made. */
+                updates: [{
+                  date,
+                  type: nextMeet.date ? `Next ${nextMeet.type || "Visit"}` : "Follow Up",
+                  remark: remark || nextMeet.note || "",
+                  at: new Date().toLocaleString("en-IN"),
+                }],
               });
               if (nextMeet.date) scheduleMeetingReminder(cust.name, nextMeet.date, nextMeet.note || remark, nextMeet.time, nextMeet.type);
               nav("/app/customers");
