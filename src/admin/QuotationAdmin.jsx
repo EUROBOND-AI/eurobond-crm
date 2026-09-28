@@ -11,15 +11,22 @@ import { usePager, Pager } from "../components/Pager.jsx";
 /* Admin Quotation — same "From" reflects, quotation-to-quotation format,
    Action: Approve -> app shows approved + PDF auto-generates (company format).
    Mail: To=client, CC=chosen, from sales1@eurobondacp.com with fixed draft. */
-/* standard price per grade, from Products master — admin only */
+/* The rate each grade is meant to sell at, from the Products master. Admin only —
+   the field app never sees these. A quotation is looked up by its grade, its
+   colour code or its product name, because different screens fill in different
+   ones of the three. */
 function useStdPrices() {
   const [map, setMap] = useState({});
   useEffect(() => {
     api.productsAll ? api.productsAll().then((d) => {
       const m = {};
       (d.rows || d.products || []).forEach((r) => {
-        if (!r || !r.price) return;
-        [r.productName, r.grade].filter(Boolean).forEach((k) => { m[String(k).toLowerCase()] = Number(r.price); });
+        if (!r) return;
+        const p = Number(r.price);
+        if (!p || isNaN(p)) return;
+        [r.productName, r.grade, r.code].filter(Boolean).forEach((k) => {
+          m[String(k).trim().toLowerCase()] = p;
+        });
       });
       setMap(m);
     }).catch(() => {}) : null;
@@ -222,14 +229,20 @@ export default function QuotationAdmin() {
                   {colVisible("Colour Code") && <td style={{ padding: "11px 14px" }}>{(r.items && r.items[0] && (r.items[0].colourCode || r.items[0].colour)) || r.colour || "—"}</td>}
                   {colVisible("Rate/SqMtr") && <td style={{ padding: "11px 14px" }}>{(r.items && r.items[0] && r.items[0].ratePerSqm) ? `₹${r.items[0].ratePerSqm}` : (r.ratePerSqm ? `₹${r.ratePerSqm}` : "—")}</td>}
                   {colVisible("Rate/SqFt") && (() => {
-                    const grade = r.grade || (r.items && r.items[0] && r.items[0].grade) || "";
-                    const std = stdPrice[String(grade).toLowerCase()];
-                    const approved = String(r.status || "").toLowerCase() === "approved";
-                    const low = !approved && std && Number(r.rate) > 0 && Number(r.rate) < std;
+                    /* A rate quoted ABOVE the standard is what needs a second look —
+                       it is the one that loses the order. Anything at or under the
+                       standard is fine and is left alone. */
+                    const it = (r.items && r.items[0]) || {};
+                    const keys = [r.grade, it.grade, it.colourCode, it.colour, r.colour, it.productName, r.productName]
+                      .filter(Boolean).map((k) => String(k).trim().toLowerCase());
+                    let std = 0;
+                    for (const k of keys) { if (stdPrice[k]) { std = stdPrice[k]; break; } }
+                    const rate = Number(r.rate);
+                    const over = std > 0 && rate > 0 && rate > std;
                     return (
-                      <td style={{ padding: "11px 14px", color: low ? "#c0392b" : "inherit", fontWeight: low ? 800 : 400 }}
-                        title={low ? `Below standard ₹${std}` : ""}>
-                        {r.rate ? `₹${r.rate}` : "—"}{low ? ` ▼` : ""}
+                      <td style={{ padding: "11px 14px", color: over ? "#c0392b" : "inherit", fontWeight: over ? 800 : 400 }}
+                        title={over ? `Above the standard rate of ₹${std}` : (std ? `Standard ₹${std}` : "")}>
+                        {r.rate ? `₹${r.rate}` : "—"}{over ? " ▲" : ""}
                       </td>
                     );
                   })()}
