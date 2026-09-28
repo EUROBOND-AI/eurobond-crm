@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Package, Upload, X, Trash2 } from "lucide-react";
 import { PageHead, StatCard } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
+import { useBulk, BulkHead, BulkCell, BulkBar } from "../components/Bulk.jsx";
 
 /* Products (admin) — designed like Areas.
    Product Name (Grade Name) select -> its Colour Codes + Colours + Grade + Thickness.
@@ -15,6 +16,8 @@ export default function ProductsPage() {
   const [busy, setBusy] = useState(false);
   const [q, setQ] = useState("");
   const [addOpen, setAddOpen] = useState(false);
+  /* the row being corrected, or null when a new one is being added */
+  const [editRow, setEditRow] = useState(null);
 
   const loadNames = () => {
     api.productNames().then((d) => setNames(d.names || [])).catch(() => {});
@@ -34,6 +37,16 @@ export default function ProductsPage() {
     try { await api.productDelete(sel); setRows([]); setSel(""); loadNames(); }
     catch (e) { alert(e.message); }
   };
+  /* a colour row is known by its code and colour together */
+  const rowKey = (r) => `${r.code || ""}|${r.colour || ""}`;
+  const bulk = useBulk(rows, rowKey);
+  const delManyRows = async (keys) => {
+    const picked = rows.filter((r) => keys.includes(rowKey(r)));
+    for (const r of picked) { try { await api.productRowDelete(sel, r.code, r.colour); } catch {} }
+    setRows((rs) => rs.filter((x) => !keys.includes(rowKey(x))));
+    api.productsCount().then(setCount).catch(() => {});
+  };
+
   const delRow = async (r) => {
     if (!confirm(`Delete colour code ${r.code} (${r.colour}) from ${sel}?`)) return;
     try { await api.productRowDelete(sel, r.code, r.colour); setRows((rs) => rs.filter((x) => !(x.code === r.code && x.colour === r.colour))); api.productsCount().then(setCount); }
@@ -119,34 +132,54 @@ export default function ProductsPage() {
               : "Select a product to view its colour codes."}
           </div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
+          <div>
+            <BulkBar bulk={bulk} noun="colour code" onDelete={delManyRows} />
+            <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead><tr style={{ background: "#f4f6fc", textAlign: "left" }}>
-                {["Colour Code", "Colour", "Grade", "Thickness", ""].map((h) => <th key={h} style={{ padding: "10px 12px", fontWeight: 800, fontSize: 12, color: "#4a5578" }}>{h}</th>)}
+              <thead><tr style={{ background: "#f4f6fc", textAlign: "left" }}><BulkHead bulk={bulk} />
+                {["Colour Code", "Colour", "Grade", "Thickness", "Standard Price", ""].map((h) => <th key={h} style={{ padding: "10px 12px", fontWeight: 800, fontSize: 12, color: "#4a5578" }}>{h}</th>)}
               </tr></thead>
               <tbody>
                 {rows.map((r, i) => (
                   <tr key={i} style={{ borderTop: "1px solid #eef1f8" }}>
+                    <BulkCell bulk={bulk} k={rowKey(r)} />
                     <td style={{ padding: "9px 12px", fontWeight: 700 }}>{r.code || "—"}</td>
                     <td style={{ padding: "9px 12px" }}>{r.colour || "—"}</td>
                     <td style={{ padding: "9px 12px" }}>{r.grade || "—"}</td>
                     <td style={{ padding: "9px 12px", fontSize: 11.5, color: "var(--muted)" }}>{r.thickness || "—"}</td>
-                    <td style={{ padding: "9px 12px" }}><button onClick={() => delRow(r)} title="Delete" style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444" }}><Trash2 size={14} /></button></td>
+                    {/* the rate this grade is meant to sell at — it was stored but
+                        never shown, so there was no way to check or correct it */}
+                    <td style={{ padding: "9px 12px", fontWeight: 700 }}>{r.price ? `₹ ${Number(r.price).toLocaleString("en-IN")}` : "—"}</td>
+                    <td style={{ padding: "9px 12px" }}>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <button onClick={() => setEditRow({ ...r, productName: sel })} title="Edit"
+                          style={{ background: "none", border: "none", cursor: "pointer", color: "#2f6fed", fontWeight: 700, fontSize: 12 }}>Edit</button>
+                        <button onClick={() => delRow(r)} title="Delete" style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444" }}><Trash2 size={14} /></button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>
 
-      {addOpen && <AddProductModal onClose={() => setAddOpen(false)} onSaved={() => { setAddOpen(false); loadNames(); if (sel) api.productsByName(sel).then((d) => setRows(d.rows || [])); }} defaultName={sel} existingNames={names} />}
+      {(addOpen || editRow) && (
+        <AddProductModal
+          onClose={() => { setAddOpen(false); setEditRow(null); }}
+          onSaved={() => { setAddOpen(false); setEditRow(null); loadNames(); if (sel) api.productsByName(sel).then((d) => setRows(d.rows || [])); }}
+          defaultName={sel} existingNames={names} editing={editRow} />
+      )}
     </div>
   );
 }
 
-function AddProductModal({ onClose, onSaved, defaultName, existingNames = [] }) {
-  const [f, setF] = useState({ productName: defaultName || "", thickness: "", code: "", colour: "", grade: "" });
+function AddProductModal({ onClose, onSaved, defaultName, existingNames = [], editing = null }) {
+  const [f, setF] = useState(editing
+    ? { productName: editing.productName || defaultName || "", thickness: editing.thickness || "", code: editing.code || "", colour: editing.colour || "", grade: editing.grade || "", price: editing.price || "" }
+    : { productName: defaultName || "", thickness: "", code: "", colour: "", grade: "" });
   const [busy, setBusy] = useState(false);
   const inp = { width: "100%", marginBottom: 10, padding: "9px 11px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13 };
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
@@ -154,7 +187,7 @@ function AddProductModal({ onClose, onSaved, defaultName, existingNames = [] }) 
     <div style={{ position: "fixed", inset: 0, background: "rgba(15,20,45,.55)", zIndex: 200, display: "grid", placeItems: "center", padding: 18 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 440, padding: 22 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <h3 style={{ margin: 0 }}>Add Product</h3>
+          <h3 style={{ margin: 0 }}>{editing ? "Edit Product" : "Add Product"}</h3>
           <button className="btn btn-ghost" style={{ padding: 4 }} onClick={onClose}><X size={16} /></button>
         </div>
         <label style={{ fontSize: 12, fontWeight: 700 }}>Product Name (Grade Name) *</label>
@@ -180,8 +213,17 @@ function AddProductModal({ onClose, onSaved, defaultName, existingNames = [] }) 
           placeholder="e.g. 150" style={inp} />
         <button className="btn btn-primary" style={{ width: "100%", marginTop: 6 }} disabled={busy || !f.productName} onClick={async () => {
           setBusy(true);
-          try { await api.productAdd(f); onSaved(); } catch (e) { alert(e.message); setBusy(false); }
-        }}>{busy ? "Saving…" : "Save Product"}</button>
+          try {
+            await api.productAdd(f);
+            /* An edit that changes the colour code or the colour would otherwise
+               leave the old row behind, since a row is identified by those two.
+               The new one is saved first, so nothing is lost if this fails. */
+            if (editing && (editing.code !== f.code || editing.colour !== f.colour)) {
+              try { await api.productRowDelete(editing.productName || f.productName, editing.code, editing.colour); } catch {}
+            }
+            onSaved();
+          } catch (e) { alert(e.message); setBusy(false); }
+        }}>{busy ? "Saving…" : (editing ? "Save Changes" : "Save Product")}</button>
       </div>
     </div>
   );

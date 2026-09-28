@@ -843,12 +843,24 @@ const ATT_END_MIN = 55;
 const withinAttWindow = () => { const d = new Date(); const mins = d.getHours() * 60 + d.getMinutes(); return mins >= ATT_START_HOUR * 60 && mins < ATT_END_HOUR * 60 + ATT_END_MIN; };
 function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expenses, followups, leaves, onStartAttendance, onStopAttendance }) {
   const [seg, setSeg] = useState("Matrics");
-  /* how many customer meetings are planned in the current month */
+  /* Meetings still ahead of them this month. An appointment whose time has gone
+     by is no longer something to do, so it drops out of the count the moment it
+     passes — a tile that keeps counting yesterday's meetings tells you nothing.
+     A meeting with no time on it counts until the end of that day. */
   const [monthMeetings, setMonthMeetings] = useState(0);
   useEffect(() => {
-    const mKey = new Date().toISOString().slice(0, 7);
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const mKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
+    const stillAhead = (c) => {
+      const day = String(c.nextMeetingDate || "").slice(0, 10);
+      if (!day.startsWith(mKey)) return false;
+      const time = String(c.nextMeetingTime || "").trim();
+      const when = new Date(`${day}T${/^\d{1,2}:\d{2}/.test(time) ? time.slice(0, 5) : "23:59"}:00`);
+      return !isNaN(when.getTime()) && when.getTime() >= Date.now();
+    };
     api.customers("", true)
-      .then((d) => setMonthMeetings((d.customers || []).filter((c) => String(c.nextMeetingDate || "").startsWith(mKey)).length))
+      .then((d) => setMonthMeetings((d.customers || []).filter(stillAhead).length))
       .catch(() => setMonthMeetings(0));
   }, []);
   const [sheet, setSheet] = useState(false);
@@ -888,7 +900,10 @@ function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expense
     const d = new Date(t);
     return isNaN(d.getTime()) ? "" : isoLocal(d);
   };
-  const custToday = followups.filter((f) => dayOf(f.createdAt || f.date || f._at) === todayKey).length;
+  /* Today only. The row's own timestamp is trusted first: a form field can be
+     blank, or hold the date of a meeting rather than the day the entry was
+     made, and either of those made the tile show the whole list. */
+  const custToday = followups.filter((f) => dayOf(f._at || f.createdAt || f.created_at || f.date) === todayKey).length;
   const expMonth = expenses
     .filter((e) => dayOf(e.periodTo || e.createdAt || e.date || e._at).slice(0, 7) === monthKey)
     .reduce((s, e) => s + (Number(e.amount) || 0), 0);
@@ -6803,7 +6818,9 @@ export default function FieldApp() {
     const loadLists = () => {
       reloadExpenses();
       api.list("leave", true).then((d) => setLeaves((d.records || []).map((r) => ({ _id: r.id, ...r.data })))).catch(() => {});
-      api.list("followup", true).then((d) => setFollowups((d.records || []).map((r) => ({ _id: r.id, ...r.data })))).catch(() => {});
+      /* the row's own created_at comes along, so "added today" can be worked out
+         even for entries whose form never stored a date of its own */
+      api.list("followup", true).then((d) => setFollowups((d.records || []).map((r) => ({ _id: r.id, _at: r.created_at, ...r.data })))).catch(() => {});
     };
     loadLists();
     /* Screens used to show whatever was loaded when the app first opened, so an

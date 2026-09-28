@@ -2,12 +2,16 @@ import { useEffect, useState } from "react";
 import { UserPlus, Trash2, X, ShieldCheck } from "lucide-react";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
+import { useBulk, BulkHead, BulkCell, BulkBar } from "../components/Bulk.jsx";
 
 /* Admin Users — people who can log into the BACKEND panel (password login).
    Separate from App Users (field staff, OTP login). Role decides which admin
    modules they see (via Role & Permission). */
 const ROLES = ["Admin", "HOD (Sales)", "HOD (Specs)", "Sub HOD (Sales)", "Sub HOD (Specs)", "Sales Person", "Specs Person", "Sales Collection"];
 const empty = { name: "", username: "", email: "", role: "Admin", password: "" };
+/* Only the Admin role carries a panel password; every other role signs in
+   through the app with a one-time code. */
+const needsPassword = (role) => String(role || "").trim().toLowerCase() === "admin";
 
 export default function AdminUsersPage() {
   const [rows, setRows] = useState(null);
@@ -33,7 +37,8 @@ export default function AdminUsersPage() {
   useEffect(() => { load(); api.listUsers().then((d) => setAppUsers((d.users || []).filter((u) => u.status == 1))).catch(() => {}); }, []);
 
   const save = async () => {
-    if (!form.name || !form.username || (!form.password && !(form.id || form._id))) { alert("Full name, username and password are required."); return; }
+    if (!form.name || !form.username) { alert("Pick a user first."); return; }
+    if (needsPassword(form.role) && !form.password && !(form.id || form._id)) { alert("An Admin needs a password."); return; }
     setBusy(true);
     try {
       if (form.id || form._id) {
@@ -41,11 +46,17 @@ export default function AdminUsersPage() {
         if (!data.password) delete data.password;   // keep existing password if blank on edit
         await api.update("adminUser", form._id || form.id, data);
       } else {
-        await api.create("adminUser", { name: form.name, username: form.username.trim(), email: form.email || "", role: form.role, password: form.password, createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) });
+        await api.create("adminUser", { name: form.name, username: form.username.trim(), email: form.email || "", role: form.role, password: needsPassword(form.role) ? form.password : "", createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) });
       }
       setForm(null); load();
     } catch (e) { alert(e.message); }
     setBusy(false);
+  };
+
+  const bulk = useBulk(visible, (r) => r._id);
+  const delMany = async (ids) => {
+    for (const id of ids) { try { await api.remove("adminUser", id); } catch {} }
+    load();
   };
 
   const del = async (r) => {
@@ -80,21 +91,24 @@ export default function AdminUsersPage() {
         {shown && <span style={{ fontSize: 12.5, color: "var(--muted)", fontWeight: 600 }}>{visible.length} of {(rows || []).length}</span>}
       </div>
 
+      <BulkBar bulk={bulk} noun="admin user" onDelete={delMany} />
+
       <div style={{ background: "#fff", borderRadius: 14, boxShadow: "var(--shadow)", overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead><tr style={{ background: "#f4f6fc", textAlign: "left" }}>
+            <thead><tr style={{ background: "#f4f6fc", textAlign: "left" }}><BulkHead bulk={bulk} />
               {["S.No", "Full Name", "Username", "Email ID", "Role", "Status", "Action"].map((h) => <th key={h} style={{ padding: "11px 14px", fontWeight: 800, fontSize: 12, color: "#4a5578" }}>{h}</th>)}
             </tr></thead>
             <tbody>
               {rows === null ? (
-                <tr><td colSpan={7} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
+                <tr><td colSpan={8} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
               ) : !shown ? (
-                <tr><td colSpan={7} style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Set your filters and click <b>Show</b>.</td></tr>
+                <tr><td colSpan={8} style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Set your filters and click <b>Show</b>.</td></tr>
               ) : visible.length === 0 ? (
-                <tr><td colSpan={7} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No admin users match these filters.</td></tr>
+                <tr><td colSpan={8} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No admin users match these filters.</td></tr>
               ) : visible.map((r, idx) => (
                 <tr key={r._id} style={{ borderTop: "1px solid #eef1f8" }}>
+                  <BulkCell bulk={bulk} k={r._id} />
                   <td style={{ padding: "11px 14px", color: "var(--muted)", fontWeight: 700 }}>{idx + 1}</td>
                   <td style={{ padding: "11px 14px", fontWeight: 700 }}>{r.name}</td>
                   <td style={{ padding: "11px 14px", fontWeight: 700 }}>{r.username}</td>
@@ -160,14 +174,23 @@ export default function AdminUsersPage() {
                   {appUsers.map((u) => <option key={u.name} value={u.mobile || u.code || u.name}>{u.name} ({u.mobile || u.code}){u.role ? " · " + u.role : ""}</option>)}
                 </select>
               </div>
-              <div><label style={fl}>Role * <span style={{ fontWeight: 500, color: "var(--muted)" }}>(auto from app account, change if needed)</span></label>
-                <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} style={fi}>
-                  {ROLES.map((r) => <option key={r}>{r}</option>)}
-                </select>
-              </div>
+              {/* The role is whatever the app account already says. It was a second
+                  dropdown here, which meant the same person could be one thing in
+                  the app and another in the panel. */}
+              <div><label style={fl}>Role</label>
+                <input value={form.role || ""} readOnly style={{ ...fi, background: "#f4f6fc" }} /></div>
               <div><label style={fl}>Full Name</label><input value={form.name} readOnly style={{ ...fi, background: "#f4f6fc" }} /></div>
               <div><label style={fl}>Email ID</label><input value={form.email} readOnly style={{ ...fi, background: "#f4f6fc" }} /></div>
-              <div><label style={fl}>Password *</label><input type="text" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={form._id || form.id ? "Enter to change password" : "Set a password"} style={fi} /></div>
+              {/* Only an Admin signs into the panel with a password. Everyone else
+                  reaches the app with their mobile number and an OTP, so asking
+                  them to invent a password here served no purpose. */}
+              {needsPassword(form.role) ? (
+                <div><label style={fl}>Password *</label><input type="text" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={form._id || form.id ? "Enter to change password" : "Set a password"} style={fi} /></div>
+              ) : (
+                <div style={{ background: "#eef7ee", border: "1px solid #cfe6cf", borderRadius: 9, padding: "10px 12px", fontSize: 12.5, color: "#2f6b34" }}>
+                  No password needed — this person signs in with their mobile number and an OTP.
+                </div>
+              )}
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
               <div style={{ flex: 1 }} />

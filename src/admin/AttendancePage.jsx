@@ -273,76 +273,36 @@ export default function AttendancePage() {
     const sessions = filtered.slice();
     taskStart("Week Export");
     try {
-    const key5 = (p) => `${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`;
+      /* One line per person per day: who, where they are based, the date and how
+         far they travelled. Nothing here needs an address, which is what used to
+         make this file take minutes — every point was being looked up. */
+      taskProgress(`loading ${sessions.length} day(s)`);
+      const rows = [];
+      for (let b = 0; b < sessions.length; b += 8) {
+        const part = await Promise.all(sessions.slice(b, b + 8).map(async (ss) => {
+          let km = Number(ss.distance_km) || 0;
+          try {
+            const d = await api.attPointsList(ss.id);
+            const pts = cleanTrack(d.points || []);
+            if (pts.length > 1) km = trackDistanceKm(pts);
+          } catch { /* keep the stored figure */ }
+          return [ss.name, ss.city || "", ss.work_date, km.toFixed(2)];
+        }));
+        rows.push(...part);
+        taskProgress(`loading ${Math.min(b + 8, sessions.length)} / ${sessions.length} day(s)`);
+      }
+      taskDone();
+      if (!rows.length) { alert("Nothing to export for this range."); return; }
 
-    /* 1. every session's points at once, rather than one after another */
-    taskProgress(`loading ${sessions.length} day(s)`);
-    const days = [];
-    for (let b = 0; b < sessions.length; b += 8) {
-      const part = await Promise.all(sessions.slice(b, b + 8).map(async (ss) => {
-        let pts = [];
-        try { const d = await api.attPointsList(ss.id); pts = cleanTrack(d.points || []); } catch {}
-        /* one stop every five minutes — the rows the timeline lists */
-        const tOf = (x) => (x && x.recorded_at ? Date.parse(String(x.recorded_at).replace(" ", "T")) : 0);
-        const stops = [];
-        let lastT = 0;
-        pts.forEach((p, idx) => {
-          const t = tOf(p);
-          if (idx === 0 || idx === pts.length - 1 || !lastT || t - lastT >= 5 * 60 * 1000) { stops.push(p); lastT = t; }
-        });
-        return { ss, pts, stops };
-      }));
-      days.push(...part);
-      taskProgress(`loading ${Math.min(b + 8, sessions.length)} / ${sessions.length} day(s)`);
-    }
-
-    /* 2. the places that still have no address — each looked up once, however
-          many points or days share it (people stand in the same spots) */
-    const need = new Map();
-    days.forEach(({ stops }) => stops.forEach((p) => {
-      if (p.address) return;
-      const k = key5(p);
-      if (!EB_ADDR_CACHE.has(k) && !need.has(k)) need.set(k, p);
-    }));
-    const todo = [...need.values()];
-    const saved = [];
-    for (let b = 0; b < todo.length; b += 8) {
-      taskProgress(`addresses ${Math.min(b + 8, todo.length)} / ${todo.length}`);
-      await Promise.all(todo.slice(b, b + 8).map(async (p) => {
-        const a = await addressFor(p.lat, p.lng);
-        if (a) saved.push({ lat: p.lat, lng: p.lng, address: a });
-      }));
-    }
-    if (saved.length) { try { await api.attSaveAddress(saved); } catch {} }
-
-    /* 3. build the file */
-    const head = ['Name', 'Emp Code', 'Zone', 'City', 'Date', 'Point #', 'Time',
-      'Latitude', 'Longitude', 'Address', 'Battery %', 'Network', 'Cumulative KM'];
-    const rows = [];
-    days.forEach(({ ss, pts, stops }) => {
-      stops.forEach((p, n) => {
-        rows.push([
-          ss.name, ss.code || '', ss.zone || '', ss.city || '', ss.work_date,
-          n + 1,
-          p.recorded_at ? String(p.recorded_at).slice(11, 16) : '',
-          Number(p.lat).toFixed(6), Number(p.lng).toFixed(6),
-          p.address || EB_ADDR_CACHE.get(key5(p)) || '',
-          p.battery != null ? p.battery : '',
-          (p.online === 1 || p.online === true) ? 'Online' : (p.online === 0 || p.online === false) ? 'Offline' : '',
-          trackDistanceKm(pts.slice(0, pts.indexOf(p) + 1)).toFixed(2),
-        ]);
-      });
-    });
-    taskDone();
-    if (!rows.length) { alert("No location points in this range."); return; }
-    const csv = [head, ...rows]
-      .map((r) => r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","))
-      .join("\n");
-    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `attendance-points-${date}-to-${dateTo}.csv`;
-    a.click();
+      const head = ["Name", "City", "Date", "Cumulative KM"];
+      const csv = [head, ...rows]
+        .map((r) => r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","))
+        .join("\n");
+      const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `attendance-km-${date}-to-${dateTo}.csv`;
+      a.click();
     } catch (e) {
       taskDone();
       alert("Export failed: " + (e && e.message ? e.message : e));

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { CalendarDays, Upload, X, Trash2, Bell } from "lucide-react";
 import { PageHead, StatCard } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
+import { useBulk, BulkHead, BulkCell, BulkBar } from "../components/Bulk.jsx";
 
 /* Holidays (admin) — designed like Products/Areas.
    State select -> its holiday rows (Date / Day / Holiday / City).
@@ -74,6 +75,18 @@ export default function HolidaysPage() {
     setBusy(false);
   };
 
+  /* A holiday is identified by its position in the whole list, so several are
+     removed from the bottom up — taking the first one out first would shift
+     every index after it and delete the wrong rows. */
+  const idxOf = (h) => allRows.findIndex((x) => x.state === h.state && x.date === h.date && x.holiday === h.holiday);
+  const bulk = useBulk(rows, idxOf);
+  const delMany = async (idxs) => {
+    for (const i of [...idxs].sort((a, b) => b - a)) {
+      try { await api.holidayRowDelete(i); } catch {}
+    }
+    loadStates(); if (sel) loadState(sel);
+  };
+
   const delRow = async (h) => {
     const idx = allRows.findIndex((x) => x.state === h.state && x.date === h.date && x.holiday === h.holiday);
     if (idx < 0) return;
@@ -120,10 +133,13 @@ export default function HolidaysPage() {
         ) : rows.length === 0 ? (
           <div style={{ padding: 50, textAlign: "center", color: "var(--muted)" }}>No holidays for {sel}.</div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
+          <div>
+            <BulkBar bulk={bulk} noun="holiday" onDelete={delMany} />
+            <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr style={{ background: "#f4f6fc", textAlign: "left" }}>
+                  <BulkHead bulk={bulk} />
                   {["Date", "Day", "Holiday", "City", ""].map((h) => (
                     <th key={h} style={{ padding: "11px 14px", fontWeight: 800, fontSize: 12, color: "#4a5578" }}>{h}</th>
                   ))}
@@ -132,6 +148,7 @@ export default function HolidaysPage() {
               <tbody>
                 {rows.map((h, i) => (
                   <tr key={i} style={{ borderTop: "1px solid #eef1f8" }}>
+                    <BulkCell bulk={bulk} k={idxOf(h)} />
                     <td style={{ padding: "10px 14px", fontWeight: 700 }}>{h.date}</td>
                     <td style={{ padding: "10px 14px" }}>{h.day || "—"}</td>
                     <td style={{ padding: "10px 14px" }}>{h.holiday || "—"}</td>
@@ -143,6 +160,7 @@ export default function HolidaysPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>

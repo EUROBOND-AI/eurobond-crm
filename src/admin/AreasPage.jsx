@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { MapPin, Upload, Plus, Trash2, X } from "lucide-react";
 import { PageHead, StatCard } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
+import { useBulk, BulkBar } from "../components/Bulk.jsx";
 
 /* Areas (admin) — state-wise areas manage. App lo Local/Tour dropdown ivi vaadutundi.
    Excel/CSV upload (State, Area columns) OR manual add. */
@@ -24,6 +25,13 @@ export default function AreasPage() {
       .then((d) => setAreas(d.areaRows || (d.areas || []).map((n) => ({ name: n, tier: "A" }))))
       .catch(() => setAreas([]));
   }, [sel]);
+
+  const bulk = useBulk(areas, (a) => a.name || a);
+  const delMany = async (names) => {
+    for (const n of names) { try { await api.areaDelete(sel, n); } catch {} }
+    setAreas((list) => list.filter((x) => !names.includes(x.name || x)));
+    api.areaCount().then(setCount).catch(() => {});
+  };
 
   const delArea = async (name) => {
     if (!confirm(`Delete area "${name}" from ${sel}?`)) return;
@@ -121,12 +129,16 @@ export default function AreasPage() {
               : "Select a state to view its areas."}
           </div>
         ) : (
+          <div>
+          <BulkBar bulk={bulk} noun="area" onDelete={delMany} />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: 8 }}>
             {areas.map((a) => {
               const nm = a.name || a;
               const tr = a.tier || "A";
               return (
-                <div key={nm} style={{ display: "flex", alignItems: "center", gap: 6, background: "#f6f8fd", borderRadius: 9, padding: "8px 11px", fontSize: 13 }}>
+                <div key={nm} style={{ display: "flex", alignItems: "center", gap: 6, background: bulk.has(nm) ? "#eef2ff" : "#f6f8fd", borderRadius: 9, padding: "8px 11px", fontSize: 13 }}>
+                  <input type="checkbox" checked={bulk.has(nm)} onChange={() => bulk.toggle(nm)}
+                    style={{ cursor: "pointer", width: 14, height: 14 }} />
                   <MapPin size={13} color="var(--accent)" />
                   <span style={{ flex: 1 }}>{nm}</span>
                   {/* the tier is what the expense screen shows as Area (A)/(B)/(C) */}
@@ -143,6 +155,7 @@ export default function AreasPage() {
                 </div>
               );
             })}
+          </div>
           </div>
         )}
       </div>
