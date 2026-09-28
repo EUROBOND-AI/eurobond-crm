@@ -274,36 +274,38 @@ export default function AttendancePage() {
     taskStart("Week Export");
     try {
       const key5 = (p) => `${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`;
+      const tOf = (x) => (x && x.recorded_at ? Date.parse(String(x.recorded_at).replace(" ", "T")) : 0);
 
-      /* Where each person ended their day, and how far they went to get there.
-         One line per person per day. Only the last position of each day needs an
-         address, so this stays quick — looking up every point of every day is
-         what used to make the file take minutes. */
+      /* One line per stop: the time, where they were, and how far they had
+         travelled by then. A stop is taken every five minutes, the same rhythm
+         the timeline on screen uses — a line a minute would be unreadable. */
       taskProgress(`loading ${sessions.length} day(s)`);
       const days = [];
       for (let b = 0; b < sessions.length; b += 8) {
         const part = await Promise.all(sessions.slice(b, b + 8).map(async (ss) => {
-          let km = Number(ss.distance_km) || 0;
-          let last = null;
-          try {
-            const d = await api.attPointsList(ss.id);
-            const pts = cleanTrack(d.points || []);
-            if (pts.length > 1) km = trackDistanceKm(pts);
-            last = pts[pts.length - 1] || null;
-          } catch { /* keep the stored figure */ }
-          return { ss, km, last };
+          let pts = [];
+          try { const d = await api.attPointsList(ss.id); pts = d.points || []; } catch {}
+          const stops = [];
+          let lastT = 0;
+          pts.forEach((p, i) => {
+            const t = tOf(p);
+            if (i === 0 || i === pts.length - 1 || !lastT || t - lastT >= 5 * 60 * 1000) { stops.push(p); lastT = t; }
+          });
+          /* the kilometres are measured from the filtered track, not from every
+             fix, so standing still does not add distance */
+          return { ss, stops, measured: cleanTrack(pts) };
         }));
         days.push(...part);
         taskProgress(`loading ${Math.min(b + 8, sessions.length)} / ${sessions.length} day(s)`);
       }
 
-      /* each place looked up once, however many days share it */
+      /* each place is looked up once, however many stops or days share it */
       const need = new Map();
-      days.forEach(({ last }) => {
-        if (!last || last.address) return;
-        const k = key5(last);
-        if (!EB_ADDR_CACHE.has(k) && !need.has(k)) need.set(k, last);
-      });
+      days.forEach(({ stops }) => stops.forEach((p) => {
+        if (p.address) return;
+        const k = key5(p);
+        if (!EB_ADDR_CACHE.has(k) && !need.has(k)) need.set(k, p);
+      }));
       const todo = [...need.values()];
       const saved = [];
       for (let b = 0; b < todo.length; b += 8) {
@@ -315,24 +317,31 @@ export default function AttendancePage() {
       }
       if (saved.length) { try { await api.attSaveAddress(saved); } catch {} }
 
-      const rows = days.map(({ ss, km, last }) => [
-        ss.name,
-        ss.city || "",
-        ss.work_date,
-        last ? (last.address || EB_ADDR_CACHE.get(key5(last)) || "") : "",
-        km.toFixed(2),
-      ]);
+      const rows = [];
+      days.forEach(({ ss, stops, measured }) => {
+        stops.forEach((p) => {
+          const upto = measured.filter((q) => tOf(q) <= tOf(p));
+          rows.push([
+            ss.name,
+            ss.city || "",
+            ss.work_date,
+            p.recorded_at ? String(p.recorded_at).slice(11, 16) : "",
+            p.address || EB_ADDR_CACHE.get(key5(p)) || "",
+            trackDistanceKm(upto).toFixed(2),
+          ]);
+        });
+      });
       taskDone();
-      if (!rows.length) { alert("Nothing to export for this range."); return; }
+      if (!rows.length) { alert("No location points in this range."); return; }
 
-      const head = ["Name", "City", "Date", "Address", "Cumulative KM"];
+      const head = ["Name", "City", "Date", "Time", "Address", "Cumulative KM"];
       const csv = [head, ...rows]
         .map((r) => r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","))
         .join("\n");
       const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `attendance-km-${date}-to-${dateTo}.csv`;
+      a.download = `attendance-points-${date}-to-${dateTo}.csv`;
       a.click();
     } catch (e) {
       taskDone();
