@@ -2624,7 +2624,7 @@ function FieldFollowUpNew({ add, editData }) {
         {f.nextMeetingDate ? (
           <>
             <label>Next Meeting Time</label>
-            <input type="time" value={f.nextMeetingTime || ""} onChange={(e) => setF({ ...f, nextMeetingTime: e.target.value })} style={inp} />
+            <TimePick value={f.nextMeetingTime || ""} onChange={(v) => setF({ ...f, nextMeetingTime: v })} style={inp} />
             <div style={{ fontSize: 11, color: "var(--muted)", marginTop: -6, marginBottom: 8 }}>
               You will be reminded the evening before, that morning{f.nextMeetingTime ? ", 1 hour before and 10 minutes before" : ""}.
             </div>
@@ -5023,6 +5023,48 @@ function useOnResume(fn) {
 
 /* Plan the next contact: call or visit, a date and time, and what it is about.
    Saving it puts the entry in the calendar and sets the reminders. */
+/* A time that cannot lose its afternoon.
+
+   The phone's own time field gave back "04:35" for half past four in the
+   afternoon on some devices — the same text it gives for the small hours — so a
+   meeting set for the evening was filed as one that had already happened and
+   vanished off the calendar within the hour. Hour, minute and AM/PM are asked
+   for separately here, and what is stored is always the twenty-four hour form. */
+function TimePick({ value, onChange, disabled, style }) {
+  const raw = String(value || "");
+  const m = raw.match(/^(\d{1,2}):(\d{2})/);
+  const h24 = m ? Number(m[1]) : null;
+  const min = m ? m[2] : "00";
+  const h12 = h24 == null ? "" : String(((h24 + 11) % 12) + 1);
+  const ap = h24 == null ? "PM" : (h24 >= 12 ? "PM" : "AM");
+
+  const write = (hh, mm, half) => {
+    if (!hh) { onChange(""); return; }
+    let H = Number(hh) % 12;
+    if (half === "PM") H += 12;
+    onChange(`${String(H).padStart(2, "0")}:${mm}`);
+  };
+
+  const cell = { ...style, flex: "1 1 0", minWidth: 0, padding: "8px 6px" };
+  return (
+    <div style={{ display: "flex", gap: 4, flex: 1 }}>
+      <select value={h12} disabled={disabled} style={cell}
+        onChange={(e) => write(e.target.value, min, ap)}>
+        <option value="">Hr</option>
+        {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => <option key={h} value={h}>{h}</option>)}
+      </select>
+      <select value={min} disabled={disabled || !h12} style={cell}
+        onChange={(e) => write(h12, e.target.value, ap)}>
+        {["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"].map((mm) => <option key={mm} value={mm}>{mm}</option>)}
+      </select>
+      <select value={ap} disabled={disabled || !h12} style={cell}
+        onChange={(e) => write(h12, min, e.target.value)}>
+        <option>AM</option><option>PM</option>
+      </select>
+    </div>
+  );
+}
+
 function NextMeetingFields({ value, onChange }) {
   const set = (k, v) => onChange({ ...value, [k]: v });
   const box = { width: "100%", padding: "8px 10px", borderRadius: 9, border: "1px solid #d7dcef", fontSize: 12.5 };
@@ -5040,7 +5082,7 @@ function NextMeetingFields({ value, onChange }) {
       </div>
       <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
         <input type="date" value={value.date} onChange={(e) => set("date", e.target.value)} style={{ ...box, flex: 1 }} />
-        <input type="time" value={value.time} onChange={(e) => set("time", e.target.value)} disabled={!value.date} style={{ ...box, flex: 1 }} />
+        <TimePick value={value.time} onChange={(v) => set("time", v)} disabled={!value.date} style={box} />
       </div>
       {value.date && (
         <>
