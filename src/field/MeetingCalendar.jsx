@@ -81,13 +81,24 @@ export default function MeetingCalendar() {
     return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
   })();
 
-  /* group meetings by date — a meeting whose day has passed is done with and is
-     no longer listed */
+  /* Group meetings by date, keeping only what is still ahead. A day that has
+     gone by drops out, and so does a meeting earlier today whose time has
+     already passed — it was still listed in full, which made the screen
+     disagree with the count on the home page. A meeting with no time on it
+     stays until that day is over. */
   const byDate = useMemo(() => {
+    const now = Date.now();
     const m = {};
     rows.forEach((r) => {
       const key = toIso(r.nextMeetingDate || r.next_meeting || "");
       if (!key || key < todayLocal) return;
+      if (key === todayLocal) {
+        const time = String(r.nextMeetingTime || "").trim();
+        if (/^\d{1,2}:\d{2}/.test(time)) {
+          const when = new Date(`${key}T${time.slice(0, 5)}:00`);
+          if (!isNaN(when.getTime()) && when.getTime() < now) return;
+        }
+      }
       (m[key] = m[key] || []).push(r);
     });
     return m;
