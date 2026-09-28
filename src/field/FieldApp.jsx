@@ -903,7 +903,17 @@ function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expense
   /* Today only. The row's own timestamp is trusted first: a form field can be
      blank, or hold the date of a meeting rather than the day the entry was
      made, and either of those made the tile show the whole list. */
-  const custToday = followups.filter((f) => dayOf(f._at || f.createdAt || f.created_at || f.date) === todayKey).length;
+  /* Work done today, not diary entries. Putting a date in for the next call is
+     saved the same way a visit is, so a tile counting every saved row climbed
+     each time someone merely arranged an appointment. An entry that carries
+     nothing but a next-meeting date is left out. */
+  const realEntry = (f) => {
+    const said = String(f.notes || f.remark || "").trim() !== "";
+    const planOnly = !said && String(f.nextMeetingDate || "").trim() !== "";
+    return !planOnly;
+  };
+  const custToday = followups.filter((f) =>
+    dayOf(f._at || f.createdAt || f.created_at || f.date) === todayKey && realEntry(f)).length;
   const expMonth = expenses
     .filter((e) => dayOf(e.periodTo || e.createdAt || e.date || e._at).slice(0, 7) === monthKey)
     .reduce((s, e) => s + (Number(e.amount) || 0), 0);
