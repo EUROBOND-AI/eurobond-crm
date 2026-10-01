@@ -46,7 +46,8 @@ export default function BiltraxList() {
     nav("/app/followup/new?from=biltrax");
   };
 
-  useEffect(() => {
+  /* Refresh reloads this list too */
+  const loadBiltrax = () => {
     api.list("biltrax", false).then((d) => {
       const me = CU().name;
       const mine = (d.records || []).map((r) => ({ _id: r.id, ...r.data })).filter((r) => r.assignPerson === me);
@@ -57,6 +58,12 @@ export default function BiltraxList() {
           try { window.ebScheduleReminder && window.ebScheduleReminder(r.projectName || "Biltrax project", r.appointmentDate, r.latestSubStatus || "", r.appointmentTime || "", "Appointment"); } catch {}
         });
     }).catch(() => setRows([]));
+  };
+  useEffect(() => { loadBiltrax(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => {
+    const h = () => loadBiltrax();
+    window.addEventListener("eb-app-resumed", h);
+    return () => window.removeEventListener("eb-app-resumed", h);
   }, []);
 
   const list = useMemo(() => {

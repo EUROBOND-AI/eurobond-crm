@@ -155,12 +155,14 @@ export default function BiltraxPage() {
     setLoading(false);
   };
 
+  /* nothing is counted until Show is pressed — the boxes are part of the page,
+     so they are there from the start reading zero */
   const counts = useMemo(() => ({
-    total: rows.length,
-    requested: rows.filter((r) => (r.biltraxType || "Requested") === "Requested").length,
-    appointment: rows.filter((r) => r.biltraxType === "Appointment").length,
-    won: rows.filter((r) => r.status === "Win").length,
-  }), [rows]);
+    total: shown ? rows.length : 0,
+    requested: shown ? rows.filter((r) => (r.biltraxType || "Requested") === "Requested").length : 0,
+    appointment: shown ? rows.filter((r) => r.biltraxType === "Appointment").length : 0,
+    won: shown ? rows.filter((r) => r.status === "Win").length : 0,
+  }), [rows, shown]);
 
   return (
     <div>

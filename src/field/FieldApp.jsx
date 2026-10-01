@@ -4111,6 +4111,7 @@ function FieldLeaveApproval() {
       .catch(() => setRows([]));
   };
   useEffect(load, []);
+  useAppRefresh(load);
 
   /* HOD ee page open chesinapudu pending leaves ki 30-min reminders trigger (backend 30-min gap check chestundi) */
   useEffect(() => {
@@ -4358,6 +4359,7 @@ function FieldSpecThreadList({ mod }) {
     setRows(list);
   }).catch(() => setRows([]));
   useEffect(() => { load(); }, [mod]);
+  useAppRefresh(load);
 
   const STATUSES = isS2S ? ["All", "Pending", "Process", "Approved"] : ["All", "Pending", "Process", "Win"];
   const filtered = (rows || []).filter((r) => filter === "All" || (r.status || "Pending") === filter);
@@ -5648,6 +5650,7 @@ function FieldQuotationList() {
 
   const load = () => api.list("quotation", true).then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data })))).catch(() => setRows([]));
   useEffect(() => { load(); }, []);
+  useAppRefresh(load);
 
   return (
     <>

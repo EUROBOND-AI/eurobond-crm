@@ -597,7 +597,8 @@ export default function ModulePage({ cfgKey }) {
           onEdit={(cfg.form && cfgKey !== "projectProjection" && canModify(cfg.title)) ? (r) => { setEditing(r); setShowForm(true); } : null}
         />
       )}
-      <Pager pager={pager} />
+      {/* the page numbers belong with the rows, so they wait for Show as well */}
+      {!(gated && !shown) && <Pager pager={pager} />}
 
       {chatRow && <AdminChatModal row={chatRow} cfgKey={cfgKey} onClose={() => setChatRow(null)} onSent={(updated) => { setRows(rows.map((x) => (x._id === updated._id ? updated : x))); setChatRow(updated); }} />}
       {projView && <AdminProjectView rec={projView} onClose={() => setProjView(null)} />}

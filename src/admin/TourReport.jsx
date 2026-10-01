@@ -132,18 +132,21 @@ export default function TourReport() {
         {shown && <button className="btn" onClick={exportExcel}>Export</button>}
       </div>
 
+      {/* the boxes are part of the page, not of the answer — they stand at zero
+          until Show is pressed, so the layout is there from the start */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 20 }}>
+        <StatCard label="Total Area Visits" value={shown ? totalVisits : 0} />
+        <StatCard label="Ex Station" value={shown ? exStation : 0} />
+        <StatCard label="Out-Station" value={shown ? outStation : 0} />
+        <StatCard label="Unique Areas" value={shown ? uniqueAreas : 0} />
+      </div>
+
       {!shown ? (
         <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Set filters and click <b>Show</b>.</div>
       ) : sessions === null ? (
         <div style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>Loading…</div>
       ) : (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 20 }}>
-            <StatCard label="Total Area Visits" value={totalVisits} />
-            <StatCard label="Ex Station" value={exStation} />
-            <StatCard label="Out-Station" value={outStation} />
-            <StatCard label="Unique Areas" value={uniqueAreas} />
-          </div>
 
           <h3 style={{ margin: "0 0 10px" }}>Monthwise Tour Details</h3>
           <div style={{ overflowX: "auto", background: "#fff", borderRadius: 12, boxShadow: "var(--shadow)" }}>

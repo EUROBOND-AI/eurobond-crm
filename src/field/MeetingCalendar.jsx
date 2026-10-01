@@ -31,7 +31,7 @@ export default function MeetingCalendar() {
   });
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const loadMeetings = () => {
     Promise.all([
       api.customers("", true).catch(() => ({ customers: [] })),
       api.list("biltrax", false).catch(() => ({ records: [] })),
@@ -72,6 +72,14 @@ export default function MeetingCalendar() {
         setRows([...(c.customers || []), ...appts, ...enq]);
       })
       .finally(() => setLoading(false));
+  };
+  useEffect(() => { loadMeetings(); /* eslint-disable-next-line */ }, []);
+  /* Refresh brings the calendar back with it */
+  useEffect(() => {
+    const h = () => { setLoading(true); loadMeetings(); };
+    window.addEventListener("eb-app-resumed", h);
+    return () => window.removeEventListener("eb-app-resumed", h);
+    // eslint-disable-next-line
   }, []);
 
   /* today's date as it reads on the phone (toISOString() would give UTC, which

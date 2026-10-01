@@ -215,7 +215,10 @@ export default function ExpenseApprovals() {
   const pager = usePager(list, 10, tab);
 
   /* counted from what the filters leave, so the cards agree with the list */
+  /* until the filters have been applied with Show, the boxes stand at zero —
+     the page is laid out straight away and the figures follow */
   const stats = useMemo(() => {
+    if (!applied) return { subN: 0, subAmt: 0, appN: 0, appAmt: 0, allN: 0 };
     const base = applied ? statements.filter((r) => {
       if (applied.person && !((r.user || r._by || "").toLowerCase().includes(applied.person.toLowerCase()))) return false;
       if (applied.state && !((r.location || "").toLowerCase().includes(applied.state.toLowerCase()))) return false;

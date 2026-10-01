@@ -255,12 +255,14 @@ export function LongText({ text, at = 40 }) {
   const t = String(text ?? "").trim();
   if (!t) return "—";
   if (t.length <= at) return t;
+  /* "read more" sits on its own line underneath. Beside the text it pushed the
+     column wider and ran over whatever was next to it. */
   return (
     <span style={{ display: "inline-block", maxWidth: 260, fontSize: 12.5, lineHeight: 1.5 }}>
-      {open ? t : t.slice(0, at) + "… "}
+      {open ? t : t.slice(0, at) + "…"}
       <span onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-        style={{ color: "var(--accent)", cursor: "pointer", fontWeight: 700, whiteSpace: "nowrap" }}>
-        {open ? " less" : "read more"}
+        style={{ display: "block", marginTop: 2, color: "var(--accent)", cursor: "pointer", fontWeight: 700, fontSize: 11.5 }}>
+        {open ? "less" : "read more"}
       </span>
     </span>
   );
