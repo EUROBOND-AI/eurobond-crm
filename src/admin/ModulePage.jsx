@@ -311,8 +311,13 @@ export default function ModulePage({ cfgKey }) {
         await api.update(cfgKey, editing._id, data);
         setRows(rows.map((r) => (r._id === editing._id ? { _id: editing._id, ...data } : r)));
       } else {
+        /* Reference numbers. Counting the rows on screen gave the same number
+           twice once anything had been deleted, and gave nothing at all to a
+           row created anywhere else — a ticket raised from the phone arrived
+           blank. Modules marked serverId get their number from the server,
+           which hands out the next unused one; the rest keep counting here. */
         const seq = String(rows.length + 1).padStart(4, "0");
-        const autoId = cfg.idPrefix ? `${cfg.idPrefix}-${seq}` : undefined;
+        const autoId = cfg.idPrefix && !cfg.serverId ? `${cfg.idPrefix}-${seq}` : undefined;
         const data = {
           ...(autoId ? { id: autoId } : {}),
           createdAt: stamp,
@@ -322,7 +327,7 @@ export default function ModulePage({ cfgKey }) {
           ...values,
         };
         const res = await api.create(cfgKey, data);
-        setRows([{ _id: res.id, ...data }, ...rows]);
+        setRows([{ _id: res.id, ...data, ...(res.ref ? { id: res.ref } : {}) }, ...rows]);
         /* Holidays/Announcements: select chesina audience ki matrame notification */
         if (cfg.notifyOnCreate) {
           try {

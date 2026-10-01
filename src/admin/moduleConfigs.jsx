@@ -12,6 +12,21 @@ const attach = (v) => v
       : <img src={v} alt="doc" onClick={() => openLightbox(v)} style={{ width: 34, height: 34, objectFit: "cover", borderRadius: 6, border: "1px solid #dfe4f0", cursor: "pointer" }} />)
   : "—";
 
+/* Several screenshots on one row, side by side. A support ticket raised from
+   the phone can carry up to three. */
+const shotStrip = (v) => {
+  const list = Array.isArray(v) ? v.filter(Boolean) : (v ? [v] : []);
+  if (!list.length) return "—";
+  return (
+    <span style={{ display: "inline-flex", gap: 4 }}>
+      {list.map((u, i) => (
+        <img key={i} src={u} alt={`Screenshot ${i + 1}`} onClick={() => openLightbox(u)}
+          style={{ width: 34, height: 34, objectFit: "cover", borderRadius: 6, border: "1px solid #dfe4f0", cursor: "pointer" }} />
+      ))}
+    </span>
+  );
+};
+
 /* Every module here is read by BOTH the admin panel (ModulePage) and, where appFields exist,
    by the field app. idPrefix auto-generates ids like ENQ-0001 on create. */
 
@@ -330,8 +345,8 @@ export const MODULES = {
 
   tickets: {
     path: "support/tickets", title: "GK - Developer Support", crumb: "GK - Developer Support", addLabel: "Add Support Request",
-    note: "Designed & Developed by Karthik G · tickets raised from the app arrive here",
-    idPrefix: "TKT",
+    note: <>Designed &amp; Developed by <b style={{ color: "var(--navy)", fontWeight: 900 }}>Karthik G</b> · tickets raised from the app arrive here</>,
+    idPrefix: "TKT", serverId: true,
     tabs: [
       { key: "Pending", label: "Pending" }, { key: "Assigned", label: "Assigned" },
       { key: "Complete", label: "Complete" }, { key: "Close", label: "Close" },
@@ -341,6 +356,8 @@ export const MODULES = {
       { key: "id", label: "Ticket Id", render: link }, { key: "createdAt", label: "Created At" },
       { key: "createdBy", label: "Raised By" }, { key: "subject", label: "Subject" },
       { key: "priority", label: "Priority", render: pill }, { key: "status", label: "Status", render: pill },
+      /* the screenshots the person attached from the app — click to enlarge */
+      { key: "shots", label: "Screenshots", render: shotStrip },
     ],
     form: [
       { name: "subject", label: "Subject", required: true },

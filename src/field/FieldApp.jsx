@@ -3134,8 +3134,25 @@ function FieldHelp() {
   const [priority, setPriority] = useState("Medium");
   const [desc, setDesc] = useState("");
   const [busy, setBusy] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [sent, setSent] = useState(null);     // the ticket number once it is sent
   const [mine, setMine] = useState(null);
+  /* screenshots — a picture of the problem says more than describing it */
+  const [shots, setShots] = useState([]);
+  const [upBusy, setUpBusy] = useState(false);
+
+  const addShot = async (file) => {
+    if (!file) return;
+    if (shots.length >= 3) { alert("Up to 3 screenshots."); return; }
+    setUpBusy(true);
+    try {
+      const u = await api.uploadCompressed(file, "ticket");
+      const url = u.url || u.path || "";
+      if (url) setShots((s) => [...s, url]);
+    } catch (e) {
+      alert("Could not attach: " + (e && e.message ? e.message : e));
+    }
+    setUpBusy(false);
+  };
 
   const loadMine = () => {
     const me = (CU().name || "").toLowerCase();
@@ -3163,22 +3180,29 @@ function FieldHelp() {
       raisedFrom: "Mobile App",
       mobile: me.mobile || me.phone || "",
       city: me.city || "",
+      shots,
+      photo: shots[0] || "",
     };
     try {
-      await api.create("tickets", row);
+      /* the server gives out the ticket number, so it is the same series the
+         admin panel shows and no two tickets can share one */
+      const res = await api.create("tickets", row);
+      row.id = res && res.ref ? res.ref : "";
       /* the same two places the admin panel sends them: an email, and a
          notification so it is noticed without anyone watching the inbox */
       try {
         await api.sendMail({
           to: "technology@eurobondacp.com",
           html: true,
-          subject: `App Support Ticket — ${row.subject}`,
+          subject: `App Support Ticket ${row.id || ""} — ${row.subject}`,
           body: `<h3>New GK - Developer Support Ticket (from the mobile app)</h3>
+            <p><b>Ticket Id:</b> ${row.id || "-"}</p>
             <p><b>Raised By:</b> ${row.createdBy || "-"} ${row.mobile ? "(" + row.mobile + ")" : ""}</p>
             <p><b>City:</b> ${row.city || "-"}</p>
             <p><b>Subject:</b> ${row.subject}</p>
             <p><b>Priority:</b> ${row.priority}</p>
             <p><b>Description:</b><br>${(row.desc || "-").replace(/\n/g, "<br>")}</p>
+            ${shots.length ? `<p><b>Screenshots:</b><br>${shots.map((u, i) => `<a href="${u}">Screenshot ${i + 1}</a>`).join(" &nbsp; ")}</p>` : ""}
             <p><b>Created At:</b> ${row.createdAt}</p>
             <hr><p>Eurobond CRM — GK - Developer Support</p>`,
         });
@@ -3192,8 +3216,8 @@ function FieldHelp() {
           at: new Date().toISOString(),
         });
       } catch {}
-      setSubject(""); setDesc(""); setPriority("Medium");
-      setSent(true);
+      setSubject(""); setDesc(""); setPriority("Medium"); setShots([]);
+      setSent(row.id || "sent");
       loadMine();
     } catch (e) {
       alert("Could not send: " + (e && e.message ? e.message : e));
@@ -3217,7 +3241,7 @@ function FieldHelp() {
 
         {sent && (
           <div style={{ background: "#e8f7ee", border: "1px solid #b7e3c7", color: "#1a6b3c", borderRadius: 12, padding: "12px 14px", marginBottom: 12, fontSize: 13, fontWeight: 700 }}>
-            ✅ Ticket sent. You will be contacted on {CU().mobile || CU().phone || "your registered number"}.
+            ✅ Ticket sent{sent !== "sent" ? <> — <b>{sent}</b></> : ""}. You will be contacted on {CU().mobile || CU().phone || "your registered number"}.
           </div>
         )}
 
@@ -3241,7 +3265,27 @@ function FieldHelp() {
           <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={4}
             placeholder="What happened, and on which screen?"
             style={{ width: "100%", padding: "12px", borderRadius: 11, border: "1.5px solid #d7dcef", fontSize: 14, marginTop: 5, marginBottom: 12, background: "#fff", resize: "vertical" }} />
-          <button className="f-submit" style={{ width: "100%" }} disabled={busy} onClick={submit}>
+
+          <label style={{ fontWeight: 800, fontSize: 12.5 }}>Screenshots <span style={{ color: "var(--muted)", fontWeight: 700 }}>(up to 3)</span></label>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "8px 0 12px" }}>
+            {shots.map((u, i) => (
+              <div key={i} style={{ position: "relative" }}>
+                <img src={u} alt={`Screenshot ${i + 1}`} onClick={() => window.open(u, "_blank")}
+                  style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 10, border: "1.5px solid #d7dcef", cursor: "pointer" }} />
+                <button onClick={() => setShots((s) => s.filter((_, k) => k !== i))} aria-label="Remove"
+                  style={{ position: "absolute", top: -6, right: -6, width: 22, height: 22, borderRadius: "50%", border: "none", background: "#d64545", color: "#fff", fontSize: 13, lineHeight: 1, cursor: "pointer", fontWeight: 800 }}>×</button>
+              </div>
+            ))}
+            {shots.length < 3 && (
+              <label style={{ width: 72, height: 72, borderRadius: 10, border: "1.5px dashed #b9c2e0", display: "grid", placeItems: "center", cursor: "pointer", color: "var(--muted)", fontSize: 11, fontWeight: 700, textAlign: "center", background: "#fff" }}>
+                {upBusy ? "…" : <><Camera size={18} /><div>Add</div></>}
+                <input type="file" accept="image/*" hidden disabled={upBusy}
+                  onChange={(e) => { addShot(e.target.files[0]); e.target.value = ""; }} />
+              </label>
+            )}
+          </div>
+
+          <button className="f-submit" style={{ width: "100%" }} disabled={busy || upBusy} onClick={submit}>
             <Send size={15} style={{ verticalAlign: -2, marginRight: 6 }} />{busy ? "Sending…" : "Send Ticket"}
           </button>
         </div>
@@ -3261,12 +3305,22 @@ function FieldHelp() {
               {t.id ? t.id + " · " : ""}{t.priority || "Medium"} · {t.createdAt || ""}
             </div>
             {t.desc && <div style={{ fontSize: 12.5, marginTop: 6, color: "#475569", lineHeight: 1.5 }}>{t.desc}</div>}
+            {Array.isArray(t.shots) && t.shots.length > 0 && (
+              <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                {t.shots.map((u, k) => (
+                  <img key={k} src={u} alt={`Screenshot ${k + 1}`} onClick={() => window.open(u, "_blank")}
+                    style={{ width: 54, height: 54, objectFit: "cover", borderRadius: 8, border: "1px solid #e2e8f5", cursor: "pointer" }} />
+                ))}
+              </div>
+            )}
             {t.remark && <div style={{ fontSize: 12.5, marginTop: 6, background: "#f4f6ff", borderRadius: 9, padding: "8px 10px" }}><b>Reply:</b> {t.remark}</div>}
           </div>
         ))}
 
         <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 11.5, fontWeight: 700, marginTop: 20, lineHeight: 1.7 }}>
-          <div style={{ fontSize: 12.5, color: "var(--navy)", fontWeight: 800 }}>Designed &amp; Developed by Karthik G</div>
+          <div style={{ fontSize: 12.5, color: "var(--navy)", fontWeight: 700 }}>
+            Designed &amp; Developed by <b style={{ fontWeight: 900 }}>Karthik G</b>
+          </div>
           <div>Eurobond CRM v{__APP_VERSION__}</div>
         </div>
       </div>
