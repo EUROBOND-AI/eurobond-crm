@@ -243,3 +243,25 @@ export function FooterNote() {
     </p>
   );
 }
+
+
+/* A long line kept to one row until it is asked for.
+
+   Addresses and the "what is needed" notes run to a couple of hundred
+   characters, which pushed every other column off the screen. The first words
+   are shown with a "read more" that opens the rest in place. */
+export function LongText({ text, at = 40 }) {
+  const [open, setOpen] = useState(false);
+  const t = String(text ?? "").trim();
+  if (!t) return "—";
+  if (t.length <= at) return t;
+  return (
+    <span style={{ display: "inline-block", maxWidth: 260, fontSize: 12.5, lineHeight: 1.5 }}>
+      {open ? t : t.slice(0, at) + "… "}
+      <span onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        style={{ color: "var(--accent)", cursor: "pointer", fontWeight: 700, whiteSpace: "nowrap" }}>
+        {open ? " less" : "read more"}
+      </span>
+    </span>
+  );
+}

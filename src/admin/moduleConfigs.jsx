@@ -1,8 +1,10 @@
-import { Pill } from "../components/ui.jsx";
+import { Pill, LongText } from "../components/ui.jsx";
 
 const pill = (v) => <Pill status={v} />;
 const link = (v) => <span className="link">{v}</span>;
 const money = (v) => (v != null && v !== "" ? "₹" + Number(v).toLocaleString("en-IN") : "—");
+/* an address or a note that would otherwise push the table sideways */
+const longText = (v) => <LongText text={v} />;
 const openLightbox = (url) => { window.dispatchEvent(new CustomEvent("crm-lightbox", { detail: url })); };
 const attach = (v) => v
   ? (String(v).match(/\.pdf$/i)
@@ -88,7 +90,7 @@ export const MODULES = {
       { key: "createdBy", label: "Created By" },
       { key: "projectName", label: "Project Name" },
       { key: "projectType", label: "Type" },
-      { key: "city", label: "City" },
+      { key: "city", label: "City", render: longText },
       { key: "cat_Architect", label: "Architect" },
       { key: "cat_Builder", label: "Builder" },
       { key: "cat_Fabricator", label: "Fabricator" },
@@ -100,7 +102,7 @@ export const MODULES = {
       { key: "expectedMonth", label: "Expected" },
       { key: "specPerson", label: "Spec Person" },
       { key: "salesPerson", label: "Sales Person" },
-      { key: "helpNeeded", label: "Help / Work" },
+      { key: "helpNeeded", label: "Help / Work", render: longText },
       { key: "entriesCount", label: "Entries" },
       { key: "winSqm", label: "Sq.Mtr" },
       { key: "winSales", label: "Sales ₹", render: money },
@@ -189,7 +191,7 @@ export const MODULES = {
       { key: "specPerson", label: "Tagged Spec Person", render: link },
       { key: "gradeApproved", label: "Grade Approved" }, { key: "colourApproved", label: "Colour Approved" },
       { key: "sqmApproved", label: "Sq Meter Approved" },
-      { key: "helpNeeded", label: "Help Needed" }, { key: "lastRemark", label: "Remark" },
+      { key: "helpNeeded", label: "Help Needed", render: longText }, { key: "lastRemark", label: "Remark", render: longText },
       { key: "status", label: "Status", render: pill },
     ],
     form: false,
@@ -206,7 +208,7 @@ export const MODULES = {
       { key: "createdBy", label: "Spec Person", render: link }, { key: "projectName", label: "Project / Site" },
       { key: "salesPerson", label: "Share To Sales Person", render: link },
       { key: "sqmApproved", label: "Sq Meter" }, { key: "salesDone", label: "Sales", render: money },
-      { key: "helpNeeded", label: "What sales person to do?" }, { key: "lastRemark", label: "Remark" },
+      { key: "helpNeeded", label: "What sales person to do?", render: longText }, { key: "lastRemark", label: "Remark", render: longText },
       { key: "status", label: "Status", render: pill },
     ],
     form: false,

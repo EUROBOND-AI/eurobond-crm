@@ -7,6 +7,7 @@ import { MODULES as ALL_MODULES } from "./moduleConfigs.jsx";
 const APP_MODULES = [
   { key: "customers", label: "Customers" },
   { key: "nearby", label: "Near By Customers" },
+  { key: "nearbyProjects", label: "Near By Projects" },
   { key: "enquiry", label: "Enquiry" },
   { key: "quotation", label: "Quotation" },
   { key: "projectProjection", label: "Project Projection" },

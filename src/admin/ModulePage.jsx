@@ -128,6 +128,8 @@ export default function ModulePage({ cfgKey }) {
   }, [cfgKey]);
   const [fTo, setFTo] = useState("");
   const [shown, setShown] = useState(false);   // projectProjection: show data only after "Show" clicked
+  /* modules that wait for Show before fetching anything into view */
+  const gated = ["projectProjection", "salesToSpec", "specToSales", "target", "leave", "expense", "beatPlan"].includes(cfgKey);
   const [fSpec, setFSpec] = useState("");
   const [fSales, setFSales] = useState("");
   const [fStatus, setFStatus] = useState("");
@@ -186,6 +188,9 @@ export default function ModulePage({ cfgKey }) {
   /* the rows the tab is then chosen from — the totals count these, so filtering
      to twenty rows no longer still reads the full table */
   const statBase = filteredNoTab;
+  /* nothing is counted on a Show-gated module until Show has been pressed, so
+     the boxes read zero while the filters are still being set */
+  const statShown = gated && !shown ? [] : statBase;
 
   const visible = useMemo(() => {
     const list = filteredNoTab;
@@ -452,16 +457,16 @@ export default function ModulePage({ cfgKey }) {
           />
         }
       />
-      {/* The totals belong with the results, so on the modules that wait for
-          Show they appear once there is something to count. */}
-      {cfg.tabs && cfg.tabField && !cfg.noTabFilter && !loading
-        && (shown || !["projectProjection", "salesToSpec", "specToSales", "target", "leave", "expense", "beatPlan"].includes(cfgKey)) && (
+      {/* On the modules that wait for Show, the page is laid out straight away
+          with the totals reading zero, so the filters are there to use the
+          moment it opens. Nothing is counted until Show is pressed. */}
+      {cfg.tabs && cfg.tabField && !cfg.noTabFilter && (gated || !loading) && (
         <div className="stat-row">
           {/* counted from what the filters actually leave, not the whole table —
               filtering to twenty rows used to still read the full total */}
-          <StatCard label="Total" value={statBase.length} sub="Matching records" color="#4a7bff" />
+          <StatCard label="Total" value={statShown.length} sub="Matching records" color="#4a7bff" />
           {cfg.tabs.slice(0, 4).map((t, i) => (
-            <StatCard key={t.key} label={t.label} value={statBase.filter((r) => String(r[cfg.tabField]) === t.key).length} sub={t.label + " records"} color={["#8b5cf6", "#10b981", "#f59e0b", "#ec4899"][i % 4]} />
+            <StatCard key={t.key} label={t.label} value={statShown.filter((r) => String(r[cfg.tabField]) === t.key).length} sub={t.label + " records"} color={["#8b5cf6", "#10b981", "#f59e0b", "#ec4899"][i % 4]} />
           ))}
         </div>
       )}
@@ -554,12 +559,14 @@ export default function ModulePage({ cfgKey }) {
         />
       )}
 
-      {loading ? (
+      {/* the invitation to press Show comes first: on these modules nobody is
+          waiting for the table yet, so "Loading…" only got in the way */}
+      {gated && !shown ? (
+        <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Set filters and click <b>Show</b> to view.</div>
+      ) : loading ? (
         <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Loading…</div>
       ) : err ? (
         <div style={{ padding: 24, background: "#fdecec", color: "#c03636", borderRadius: 12, fontWeight: 600 }}>{err}</div>
-      ) : (["projectProjection", "salesToSpec", "specToSales", "target", "leave", "expense", "beatPlan"].includes(cfgKey) && !shown) ? (
-        <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Set filters and click <b>Show</b> to view.</div>
       ) : (
         <DataTable
           extraActions={cfgKey === "projectProjection" ? (r) => (

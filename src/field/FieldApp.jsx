@@ -4278,7 +4278,7 @@ function MenuDrawer({ open, close }) {
       ["Home", <Home size={16} />, "/app", null],
       ["Customers", <Users size={16} />, "/app/customers", "customers"],
       ["Near By Customers", <MapPin size={16} />, "/app/nearby", "nearby"],
-      ["Near By Projects", <Building2 size={16} />, "/app/nearby-projects", "nearby"],
+      ["Near By Projects", <Building2 size={16} />, "/app/nearby-projects", "nearbyProjects"],
     ] },
     { h: "WORK", items: [
       ["Enquiry", <FileText size={16} />, "/app/m/enquiry", "enquiry"],
