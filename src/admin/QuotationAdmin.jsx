@@ -165,11 +165,13 @@ export default function QuotationAdmin() {
       } />
       <input id="quote-import-file" type="file" accept=".csv" hidden onChange={(e) => importCsv(e.target.files[0])} />
 
+      {/* zero until Show has been pressed, the same as everywhere else — the
+          boxes are part of the page, the figures are the answer */}
       <div className="stat-row">
-        <StatCard label="Total" value={rows ? rows.length : 0} sub="All quotations" />
-        <StatCard label="Pending" value={pending} sub="Awaiting approval" color="#f59e0b" />
-        <StatCard label="Approved" value={approved} sub="Approved" color="#2563eb" />
-        <StatCard label="Won" value={won} sub="Win" color="#059669" />
+        <StatCard label="Total" value={applied && rows ? rows.length : 0} sub="All quotations" />
+        <StatCard label="Pending" value={applied ? pending : 0} sub="Awaiting approval" color="#f59e0b" />
+        <StatCard label="Approved" value={applied ? approved : 0} sub="Approved" color="#2563eb" />
+        <StatCard label="Won" value={applied ? won : 0} sub="Win" color="#059669" />
       </div>
 
       {/* filters + Show */}

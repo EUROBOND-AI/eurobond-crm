@@ -255,13 +255,17 @@ export function LongText({ text, at = 40 }) {
   const t = String(text ?? "").trim();
   if (!t) return "—";
   if (t.length <= at) return t;
-  /* "read more" sits on its own line underneath. Beside the text it pushed the
-     column wider and ran over whatever was next to it. */
+  /* Opened, the text wraps down the cell instead of running off to the right.
+     Table cells are set never to wrap, which turned a three-hundred word note
+     into one endless line and dragged the whole table sideways — so the rule is
+     turned off here, inside a column of its own width. "read more" sits on its
+     own line underneath. */
   return (
-    <span style={{ display: "inline-block", maxWidth: 260, fontSize: 12.5, lineHeight: 1.5 }}>
+    <span data-longtext style={{ display: "inline-block", width: 240, maxWidth: 240, fontSize: 12.5, lineHeight: 1.55,
+      whiteSpace: "normal", overflowWrap: "anywhere", wordBreak: "break-word" }}>
       {open ? t : t.slice(0, at) + "…"}
       <span onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-        style={{ display: "block", marginTop: 2, color: "var(--accent)", cursor: "pointer", fontWeight: 700, fontSize: 11.5 }}>
+        style={{ display: "block", marginTop: 3, color: "var(--accent)", cursor: "pointer", fontWeight: 700, fontSize: 11.5 }}>
         {open ? "less" : "read more"}
       </span>
     </span>

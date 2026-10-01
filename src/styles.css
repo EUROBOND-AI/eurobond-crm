@@ -553,3 +553,8 @@ body.freeze-head .content .table-wrap { overflow: auto; }
 
 /* column headings stay visible whatever the setting */
 .table-wrap thead th, table.grid thead th { position: sticky; top: 0; z-index: 12; }
+
+
+/* a cell holding a long note lets it wrap; everything else still stays on one
+   line, which is what keeps the columns readable */
+table.grid td:has(> span[data-longtext]) { white-space: normal; vertical-align: top; }
