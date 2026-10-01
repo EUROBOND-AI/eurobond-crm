@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, auth } from "../lib/api.js";
+import RefreshBtn from "../components/RefreshBtn.jsx";
 
 const inp = { width: "100%", marginBottom: 10, padding: "9px 11px", borderRadius: 9, border: "1px solid #d7dcef", fontSize: 13 };
 const lbl = { fontSize: 12, fontWeight: 700 };
@@ -78,11 +79,7 @@ export default function BiltraxList() {
         <button onClick={() => nav(-1)} aria-label="Back"
           style={{ width: 30, height: 30, borderRadius: 9, border: "1px solid #d7dcef", background: "#fff", fontSize: 18, lineHeight: 1, cursor: "pointer", fontWeight: 800, color: "var(--navy)" }}>‹</button>
         <h2 style={{ margin: 0, fontSize: 17, flex: 1 }}>Biltrax</h2>
-        {/* the same Refresh the other screens carry */}
-        <button onClick={() => { try { window.dispatchEvent(new Event("eb-app-resumed")); } catch {} }}
-          title="Refresh" aria-label="Refresh"
-          style={{ width: 30, height: 30, borderRadius: 9, border: "1px solid #d7dcef", background: "#fff",
-            fontSize: 15, lineHeight: 1, cursor: "pointer", fontWeight: 800, color: "var(--navy)" }}>⟳</button>
+        <RefreshBtn />
       </div>
 
       <div className="f-seg" style={{ margin: "12px 18px" }}>

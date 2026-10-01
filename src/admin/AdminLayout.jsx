@@ -10,6 +10,7 @@ import { auth, api, API_BASE } from "../lib/api.js";
 import { MODULES } from "./moduleConfigs.jsx";
 import { loadPerms, canView } from "../lib/perms.js";
 import { subscribeTask } from "../lib/bgTask.js";
+import { useVisiblePoll } from "../lib/poll.js";
 
 const NAV = [
   {
@@ -459,7 +460,7 @@ function AdminBell({ nav }) {
       setRows(list);
     }).catch(() => {});
   };
-  useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, []);
+  useVisiblePoll(load, 60000);
 
   const read = getRead();
   const unread = rows.filter((n) => !read.has(n._id)).length;

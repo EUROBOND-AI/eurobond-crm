@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, auth } from "../lib/api.js";
+import RefreshBtn from "../components/RefreshBtn.jsx";
 
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -134,11 +135,7 @@ export default function MeetingCalendar() {
         <button onClick={() => nav(-1)} aria-label="Back"
           style={{ width: 30, height: 30, borderRadius: 9, border: "1px solid #d7dcef", background: "#fff", fontSize: 18, lineHeight: 1, cursor: "pointer", fontWeight: 800, color: "var(--navy)" }}>‹</button>
         <h2 style={{ margin: 0, fontSize: 17, flex: 1 }}>Meeting Calendar</h2>
-        {/* the same Refresh the other screens carry */}
-        <button onClick={() => { try { window.dispatchEvent(new Event("eb-app-resumed")); } catch {} }}
-          title="Refresh" aria-label="Refresh"
-          style={{ width: 30, height: 30, borderRadius: 9, border: "1px solid #d7dcef", background: "#fff",
-            fontSize: 15, lineHeight: 1, cursor: "pointer", fontWeight: 800, color: "var(--navy)" }}>⟳</button>
+        <RefreshBtn />
       </div>
       <div className="f-form" style={{ paddingBottom: 120 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>

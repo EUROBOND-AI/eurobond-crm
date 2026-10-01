@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, auth } from "../lib/api.js";
+import RefreshBtn from "../components/RefreshBtn.jsx";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const TYPES = ["Local", "Ex-station", "Out-station", "Off"];
@@ -109,7 +110,9 @@ export default function BeatPlan() {
       <div className="f-head" style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <button onClick={() => nav(-1)} aria-label="Back"
           style={{ width: 30, height: 30, borderRadius: 9, border: "1px solid #d7dcef", background: "#fff", fontSize: 18, lineHeight: 1, cursor: "pointer", fontWeight: 800, color: "var(--navy)" }}>‹</button>
-        <h2 style={{ margin: 0, fontSize: 17 }}>Beat Plan</h2>
+        <h2 style={{ margin: 0, fontSize: 17, flex: 1 }}>Beat Plan</h2>
+        {/* the same Refresh button as every other screen */}
+        <RefreshBtn />
       </div>
       <div className="f-form" style={{ paddingBottom: 120 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>

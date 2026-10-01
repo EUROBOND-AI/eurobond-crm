@@ -7,6 +7,7 @@ import { scopeRows } from "../lib/scope.js";
 import { AdminSearchSelect } from "./QuotationAdmin.jsx";
 import { canAdd, canDelete, canModify, canExport, canImport } from "../lib/perms.js";
 import { usePager, Pager } from "../components/Pager.jsx";
+import { useVisiblePoll } from "../lib/poll.js";
 
 /* flatten arrays into readable text for admin table columns */
 function projContactsText(contacts) {
@@ -120,12 +121,10 @@ export default function ModulePage({ cfgKey }) {
   const [fLead, setFLead] = useState("");
   const [fAssign, setFAssign] = useState("");
   const [fFrom, setFFrom] = useState("");
-  /* app lo updates admin lo auto ga reflect avvadaniki — 60s refresh */
-  useEffect(() => {
-    const t = setInterval(() => { try { reload(); } catch {} }, 60000);
-    return () => clearInterval(t);
-    // eslint-disable-next-line
-  }, [cfgKey]);
+  /* app lo updates admin lo auto ga reflect avvadaniki — 60s refresh, but only
+     while this tab is the one in front. A panel left open in a background tab
+     was re-reading every module every minute for nothing. */
+  useVisiblePoll(() => { try { reload(); } catch {} }, 60000);
   const [fTo, setFTo] = useState("");
   const [shown, setShown] = useState(false);   // projectProjection: show data only after "Show" clicked
   /* modules that wait for Show before fetching anything into view */

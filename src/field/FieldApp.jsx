@@ -7,6 +7,7 @@ import {
   PlaneTakeoff, FileText, CalendarDays, Briefcase, ListChecks, Map as MapIcon,
   Play, Square, Navigation, Smartphone, CheckCircle2, AlertCircle, Eye, EyeOff, Camera, Search, Filter, Pencil, RefreshCw,
 } from "lucide-react";
+import RefreshBtn, { startRefresh } from "../components/RefreshBtn.jsx";
 import { ebFlushQueue, ebQueueSize, watchLocation, startTracker, stopTracker, setTrackerHandler, setTrackerSession, isTrackerActive, showTrackingNotification, hideTrackingNotification, totalDistanceKm, haversineKm, fmtKm, fmtDuration } from "../lib/geo.js";
 import { api, auth, API_BASE, clearApiCache } from "../lib/api.js";
 import BeatPlan, { BeatPlanConfirm } from "./BeatPlan.jsx";
@@ -14,6 +15,8 @@ import ErrorBoundary from "../components/ErrorBoundary.jsx";
 import MeetingCalendar from "./MeetingCalendar.jsx";
 import BiltraxList from "./BiltraxList.jsx";
 import { buildExpensePdf } from "../lib/expensePdf.js";
+import { snapToRoads } from "../lib/roadline.js";
+import { useVisiblePoll } from "../lib/poll.js";
 import { MODULES } from "../admin/moduleConfigs.jsx";
 
 /* logged-in field user (from auth) with safe fallbacks */
@@ -169,14 +172,12 @@ function useUnreadCount() {
       setCount(mine.filter((n) => !read.has(String(n.id))).length);
     }).catch(() => {});
   };
+  /* every minute while the app is open and being looked at */
+  useVisiblePoll(refresh, 60000);
   useEffect(() => {
-    refresh();
-    const t = setInterval(refresh, 60000);                       // 25s -> 60s (server load)
     const onRead = () => refresh();
-    const onVis = () => { if (document.visibilityState === "visible") refresh(); };
     window.addEventListener("eb-notif-read", onRead);
-    document.addEventListener("visibilitychange", onVis);
-    return () => { clearInterval(t); window.removeEventListener("eb-notif-read", onRead); document.removeEventListener("visibilitychange", onVis); };
+    return () => window.removeEventListener("eb-notif-read", onRead);
   }, []);
   return count;
 }
@@ -807,24 +808,6 @@ function useAppRefresh(fn) {
   }, []);
 }
 
-function RefreshBtn() {
-  const [busy, setBusy] = useState(false);
-  const go = async () => {
-    if (busy) return;
-    setBusy(true);
-    try { clearApiCache(); } catch {}
-    try { window.__ebLoadLists && window.__ebLoadLists(); } catch {}
-    try { window.dispatchEvent(new Event("eb-app-resumed")); } catch {}
-    setTimeout(() => setBusy(false), 900);
-  };
-  return (
-    <button onClick={go} title="Refresh"
-      style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "grid", placeItems: "center", color: "inherit" }}>
-      {busy ? <span className="eb-spin" style={{ width: 17, height: 17, borderWidth: 2 }} /> : <RefreshCw size={17} />}
-    </button>
-  );
-}
-
 /* Where each screen was opened from. Browser history sent Back into the form
    that was just saved, and that form had already cleared its data, so the
    screen came up blank. This keeps a trail of real screens instead. */
@@ -843,7 +826,7 @@ function parentOf(path) {
   return "/app";
 }
 
-function ScreenHead({ title, back = true, right = null }) {
+function ScreenHead({ title, back = true, right = null, refresh = true }) {
   const nav = useNavigate();
   const loc = useLocation();
   const goBack = () => {
@@ -859,8 +842,10 @@ function ScreenHead({ title, back = true, right = null }) {
       )}
       <div className="grow" style={{ fontFamily: "Bricolage Grotesque", fontWeight: 700, fontSize: 16 }}>{title}</div>
       {right}
-      {/* pull the latest from the server without leaving the screen */}
-      <RefreshBtn />
+      {/* pull the latest from the server without leaving the screen. The Profile
+          screen is the one place it is left out — nothing on it changes while
+          you are looking at it. */}
+      {refresh && <RefreshBtn />}
     </div>
   );
 }
@@ -1197,6 +1182,9 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
   const mapObj = useRef(null);
   const lineRef = useRef(null);
   const markerRef = useRef(null);
+  /* true once the route has been put on the roads — from then on the line is not
+     rebuilt from raw positions, which would straighten it out again */
+  const snappedRef = useRef(false);
   const [custPins, setCustPins] = useState([]);
   /* load customers added by me today (with coordinates) → purple pins on the map */
   useEffect(() => {
@@ -1229,11 +1217,31 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
   useEffect(() => {
     if (tab !== "Map" || !mapRef.current) return;
     const start = tracking.points[0] || { lat: 19.076, lng: 72.8777 };
-    mapObj.current = L.map(mapRef.current, { attributionControl: true }).setView([start.lat, start.lng], 15);
+    /* Drawing the day on a canvas instead of as page elements.
+
+       Every tracking point used to become its own pin — a div holding an SVG —
+       and a day of tracking is several hundred of them. Dragging the map meant
+       the phone moving all of those at once, which is why it crawled and
+       sometimes stopped responding. The route and the travel points are painted
+       on a single canvas now, so panning costs the same whether the day holds
+       ten points or a thousand; only the few pins that have to be tapped
+       (start, end, customers) stay as real markers. */
+    mapObj.current = L.map(mapRef.current, {
+      attributionControl: true,
+      preferCanvas: true,
+      markerZoomAnimation: false,
+      zoomSnap: 0.5,
+      wheelPxPerZoomLevel: 120,
+    }).setView([start.lat, start.lng], 15);
     mapObj.current.attributionControl.setPrefix("Gonti");
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "© GK",
       maxZoom: 19,
+      /* keep tiles that scroll off screen instead of fetching them again, and
+         don't redraw the whole grid mid-drag */
+      keepBuffer: 4,
+      updateWhenIdle: true,
+      updateWhenZooming: false,
     }).addTo(mapObj.current);
 
     /* live blue dot = device current location (Google Maps style) */
@@ -1258,25 +1266,34 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
     }
     const svgPin = (color) => `<div class="pin"><svg width="30" height="38" viewBox="0 0 24 32"><path d="M12 0C5.4 0 0 5.4 0 12c0 8.4 12 20 12 20s12-11.6 12-20C24 5.4 18.6 0 12 0z" fill="${color}"/><circle cx="12" cy="12" r="5" fill="#fff"/></svg></div>`;
     const pts = tracking.points.filter((p) => p.accuracy == null || p.accuracy <= 60);
-    /* draw a straight polyline first (instant), then snap it to roads via OSRM in the background */
+    /* draw straight hops first so the day is there at once, then settle the line
+       onto the roads stretch by stretch. A whole day is far more positions than
+       the router accepts in one request, which is why the line used to stay
+       straight — lib/roadline.js sends it in pieces. */
     if (pts.length > 1) {
       lineRef.current = L.polyline(pts.map((p) => [p.lat, p.lng]), { color: "#8854d0", weight: 5, opacity: 0.9 }).addTo(mapObj.current);
-      (async () => {
-        try {
-          const coords = pts.map((p) => `${p.lng},${p.lat}`).join(";");
-          const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`);
-          const j = await r.json();
-          const line = j.routes && j.routes[0] && j.routes[0].geometry && j.routes[0].geometry.coordinates;
-          if (line && line.length && mapObj.current && lineRef.current) {
-            lineRef.current.setLatLngs(line.map(([lng, lat]) => [lat, lng]));
-          }
-        } catch {}
-      })();
+      snappedRef.current = false;
+      snapToRoads(pts.map((p) => [p.lat, p.lng]), (line) => {
+        if (!mapObj.current || !lineRef.current) throw new Error("map closed");
+        lineRef.current.setLatLngs(line);
+        snappedRef.current = true;
+      });
     }
-    /* every 15-min tracking point → purple "In Between" pin (BreezERP style) */
+    /* The travel points along the way.
+
+       One pin per half minute is more than anyone can read, and a few hundred
+       pins — each a page element holding an SVG — was most of what made the map
+       crawl. They are thinned to roughly one every five minutes and painted on
+       the canvas instead. Tapping one still names the time it was taken. */
+    const FIVE_MIN = 5 * 60 * 1000;
+    const tOf = (p) => { const v = new Date(p.t || p.time).getTime(); return Number.isFinite(v) ? v : 0; };
+    let lastShown = 0;
     pts.forEach((p, i) => {
       if (i === 0 || i === pts.length - 1) return;
-      L.marker([p.lat, p.lng], { icon: L.divIcon({ className: "", html: svgPin("#7b2d8b"), iconSize: [30, 38], iconAnchor: [15, 38] }) })
+      const t = tOf(p);
+      if (lastShown && t - lastShown < FIVE_MIN) return;
+      lastShown = t;
+      L.circleMarker([p.lat, p.lng], { radius: 5, color: "#fff", weight: 2, fillColor: "#7b2d8b", fillOpacity: 1 })
         .bindPopup(`Travel Point · ${new Date(p.t || p.time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}`)
         .addTo(mapObj.current);
     });
@@ -1314,38 +1331,56 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
     };
   }, [tab, custPins]);
 
-  /* live glide: kotha GPS point vachinappudu marker smooth ga move (Uber feel) */
+  /* A new position arrives: move the dot to it and extend the line.
+
+     This used to be two separate pieces of work that undid each other. One slid
+     the dot across in thirty steps on a timer, the other rebuilt the whole line
+     from every position recorded so far and re-centred the map — on every
+     position, so the longer the day got the more there was to redo, and the road
+     line was flattened back to straight hops each time. Now the dot slides using
+     the screen's own refresh rhythm, so it keeps up with whatever the phone can
+     manage instead of forcing thirty frames a second, the line only has the new
+     position added to its end, and the map re-centres only when the dot would
+     otherwise walk off the edge. */
   useEffect(() => {
-    if (tab !== "Map" || !attendanceOn || !markerRef.current || !mapObj.current) return;
-    const last = tracking.points[tracking.points.length - 1];
+    if (tab !== "Map" || !mapObj.current) return;
+    const good = tracking.points.filter((p) => p.accuracy == null || p.accuracy <= 35);
+    const last = good[good.length - 1];
     if (!last) return;
-    const from = markerRef.current.getLatLng();
     const to = L.latLng(last.lat, last.lng);
-    if (from.equals(to)) return;
-    const steps = 30; let i = 0;
-    const t = setInterval(() => {
-      i++;
-      const lat = from.lat + (to.lat - from.lat) * (i / steps);
-      const lng = from.lng + (to.lng - from.lng) * (i / steps);
-      markerRef.current.setLatLng([lat, lng]);
-      if (i >= steps) { clearInterval(t); mapObj.current.panTo(to, { animate: true, duration: 0.6 }); if (lineRef.current) lineRef.current.addLatLng(to); }
-    }, 33);
-    return () => clearInterval(t);
+
+    if (!markerRef.current) {
+      markerRef.current = L.circleMarker(to, { radius: 8, color: "#fff", weight: 3, fillColor: "#4b5cf0", fillOpacity: 1 }).addTo(mapObj.current);
+    }
+    /* the road-snapped line is left alone — adding a raw position to its end is
+       fine, but rebuilding it from raw positions would straighten it out */
+    if (lineRef.current && !snappedRef.current) { try { lineRef.current.addLatLng(to); } catch {} }
+
+    const from = markerRef.current.getLatLng();
+    const keepInView = () => {
+      if (!mapObj.current) return;
+      if (!mapObj.current.getBounds().pad(-0.25).contains(to)) mapObj.current.panTo(to, { animate: true, duration: 0.6 });
+    };
+    if (!attendanceOn || from.equals(to) || from.distanceTo(to) > 2000) {
+      markerRef.current.setLatLng(to);
+      keepInView();
+      return;
+    }
+
+    let raf = 0;
+    const started = performance.now();
+    const MS = 600;
+    const step = (now) => {
+      if (!markerRef.current) return;
+      const k = Math.min(1, (now - started) / MS);
+      markerRef.current.setLatLng([from.lat + (to.lat - from.lat) * k, from.lng + (to.lng - from.lng) * k]);
+      if (k < 1) raf = requestAnimationFrame(step);
+      else keepInView();
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line
   }, [tracking.points.length, tab, attendanceOn]);
-
-  /* live update line/marker while map open */
-  useEffect(() => {
-    if (tab !== "Map" || !mapObj.current || !lineRef.current) return;
-    const latlngs = tracking.points.filter((p) => p.accuracy == null || p.accuracy <= 35).map((p) => [p.lat, p.lng]);
-    lineRef.current.setLatLngs(latlngs);
-    if (latlngs.length) {
-      const last = latlngs[latlngs.length - 1];
-      if (markerRef.current) markerRef.current.setLatLng(last);
-      else markerRef.current = L.circleMarker(last, { radius: 8, color: "#fff", weight: 3, fillColor: "#4b5cf0", fillOpacity: 1 }).addTo(mapObj.current);
-      mapObj.current.panTo(last);
-    }
-  }, [tracking.points.length, tab]);
 
   /* timeline: fetch location names for spaced-out points (every ~5th point) */
   useEffect(() => {
@@ -3661,7 +3696,7 @@ function FieldTeamTracking() {
       }
     }).catch(() => setSessions([]));
   };
-  useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, []);
+  useVisiblePoll(load, 60000);
 
   /* open a member's timeline points (LIST, no map) */
   const openTrack = async (s) => {
@@ -3673,14 +3708,11 @@ function FieldTeamTracking() {
     } catch { setPts([]); }
   };
 
-  /* auto-refresh the open member's points every 30s */
-  useEffect(() => {
+  /* the open member's points, re-read every 30s while the screen is on show */
+  useVisiblePoll(async () => {
     if (!sel) return;
-    const t = setInterval(async () => {
-      try { const d = await api.attTrack(sel.id); setPts((d.points || []).map((p) => ({ lat: +p.lat, lng: +p.lng, accuracy: +p.accuracy || null, recorded_at: p.recorded_at, battery: p.battery, online: p.online, address: p.address }))); } catch {}
-    }, 30000);
-    return () => clearInterval(t);
-  }, [sel]);
+    try { const d = await api.attTrack(sel.id); setPts((d.points || []).map((p) => ({ lat: +p.lat, lng: +p.lng, accuracy: +p.accuracy || null, recorded_at: p.recorded_at, battery: p.battery, online: p.online, address: p.address }))); } catch {}
+  }, 30000);
 
   const statusColor = (s) => s === "Live" ? "#12a150" : (s === "GPS Off" || s === "App Closed") ? "#e08600" : "#8894a8";
   const gpsLabel = (s) => s === "Live" ? "GPS On" : s === "Completed" ? "Completed" : "GPS Off";
@@ -3730,7 +3762,7 @@ function FieldTeamTracking() {
 
   return (
     <>
-      <ScreenHead title="Team Tracking" right={<button onClick={load} style={{ background: "none", border: "none", color: "var(--accent)", fontWeight: 700, fontSize: 13 }}>Refresh</button>} />
+      <ScreenHead title="Team Tracking" />
       <div style={{ padding: "8px 16px", fontSize: 12, color: "var(--muted)" }}>Live location of your team — today only.</div>
       <div className="f-list-pad">
         {sessions === null ? (
@@ -4226,7 +4258,7 @@ function FieldProfile({ onLogout }) {
   );
   return (
     <>
-      <ScreenHead title="Profile" back={false} />
+      <ScreenHead title="Profile" back={false} refresh={false} />
       <div style={{ textAlign: "center", padding: "18px 18px 6px" }}>
         <div style={{ width: 78, height: 78, borderRadius: "50%", margin: "0 auto 10px", background: "linear-gradient(135deg,#4b5cf0,#7b5cf0)", color: "#fff", display: "grid", placeItems: "center", fontFamily: "Bricolage Grotesque", fontWeight: 800, fontSize: 28 }}>
           {initials}
