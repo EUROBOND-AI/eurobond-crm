@@ -19,6 +19,8 @@ export default function TourReport() {
   const [fHod, setFHod] = useState("");
   const [fUser, setFUser] = useState("");
   const [fArea, setFArea] = useState("");
+  /* one month of the chosen financial year, or all of it */
+  const [fMonth, setFMonth] = useState("");
   const [shown, setShown] = useState(false);
 
   useEffect(() => {
@@ -43,9 +45,10 @@ export default function TourReport() {
       if (fState && (s.state || "") !== fState) return false;
       if (fHod && (s.manager || s.hod || "") !== fHod) return false;
       if (fUser && (s.name || s.user || "") !== fUser) return false;
+      if (fMonth && monthKey(s.work_date) !== fMonth) return false;
       return true;
     });
-  }, [sessions, fState, fHod, fUser]);
+  }, [sessions, fState, fHod, fUser, fMonth]);
 
   /* explode areas: one session may have 2-3 areas -> each counts once.
      ONLY tour visits (Ex Station / Out-Station) — Local visits are excluded. */
@@ -127,6 +130,11 @@ export default function TourReport() {
         <select value={fState} onChange={(e) => setFState(e.target.value)} style={sel}><option value="">All States</option>{states.map((s) => <option key={s}>{s}</option>)}</select>
         <select value={fHod} onChange={(e) => setFHod(e.target.value)} style={sel}><option value="">All HOD</option>{hods.map((h) => <option key={h}>{h}</option>)}</select>
         <select value={fUser} onChange={(e) => setFUser(e.target.value)} style={sel}><option value="">All Users</option>{userNames.map((u) => <option key={u}>{u}</option>)}</select>
+        {/* the financial year runs April to March, so the months are listed that way */}
+        <select value={fMonth} onChange={(e) => setFMonth(e.target.value)} style={sel}>
+          <option value="">All Months</option>
+          {["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"].map((m) => <option key={m}>{m}</option>)}
+        </select>
         {shown && allAreas.length > 0 && <select value={fArea} onChange={(e) => setFArea(e.target.value)} style={sel}><option value="">All Areas</option>{allAreas.map((a) => <option key={a}>{a}</option>)}</select>}
         <button className="btn btn-primary" style={{ padding: "8px 20px", fontWeight: 700 }} onClick={runShow}>Show</button>
         {shown && <button className="btn" onClick={exportExcel}>Export</button>}

@@ -784,6 +784,19 @@ async function cancelLogoutReminders() {
    already fetched its own data sat there unchanged — only the screens that
    happened to listen for the event came back fresh. Every list uses this, so
    one press reloads the page you are looking at as well as the rest. */
+/* How many times Refresh has been pressed. The whole screen is rebuilt on each
+   press, which is the only way to be sure every screen reloads — several of them
+   fetch their data in their own way and could not all be asked one by one. */
+function useRefreshTick() {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const h = () => setTick((n) => n + 1);
+    window.addEventListener("eb-app-resumed", h);
+    return () => window.removeEventListener("eb-app-resumed", h);
+  }, []);
+  return tick;
+}
+
 function useAppRefresh(fn) {
   const ref = useRef(fn);
   ref.current = fn;
@@ -4245,7 +4258,10 @@ function FieldProfile({ onLogout }) {
         {row(<User size={15} />, "Reporting Manager", u.manager || "—")}
         {row(<CalendarDays size={15} />, "Weekly Off", u.weekly_off || u.weeklyOff || "—")}
         {row(<Smartphone size={15} />, "Device", `CRM Eurobond v${__APP_VERSION__} · Android`)}
-        <button className="f-submit" style={{ width: "100%", background: "#d64545", marginTop: 8 }} onClick={onLogout}>
+        {/* Signing out took one tap, which is easy to do by mistake and means
+            typing a number and waiting for a code to get back in. */}
+        <button className="f-submit" style={{ width: "100%", background: "#d64545", marginTop: 8 }}
+          onClick={() => { if (window.confirm("Log out of Eurobond CRM?\n\nYou will need your mobile number and an OTP to sign in again.")) onLogout(); }}>
           <LogOut size={15} style={{ verticalAlign: -2, marginRight: 6 }} /> Logout
         </button>
       </div>
@@ -7101,6 +7117,7 @@ function useIdleReset(nav) {
 
 export default function FieldApp() {
   const nav = useNavigate();
+  const refreshTick = useRefreshTick();   // Refresh rebuilds whatever screen is open
   useIdleReset(nav);                  // 15 minutes idle -> Home, with fresh data
   useNotifTapHandler();               // phone notification tap -> open screen + mark read
   const [authed, setAuthed] = useState(auth.isLoggedIn);
@@ -7686,6 +7703,7 @@ export default function FieldApp() {
 
         <div className="phone-body">
           <ErrorBoundary routeKey={location.pathname}>
+          <div key={refreshTick} style={{ display: "contents" }}>
           <Routes>
             <Route index element={<FieldHome attendanceOn={attendanceOn} doneToday={doneToday} setAttendanceOn={setAttendanceOn} tracking={tracking} expenses={expenses} followups={followups} leaves={leaves} onStartAttendance={async () => {
               try {
@@ -7766,6 +7784,7 @@ export default function FieldApp() {
             <Route path="profile" element={<FieldProfile onLogout={() => { api.logout(); setAuthed(false); setAttendanceOn(false); nav("/"); }} />} />
             <Route path="*" element={<Navigate to="/app" replace />} />
           </Routes>
+          </div>
           </ErrorBoundary>
         </div>
 
