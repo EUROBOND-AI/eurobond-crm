@@ -778,6 +778,22 @@ async function cancelLogoutReminders() {
 /* ------------------------------------------------ SHARED HEAD ------------------------------------------------ */
 /* Reloads the screen's data. Spins while it works, so a slow network still
    looks like something is happening. */
+/* Reload whatever this screen shows when Refresh is pressed.
+
+   The button used to clear the stored lists and spin, but a screen that had
+   already fetched its own data sat there unchanged — only the screens that
+   happened to listen for the event came back fresh. Every list uses this, so
+   one press reloads the page you are looking at as well as the rest. */
+function useAppRefresh(fn) {
+  const ref = useRef(fn);
+  ref.current = fn;
+  useEffect(() => {
+    const h = () => { try { ref.current && ref.current(); } catch {} };
+    window.addEventListener("eb-app-resumed", h);
+    return () => window.removeEventListener("eb-app-resumed", h);
+  }, []);
+}
+
 function RefreshBtn() {
   const [busy, setBusy] = useState(false);
   const go = async () => {
@@ -3736,6 +3752,10 @@ function FieldTeamCustomers() {
   const [when, setWhen] = useState("all");
   const [viewOne, setViewOne] = useState(null);
   const [copying, setCopying] = useState("");
+  /* a note from the HOD to the person who owns this customer */
+  const [msgTo, setMsgTo] = useState(null);
+  const [msgText, setMsgText] = useState("");
+  const [msgBusy, setMsgBusy] = useState(false);
   const isHodFull = /^hod /i.test(CU().role || "");
 
   const dayKey = (v) => {
@@ -3770,7 +3790,7 @@ function FieldTeamCustomers() {
     setCopying("");
   };
 
-  useEffect(() => {
+  const loadTeam = () => {
     (async () => {
       try {
         const me = CU().name;
@@ -3787,12 +3807,19 @@ function FieldTeamCustomers() {
         const list = custs.customers || [];
         const grouped = teamNames.map((n) => ({
           name: n,
-          customers: list.filter((c) => (c.by || c.createdBy || "") === n),
+          /* a customer stays under the person who entered them even after a
+             colleague takes a copy — everyone with an entry is matched */
+          customers: list.filter((c) => {
+            const all = Array.isArray(c.byAll) && c.byAll.length ? c.byAll : [c.by || c.createdBy || ""];
+            return all.includes(n);
+          }),
         })).sort((a, b) => b.customers.length - a.customers.length);
         setData(grouped);
       } catch { setData([]); }
     })();
-  }, []);
+  };
+  useEffect(() => { loadTeam(); /* eslint-disable-next-line */ }, []);
+  useAppRefresh(() => { setData(null); loadTeam(); });
 
   if (openMember) {
     return (
@@ -3846,6 +3873,43 @@ function FieldTeamCustomers() {
           })()}
         </div>
 
+        {msgTo && (
+          <div onClick={() => setMsgTo(null)} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.45)", zIndex: 9100, display: "grid", placeItems: "center", padding: 20 }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 18, width: "100%", maxWidth: 380, boxShadow: "0 24px 60px rgba(0,0,0,.3)" }}>
+              <div style={{ padding: "16px 18px", borderBottom: "1px solid #eef1f8" }}>
+                <h3 style={{ margin: 0, fontSize: 16, color: "var(--navy)" }}>Message {msgTo.member}</h3>
+                <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>About {msgTo.customer}</div>
+              </div>
+              <div style={{ padding: "14px 18px" }}>
+                <textarea value={msgText} onChange={(e) => setMsgText(e.target.value)} rows={4}
+                  placeholder="e.g. Please meet them this week and share the rates."
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid #d7dcef", fontSize: 13, boxSizing: "border-box", resize: "vertical" }} />
+              </div>
+              <div style={{ padding: "0 18px 18px", display: "flex", gap: 8 }}>
+                <button className="f-submit" style={{ flex: 1 }} disabled={msgBusy || !msgText.trim()}
+                  onClick={async () => {
+                    setMsgBusy(true);
+                    try {
+                      await api.create("notification", {
+                        title: `Message from ${CU().name}`,
+                        message: msgText.trim(),
+                        note: msgText.trim(),
+                        about: msgTo.customer,
+                        to: msgTo.member,
+                        link: "/app/notifications",
+                        at: new Date().toISOString(),
+                      });
+                      setMsgTo(null); setMsgText("");
+                      alert("Sent.");
+                    } catch (e) { alert(e.message); }
+                    setMsgBusy(false);
+                  }}>{msgBusy ? "Sending…" : "Send"}</button>
+                <button onClick={() => setMsgTo(null)} style={{ flex: 1, padding: "11px 0", borderRadius: 10, border: "1.5px solid #d7dcef", background: "#fff", fontWeight: 700, fontSize: 13 }}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {viewOne && (
           <div onClick={() => setViewOne(null)} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.45)", zIndex: 9000, display: "grid", placeItems: "center", padding: 20 }}>
             <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 18, width: "100%", maxWidth: 380, maxHeight: "80vh", overflowY: "auto", boxShadow: "0 24px 60px rgba(0,0,0,.3)" }}>
@@ -3873,7 +3937,10 @@ function FieldTeamCustomers() {
                 ))}
               </div>
               <div style={{ padding: "0 18px 18px", display: "flex", gap: 8 }}>
-                <button className="f-submit" style={{ flex: 1 }} onClick={() => { const c = viewOne; setViewOne(null); addToMine(c); }}>➕ Add to Customers</button>
+                {/* Taking a copy is already offered on the row itself, so this is
+                    the place for the other thing an HOD wants here: a word to the
+                    person who owns the customer. */}
+                <button className="f-submit" style={{ flex: 1 }} onClick={() => { setMsgTo({ member: openMember.name, customer: viewOne.name }); setViewOne(null); }}>✉ Message</button>
                 <button onClick={() => setViewOne(null)} style={{ flex: 1, padding: "11px 0", borderRadius: 10, border: "1.5px solid #d7dcef", background: "#fff", fontWeight: 700, fontSize: 13 }}>Close</button>
               </div>
             </div>
@@ -4500,7 +4567,8 @@ function FieldModule({ mod }) {
   const cfg = APP_MODS[mod];
   const nav = useNavigate();
   const [rows, setRows] = useState(null);
-  useEffect(() => {
+  /* the whole load, kept in one place so Refresh can run it again */
+  const loadModule = () => {
     setRows(null);
     if (cfg.salesView) {
       api.list(mod, false).then((d) => {
@@ -4528,7 +4596,9 @@ function FieldModule({ mod }) {
     } else {
       api.list(mod, true).then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data })))).catch(() => setRows([]));
     }
-  }, [mod]);
+  };
+  useEffect(() => { loadModule(); /* eslint-disable-next-line */ }, [mod]);
+  useAppRefresh(loadModule);
 
   if (!cfg) return <><ScreenHead title="Not found" /></>;
   const primary = cfg.columns.find((c) => !["id", "createdAt", "createdBy", "status"].includes(c.key))?.key || "id";
@@ -4724,8 +4794,7 @@ function FieldNotifications() {
     try { return new Set(JSON.parse(localStorage.getItem("eb_notif_dismissed") || "[]")); } catch { return new Set(); }
   });
 
-  useEffect(() => {
-    api.myNotifications().then((d) => {
+  const loadNotifs = () => api.myNotifications().then((d) => {
       const me = CU();
       const mine = (d.records || [])
         .map((r) => ({ _id: String(r.id), ...r.data }))
@@ -4734,7 +4803,8 @@ function FieldNotifications() {
       setRows(mine);
       if (mine.length) markRead(mine.map((n) => n._id));
     }).catch(() => setRows([]));
-  }, []);
+  useEffect(() => { loadNotifs(); /* eslint-disable-next-line */ }, []);
+  useAppRefresh(() => { setRows(null); loadNotifs(); });
 
   const [detail, setDetail] = useState(null);
 
@@ -5949,16 +6019,20 @@ function FieldNearbyProjects() {
   const [q, setQ] = useState("");
   const rangeM = Number(CU().nearby_range_m || CU().nearbyRange || 500);
 
+  const loadProjects = () => api.list("projectProjection", false)
+    .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, _by: r.created_by_name, ...r.data }))))
+    .catch(() => setRows([]));
+
   useEffect(() => {
     navigator.geolocation?.getCurrentPosition(
       (pos) => setMyLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
       () => setMyLoc("denied"),
       { enableHighAccuracy: true, timeout: 15000 }
     );
-    api.list("projectProjection", false)
-      .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, _by: r.created_by_name, ...r.data }))))
-      .catch(() => setRows([]));
+    loadProjects();
+    // eslint-disable-next-line
   }, []);
+  useAppRefresh(() => { setRows(null); loadProjects(); });
 
   const list = useMemo(() => {
     if (!rows) return null;
@@ -6060,13 +6134,14 @@ function FieldCustomers({ nearbyOnly = false }) {
     );
   }, [nearbyOnly]);
 
+  const loadCustomers = () => api.customers(q.trim(), true)
+    .then((d) => setRows(d.customers || [])).catch(() => setRows([]));
   useEffect(() => {
-    const t = setTimeout(() => {
-      /* each field user sees only the customers THEY added */
-      api.customers(q.trim(), true).then((d) => setRows(d.customers || [])).catch(() => setRows([]));
-    }, q ? 300 : 0);
+    const t = setTimeout(loadCustomers, q ? 300 : 0);
     return () => clearTimeout(t);
+    // eslint-disable-next-line
   }, [q]);
+  useAppRefresh(() => { setRows(null); loadCustomers(); });
 
   const list = useMemo(() => {
     if (!rows) return null;
