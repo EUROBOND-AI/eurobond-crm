@@ -152,6 +152,13 @@ function downloadSessionPdf(s, visits, points) {
   w.document.close();
   setTimeout(() => w.print(), 400);
 }
+/* positions in the order they were taken, whatever order they reached us in */
+const ebByTime = (pts) => {
+  const tAt = (p) => (p && p.recorded_at ? Date.parse(String(p.recorded_at).replace(" ", "T"))
+                     : (p && p.t ? Number(p.t) : 0));
+  return (pts || []).slice().sort((a, b) => tAt(a) - tAt(b));
+};
+
 export default function AttendancePage() {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [dateTo, setDateTo] = useState(new Date().toISOString().slice(0, 10));
@@ -227,6 +234,7 @@ export default function AttendancePage() {
         if (stop) return;
         try {
           const d = await api.attPointsList(s.id);
+          if (d && d.points) d.points = ebByTime(d.points);
           const pts = d.points || d.route || [];
           if (pts.length > 1) {
             const filtered = kmFromPoints(pts);
@@ -284,7 +292,7 @@ export default function AttendancePage() {
       for (let b = 0; b < sessions.length; b += 8) {
         const part = await Promise.all(sessions.slice(b, b + 8).map(async (ss) => {
           let pts = [];
-          try { const d = await api.attPointsList(ss.id); pts = d.points || []; } catch {}
+          try { const d = await api.attPointsList(ss.id); pts = ebByTime(d.points || []); } catch {}
           const stops = [];
           let lastT = 0;
           pts.forEach((p, i) => {
@@ -512,6 +520,14 @@ export default function AttendancePage() {
        a few at a time) so PDF/Excel and future opens have addresses ready */
     try { api.attGeocode(viewSess.id).catch(() => {}); } catch {}
     api.attTrack(viewSess.id).then((d) => {
+      /* Put the day back in the order it happened. Positions held on a phone
+         with no signal reach the server later than the ones taken after them,
+         and read in arrival order the route doubles back on itself and the
+         distance is counted more than once. */
+      if (d && Array.isArray(d.points)) {
+        const tAt = (p) => (p && p.recorded_at ? Date.parse(String(p.recorded_at).replace(" ", "T")) : 0);
+        d.points = d.points.slice().sort((a, b) => tAt(a) - tAt(b));
+      }
       /* show ALL uploaded points — don't drop weak-accuracy ones (phones often report
          ±60-100m indoors, and dropping them made the admin timeline look empty) */
       /* Draw from the same points the kilometres are measured from. A stray fix

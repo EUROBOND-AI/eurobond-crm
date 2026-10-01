@@ -3129,7 +3129,7 @@ function FieldProjectNew() {
     approvalStatus: "In Process", expectedMonth: "", specPerson: "", helpNeeded: "", photo: "",
     category: "", categoryFirm: "", salesPerson: "",
   });
-  const [contacts, setContacts] = useState(ed?.contacts?.length ? ed.contacts : [{ category: "", firmName: "", people: [{ person: "", number: "", email: "" }] }]);
+  const [contacts, setContacts] = useState(ed?.contacts?.length ? ed.contacts : [{ category: "", firmName: "", people: [{ person: "", designation: "", number: "", email: "" }] }]);
   const setContact = (ci, k, v) => setContacts((cs) => cs.map((c, j) => j === ci ? { ...c, [k]: v } : c));
   const setPerson = (ci, pi, k, v) => setContacts((cs) => cs.map((c, j) => j === ci ? { ...c, people: c.people.map((p, m) => m === pi ? { ...p, [k]: v } : p) } : c));
   const CONTACT_CATS = ["Architect", "Builder", "Fabricator", "Contractor", "Facade Consultant", "End User"];
@@ -3206,6 +3206,24 @@ function FieldProjectNew() {
     } catch (e) { alert(e.message); setBusy(false); savingRef.current = false; }
   };
 
+  /* the project's position, taken once when the form opens and again whenever
+     the button below is pressed */
+  const [projLocBusy, setProjLocBusy] = useState(false);
+  const captureProjectAddress = () => {
+    if (!navigator.geolocation) { alert("Location is not available on this device."); return; }
+    setProjLocBusy(true);
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const la = pos.coords.latitude, ln = pos.coords.longitude;
+      setF((x) => ({ ...x, lat: la, lng: ln }));
+      try {
+        const addr = await placeName(la, ln);
+        if (addr) setF((x) => ({ ...x, address: addr, city: x.city || addr }));
+      } catch {}
+      setProjLocBusy(false);
+    }, () => setProjLocBusy(false), { enableHighAccuracy: true, timeout: 15000 });
+  };
+  useEffect(() => { if (!ed && !f.address) captureProjectAddress(); /* eslint-disable-next-line */ }, []);
+
   return (
     <>
       <ScreenHead title={ed ? "Edit Project Projection" : "Add Project Projection"} />
@@ -3266,8 +3284,22 @@ function FieldProjectNew() {
           <option value="">Select…</option>{PROJ_TYPES.map((t) => <option key={t}>{t}</option>)}
         </select>
 
-        <label>City Name</label>
-        <input value={f.city} onChange={(e) => set("city", e.target.value)} style={inp} />
+        {/* Where the project is. It was a city typed by hand, which is no use for
+            finding what is near you — a position is taken as well, so the
+            project turns up under Near By Projects for whoever is standing
+            there. The line can still be corrected by hand. */}
+        <label>Address (auto — current location)</label>
+        <div style={{ ...inp, background: "#f1f4fb", border: "1.5px solid #d7dcef", borderRadius: 10,
+          padding: "10px 12px", fontSize: 13, color: projLocBusy ? "var(--muted)" : "#33406b", minHeight: 42 }}>
+          {projLocBusy ? "📍 Getting your location…" : (f.address ? `📍 ${f.address}` : "⚠️ Location unavailable — turn on GPS")}
+        </div>
+        <input value={f.address || ""} onChange={(e) => set("address", e.target.value)}
+          placeholder="Type or correct the address" style={{ ...inp, marginBottom: 8 }} />
+        <button type="button" onClick={captureProjectAddress} disabled={projLocBusy}
+          style={{ width: "100%", marginBottom: 12, padding: "9px 0", borderRadius: 10, border: "1.5px solid var(--navy)",
+            background: "#fff", color: "var(--navy)", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
+          {projLocBusy ? "Updating…" : "📍 Update address to my current location"}
+        </button>
 
         {/* contact details — multiple category blocks; each has firm + multiple person/number/email */}
         <div style={{ fontWeight: 800, fontSize: 13, margin: "10px 0 8px", color: "var(--navy)" }}>Contact Details</div>
@@ -3289,17 +3321,19 @@ function FieldProjectNew() {
                   {c.people.length > 1 && <div style={{ textAlign: "right" }}><button onClick={() => setContacts((cs) => cs.map((cc, j) => j === ci ? { ...cc, people: cc.people.filter((_, k) => k !== pi) } : cc))} style={{ background: "none", border: "none", color: "#c03636", fontWeight: 700, fontSize: 11, cursor: "pointer" }}>✕ remove person</button></div>}
                   <label>Contact Person</label>
                   <input value={p.person} onChange={(e) => setPerson(ci, pi, "person", e.target.value)} style={{ width: "100%", marginBottom: 6 }} />
+                  <label>Designation</label>
+                  <input value={p.designation || ""} onChange={(e) => setPerson(ci, pi, "designation", e.target.value)} placeholder="e.g. Project Manager" style={{ width: "100%", marginBottom: 6 }} />
                   <label>Contact Number</label>
                   <input inputMode="numeric" value={p.number} onChange={(e) => setPerson(ci, pi, "number", e.target.value)} style={{ width: "100%", marginBottom: 6 }} />
                   <label>Email ID</label>
                   <input value={p.email} onChange={(e) => setPerson(ci, pi, "email", e.target.value)} style={{ width: "100%" }} />
                 </div>
               ))}
-              <button onClick={() => setContacts((cs) => cs.map((cc, j) => j === ci ? { ...cc, people: [...cc.people, { person: "", number: "", email: "" }] } : cc))} style={{ background: "#eef1ff", color: "var(--navy)", border: "none", borderRadius: 8, padding: "6px 12px", fontWeight: 700, fontSize: 11.5, cursor: "pointer" }}>+ Add Person</button>
+              <button onClick={() => setContacts((cs) => cs.map((cc, j) => j === ci ? { ...cc, people: [...cc.people, { person: "", designation: "", number: "", email: "" }] } : cc))} style={{ background: "#eef1ff", color: "var(--navy)", border: "none", borderRadius: 8, padding: "6px 12px", fontWeight: 700, fontSize: 11.5, cursor: "pointer" }}>+ Add Person</button>
             </>)}
           </div>
         ))}
-        <button onClick={() => setContacts((cs) => [...cs, { category: "", firmName: "", people: [{ person: "", number: "", email: "" }] }])} style={{ background: "var(--navy)", color: "#fff", border: "none", borderRadius: 9, padding: "8px 14px", fontWeight: 700, fontSize: 12.5, cursor: "pointer", marginBottom: 14 }}>+ Add Contact (another category)</button>
+        <button onClick={() => setContacts((cs) => [...cs, { category: "", firmName: "", people: [{ person: "", designation: "", number: "", email: "" }] }])} style={{ background: "var(--navy)", color: "#fff", border: "none", borderRadius: 9, padding: "8px 14px", fontWeight: 700, fontSize: 12.5, cursor: "pointer", marginBottom: 14 }}>+ Add Contact (another category)</button>
 
         <label>Approval Status</label>
         <select value={f.approvalStatus} onChange={(e) => set("approvalStatus", e.target.value)} style={inp}>
@@ -3693,9 +3727,48 @@ function FieldTeamTracking() {
 
 /* ---- HOD: Team Customers Tracking (which customers each team member added) ---- */
 function FieldTeamCustomers() {
+  const nav = useNavigate();
   const [data, setData] = useState(null);      // [{name, customers:[...]}]
   const [openMember, setOpenMember] = useState(null);
+  /* the whole history, not only what was added today — "All" is where this
+     opens, because an HOD looking at a person's customers wants the list, not
+     this morning's slice of it */
+  const [when, setWhen] = useState("all");
+  const [viewOne, setViewOne] = useState(null);
+  const [copying, setCopying] = useState("");
   const isHodFull = /^hod /i.test(CU().role || "");
+
+  const dayKey = (v) => {
+    const t = String(v || "").trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(t)) return t.slice(0, 10);
+    const d = new Date(t);
+    if (isNaN(d.getTime())) return "";
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  const todayKey = dayKey(new Date());
+
+  /* Take a team member's customer into your own list. The same details are
+     saved as a follow-up entry under your name, which is how every customer of
+     yours is held, so it shows up in Customers straight away. */
+  const addToMine = async (c) => {
+    if (!window.confirm(`Add ${c.name} to your own customers?`)) return;
+    setCopying(c.name);
+    try {
+      await api.create("followup", {
+        customer: c.name, partyName: c.name, category: c.category || "",
+        mobile: c.mobile || "", contactName: c.contactName || "",
+        email: c.email || "", address: c.address || "", place: c.place || "",
+        state: c.state || "", lat: c.lat ?? null, lng: c.lng ?? null,
+        projects: c.projects || [], projectName: c.projectName || "",
+        contacts: c.contacts || [], type: "Visit", status: "",
+        notes: `Taken over from ${c.by || c.createdBy || "a colleague"}`,
+        date: todayKey, createdBy: CU().name,
+        createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+      });
+      alert(`${c.name} is now in your customers.`);
+    } catch (e) { alert(e.message); }
+    setCopying("");
+  };
 
   useEffect(() => {
     (async () => {
@@ -3729,10 +3802,25 @@ function FieldTeamCustomers() {
           <h2>{openMember.name}</h2>
         </div>
         <div className="f-list-pad">
-          <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 10 }}>{openMember.customers.length} customer{openMember.customers.length !== 1 ? "s" : ""} added</div>
-          {openMember.customers.length === 0 ? (
-            <div style={{ textAlign: "center", color: "var(--muted)", padding: 30 }}>No customers added yet.</div>
-          ) : openMember.customers.map((c, i) => (
+          <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+            {[["all", "All"], ["today", "Today"]].map(([k, lbl]) => (
+              <button key={k} onClick={() => setWhen(k)}
+                style={{ flex: 1, padding: "7px 0", borderRadius: 9, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
+                  border: "1px solid " + (when === k ? "var(--navy)" : "#d7dcef"),
+                  background: when === k ? "var(--navy)" : "#fff", color: when === k ? "#fff" : "var(--muted)" }}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+          {(() => {
+            const shown = when === "today"
+              ? openMember.customers.filter((c) => dayKey(c.last_followup || c.createdAt || c.date) === todayKey)
+              : openMember.customers;
+            return (<>
+          <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 10 }}>{shown.length} customer{shown.length !== 1 ? "s" : ""} {when === "today" ? "today" : "added"}</div>
+          {shown.length === 0 ? (
+            <div style={{ textAlign: "center", color: "var(--muted)", padding: 30 }}>No customers {when === "today" ? "today" : "added yet"}.</div>
+          ) : shown.map((c, i) => (
             <div key={i} style={{ background: "#fff", borderRadius: 11, padding: "11px 13px", marginBottom: 8, boxShadow: "var(--shadow)" }}>
               <div style={{ fontWeight: 700, fontSize: 13.5 }}>{c.name}</div>
               <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3, display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -3742,9 +3830,55 @@ function FieldTeamCustomers() {
               </div>
               {(c.projectName || (c.projects && c.projects.length)) && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 3 }}>Projects: {c.projectName || (c.projects || []).join(", ")}</div>}
               <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3 }}>{c.followups || 0} follow-up{(c.followups || 0) !== 1 ? "s" : ""}</div>
+              <div style={{ display: "flex", gap: 5, marginTop: 8, flexWrap: "wrap" }}>
+                {c.mobile && <button onClick={() => (window.location.href = `tel:${c.mobile}`)}
+                  style={{ ...actBtn("#1f9d55"), padding: "6px 10px", fontSize: 11 }}>📞 Call</button>}
+                <button onClick={() => setViewOne(c)}
+                  style={{ ...actBtn("#3949ab"), background: "#eef1ff", color: "#3949ab", padding: "6px 10px", fontSize: 11 }}>👁 View</button>
+                <button disabled={copying === c.name} onClick={() => addToMine(c)}
+                  style={{ ...actBtn("#0b3c8c"), background: "#e8f0ff", color: "#0b3c8c", padding: "6px 10px", fontSize: 11 }}>
+                  {copying === c.name ? "Adding…" : "➕ Add to Customers"}
+                </button>
+              </div>
             </div>
           ))}
+            </>);
+          })()}
         </div>
+
+        {viewOne && (
+          <div onClick={() => setViewOne(null)} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.45)", zIndex: 9000, display: "grid", placeItems: "center", padding: 20 }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 18, width: "100%", maxWidth: 380, maxHeight: "80vh", overflowY: "auto", boxShadow: "0 24px 60px rgba(0,0,0,.3)" }}>
+              <div style={{ padding: "16px 18px", borderBottom: "1px solid #eef1f8", display: "flex", justifyContent: "space-between", gap: 10 }}>
+                <h3 style={{ margin: 0, fontSize: 16, color: "var(--navy)" }}>{viewOne.name}</h3>
+                <button onClick={() => setViewOne(null)} style={{ background: "none", border: "none", fontSize: 20, lineHeight: 1, cursor: "pointer", color: "#94a3b8" }}>×</button>
+              </div>
+              <div style={{ padding: "14px 18px" }}>
+                {[
+                  ["Category", viewOne.category],
+                  ["Contact", viewOne.contactName],
+                  ["Mobile", viewOne.mobile],
+                  ["Email", viewOne.email],
+                  ["Place", viewOne.place],
+                  ["Address", viewOne.address],
+                  ["Projects", viewOne.projectName || (viewOne.projects || []).join(", ")],
+                  ["Added by", viewOne.by || viewOne.createdBy],
+                  ["Follow-ups", String(viewOne.followups || 0)],
+                  ["Next meeting", [viewOne.nextMeetingDate, viewOne.nextMeetingTime].filter(Boolean).join(" · ")],
+                ].filter(([, v]) => v).map(([k, v]) => (
+                  <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12.5, padding: "4px 0", borderBottom: "1px solid #f4f6fc" }}>
+                    <span style={{ color: "var(--muted)" }}>{k}</span>
+                    <b style={{ color: "#334155", textAlign: "right" }}>{v}</b>
+                  </div>
+                ))}
+              </div>
+              <div style={{ padding: "0 18px 18px", display: "flex", gap: 8 }}>
+                <button className="f-submit" style={{ flex: 1 }} onClick={() => { const c = viewOne; setViewOne(null); addToMine(c); }}>➕ Add to Customers</button>
+                <button onClick={() => setViewOne(null)} style={{ flex: 1, padding: "11px 0", borderRadius: 10, border: "1.5px solid #d7dcef", background: "#fff", fontWeight: 700, fontSize: 13 }}>Close</button>
+              </div>
+            </div>
+          </div>
+        )}
       </>
     );
   }
@@ -4077,6 +4211,7 @@ function MenuDrawer({ open, close }) {
       ["Home", <Home size={16} />, "/app", null],
       ["Customers", <Users size={16} />, "/app/customers", "customers"],
       ["Near By Customers", <MapPin size={16} />, "/app/nearby", "nearby"],
+      ["Near By Projects", <Building2 size={16} />, "/app/nearby-projects", "nearby"],
     ] },
     { h: "WORK", items: [
       ["Enquiry", <FileText size={16} />, "/app/m/enquiry", "enquiry"],
@@ -4615,7 +4750,9 @@ function FieldNotifications() {
     else if (link.includes("followup")) link = "/app/followup";
     else if (link.includes("leave")) link = "/app/leave";
     else if (link.includes("customer")) link = "/app/customers";
-    else if (link.includes("quotation")) link = "/app";
+    /* a quotation notice carries the quotation with it, so it opens as a card
+       here rather than dropping the person on the home screen with nothing */
+    else if (link.includes("quotation")) { if (n.quotation) { setDetail(n); return; } link = "/app/m/quotation"; }
     else if (link.startsWith("/admin") || !link.startsWith("/app")) link = "";
     /* Holiday / Announcement have no screen of their own — show the full text
        in a popup so nothing gets cut off. */
@@ -4716,6 +4853,28 @@ function FieldNotifications() {
             </div>
             <div style={{ padding: "16px 18px" }}>
               <p style={{ margin: 0, fontSize: 14, lineHeight: 1.65, color: "#334155", whiteSpace: "pre-wrap" }}>{detail.message || detail.body || "—"}</p>
+              {/* a quotation notice carries its figures, so they are laid out
+                  here instead of leaving the reader with only a number */}
+              {detail.quotation && (
+                <div style={{ marginTop: 12, background: "#f6f8fd", border: "1px solid #e3e8f5", borderRadius: 12, padding: "12px 14px" }}>
+                  {[
+                    ["Quotation No", detail.quotation.quoteNo],
+                    ["Customer", detail.quotation.party],
+                    ["Project", detail.quotation.project],
+                    ["Contact", detail.quotation.contact],
+                    ["Grade", detail.quotation.grade],
+                    ["Colour", detail.quotation.colour],
+                    ["Rate / Sq.Ft", detail.quotation.rate ? `₹ ${detail.quotation.rate}` : ""],
+                    ["Quantity", detail.quotation.qty],
+                    ["Created by", detail.quotation.by],
+                  ].filter(([, v]) => v).map(([k, v]) => (
+                    <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 12.5, padding: "3px 0" }}>
+                      <span style={{ color: "var(--muted)" }}>{k}</span>
+                      <b style={{ color: "#334155", textAlign: "right" }}>{v}</b>
+                    </div>
+                  ))}
+                </div>
+              )}
               {detail.date ? <div style={{ marginTop: 12, fontSize: 12.5, color: "var(--muted)" }}><b>Date:</b> {detail.date}</div> : null}
               {detail.at ? <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--muted)" }}>{new Date(detail.at).toLocaleString("en-GB")}</div> : null}
             </div>
@@ -5718,7 +5877,18 @@ function FieldQuotationNew({ prefill }) {
                   items, grade: items[0]?.grade, colour: items[0]?.colour, rate: items[0]?.rate,
                   tc, quoteNo: newNo, baseNo: base, editCount,
                 });
-                try { await api.create("notification", { title: "Quotation Updated", message: `${CU().name} updated quotation ${newNo}`, forRole: "Admin", link: "/admin/sfa/quotation", at: new Date().toISOString() }); } catch {}
+                const updMsg = `${CU().name} updated quotation ${newNo}`;
+                const updNote = {
+                  quoteNo: newNo, party: f.partyName, project: f.projectName || "",
+                  contact: [f.contactName, f.contactNumber].filter(Boolean).join(" · "),
+                  grade: items[0]?.grade || "", colour: items[0]?.colour || "",
+                  rate: items[0]?.rate || "", qty: items[0]?.qty || "", by: CU().name,
+                };
+                try { await api.create("notification", { title: "Quotation Updated", message: updMsg, forRole: "Admin", link: "/admin/sfa/quotation", quotation: updNote, at: new Date().toISOString() }); } catch {}
+                const hodUpd = CU().manager || CU().hod || "";
+                if (hodUpd) {
+                  try { await api.create("notification", { title: "Quotation Updated", message: updMsg, to: hodUpd, link: "/app/m/quotation", quotation: updNote, at: new Date().toISOString() }); } catch {}
+                }
               } else {
                 const quoteNo = await nextQuoteNo();
                 await api.create("quotation", {
@@ -5731,7 +5901,23 @@ function FieldQuotationNew({ prefill }) {
                   createdByEmail: CU().email || "",
                   createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
                 });
-                try { await api.create("notification", { title: "New Quotation", message: `${CU().name} created quotation ${quoteNo} for ${f.partyName}`, forRole: "Admin", link: "/admin/sfa/quotation", at: new Date().toISOString() }); } catch {}
+                /* Admin sees it as before, and so does the person's own HOD —
+                   they were being left out, so a quotation from their team went
+                   past them. The figures travel with the message, so opening the
+                   notification shows the quotation rather than just its number. */
+                const quoteNote = {
+                  quoteNo, party: f.partyName, project: f.projectName || "",
+                  contact: [f.contactName, f.contactNumber].filter(Boolean).join(" · "),
+                  grade: items[0]?.grade || "", colour: items[0]?.colour || "",
+                  rate: items[0]?.rate || "", qty: items[0]?.qty || "",
+                  by: CU().name,
+                };
+                const quoteMsg = `${CU().name} created quotation ${quoteNo} for ${f.partyName}`;
+                try { await api.create("notification", { title: "New Quotation", message: quoteMsg, forRole: "Admin", link: "/admin/sfa/quotation", quotation: quoteNote, at: new Date().toISOString() }); } catch {}
+                const myHod = CU().manager || CU().hod || "";
+                if (myHod) {
+                  try { await api.create("notification", { title: "New Quotation", message: quoteMsg, to: myHod, link: "/app/m/quotation", quotation: quoteNote, at: new Date().toISOString() }); } catch {}
+                }
                 /* mail notification to sales1@eurobondacp.com */
                 try { await api.sendMail({ to: "sales1@eurobondacp.com", from: "sales1@eurobondacp.com", subject: `New Quotation ${quoteNo} created`, body: `${CU().name} created quotation ${quoteNo} for ${f.partyName}.\n\nProject: ${f.projectName || "-"}\nContact: ${f.contactName || "-"} ${f.contactNumber || ""}\n\nPlease review in the CRM admin panel.` }); } catch {}
               }
@@ -5750,6 +5936,109 @@ function FieldQuotationNew({ prefill }) {
    Search + filter; Near-by mode: user ki set chesina range (admin -> Users)
    lopala unna customers matrame.
 ============================================================================ */
+/* Projects within walking distance.
+
+   The same idea as Near By Customers, but over Project Projection entries: a
+   person standing on a site can see which projects their team has already
+   recorded around them instead of searching by name. The range is the one the
+   admin set for that person. */
+function FieldNearbyProjects() {
+  const nav = useNavigate();
+  const [rows, setRows] = useState(null);
+  const [myLoc, setMyLoc] = useState(null);
+  const [q, setQ] = useState("");
+  const rangeM = Number(CU().nearby_range_m || CU().nearbyRange || 500);
+
+  useEffect(() => {
+    navigator.geolocation?.getCurrentPosition(
+      (pos) => setMyLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => setMyLoc("denied"),
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
+    api.list("projectProjection", false)
+      .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, _by: r.created_by_name, ...r.data }))))
+      .catch(() => setRows([]));
+  }, []);
+
+  const list = useMemo(() => {
+    if (!rows) return null;
+    const term = q.trim().toLowerCase();
+    let base = rows.filter((r) => r.lat && r.lng);
+    if (term) base = base.filter((r) => `${r.projectName} ${r.address || ""} ${r.city || ""}`.toLowerCase().includes(term));
+    if (!myLoc || myLoc === "denied") return base;
+    return base
+      .map((r) => ({ ...r, dist: haversineKm(myLoc, { lat: Number(r.lat), lng: Number(r.lng) }) }))
+      .filter((r) => r.dist * 1000 <= rangeM)
+      .sort((a, b) => a.dist - b.dist);
+  }, [rows, myLoc, rangeM, q]);
+
+  const firstContact = (r) => {
+    const c = (r.contacts || [])[0] || {};
+    const p = (c.people || [])[0] || {};
+    return { firm: c.firmName || "", person: p.person || "", designation: p.designation || "", number: p.number || "" };
+  };
+
+  return (
+    <>
+      <ScreenHead title="Near By Projects" />
+      <div className="f-list-pad">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search project or address…"
+          style={{ width: "100%", padding: "9px 11px", borderRadius: 10, border: "1px solid #d7dcef", fontSize: 13, marginBottom: 10 }} />
+        <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 8 }}>
+          Projects within {rangeM >= 1000 ? `${(rangeM / 1000).toFixed(1)} km` : `${rangeM} m`} of you
+        </div>
+        {myLoc === "denied" && (
+          <div style={{ background: "#fff7e6", border: "1px solid #ffc069", borderRadius: 10, padding: "10px 12px",
+            fontSize: 12.5, color: "#8a5200", marginBottom: 10 }}>
+            Turn on location to see what is near you. Until then every project with a saved position is listed.
+          </div>
+        )}
+        {list === null ? (
+          <div className="eb-loading"><div className="eb-spin" /></div>
+        ) : list.length === 0 ? (
+          <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>
+            <Building2 size={32} style={{ opacity: 0.4, marginBottom: 8 }} />
+            <div style={{ fontWeight: 700 }}>No projects in your range</div>
+            <div style={{ fontSize: 12, marginTop: 4 }}>A project shows here once it is saved with its location.</div>
+          </div>
+        ) : list.map((r, i) => {
+          const c = firstContact(r);
+          return (
+            <div key={i} style={{ background: "#fff", borderRadius: 10, padding: "10px 12px", marginBottom: 7, boxShadow: "var(--shadow)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 13 }}>
+                <span>{r.projectName || "Project"}</span>
+                {r.dist != null && <span style={{ color: "var(--accent)", fontSize: 11.5 }}>{fmtKm(r.dist)}</span>}
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 3, alignItems: "center" }}>
+                {r.projectType && <span style={{ fontSize: 10.5, background: "var(--accent-soft)", color: "var(--accent)", fontWeight: 700, padding: "1px 7px", borderRadius: 6 }}>{r.projectType}</span>}
+                {r._by && <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>{r._by}</span>}
+              </div>
+              {(r.address || r.city) && (
+                <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 3 }}>📍 {r.address || r.city}</div>
+              )}
+              {(c.person || c.firm) && (
+                <div style={{ fontSize: 11.5, color: "var(--ink)", marginTop: 3 }}>
+                  {[c.firm, c.person, c.designation].filter(Boolean).join(" · ")}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 5, marginTop: 7, flexWrap: "wrap" }}>
+                {c.number && <button onClick={() => (window.location.href = `tel:${c.number}`)} style={{ ...actBtn("#1f9d55"), padding: "6px 8px", fontSize: 11 }}>📞</button>}
+                <button onClick={() => {
+                  const text = [r.address, r.city].filter(Boolean).join(", ") || r.projectName || "";
+                  const dest = encodeURIComponent(text || `${r.lat},${r.lng}`);
+                  window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`, "_blank");
+                }} style={{ ...actBtn("#1a73e8"), background: "#e8f1ff", color: "#1a73e8", padding: "6px 8px", fontSize: 11 }}>🧭 Direction</button>
+                <button onClick={() => nav("/app/m/projectProjection")}
+                  style={{ ...actBtn("#3949ab"), background: "#eef1ff", color: "#3949ab", padding: "6px 8px", fontSize: 11 }}>👁 Open</button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
 function FieldCustomers({ nearbyOnly = false }) {
   const nav = useNavigate();
   const [rows, setRows] = useState(null);
@@ -7391,6 +7680,7 @@ export default function FieldApp() {
             <Route path="notifications" element={<FieldNotifications />} />
             <Route path="spec/:specId" element={<SpecThreadRoute />} />
             <Route path="nearby" element={<FieldCustomers nearbyOnly />} />
+            <Route path="nearby-projects" element={<FieldNearbyProjects />} />
             <Route path="customers" element={<FieldCustomers />} />
             <Route path="thread/:mod/:rid" element={<FieldThreadRoute />} />
             <Route path="profile" element={<FieldProfile onLogout={() => { api.logout(); setAuthed(false); setAttendanceOn(false); nav("/"); }} />} />

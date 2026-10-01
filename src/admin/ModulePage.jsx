@@ -12,7 +12,7 @@ import { usePager, Pager } from "../components/Pager.jsx";
 function projContactsText(contacts) {
   if (!contacts || !contacts.length) return "";
   return contacts.map((c) => {
-    const ppl = (c.people || []).map((p) => [p.person, p.number, p.email].filter(Boolean).join(" ")).filter(Boolean).join("; ");
+    const ppl = (c.people || []).map((p) => [p.person, p.designation, p.number, p.email].filter(Boolean).join(" ")).filter(Boolean).join("; ");
     return `${c.category || ""}${c.firmName ? " - " + c.firmName : ""}${ppl ? " (" + ppl + ")" : ""}`;
   }).filter(Boolean).join(" | ");
 }
@@ -58,7 +58,7 @@ function projCategoryCols(contacts) {
   const out = {};
   (contacts || []).forEach((c) => {
     if (!c.category) return;
-    const ppl = (c.people || []).map((p) => [p.person, p.number, p.email].filter(Boolean).join(" ")).filter(Boolean).join("; ");
+    const ppl = (c.people || []).map((p) => [p.person, p.designation, p.number, p.email].filter(Boolean).join(" ")).filter(Boolean).join("; ");
     const txt = `${c.firmName || ""}${ppl ? " (" + ppl + ")" : ""}`.trim();
     const key = "cat_" + c.category;
     out[key] = out[key] ? out[key] + " | " + txt : txt;
