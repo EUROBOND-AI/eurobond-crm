@@ -78,7 +78,7 @@ const NAV = [
     group: "Support Modules",
     items: [
       { label: "Announcement", icon: <Megaphone size={17} />, to: "/admin/support/announcement" },
-      { label: "GK - IT Support", icon: <LifeBuoy size={17} />, to: "/admin/support/tickets" },
+      { label: "GK - Developer Support", icon: <LifeBuoy size={17} />, to: "/admin/support/tickets" },
       { label: "Notification", icon: <BellRing size={17} />, to: "/admin/support/notification" },
     ],
   },

@@ -329,7 +329,8 @@ export const MODULES = {
   },
 
   tickets: {
-    path: "support/tickets", title: "GK-IT Support", crumb: "GK-IT Support", addLabel: "Add Support Request",
+    path: "support/tickets", title: "GK - Developer Support", crumb: "GK - Developer Support", addLabel: "Add Support Request",
+    note: "Designed & Developed by Karthik G · tickets raised from the app arrive here",
     idPrefix: "TKT",
     tabs: [
       { key: "Pending", label: "Pending" }, { key: "Assigned", label: "Assigned" },
@@ -344,7 +345,11 @@ export const MODULES = {
     form: [
       { name: "subject", label: "Subject", required: true },
       { name: "priority", label: "Priority", type: "select", options: ["Low", "Medium", "High"] },
+      /* the person who raised the ticket sees both of these in the app, so a
+         ticket can be answered without having to phone them back */
+      { name: "status", label: "Status", type: "select", options: ["Pending", "Assigned", "Complete", "Close"] },
       { name: "desc", label: "Description", type: "textarea", full: true },
+      { name: "remark", label: "Reply to the person who raised it", type: "textarea", full: true },
     ],
   },
 

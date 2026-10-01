@@ -310,9 +310,26 @@ table.grid tbody tr.row-click:hover { background: #eef1ff; }
 .f-metric .bar { height: 6px; background: #e4e9f5; border-radius: 4px; margin: 8px 0; overflow: hidden; }
 .f-metric .bar i { display: block; height: 100%; border-radius: 4px; }
 .f-metric small { color: var(--muted); font-size: 11px; }
+/* How tall the bottom bar is, written down once.
+
+   The chat composer has to sit exactly on top of this bar. It used to guess at
+   the height and add the phone's bottom inset a second time on top of a figure
+   that already allowed for it, so it floated above the bar with a strip of the
+   conversation showing through the gap.
+
+   The bar is 48px of buttons plus whatever strip the phone reserves along its
+   bottom edge, and --f-nav-total is that whole height — what anything sitting
+   directly on top of the bar should use. */
+:root {
+  --f-nav-h: 48px;
+  --f-nav-total: calc(48px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+}
+
 .f-nav {
   position: absolute; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid var(--line);
-  display: flex; justify-content: space-around; align-items: center; padding: 6px 8px calc(6px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))); z-index: 40;
+  display: flex; justify-content: space-around; align-items: center;
+  box-sizing: border-box; height: var(--f-nav-total);
+  padding: 6px 8px calc(6px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))); z-index: 40;
 }
 .f-nav a { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10.5px; font-weight: 800; color: var(--muted); width: 62px; }
 .f-nav a.active { color: var(--navy); }

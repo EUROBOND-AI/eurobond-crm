@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, CloudOff, RefreshCw, Plus, Upload, FileText,
 import { api } from "../lib/api.js";
 import { can } from "../lib/perms.js";
 
-export function PageHead({ crumb, title, actions }) {
+export function PageHead({ crumb, title, actions, note }) {
   return (
     <div className="page-head">
       <div>
@@ -12,6 +12,8 @@ export function PageHead({ crumb, title, actions }) {
           <span>{crumb || title}</span>
         </div>
         <h1 className="page-title">{title}</h1>
+        {/* a line under the title for pages that need to say who to go to */}
+        {note && <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 700, marginTop: 2 }}>{note}</div>}
       </div>
       <div className="head-actions">{actions}</div>
     </div>

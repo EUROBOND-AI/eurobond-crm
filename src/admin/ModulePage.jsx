@@ -335,21 +335,21 @@ export default function ModulePage({ cfgKey }) {
             });
           } catch {}
         }
-        /* GK-IT Support ticket → email the IT team */
+        /* GK - Developer Support ticket → email whoever looks after the CRM */
         if (cfgKey === "tickets") {
           try {
             await api.sendMail({
               to: "technology@eurobondacp.com",
               html: true,
-              subject: `New IT Support Ticket ${data.id || ""} — ${data.subject || ""}`,
-              body: `<h3>New GK-IT Support Ticket</h3>
+              subject: `New GK - Developer Support Ticket ${data.id || ""} — ${data.subject || ""}`,
+              body: `<h3>New GK - Developer Support Ticket</h3>
                 <p><b>Ticket Id:</b> ${data.id || "-"}</p>
                 <p><b>Raised By:</b> ${data.createdBy || "-"}</p>
                 <p><b>Subject:</b> ${data.subject || "-"}</p>
                 <p><b>Priority:</b> ${data.priority || "-"}</p>
                 <p><b>Description:</b><br>${(data.desc || "-").replace(/\n/g, "<br>")}</p>
                 <p><b>Created At:</b> ${data.createdAt || "-"}</p>
-                <hr><p>Eurobond CRM — GK-IT Support</p>`,
+                <hr><p>Eurobond CRM — GK - Developer Support</p>`,
             });
           } catch {}
         }
@@ -441,6 +441,7 @@ export default function ModulePage({ cfgKey }) {
       <PageHead
         crumb={cfg.crumb}
         title={cfg.title}
+        note={cfg.note}
         actions={
           <ToolButtons
             onAdd={cfg.form && cfg.addLabel ? () => { setEditing(null); setShowForm(true); } : null}

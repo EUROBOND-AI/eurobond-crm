@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, auth } from "../lib/api.js";
-import RefreshBtn from "../components/RefreshBtn.jsx";
+import ScreenHead from "../components/ScreenHead.jsx";
 
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -131,12 +131,7 @@ export default function MeetingCalendar() {
 
   return (
     <>
-      <div className="f-head" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <button onClick={() => nav(-1)} aria-label="Back"
-          style={{ width: 30, height: 30, borderRadius: 9, border: "1px solid #d7dcef", background: "#fff", fontSize: 18, lineHeight: 1, cursor: "pointer", fontWeight: 800, color: "var(--navy)" }}>‹</button>
-        <h2 style={{ margin: 0, fontSize: 17, flex: 1 }}>Meeting Calendar</h2>
-        <RefreshBtn />
-      </div>
+      <ScreenHead title="Meeting Calendar" />
       <div className="f-form" style={{ paddingBottom: 120 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
           <button onClick={() => setCur(new Date(year, month - 1, 1))} style={navBtn}>‹</button>

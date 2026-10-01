@@ -6,6 +6,7 @@ import {
   MapPin, Clock, Wallet, ClipboardList, LogOut, Phone, Mail, Building2, X,
   PlaneTakeoff, FileText, CalendarDays, Briefcase, ListChecks, Map as MapIcon,
   Play, Square, Navigation, Smartphone, CheckCircle2, AlertCircle, Eye, EyeOff, Camera, Search, Filter, Pencil, RefreshCw,
+  LifeBuoy, Send,
 } from "lucide-react";
 import RefreshBtn, { startRefresh } from "../components/RefreshBtn.jsx";
 import { ebFlushQueue, ebQueueSize, watchLocation, startTracker, stopTracker, setTrackerHandler, setTrackerSession, isTrackerActive, showTrackingNotification, hideTrackingNotification, totalDistanceKm, haversineKm, fmtKm, fmtDuration } from "../lib/geo.js";
@@ -17,6 +18,7 @@ import BiltraxList from "./BiltraxList.jsx";
 import { buildExpensePdf } from "../lib/expensePdf.js";
 import { snapToRoads } from "../lib/roadline.js";
 import { useVisiblePoll } from "../lib/poll.js";
+import ScreenHead, { parentOf } from "../components/ScreenHead.jsx";
 import { MODULES } from "../admin/moduleConfigs.jsx";
 
 /* logged-in field user (from auth) with safe fallbacks */
@@ -806,48 +808,6 @@ function useAppRefresh(fn) {
     window.addEventListener("eb-app-resumed", h);
     return () => window.removeEventListener("eb-app-resumed", h);
   }, []);
-}
-
-/* Where each screen was opened from. Browser history sent Back into the form
-   that was just saved, and that form had already cleared its data, so the
-   screen came up blank. This keeps a trail of real screens instead. */
-/* Where the Back arrow goes, worked out from the address itself. Browser
-   history used to send it into the form that was just saved, or to a screen
-   that no longer had its data, and the page came up empty. Every destination
-   below is a real screen, so that cannot happen. */
-function parentOf(path) {
-  const p = String(path || "").replace(/\/+$/, "");
-  let m;
-  if ((m = p.match(/^(\/app\/m\/[^/]+)\/(new|edit).*$/))) return m[1];
-  if (/^\/app\/expense\/(new|format)/.test(p)) return "/app/expense";
-  if (/^\/app\/leave\/new/.test(p)) return "/app/leave";
-  if (/^\/app\/(followup|customer)\//.test(p)) return "/app/customers";
-  if (/^\/app\/project\/new/.test(p)) return "/app/m/projectProjection";
-  return "/app";
-}
-
-function ScreenHead({ title, back = true, right = null, refresh = true }) {
-  const nav = useNavigate();
-  const loc = useLocation();
-  const goBack = () => {
-    const to = parentOf(loc.pathname);
-    nav(to === loc.pathname ? "/app" : to, { replace: true });
-  };
-  return (
-    <div className="f-screen-head">
-      {back && (
-        <button onClick={goBack} style={{ background: "none", border: "none", cursor: "pointer", color: "inherit" }}>
-          <ChevronLeft size={22} />
-        </button>
-      )}
-      <div className="grow" style={{ fontFamily: "Bricolage Grotesque", fontWeight: 700, fontSize: 16 }}>{title}</div>
-      {right}
-      {/* pull the latest from the server without leaving the screen. The Profile
-          screen is the one place it is left out — nothing on it changes while
-          you are looking at it. */}
-      {refresh && <RefreshBtn />}
-    </div>
-  );
 }
 
 /* ------------------------------------------------ HOME ------------------------------------------------ */
@@ -3163,6 +3123,157 @@ function FieldResources() {
   );
 }
 
+/* Customer & Help — where someone goes when the app is not behaving.
+
+   A ticket raised here is the same Developer Support record the admin panel
+   lists, so it lands in one place and is mailed out at the same time. The
+   person also sees the tickets they have raised before, with where each one
+   stands, which saves asking whether it was received. */
+function FieldHelp() {
+  const [subject, setSubject] = useState("");
+  const [priority, setPriority] = useState("Medium");
+  const [desc, setDesc] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [mine, setMine] = useState(null);
+
+  const loadMine = () => {
+    const me = (CU().name || "").toLowerCase();
+    api.list("tickets", true)
+      .then((d) => setMine((d.records || [])
+        .map((r) => ({ _id: r.id, ...r.data }))
+        .filter((t) => !me || String(t.createdBy || "").toLowerCase() === me)
+        .reverse()))
+      .catch(() => setMine([]));
+  };
+  useEffect(loadMine, []);
+  useAppRefresh(loadMine);
+
+  const submit = async () => {
+    if (!subject.trim()) { alert("Please write what the problem is."); return; }
+    setBusy(true);
+    const me = CU();
+    const row = {
+      subject: subject.trim(),
+      priority,
+      desc: desc.trim(),
+      status: "Pending",
+      createdBy: me.name || "",
+      createdAt: new Date().toLocaleString("en-IN"),
+      raisedFrom: "Mobile App",
+      mobile: me.mobile || me.phone || "",
+      city: me.city || "",
+    };
+    try {
+      await api.create("tickets", row);
+      /* the same two places the admin panel sends them: an email, and a
+         notification so it is noticed without anyone watching the inbox */
+      try {
+        await api.sendMail({
+          to: "technology@eurobondacp.com",
+          html: true,
+          subject: `App Support Ticket — ${row.subject}`,
+          body: `<h3>New GK - Developer Support Ticket (from the mobile app)</h3>
+            <p><b>Raised By:</b> ${row.createdBy || "-"} ${row.mobile ? "(" + row.mobile + ")" : ""}</p>
+            <p><b>City:</b> ${row.city || "-"}</p>
+            <p><b>Subject:</b> ${row.subject}</p>
+            <p><b>Priority:</b> ${row.priority}</p>
+            <p><b>Description:</b><br>${(row.desc || "-").replace(/\n/g, "<br>")}</p>
+            <p><b>Created At:</b> ${row.createdAt}</p>
+            <hr><p>Eurobond CRM — GK - Developer Support</p>`,
+        });
+      } catch {}
+      try {
+        await api.create("notification", {
+          title: "🛠 New Support Ticket",
+          message: `${row.createdBy}: ${row.subject}`,
+          forRole: "Admin",
+          link: "/admin/support/tickets",
+          at: new Date().toISOString(),
+        });
+      } catch {}
+      setSubject(""); setDesc(""); setPriority("Medium");
+      setSent(true);
+      loadMine();
+    } catch (e) {
+      alert("Could not send: " + (e && e.message ? e.message : e));
+    }
+    setBusy(false);
+  };
+
+  const statusColor = (s) => /complete|close/i.test(s) ? "#1f9d55" : /assign/i.test(s) ? "#2f6fed" : "#c99400";
+
+  return (
+    <>
+      <ScreenHead title="Customer & Help" />
+      <div className="f-list-pad" style={{ paddingTop: 14 }}>
+        <div style={{ background: "linear-gradient(135deg,#4b5cf0,#7b5cf0)", color: "#fff", borderRadius: 16, padding: "18px 16px", marginBottom: 14 }}>
+          <LifeBuoy size={26} style={{ opacity: 0.9 }} />
+          <div style={{ fontFamily: "Bricolage Grotesque", fontWeight: 800, fontSize: 17, marginTop: 8 }}>Need help?</div>
+          <div style={{ fontSize: 12.5, opacity: 0.9, marginTop: 4, lineHeight: 1.5 }}>
+            Something not working, or an idea to make the app better? Raise a ticket here and it reaches the developer directly.
+          </div>
+        </div>
+
+        {sent && (
+          <div style={{ background: "#e8f7ee", border: "1px solid #b7e3c7", color: "#1a6b3c", borderRadius: 12, padding: "12px 14px", marginBottom: 12, fontSize: 13, fontWeight: 700 }}>
+            ✅ Ticket sent. You will be contacted on {CU().mobile || CU().phone || "your registered number"}.
+          </div>
+        )}
+
+        <div style={{ background: "#fff", borderRadius: 14, padding: 14, boxShadow: "var(--shadow)", marginBottom: 16 }}>
+          <div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 10, fontFamily: "Bricolage Grotesque" }}>Raise a Ticket</div>
+          <label style={{ fontWeight: 800, fontSize: 12.5 }}>Subject <b style={{ color: "var(--red)" }}>*</b></label>
+          <input value={subject} onChange={(e) => { setSubject(e.target.value); setSent(false); }}
+            placeholder="e.g. Attendance not starting"
+            style={{ width: "100%", padding: "12px", borderRadius: 11, border: "1.5px solid #d7dcef", fontSize: 14, marginTop: 5, marginBottom: 11, background: "#fff" }} />
+          <label style={{ fontWeight: 800, fontSize: 12.5 }}>Priority</label>
+          <div style={{ display: "flex", gap: 8, margin: "7px 0 11px" }}>
+            {["Low", "Medium", "High"].map((p) => (
+              <button key={p} onClick={() => setPriority(p)}
+                style={{ flex: 1, padding: "9px 0", borderRadius: 10, fontWeight: 800, fontSize: 12.5, cursor: "pointer",
+                  border: priority === p ? "1.5px solid var(--accent)" : "1.5px solid #d7dcef",
+                  background: priority === p ? "var(--accent-soft)" : "#fff",
+                  color: priority === p ? "var(--accent)" : "var(--muted)" }}>{p}</button>
+            ))}
+          </div>
+          <label style={{ fontWeight: 800, fontSize: 12.5 }}>Description</label>
+          <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={4}
+            placeholder="What happened, and on which screen?"
+            style={{ width: "100%", padding: "12px", borderRadius: 11, border: "1.5px solid #d7dcef", fontSize: 14, marginTop: 5, marginBottom: 12, background: "#fff", resize: "vertical" }} />
+          <button className="f-submit" style={{ width: "100%" }} disabled={busy} onClick={submit}>
+            <Send size={15} style={{ verticalAlign: -2, marginRight: 6 }} />{busy ? "Sending…" : "Send Ticket"}
+          </button>
+        </div>
+
+        <div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 8, fontFamily: "Bricolage Grotesque" }}>My Tickets</div>
+        {mine === null ? (
+          <div className="eb-loading"><div className="eb-spin" /></div>
+        ) : mine.length === 0 ? (
+          <div style={{ textAlign: "center", color: "var(--muted)", padding: 24, fontSize: 13 }}>You have not raised any tickets.</div>
+        ) : mine.slice(0, 20).map((t, i) => (
+          <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "var(--shadow)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
+              <div style={{ fontWeight: 700, fontSize: 13.5, flex: 1 }}>{t.subject}</div>
+              <span style={{ color: statusColor(t.status), fontWeight: 800, fontSize: 11.5, whiteSpace: "nowrap" }}>{t.status || "Pending"}</span>
+            </div>
+            <div style={{ color: "var(--muted)", fontSize: 11.5, marginTop: 4 }}>
+              {t.id ? t.id + " · " : ""}{t.priority || "Medium"} · {t.createdAt || ""}
+            </div>
+            {t.desc && <div style={{ fontSize: 12.5, marginTop: 6, color: "#475569", lineHeight: 1.5 }}>{t.desc}</div>}
+            {t.remark && <div style={{ fontSize: 12.5, marginTop: 6, background: "#f4f6ff", borderRadius: 9, padding: "8px 10px" }}><b>Reply:</b> {t.remark}</div>}
+          </div>
+        ))}
+
+        <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 11.5, fontWeight: 700, marginTop: 20, lineHeight: 1.7 }}>
+          <div style={{ fontSize: 12.5, color: "var(--navy)", fontWeight: 800 }}>Designed &amp; Developed by Karthik G</div>
+          <div>Eurobond CRM v{__APP_VERSION__}</div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function FieldProjectNew() {
   const nav = useNavigate();
   /* projects already saved against this person's customers — picking one fills
@@ -3549,7 +3660,7 @@ function TargetView({ targets, filter, setFilter, isSpec, title }) {
 
   return (
     <>
-      <ScreenHead title={title || "Target"} back={false} right={null} />
+      <ScreenHead title={title || "Target"} right={null} />
       <div className="f-list-pad" style={{ paddingTop: 14 }}>
         {/* filter chips */}
         <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
@@ -4258,7 +4369,7 @@ function FieldProfile({ onLogout }) {
   );
   return (
     <>
-      <ScreenHead title="Profile" back={false} refresh={false} />
+      <ScreenHead title="Profile" refresh={false} />
       <div style={{ textAlign: "center", padding: "18px 18px 6px" }}>
         <div style={{ width: 78, height: 78, borderRadius: "50%", margin: "0 auto 10px", background: "linear-gradient(135deg,#4b5cf0,#7b5cf0)", color: "#fff", display: "grid", placeItems: "center", fontFamily: "Bricolage Grotesque", fontWeight: 800, fontSize: 28 }}>
           {initials}
@@ -4349,6 +4460,9 @@ function MenuDrawer({ open, close }) {
       ["Beat Plan", <CalendarDays size={16} />, "/app/beat-plan", "beatPlan"],
       ["Biltrax", <Building2 size={16} />, "/app/biltrax", "biltrax"],
       ["Resources & Links", <FileText size={16} />, "/app/resources", "resources"],
+      /* last in the menu on purpose — it is where you go when something else
+         on this list is not working */
+      ["Customer & Help", <LifeBuoy size={16} />, "/app/help", null],
     ] },
   ];
   const groups = rawGroups.map((g) => ({ ...g, items: g.items.filter(([, , , key]) => canSee(key)) })).filter((g) => g.items.length);
@@ -5094,7 +5208,7 @@ function FieldSpecThread({ id }) {
         <div style={{ fontSize: 13, marginTop: 6 }}>{rec.help}</div>
       </div>
 
-      <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10, paddingBottom: 170 }}>
+      <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10, paddingBottom: "calc(var(--f-nav-total) + 78px)" }}>
         {thread.length === 0 && <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, padding: 20 }}>No replies yet.</div>}
         {thread.map((m, i) => {
           const mine = m.by === CU().name;
@@ -5112,7 +5226,7 @@ function FieldSpecThread({ id }) {
         })}
       </div>
 
-      <div style={{ position: "fixed", bottom: "calc(74px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))", left: 0, right: 0, maxWidth: 480, margin: "0 auto", display: "flex", gap: 8, alignItems: "center", padding: "10px 12px", background: "#fff", borderTop: "1px solid var(--line)", zIndex: 45 }}>
+      <div style={{ position: "fixed", bottom: "var(--f-nav-total)", left: 0, right: 0, maxWidth: 480, margin: "0 auto", display: "flex", gap: 8, alignItems: "center", padding: "10px 12px", background: "#fff", borderTop: "1px solid var(--line)", zIndex: 45 }}>
         <label style={{ display: "grid", placeItems: "center", cursor: "pointer", color: "var(--muted)", width: 38 }}>
           📎<input type="file" style={{ display: "none" }} onChange={(e) => setFile(e.target.files[0])} />
         </label>
@@ -6539,7 +6653,7 @@ function FieldGenericThread({ mod, id }) {
           </div>
         )}
       </div>
-      <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10, paddingBottom: 170 }}>
+      <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10, paddingBottom: "calc(var(--f-nav-total) + 78px)" }}>
         {thread.length === 0 && <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, padding: 20 }}>No messages yet. You can reply below.</div>}
         {thread.map((m, i) => {
           const mine = m.by === CU().name;
@@ -6556,7 +6670,7 @@ function FieldGenericThread({ mod, id }) {
           );
         })}
       </div>
-      <div style={{ position: "fixed", bottom: "calc(74px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))", left: 0, right: 0, maxWidth: 480, margin: "0 auto", padding: "8px 12px 10px", background: "#fff", borderTop: "1px solid var(--line)", zIndex: 45 }}>
+      <div style={{ position: "fixed", bottom: "var(--f-nav-total)", left: 0, right: 0, maxWidth: 480, margin: "0 auto", padding: "8px 12px 10px", background: "#fff", borderTop: "1px solid var(--line)", zIndex: 45 }}>
         {mod === "projectProjection" && specUsers.length > 0 && (
           <select value={tag} onChange={(e) => setTag(e.target.value)}
             style={{ width: "100%", marginBottom: 8, padding: "8px 10px", borderRadius: 10, border: "1.5px solid #d7dcef", fontSize: 12.5, background: tag ? "#eef1ff" : "#fff", fontWeight: tag ? 700 : 400 }}>
@@ -7793,6 +7907,7 @@ export default function FieldApp() {
             <Route path="biltrax" element={<BiltraxList />} />
             <Route path="calendar" element={<MeetingCalendar />} />
             <Route path="resources" element={<FieldResources />} />
+            <Route path="help" element={<FieldHelp />} />
             {Object.keys(APP_MODS).map((m) => (
               <Route key={m} path={`m/${m}`} element={m === "enquiry" ? <FieldEnquiry /> : m === "quotation" ? <FieldQuotationList /> : m === "projectProjection" ? <FieldProjectList /> : (m === "salesToSpec" || m === "specToSales") ? <FieldSpecThreadList mod={m} /> : <FieldModule mod={m} />} />
             ))}

@@ -27,6 +27,7 @@ export default function CustomersPage() {
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState(null);
   const [sel, setSel] = useState(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [fwdOpen, setFwdOpen] = useState(null);
   const [users, setUsers] = useState([]);
   const CUST_COLS = ["Customer", "Category", "Contact", "Mobile", "Email", "Projects", "State", "Place", "Address", "New Entry", "Follow-up Entry", "Enquiry From", "By", "HOD"];
@@ -252,6 +253,24 @@ export default function CustomersPage() {
               const selRows = (rows || []).filter((r) => sel.has(r.mobile || r.name));
               setFwdOpen({ mobiles: selRows.map((r) => r.mobile).filter(Boolean), names: selRows.map((r) => r.name).filter(Boolean) });
             }}>➡ Forward to…</button>
+          {/* Deleting the selection. Each row was already deletable on its own,
+              so picking twenty and having nothing but Forward to offer meant
+              doing it twenty times over. */}
+          <button className="btn btn-danger" style={{ padding: "6px 14px", fontSize: 12.5 }} disabled={bulkBusy}
+            onClick={async () => {
+              const selRows = (rows || []).filter((r) => sel.has(r.mobile || r.name));
+              if (!selRows.length) return;
+              if (!window.confirm(`Delete ${selRows.length} customer(s)? This removes their entries and cannot be undone.`)) return;
+              setBulkBusy(true);
+              let failed = 0;
+              for (const r of selRows) {
+                try { await api.deleteCustomer(r.mobile, r.name); } catch { failed++; }
+              }
+              setBulkBusy(false);
+              setSel(new Set());
+              load();
+              if (failed) alert(`${selRows.length - failed} deleted. ${failed} could not be deleted.`);
+            }}>🗑 {bulkBusy ? "Deleting…" : `Delete ${sel.size}`}</button>
           <button className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 12.5 }} onClick={() => setSel(new Set())}>Clear</button>
         </div>
       )}
