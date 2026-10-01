@@ -540,15 +540,53 @@ export default function AttendancePage() {
       if (pts.length) {
         if (pts.length > 1) {
           const poly = L.polyline(pts, { color: "#e8422e", weight: 4, opacity: 0.85 }).addTo(m);
-          /* snap the line to roads via OSRM so it follows streets, same as the app map */
+          /* Put the line on the roads.
+
+             The routing service takes about a hundred positions in one request,
+             and a full day holds many more than that, so the single request was
+             being refused and the line stayed as it was — straight hops from one
+             fix to the next, cutting across blocks. The day is sent in pieces of
+             eighty instead, each overlapping the next by one position so the
+             road line joins up, and the pieces are stitched together as they
+             come back. Standing still produces a cluster of fixes a few metres
+             apart that the router cannot make sense of, so only positions at
+             least twenty-five metres from the last one are sent.
+             A piece that fails keeps its own straight segment; the rest of the
+             day still follows the road. */
           (async () => {
-            try {
-              const coords = pts.map((p) => `${p[1]},${p[0]}`).join(";");
-              const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`);
-              const j = await r.json();
-              const line = j.routes && j.routes[0] && j.routes[0].geometry && j.routes[0].geometry.coordinates;
-              if (line && line.length) poly.setLatLngs(line.map(([lng, lat]) => [lat, lng]));
-            } catch {}
+            const CHUNK = 80;
+            const metres = (a, b) => {
+              const R = 6371000, rad = Math.PI / 180;
+              const dLat = (b[0] - a[0]) * rad, dLng = (b[1] - a[1]) * rad;
+              const x = Math.sin(dLat / 2) ** 2
+                + Math.cos(a[0] * rad) * Math.cos(b[0] * rad) * Math.sin(dLng / 2) ** 2;
+              return 2 * R * Math.asin(Math.sqrt(x));
+            };
+            /* thin out the standing-still clusters before asking the router */
+            const thin = [pts[0]];
+            for (let i = 1; i < pts.length; i++) {
+              if (metres(thin[thin.length - 1], pts[i]) >= 25) thin.push(pts[i]);
+            }
+            if (thin[thin.length - 1] !== pts[pts.length - 1]) thin.push(pts[pts.length - 1]);
+            if (thin.length < 2) return;
+
+            const pieces = [];
+            for (let i = 0; i < thin.length - 1; i += CHUNK - 1) pieces.push(thin.slice(i, i + CHUNK));
+
+            const drawn = [];
+            for (const piece of pieces) {
+              if (piece.length < 2) continue;
+              let part = piece;
+              try {
+                const coords = piece.map((p) => `${p[1]},${p[0]}`).join(";");
+                const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`);
+                const j = await r.json();
+                const line = j.routes && j.routes[0] && j.routes[0].geometry && j.routes[0].geometry.coordinates;
+                if (line && line.length) part = line.map(([lng, lat]) => [lat, lng]);
+              } catch { /* this stretch stays as it was */ }
+              drawn.push(...(drawn.length ? part.slice(1) : part));
+              try { poly.setLatLngs(drawn); } catch { return; }   /* show each piece as it arrives */
+            }
           })();
         }
         L.marker(pts[0], { icon: pinIcon("#20bf6b", "S") }).addTo(m).bindPopup("Start");
