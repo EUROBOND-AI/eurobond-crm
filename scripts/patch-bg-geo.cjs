@@ -23,7 +23,7 @@ try {
 
   /* Bump this whenever the native Java changes, so an old patched copy is
      detected and repatched instead of being silently skipped. */
-  const PATCH_VERSION = "EB_PATCH_V5_SELF_UPDATES";
+  const PATCH_VERSION = "EB_PATCH_V6_NO_CRASH";
   const alreadyPatched = src.includes(PATCH_VERSION);
   if (src.includes("EB_NATIVE_UPLOAD") && !alreadyPatched) {
     console.log("[patch-bg-geo] older patch found — reinstall the plugin so the new native code applies:");
@@ -66,7 +66,7 @@ try {
     /private static final int NOTIFICATION_ID = 28351;/,
     `private static final int NOTIFICATION_ID = 28351;
 
-    // EB_NATIVE_UPLOAD EB_PATCH_V5_SELF_UPDATES: post a location straight to the server from native code,
+    // EB_NATIVE_UPLOAD EB_PATCH_V6_NO_CRASH: post a location straight to the server from native code,
     // so uploads work even when the JS/WebView is frozen in the background.
     private long ebLastUploadMs = 0;
     private com.google.android.gms.location.FusedLocationProviderClient ebSelfClient = null;
@@ -748,7 +748,18 @@ try {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (!ebSessionActive()) { ebShutdownTracking(); return START_NOT_STICKY; }
+        /* Android gives a service started as a foreground one five seconds to
+           show its notification, and kills the app if it does not. After
+           attendance is stopped an alarm can still arrive, and this used to
+           close the service without ever showing it — which is why the phone
+           said the app "keeps stopping" every time, but only once attendance
+           had been turned off. The notification goes up first, then everything
+           is taken down properly. */
+        if (!ebSessionActive()) {
+            try { ebEnsureForeground(); } catch (Throwable t) {}
+            ebShutdownTracking();
+            return START_NOT_STICKY;
+        }
         ebRegisterLocReceiver();   // start listening for location on/off instantly
         if (intent != null && "EB_ALARM_TICK".equals(intent.getAction())) {
             ebEnsureForeground();   // always keep the "Tracking on" notification visible
@@ -1300,6 +1311,17 @@ try {
         "",
         "    @Override public void onReceive(Context ctx, Intent intent) {",
         "        Context app = ctx.getApplicationContext();",
+        "        /* Attendance finished, so there is nothing to wake. Carrying on",
+        "           here re-armed the alarm that starts the tracking service, and",
+        "           a service started that way must show its notification within",
+        "           five seconds or Android kills the app — which is what put",
+        "           \"keeps stopping\" on the screen after someone stopped their",
+        "           attendance. */",
+        "        try {",
+        "            SharedPreferences sp0 = app.getSharedPreferences(\"CapacitorStorage\", Context.MODE_PRIVATE);",
+        "            String sid0 = sp0.getString(\"eb_session_id\", null);",
+        "            if (sid0 == null || sid0.trim().length() == 0) return;",
+        "        } catch (Throwable t) {}",
         "        PowerManager.WakeLock wl = null;",
         "        try {",
         "            PowerManager pm = (PowerManager) app.getSystemService(Context.POWER_SERVICE);",
