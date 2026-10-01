@@ -6022,7 +6022,10 @@ function FieldNearbyProjects() {
   const [q, setQ] = useState("");
   const rangeM = Number(CU().nearby_range_m || CU().nearbyRange || 500);
 
-  const loadProjects = () => api.list("projectProjection", false)
+  /* Only this person's own projects, the same as Near By Customers. Reading
+     everyone's put one person's project on a colleague's screen, which is not
+     what this is for. */
+  const loadProjects = () => api.list("projectProjection", true)
     .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, _by: r.created_by_name, ...r.data }))))
     .catch(() => setRows([]));
 
@@ -6088,7 +6091,6 @@ function FieldNearbyProjects() {
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 3, alignItems: "center" }}>
                 {r.projectType && <span style={{ fontSize: 10.5, background: "var(--accent-soft)", color: "var(--accent)", fontWeight: 700, padding: "1px 7px", borderRadius: 6 }}>{r.projectType}</span>}
-                {r._by && <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>{r._by}</span>}
               </div>
               {(r.address || r.city) && (
                 <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 3 }}>📍 {r.address || r.city}</div>
