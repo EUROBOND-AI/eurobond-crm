@@ -3140,16 +3140,26 @@ function FieldHelp() {
   const [shots, setShots] = useState([]);
   const [upBusy, setUpBusy] = useState(false);
 
+  /* Attaching a screenshot.
+
+     The first version filed it under a "ticket" folder and read the reply for
+     one field name only, so when nothing came back the picture just never
+     appeared and said nothing about why. Two things are different here. It is
+     filed under "general", the name the upload endpoint has accepted for every
+     other attachment in the app, rather than a new one it may not know. And
+     when no picture comes back, it now says so, with whatever the server
+     reported — so a failure is visible instead of silent. */
   const addShot = async (file) => {
     if (!file) return;
-    if (shots.length >= 3) { alert("Up to 3 screenshots."); return; }
+    if (shots.length >= 3) { alert("You can attach up to 3 screenshots."); return; }
     setUpBusy(true);
     try {
-      const u = await api.uploadCompressed(file, "ticket");
-      const url = u.url || u.path || "";
+      const u = (await api.uploadCompressed(file, "general")) || {};
+      const url = u.url || u.path || u.file || u.src || u.location || "";
       if (url) setShots((s) => [...s, url]);
+      else alert("The screenshot did not upload. " + (u.error || u.message || "Please try again, or send it on WhatsApp."));
     } catch (e) {
-      alert("Could not attach: " + (e && e.message ? e.message : e));
+      alert("Could not attach the screenshot: " + (e && e.message ? e.message : e));
     }
     setUpBusy(false);
   };

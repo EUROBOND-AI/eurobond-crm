@@ -1,13 +1,15 @@
 {
   "name": "eurobond-crm",
   "private": true,
-  "version": "1.6.3",
+  "version": "1.6.8",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "postinstall": "node scripts/patch-bg-geo.cjs"
+    "postinstall": "node scripts/patch-bg-geo.cjs",
+    "_comment_android": "One command for an APK. The patch script has to run between the web build and the Capacitor sync: it is what writes the version into android/app/build.gradle and applies the tracking patches. It used to run only on npm install, so a version bump never reached the installed app — it said 1.6.2 while the web app said 1.6.3.",
+    "android": "vite build && node scripts/patch-bg-geo.cjs && npx cap sync android"
   },
   "dependencies": {
     "@capacitor-community/background-geolocation": "^1.2.26",
