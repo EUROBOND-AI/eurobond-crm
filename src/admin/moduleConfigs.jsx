@@ -307,7 +307,11 @@ export const MODULES = {
       { name: "audienceType", label: "Send To (All / Zone / City / Users)", type: "select", options: ["All", "Zone", "City", "Users"], required: true },
       { name: "audienceValue", label: "Zone/City name or User names (comma separated)", placeholder: "e.g. North  |  Mumbai  |  Ramesh, Suresh" },
     ],
-    notifyOnCreate: (d) => ({ title: "🎉 Holiday: " + d.name, message: `${d.date} — ${d.name} (${d.type || "Holiday"})`, link: "/app" }),
+    /* a holiday has no screen of its own, so it is filed against the
+       notifications list and read there in full. It used to be filed against
+       the home screen, which opened Home and said nothing about the holiday;
+       the app still treats that older address the same way. */
+    notifyOnCreate: (d) => ({ title: "🎉 Holiday: " + d.name, message: `${d.date} — ${d.name} (${d.type || "Holiday"})`, link: "/app/notifications" }),
   },
 
   products: {

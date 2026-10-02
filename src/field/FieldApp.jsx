@@ -5156,8 +5156,21 @@ function FieldNotifications() {
     setRead(getReadIds());
     /* once viewed, remove it so it never shows again (even after re-login) */
     dismiss(n._id);
+    const raw = String(n.link || "");
+
+    /* A message in a conversation opens that conversation — leave, project
+       projection, sales to spec, spec to sales, task, whichever it belongs to.
+
+       This is checked first, and the address is used exactly as it came. The
+       mapping below matches on words found anywhere in the address, and
+       "/app/thread/leave/12" contains the word "leave", so a message about a
+       leave request used to open the leave list instead of the conversation it
+       was about. */
+    const thread = raw.match(/^\/app\/thread\/[^/]+\/[^/?#]+/);
+    if (thread) { nav(thread[0]); return; }
+
     /* never open the admin panel from the field app — map admin links to app screens */
-    let link = n.link || "";
+    let link = raw;
     if (link.includes("expense")) link = "/app/expense";
     else if (link.includes("enquiry")) link = "/app/m/enquiry";
     else if (link.includes("followup")) link = "/app/followup";
@@ -5167,15 +5180,18 @@ function FieldNotifications() {
        here rather than dropping the person on the home screen with nothing */
     else if (link.includes("quotation")) { if (n.quotation) { setDetail(n); return; } link = "/app/m/quotation"; }
     else if (link.startsWith("/admin") || !link.startsWith("/app")) link = "";
-    /* Holiday / Announcement have no screen of their own — show the full text
-       in a popup so nothing gets cut off. */
-    const t = `${n.title || ""} ${n.message || ""}`.toLowerCase();
-    /* a notice that points at the notifications screen itself has nothing to open,
-       so show the full text in a popup instead of navigating nowhere */
-    const isInfoOnly = !link || link === "/app/notifications"
-      || t.includes("message from admin") || t.includes("holiday")
-      || t.includes("announcement") || t.includes("resource");
-    if (isInfoOnly) { setDetail(n); return; }
+
+    /* Nothing of its own to open — a holiday, an announcement, a note from the
+       admin. The whole notice is shown here in full, the way a quotation notice
+       is, rather than sending the reader to a screen that says nothing about it.
+       Holidays were filed against the home screen and announcements against
+       this screen, so neither address names a destination.
+
+       Which notices these are is decided by the address alone. It used to also
+       look for words like "holiday" or "announcement" anywhere in the title or
+       message, so a real message that happened to mention a holiday was treated
+       as a notice and the screen it pointed at never opened. */
+    if (!link || link === "/app" || link === "/app/notifications") { setDetail(n); return; }
     nav(link);
   };
 
@@ -6689,22 +6705,11 @@ function FieldGenericThread({ mod, id }) {
   const [text, setText] = useState("");
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [specUsers, setSpecUsers] = useState([]);
-  const [tag, setTag] = useState("");
-  const [showFollowup, setShowFollowup] = useState(false);
 
   const load = () => api.get(mod, id).then((d) => setRec({ _id: d.record.id, ...d.record.data })).catch(() => {});
   useEffect(() => { load(); }, [mod, id]);
 
-  /* Project Projection chat: SPEC TEAM matrame tag cheyagalaru */
-  useEffect(() => {
-    if (mod !== "projectProjection") return;
-    api.listUsers().then((d) => {
-      const spec = (d.users || []).filter((u) =>
-        `${u.role || ""} ${u.designation || ""}`.toLowerCase().includes("spec"));
-      setSpecUsers(spec);
-    }).catch(() => {});
-  }, [mod]);
+
 
   const send = async () => {
     if (!text.trim() && !file) return;
@@ -6712,8 +6717,8 @@ function FieldGenericThread({ mod, id }) {
     try {
       let doc = "";
       if (file) { const u = await api.uploadPhoto(file, mod); doc = u.url; }
-      const msgText = (tag ? `@${tag} ` : "") + text.trim();
-      const thread = [...(rec.thread || []), { by: CU().name, text: msgText, doc, tag, at: new Date().toLocaleString("en-IN") }];
+      const msgText = text.trim();
+      const thread = [...(rec.thread || []), { by: CU().name, text: msgText, doc, at: new Date().toLocaleString("en-IN") }];
       const data = { ...rec, thread }; delete data._id;
       await api.update(mod, id, data);
       /* admin panel bell ki: evaru reply chesaro name tho + click cheste aa module open */
@@ -6721,19 +6726,34 @@ function FieldGenericThread({ mod, id }) {
         const cfg = APP_MODS[mod] || {};
         await api.notify({ to: "ADMIN", title: `${CU().name} replied — ${rec.id || mod}`, message: msgText.slice(0, 120), adminLink: "/admin/" + (cfg.path || "sfa/" + mod), createdAt: new Date().toLocaleString("en-IN") });
       } catch {}
-      /* tagged spec person ki notification */
-      if (tag) {
-        try { await api.notify({ to: tag, title: `Tagged in ${rec.name || rec.id || "project"}`, message: msgText.slice(0, 120), link: `/app/thread/${mod}/${id}`, createdAt: new Date().toLocaleString("en-IN") }); } catch {}
+      /* Tell the other people on this record.
+
+         Only a leave request did this, so a reply on a project, a task or a
+         spec request reached the admin panel and nobody else — the person it
+         was meant for had to open the app and go looking. Everyone named on the
+         record is told, the sender is skipped, and the notification carries the
+         conversation's own address so tapping it opens the conversation rather
+         than a list. */
+      const meNow = CU().name;
+      const others = mod === "leave"
+        ? [meNow === rec.createdBy ? (rec.approvedBy || rec.manager || CU().manager) : rec.createdBy]
+        : [rec.assignee, rec.specPerson, rec.salesPerson, rec.createdBy];
+      const told = new Set();
+      for (const who of others) {
+        const name = String(who || "").trim();
+        if (!name || name === meNow || told.has(name.toLowerCase())) continue;
+        told.add(name.toLowerCase());
+        try {
+          await api.notify({
+            to: name,
+            title: `Message on ${(APP_MODS[mod] || {}).appLabel || rec.id || mod}`,
+            message: `${meNow}: ${msgText.slice(0, 100)}`,
+            link: `/app/thread/${mod}/${id}`,
+            createdAt: new Date().toLocaleString("en-IN"),
+          });
+        } catch {}
       }
-      /* leave chat: applicant <-> HOD person-to-person notification (same row, both sides) */
-      if (mod === "leave") {
-        const applicant = rec.createdBy;
-        const other = CU().name === applicant ? (rec.approvedBy || rec.manager || CU().manager) : applicant;
-        if (other && other !== CU().name) {
-          try { await api.notify({ to: other, title: `Message on Leave`, message: `${CU().name}: ${msgText.slice(0, 100)}`, link: `/app/thread/leave/${id}`, createdAt: new Date().toLocaleString("en-IN") }); } catch {}
-        }
-      }
-      setText(""); setFile(null); setTag(""); load();
+      setText(""); setFile(null); load();
     } catch (e) { alert(e.message); }
     setBusy(false);
   };
@@ -6802,33 +6822,21 @@ function FieldGenericThread({ mod, id }) {
           </div>
         )}
         {rec.rejectRemark && <div style={{ background: "#fdecec", color: "#c03636", fontSize: 12, padding: "6px 8px", borderRadius: 8, marginTop: 6 }}>Rejected: {rec.rejectRemark}</div>}
-        {STATUS_OPTS[mod] && (
+        {/* Project Projection's chat is a conversation and nothing else — the
+            status, the monthly update and the spec tag were all taken off it.
+            Status and monthly updates belong on the record itself, and this
+            screen is for the admin and the sales person to talk. Every other
+            module still updates its status from here. */}
+        {STATUS_OPTS[mod] && mod !== "projectProjection" && (
           <div style={{ marginTop: 8 }}>
             <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)" }}>Update Status</label>
             <select value={rec.status || ""} onChange={async (e) => {
               const newStatus = e.target.value;
-              let remark = "";
-              if (mod === "projectProjection") {
-                /* monthly update: remark minimum 50 characters — "followup" lanti chinna text accept kaadu */
-                remark = (window.prompt(`Monthly update remark (minimum 50 characters) — ${newStatus}:`) || "").trim();
-                if (remark.length < 50) { alert(`Remark too short (${remark.length}/50 characters). Please write in detail — what happened and what is the next step.`); return; }
-              }
               const data = { ...rec, status: newStatus }; delete data._id;
-              if (mod === "projectProjection") {
-                const month = new Date().toLocaleString("en-IN", { month: "short", year: "numeric" });
-                data.lastUpdate = `${month}: ${newStatus}`;
-                data.monthlyUpdates = [...(rec.monthlyUpdates || []), { month, status: newStatus, remark, by: CU().name, at: new Date().toLocaleString("en-IN") }];
-                data.thread = [...(rec.thread || []), { by: CU().name, text: `📅 Monthly Update (${month}) — ${newStatus}: ${remark}`, at: new Date().toLocaleString("en-IN") }];
-              }
               try { await api.update(mod, id, data); setRec({ ...rec, ...data, _id: rec._id }); } catch (er) { alert(er.message); }
             }} style={{ width: "100%", padding: "9px 12px", borderRadius: 9, border: "1px solid #d7dcef", fontSize: 13, marginTop: 4 }}>
               {STATUS_OPTS[mod].map((s) => <option key={s}>{s}</option>)}
             </select>
-            {mod === "projectProjection" && (
-              <button onClick={() => setShowFollowup(true)} style={{ width: "100%", marginTop: 8, padding: "9px", borderRadius: 9, border: "1px solid var(--accent)", background: "#eef1ff", color: "var(--accent)", fontWeight: 700, fontSize: 12.5 }}>
-                📅 Add Monthly Follow-up
-              </button>
-            )}
           </div>
         )}
       </div>
@@ -6850,34 +6858,12 @@ function FieldGenericThread({ mod, id }) {
         })}
       </div>
       <div style={{ position: "fixed", bottom: "var(--f-nav-total)", left: 0, right: 0, maxWidth: 480, margin: "0 auto", padding: "8px 12px 10px", background: "#fff", borderTop: "1px solid var(--line)", zIndex: 45 }}>
-        {mod === "projectProjection" && specUsers.length > 0 && (
-          <select value={tag} onChange={(e) => setTag(e.target.value)}
-            style={{ width: "100%", marginBottom: 8, padding: "8px 10px", borderRadius: 10, border: "1.5px solid #d7dcef", fontSize: 12.5, background: tag ? "#eef1ff" : "#fff", fontWeight: tag ? 700 : 400 }}>
-            <option value="">🏷️ Tag spec team person (optional)</option>
-            {specUsers.map((u) => <option key={u.id} value={u.name}>{u.name} — {u.designation || u.role}</option>)}
-          </select>
-        )}
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <label style={{ display: "grid", placeItems: "center", cursor: "pointer", width: 38 }}>📎<input type="file" style={{ display: "none" }} onChange={(e) => setFile(e.target.files[0])} /></label>
         <input value={text} onChange={(e) => setText(e.target.value)} placeholder={file ? file.name : "Type a reply…"} style={{ flex: 1, border: "1px solid var(--line)", borderRadius: 20, padding: "10px 14px", fontSize: 13, outline: "none" }} />
         <button className="f-submit" style={{ padding: "8px 16px", borderRadius: 20 }} disabled={busy} onClick={send}>Send</button>
         </div>
       </div>
-      {showFollowup && (
-        <MonthlyFollowupModal
-          onClose={() => setShowFollowup(false)}
-          onSave={async ({ date, remark, photoUrl }) => {
-            const month = new Date(date).toLocaleString("en-IN", { month: "short", year: "numeric" });
-            const data = { ...rec }; delete data._id;
-            data.lastUpdate = `${month}: follow-up`;
-            data.monthlyUpdates = [...(rec.monthlyUpdates || []), { month, date, remark, photo: photoUrl || "", by: CU().name, at: new Date().toLocaleString("en-IN") }];
-            /* project photos: first photo + prati follow-up photo accumulate (backend lo kuda) */
-            if (photoUrl) data.photos = [...(Array.isArray(rec.photos) ? rec.photos : (rec.photo ? [rec.photo] : [])), photoUrl];
-            data.thread = [...(rec.thread || []), { by: CU().name, text: `📅 Follow-up (${month}): ${remark}`, doc: photoUrl || "", at: new Date().toLocaleString("en-IN") }];
-            try { await api.update(mod, id, data); setRec({ ...rec, ...data, _id: rec._id }); setShowFollowup(false); } catch (e) { alert(e.message); }
-          }}
-        />
-      )}
     </>
   );
 }
