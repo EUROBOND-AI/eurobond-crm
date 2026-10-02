@@ -232,7 +232,7 @@ export default function CustomersPage() {
         crumb="SFA"
         title="Customers List"
         actions={
-          <ToolButtons module="Customers" module="Customers"
+          <ToolButtons module="Customers"
             onRefresh={load}
             refreshing={busy}
             onExport={exportCsv}

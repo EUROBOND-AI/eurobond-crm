@@ -238,7 +238,7 @@ export default function ExpenseApprovals() {
   return (
     <>
       <PageHead crumb="Dashboards / Expense" title="Expense Approvals" actions={
-        <ToolButtons module="Expense" module="Expense"
+        <ToolButtons module="Expense"
           onRefresh={load}
           refreshing={loading}
           onExport={() => exportExpenseCsv(list)}
@@ -491,7 +491,7 @@ function ExpenseReview({ r, onClose, onDone }) {
     setBusy(true);
     try {
       await api.update("expense", r._id, { ...r, items: newItems, status: "Approved", approvedAmount: sum, approvedAt: new Date().toLocaleString("en-IN"), rejectRemark: "", rejectAttachment: "" });
-      try { await api.create("notification", { title: "Expense Approved ✓", message: `Your expense statement (₹${sum.toLocaleString("en-IN")}) has been approved.`, to: r.user || r.createdBy, forUser: r.createdById, to: r.createdBy || "", link: "/app/expense", at: new Date().toISOString() }); } catch {}
+      try { await api.create("notification", { title: "Expense Approved ✓", message: `Your expense statement (₹${sum.toLocaleString("en-IN")}) has been approved.`, to: r.user || r.createdBy || "", forUser: r.createdById, link: "/app/expense", at: new Date().toISOString() }); } catch {}
       onDone();
     } catch (e) { alert(e.message); setBusy(false); }
   };
