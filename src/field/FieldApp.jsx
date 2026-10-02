@@ -188,11 +188,17 @@ function useUnreadCount() {
 function BellWithBadge({ onClick }) {
   const n = useUnreadCount();
   return (
-    <div style={{ position: "relative", cursor: "pointer" }} onClick={onClick}>
-      <Bell size={20} style={{ opacity: 0.9 }} />
+    /* Exactly the same box as the Refresh button beside it: same padding, same
+       centring, and no line box under the icon. The bell used to be a plain
+       div, so its icon sat on a text baseline with a sliver of space beneath
+       it, and it rode a couple of pixels higher than the button next to it. */
+    <div onClick={onClick} title="Notifications" aria-label="Notifications"
+      style={{ position: "relative", cursor: "pointer", padding: 4, display: "grid", placeItems: "center", lineHeight: 0 }}>
+      <Bell size={20} style={{ opacity: 0.9, display: "block" }} />
       {n > 0 && (
         <span style={{
-          position: "absolute", top: -6, right: -7, minWidth: 17, height: 17, padding: "0 4px",
+          /* measured from the padded box, so it still sits on the bell's corner */
+          position: "absolute", top: -2, right: -3, minWidth: 17, height: 17, padding: "0 4px",
           borderRadius: 9, background: "#e5484d", color: "#fff", fontSize: 10.5, fontWeight: 800,
           display: "grid", placeItems: "center", boxShadow: "0 0 0 2px rgba(255,255,255,.85)",
           fontFamily: "Bricolage Grotesque", lineHeight: 1,
@@ -932,8 +938,9 @@ function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expense
               said. Left in the background, or opened on a weak connection, that
               answer can be stale, and someone who had already marked attendance
               was asked to mark it again — pressing this asks the server again. */}
+          {/* both the same size, in the same box, centred on one line */}
           <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
-            <RefreshBtn size={19} />
+            <RefreshBtn size={20} />
             <BellWithBadge onClick={() => nav("/app/notifications")} />
           </div>
         </div>

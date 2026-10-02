@@ -73,8 +73,8 @@ export default function RefreshBtn({ size = 17 }) {
   return (
     <button onClick={startRefresh} title="Refresh" aria-label="Refresh" disabled={spinning}
       style={{ background: "none", border: "none", cursor: spinning ? "default" : "pointer",
-        padding: 4, display: "grid", placeItems: "center", color: "inherit" }}>
-      <RefreshCw size={size} style={spinning ? { animation: "spin360 .8s linear infinite" } : undefined} />
+        padding: 4, display: "grid", placeItems: "center", color: "inherit", lineHeight: 0 }}>
+      <RefreshCw size={size} style={{ display: "block", ...(spinning ? { animation: "spin360 .8s linear infinite" } : null) }} />
     </button>
   );
 }
