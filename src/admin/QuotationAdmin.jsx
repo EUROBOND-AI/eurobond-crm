@@ -474,13 +474,44 @@ function tidyAddress(addr) {
 const tidyName = (n) => String(n || "").trim().split(/\s+/)
   .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : w)).join(" ");
 
+/* A product description, written the way the rest of the quotation is written.
+
+   A product picked from the Products master arrives in block capitals, while
+   one typed by hand comes in ordinary case. Set side by side in the same table
+   the capitals read as a different typeface altogether, which is what made the
+   products box look unlike the rest of the page.
+
+   Only a description that is entirely in capitals is touched — one already in
+   mixed case was written deliberately and is left exactly as it is. Grades and
+   measurements stay in capitals, because "ACP 4MM FR" is the name of the thing
+   and "Acp 4mm Fr" would be wrong: anything holding a digit keeps its case, and
+   so do the short forms used on these panels. */
+const KEEP_CAPS = new Set([
+  "ACP", "ACB", "FR", "HPL", "PVDF", "PE", "MM", "SQ", "MTR", "FT", "AL", "LDPE", "HDPE",
+  "A2", "B1", "B2", "UV", "PVC", "GI", "MS", "SS", "RAL", "NCS", "ECO", "XT", "HD", "ID", "OD",
+]);
+function tidyProduct(name) {
+  const text = String(name || "").trim();
+  if (!text) return "";
+  /* already mixed case -> written by hand, leave it be */
+  if (text !== text.toUpperCase()) return text;
+  return text.split(/(\s+)/).map((w) => {
+    if (!w.trim()) return w;                       // keep the spacing as it is
+    const bare = w.replace(/[^A-Za-z0-9.]/g, "");
+    if (/\d/.test(bare)) return w;                 // 4MM, 0.5, 1220X2440
+    if (KEEP_CAPS.has(bare.toUpperCase())) return w;
+    if (bare.length <= 2) return w;
+    return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+  }).join("");
+}
+
 /* A4 page HTML with letterhead background (for html2canvas capture) */
 function quotePageHtml(q) {
   const items = q.items || [{ grade: q.grade, colour: q.colour, rate: q.rate, ratePerSqm: q.ratePerSqm }];
   const tc = q.tc || {};
   const rowsHtml = items.map((it, i) => `<tr>
     <td style="text-align:center;border:1px solid #999;padding:7px;width:8%">${i + 1}</td>
-    <td style="text-align:center;border:1px solid #999;padding:7px;width:38%">${it.grade || ""}${it.thickness ? `<span style="font-size:10px;color:#666;display:block">(${it.thickness})</span>` : ""}${it.fins ? " (Running Feet)" : ""}</td>
+    <td style="text-align:center;border:1px solid #999;padding:7px;width:38%">${tidyProduct(it.grade)}${it.thickness ? `<span style="display:block">(${it.thickness})</span>` : ""}${it.fins ? " (Running Feet)" : ""}</td>
     <td style="text-align:center;border:1px solid #999;padding:7px;width:22%">${it.colourCode ? it.colourCode + " · " : ""}${it.colour || ""}</td>
     <td style="text-align:center;border:1px solid #999;padding:7px;width:16%">${!it.fins && it.ratePerSqm ? it.ratePerSqm : "—"}</td>
     <td style="text-align:center;border:1px solid #999;padding:7px;width:16%">${it.rate}</td>
@@ -492,7 +523,7 @@ function quotePageHtml(q) {
     <div style="margin-top:12px"><b>Kind Attn. ${q.contactName || ""} ${q.contactNumber ? "(Mob.No. " + q.contactNumber + ")" : ""}</b></div>
     <div style="margin-top:6px"><b>Sub :-Quotation For Eurobond</b></div>
     <p>Sir,<br>In reference to the discussion held with you regarding the said subject, we are pleased to quote our most preferred rates & other terms and conditions for the same as follows.</p>
-    <table style="width:100%;border-collapse:collapse;margin:12px 0">
+    <table style="width:100%;border-collapse:collapse;margin:12px 0;font-family:Arial;font-size:13px;color:#1a1a1a">
       <thead><tr style="background:#f0f0f0">
         <th style="border:1px solid #999;padding:7px">Sr.No</th><th style="border:1px solid #999;padding:7px">Description</th>
         <th style="border:1px solid #999;padding:7px">Color Code/Series</th><th style="border:1px solid #999;padding:7px">Rate/Sq.Mtr (INR)</th><th style="border:1px solid #999;padding:7px">Rate/Sq.Ft (INR)</th>
@@ -515,7 +546,7 @@ function quoteHtml(q) {
   const tc = q.tc || {};
   const rowsHtml = items.map((it, i) => `<tr>
     <td style="text-align:center;border:1px solid #999;padding:8px">${i + 1}</td>
-    <td style="text-align:left;border:1px solid #999;padding:8px">${it.grade || ""}${it.thickness ? `<br><span style="font-size:10px;color:#666">(${it.thickness})</span>` : ""}${it.fins ? " (Running Feet)" : ""}</td>
+    <td style="text-align:left;border:1px solid #999;padding:8px">${tidyProduct(it.grade)}${it.thickness ? `<br><span>(${it.thickness})</span>` : ""}${it.fins ? " (Running Feet)" : ""}</td>
     <td style="text-align:center;border:1px solid #999;padding:8px">${it.colourCode ? it.colourCode + " · " : ""}${it.colour || ""}</td>
     <td style="text-align:center;border:1px solid #999;padding:8px">${!it.fins && it.ratePerSqm ? it.ratePerSqm : "—"}</td>
     <td style="text-align:center;border:1px solid #999;padding:8px">${it.rate}</td>
@@ -529,7 +560,7 @@ function quoteHtml(q) {
     <div style="margin-top:12px"><b>Kind Attn. ${q.contactName || ""} ${q.contactNumber ? "(Mob.No. " + q.contactNumber + ")" : ""}</b></div>
     <div style="margin-top:6px"><b>Sub :-Quotation For Eurobond</b></div>
     <p>Sir,<br>In reference to the discussion held with you regarding the said subject, we are pleased to quote our most preferred rates & other terms and conditions for the same as follows.</p>
-    <table style="width:100%;border-collapse:collapse;margin:12px 0">
+    <table style="width:100%;border-collapse:collapse;margin:12px 0;font-family:Arial;font-size:13px;color:#1a1a1a">
       <thead><tr style="background:#f0f0f0">
         <th style="border:1px solid #999;padding:8px">Sr.No</th><th style="border:1px solid #999;padding:8px">Description</th>
         <th style="border:1px solid #999;padding:8px">Color Code/Series</th><th style="border:1px solid #999;padding:8px">Rate/Sq.Mtr (INR)</th><th style="border:1px solid #999;padding:8px">Rate/Sq.Ft (INR)</th>

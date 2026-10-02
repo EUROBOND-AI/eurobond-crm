@@ -230,7 +230,7 @@ export const MODULES = {
   },
 
   target: {
-    path: "sfa/target", title: "Targets", crumb: "Target", addLabel: "Assign Target",
+    path: "sfa/target", title: "Targets", crumb: "Target", perm: "Targets", addLabel: "Assign Target",
     app: false,
     tabs: [{ key: "Sales", label: "Sales Target (₹)" }, { key: "Specs", label: "Specs Target (Sq.Mtr)" }],
     tabField: "targetType",
@@ -281,7 +281,7 @@ export const MODULES = {
   /* ===================== BACKEND ONLY ===================== */
 
   resources: {
-    path: "master/resources", title: "Resources & Links", crumb: "Resources", addLabel: "Add Resource",
+    path: "master/resources", title: "Resources & Links", crumb: "Resources", perm: "Resources & Links", addLabel: "Add Resource",
     idPrefix: "RES", app: true, appLabel: "Resources",
     columns: [
       { key: "subject", label: "Subject Name" },
@@ -297,7 +297,7 @@ export const MODULES = {
   },
 
   holidays: {
-    path: "master/holidays", title: "Holiday List", crumb: "Holiday", addLabel: "Add Holiday",
+    path: "master/holidays", title: "Holiday List", crumb: "Holiday", perm: "Holidays", addLabel: "Add Holiday",
     columns: [{ key: "date", label: "Date" }, { key: "name", label: "Holiday Name" }, { key: "type", label: "Type" }],
     filters: ["audienceType"],
     form: [

@@ -9,6 +9,18 @@ import { canAdd, canDelete, canModify, canExport, canImport } from "../lib/perms
 import { usePager, Pager } from "../components/Pager.jsx";
 import { useVisiblePoll } from "../lib/poll.js";
 
+/* Which name to ask the permission grid about.
+
+   The grid in Roles & Permission lists modules as "Leave" and "Expense", but
+   these pages were asking about their own headings — "Leave List",
+   "Expense List". A name the grid does not hold counts as unrestricted, so
+   every tick the admin made on those rows was ignored and Delete stayed on
+   screen for roles that were not meant to have it. Only six of the seventeen
+   headings happened to match the grid, so this was quiet and widespread.
+   The grid name is now stated per module, falling back to the breadcrumb,
+   which is what the grid was written from. */
+const permName = (cfg) => cfg.perm || cfg.crumb || cfg.title;
+
 /* flatten arrays into readable text for admin table columns */
 function projContactsText(contacts) {
   if (!contacts || !contacts.length) return "";
@@ -595,11 +607,11 @@ export default function ModulePage({ cfgKey }) {
           rows={pager.slice}
           actions={cfg.actions !== false}
           selectable
-          onBulkDelete={canDelete(cfg.title) ? handleBulkDelete : null}
+          onBulkDelete={canDelete(permName(cfg)) ? handleBulkDelete : null}
           onBulkForward={cfgKey === "projectProjection" ? (ids) => setFwdRow({ bulk: ids.map((id) => rows.find((r) => r._id === id)).filter(Boolean) }) : null}
           onRowClick={["projectProjection", "salesToSpec", "specToSales"].includes(cfgKey) ? (r) => openFull(r, setProjView) : (cfg.approveFlow || cfg.isSpecThread) ? (r) => openFull(r, setChatRow) : null}
-          onDelete={canDelete(cfg.title) ? handleDelete : null}
-          onEdit={(cfg.form && cfgKey !== "projectProjection" && canModify(cfg.title)) ? (r) => { setEditing(r); setShowForm(true); } : null}
+          onDelete={canDelete(permName(cfg)) ? handleDelete : null}
+          onEdit={(cfg.form && cfgKey !== "projectProjection" && canModify(permName(cfg))) ? (r) => { setEditing(r); setShowForm(true); } : null}
         />
       )}
       {/* the page numbers belong with the rows, so they wait for Show as well */}

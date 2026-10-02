@@ -5,6 +5,7 @@ import { buildExpensePdf } from "../lib/expensePdf.js";
 import { scopeRows } from "../lib/scope.js";
 import { HEADER_COLS, LINE_COLS, NUMATCARD_START, depoKey, headerRow, lineRows, downloadSheet, LOCATION, FIXED } from "../lib/sapExport.js";
 import { usePager, Pager } from "../components/Pager.jsx";
+import { canDelete } from "../lib/perms.js";
 
 /* Admin Expense — submitted statements with full format + bills, approve / reject.
    Photos/PDF open in the shared CRM lightbox (crm-lightbox event), not external links. */
@@ -385,11 +386,15 @@ export default function ExpenseApprovals() {
                           </button>
                         </>
                       )}
-                      <button className="btn btn-danger" style={{ padding: "5px 10px", fontSize: 12 }}
-                        onClick={async () => {
-                          if (!window.confirm("Delete this expense statement? This cannot be undone.")) return;
-                          try { await api.remove("expense", r._id || r.id); load(); } catch (e) { alert(e.message); }
-                        }}>Delete</button>
+                      {/* only for roles the Roles & Permission grid allows to
+                          delete Expense — this button used to show for everyone */}
+                      {canDelete("Expense") && (
+                        <button className="btn btn-danger" style={{ padding: "5px 10px", fontSize: 12 }}
+                          onClick={async () => {
+                            if (!window.confirm("Delete this expense statement? This cannot be undone.")) return;
+                            try { await api.remove("expense", r._id || r.id); load(); } catch (e) { alert(e.message); }
+                          }}>Delete</button>
+                      )}
                     </td>
                   </tr>
                 ))}

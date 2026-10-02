@@ -3123,7 +3123,7 @@ function FieldResources() {
   );
 }
 
-/* Customer & Help — where someone goes when the app is not behaving.
+/* Support & Help — where someone goes when the app is not behaving.
 
    A ticket raised here is the same Developer Support record the admin panel
    lists, so it lands in one place and is mailed out at the same time. The
@@ -3154,10 +3154,33 @@ function FieldHelp() {
     if (shots.length >= 3) { alert("You can attach up to 3 screenshots."); return; }
     setUpBusy(true);
     try {
-      const u = (await api.uploadCompressed(file, "general")) || {};
-      const url = u.url || u.path || u.file || u.src || u.location || "";
+      let url = "";
+      try {
+        /* Filed under "general", the folder every other attachment in the app
+           uses. The first version invented a "ticket" folder, which the upload
+           endpoint may not know, and read the reply for a single field name. */
+        const u = (await api.uploadCompressed(file, "general")) || {};
+        url = u.url || u.path || u.file || u.src || u.location || "";
+      } catch { /* fall through to carrying the picture in the ticket itself */ }
+
+      /* If the upload did not come back with a picture, the screenshot travels
+         inside the ticket instead of as a file on the server. A screenshot is
+         mostly flat colour and text, so shrunk it is small enough to carry this
+         way, and it means raising a ticket never fails just because the upload
+         endpoint would not take it. */
+      if (!url) {
+        const { compressImage } = await import("../lib/api.js");
+        const small = await compressImage(file, 900, 0.6).catch(() => null);
+        url = await new Promise((resolve) => {
+          const r = new FileReader();
+          r.onloadend = () => resolve(typeof r.result === "string" ? r.result : "");
+          r.onerror = () => resolve("");
+          r.readAsDataURL(small || file);
+        });
+      }
+
       if (url) setShots((s) => [...s, url]);
-      else alert("The screenshot did not upload. " + (u.error || u.message || "Please try again, or send it on WhatsApp."));
+      else alert("That screenshot could not be read. Please try picking it again.");
     } catch (e) {
       alert("Could not attach the screenshot: " + (e && e.message ? e.message : e));
     }
@@ -3212,7 +3235,18 @@ function FieldHelp() {
             <p><b>Subject:</b> ${row.subject}</p>
             <p><b>Priority:</b> ${row.priority}</p>
             <p><b>Description:</b><br>${(row.desc || "-").replace(/\n/g, "<br>")}</p>
-            ${shots.length ? `<p><b>Screenshots:</b><br>${shots.map((u, i) => `<a href="${u}">Screenshot ${i + 1}</a>`).join(" &nbsp; ")}</p>` : ""}
+            ${(() => {
+              if (!shots.length) return "";
+              /* only a real link can be followed from an inbox; a screenshot
+                 carried inside the ticket is viewed in the panel */
+              const links = shots.filter((u) => /^https?:\/\//i.test(u));
+              if (links.length === shots.length) {
+                return `<p><b>Screenshots:</b><br>${links.map((u, i) => `<a href="${u}">Screenshot ${i + 1}</a>`).join(" &nbsp; ")}</p>`;
+              }
+              return `<p><b>Screenshots:</b> ${shots.length} attached — open the ticket in GK - Developer Support to view them.`
+                + (links.length ? `<br>${links.map((u, i) => `<a href="${u}">Screenshot ${i + 1}</a>`).join(" &nbsp; ")}` : "")
+                + `</p>`;
+            })()}
             <p><b>Created At:</b> ${row.createdAt}</p>
             <hr><p>Eurobond CRM — GK - Developer Support</p>`,
         });
@@ -3239,7 +3273,7 @@ function FieldHelp() {
 
   return (
     <>
-      <ScreenHead title="Customer & Help" />
+      <ScreenHead title="Support & Help" />
       <div className="f-list-pad" style={{ paddingTop: 14 }}>
         <div style={{ background: "linear-gradient(135deg,#4b5cf0,#7b5cf0)", color: "#fff", borderRadius: 16, padding: "18px 16px", marginBottom: 14 }}>
           <LifeBuoy size={26} style={{ opacity: 0.9 }} />
@@ -3290,7 +3324,18 @@ function FieldHelp() {
               <label style={{ width: 72, height: 72, borderRadius: 10, border: "1.5px dashed #b9c2e0", display: "grid", placeItems: "center", cursor: "pointer", color: "var(--muted)", fontSize: 11, fontWeight: 700, textAlign: "center", background: "#fff" }}>
                 {upBusy ? "…" : <><Camera size={18} /><div>Add</div></>}
                 <input type="file" accept="image/*" hidden disabled={upBusy}
-                  onChange={(e) => { addShot(e.target.files[0]); e.target.value = ""; }} />
+                  /* The input is only cleared once the picture has been read.
+                     Clearing it straight away — which is what this did — throws
+                     away the phone's handle on the file while it is still being
+                     read, so the attachment quietly came to nothing. The input
+                     still has to be cleared afterwards, or picking the same
+                     screenshot twice raises no event at all. */
+                  onChange={async (e) => {
+                    const input = e.target;
+                    const file = input.files && input.files[0];
+                    await addShot(file);
+                    try { input.value = ""; } catch {}
+                  }} />
               </label>
             )}
           </div>
@@ -4526,7 +4571,7 @@ function MenuDrawer({ open, close }) {
       ["Resources & Links", <FileText size={16} />, "/app/resources", "resources"],
       /* last in the menu on purpose — it is where you go when something else
          on this list is not working */
-      ["Customer & Help", <LifeBuoy size={16} />, "/app/help", null],
+      ["Support & Help", <LifeBuoy size={16} />, "/app/help", null],
     ] },
   ];
   const groups = rawGroups.map((g) => ({ ...g, items: g.items.filter(([, , , key]) => canSee(key)) })).filter((g) => g.items.length);
@@ -7387,6 +7432,25 @@ export default function FieldApp() {
     })();
   }, []);
 
+  const syncAttToday = () => api.attToday().then((d) => {
+    const s = d.session;
+    if (s && s.status === "RUNNING") {
+      sessionRef.current = Number(s.id);
+      todaySessionRef.current = s;
+      if (s.start_time) {
+        const st = new Date(s.start_time.replace(" ", "T")).getTime();
+        setTracking((t) => ({ ...t, startedAt: t.startedAt || st, stoppedAt: null }));
+      }
+      if (!attendanceOn) { resumeRef.current = true; setAttendanceOn(true); }
+      setDoneToday(false);
+    } else if (s && s.status === "DONE") {
+      todaySessionRef.current = s;   // end_time etc. for Details display
+      setDoneToday(true);       // aa roju logout ayindi
+    } else {
+      setDoneToday(false);      // no session today -> fresh login available
+    }
+  }).catch(() => {});
+
   /* SERVER is the source of truth for attendance state (localStorage lock removed —
      adi stale ga undi false "completed" chupinchedi).
      - today's session RUNNING -> ON state (only Logout)
@@ -7416,26 +7480,18 @@ export default function FieldApp() {
         await P.remove({ key: "eb_session_id" });
       } catch { /* offline -> leave everything as it is, never kill tracking */ }
     })();
-    api.attToday().then((d) => {
-      const s = d.session;
-      if (s && s.status === "RUNNING") {
-        sessionRef.current = Number(s.id);
-        todaySessionRef.current = s;
-        if (s.start_time) {
-          const st = new Date(s.start_time.replace(" ", "T")).getTime();
-          setTracking((t) => ({ ...t, startedAt: t.startedAt || st, stoppedAt: null }));
-        }
-        if (!attendanceOn) { resumeRef.current = true; setAttendanceOn(true); }
-        setDoneToday(false);
-      } else if (s && s.status === "DONE") {
-        todaySessionRef.current = s;   // end_time etc. for Details display
-        setDoneToday(true);       // aa roju logout ayindi
-      } else {
-        setDoneToday(false);      // no session today -> fresh login available
-      }
-    }).catch(() => {});
+    syncAttToday();
     // eslint-disable-next-line
   }, [authed]);
+
+  /* Ask the server again what today's attendance looks like.
+
+     This used to run only on login, so the answer Home was showing could be
+     hours old: left in the background, or opened on a weak connection, Home
+     offered attendance to someone who had already marked it. It is a function
+     now, and Refresh calls it, so pressing Refresh on Home actually re-checks
+     rather than only re-drawing what was already in hand. */
+  useAppRefresh(() => { if (authed) syncAttToday(); });
 
   const [tracking, setTracking] = useState({ points: [], km: 0, startedAt: null, stoppedAt: null, error: "" });
   const [gpsAlarm, setGpsAlarm] = useState(false);
@@ -7909,6 +7965,15 @@ export default function FieldApp() {
           <div style={{ flex: 1, display: "flex", alignItems: "center" }}>
             <img src={logoImg} alt="Eurobond" style={{ height: 22 }} />
           </div>
+          {/* Refresh for the screen underneath, including Home.
+
+              Home decides whether to offer attendance from what the server last
+              said. Left in the background, or opened on a weak connection, that
+              answer can be stale, and someone who had already marked attendance
+              was asked to mark it again. This sits in the top bar so it is in
+              the same place on every screen, and is the same button the screens
+              themselves use. */}
+          <RefreshBtn size={19} />
         </div>
 
         <div className="phone-body">
