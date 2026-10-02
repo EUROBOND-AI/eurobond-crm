@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight, CloudOff, RefreshCw, Plus, Upload, FileText, Trash2, Pencil, Eye } from "lucide-react";
+import { ChevronLeft, ChevronRight, CloudOff, RefreshCw, Plus, Upload, FileText, Trash2, Pencil, Eye, MessageSquare } from "lucide-react";
 import { api } from "../lib/api.js";
 import { can } from "../lib/perms.js";
 
@@ -65,7 +65,7 @@ export function EmptyState() {
 }
 
 // Generic filterable table used across every module
-export function DataTable({ columns, rows, onDelete, onEdit, onView, onRowClick, onBulkDelete, onBulkForward, selectable, actions = true, extraActions }) {
+export function DataTable({ columns, rows, onDelete, onEdit, onView, onChat, onRowClick, onBulkDelete, onBulkForward, selectable, actions = true, extraActions }) {
   const [filters, setFilters] = useState({});
   const [sel, setSel] = useState(new Set());
   const filtered = useMemo(
@@ -134,6 +134,17 @@ export function DataTable({ columns, rows, onDelete, onEdit, onView, onRowClick,
                   {extraActions && extraActions(r)}
                     <div style={{ display: "flex", gap: 7 }}>
                       {onView && <button className="btn btn-soft" style={{ padding: "6px 8px" }} onClick={() => onView(r)}><Eye size={14} /></button>}
+                      {/* the conversation on this row — clicking the row opens
+                          it too, but that is not something anyone can see */}
+                      {onChat && (
+                        <button className="btn btn-soft" title="Messages" style={{ padding: "6px 8px", background: "#eef1ff", color: "var(--accent)", position: "relative" }}
+                          onClick={() => onChat(r)}>
+                          <MessageSquare size={14} />
+                          {(r.thread || []).length > 0 && (
+                            <span style={{ marginLeft: 4, fontSize: 11, fontWeight: 800 }}>{(r.thread || []).length}</span>
+                          )}
+                        </button>
+                      )}
                       {onEdit && <button className="btn" style={{ padding: "6px 8px", background: "#e2f8f1", color: "#00b894" }} onClick={() => onEdit(r)}><Pencil size={14} /></button>}
                       {onDelete && <button className="btn btn-danger" style={{ padding: "6px 8px" }} onClick={() => onDelete(r)}><Trash2 size={14} /></button>}
                     </div>

@@ -1405,7 +1405,17 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
   useEffect(() => {
     if ((tab !== "Timeline" && tab !== "Map") || !sessionId) return;
     /* same points as the distance, so the app map and the admin map agree */
-    const load = () => api.attPointsList(sessionId).then((d) => { if (d && d.points) setServerPts(cleanTrack(d.points)); }).catch(() => {});
+    /* Every position as recorded, not the filtered set.
+
+       cleanTrack exists to work out distance: it throws away a fix that is too
+       vague or that implies an impossible speed, so the kilometres are not
+       inflated by a bad reading. Feeding the timeline from that set meant the
+       phone listed only the positions that survived filtering, while the admin
+       panel lists them all — so the admin could see a day the person could not
+       see on their own phone. The timeline is a record of what was recorded,
+       so it gets everything; the distance and the route line keep using the
+       filtered set. */
+    const load = () => api.attPointsList(sessionId).then((d) => { if (d && d.points) setServerPts(d.points); }).catch(() => {});
     load();
     /* also reload the moment the app comes back to the front */
     const onBack = () => load();
@@ -2825,7 +2835,8 @@ function FieldProjectList() {
 }
 function pBtn(bg) { return { flex: "1 1 auto", background: bg, color: "#fff", border: "none", borderRadius: 8, padding: "8px 0", fontWeight: 700, fontSize: 12, cursor: "pointer", minWidth: 70 }; }
 
-function ProjectView({ rec, onClose }) {
+function ProjectView({ rec, onClose, mod = "projectProjection" }) {
+  const nav = useNavigate();
   const fups = rec.followups || [];
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.55)", zIndex: 9999, display: "grid", placeItems: "center", padding: 16 }} onClick={onClose}>
@@ -2897,6 +2908,17 @@ function ProjectView({ rec, onClose }) {
             {fu.photo && <img src={fu.photo} alt="" style={{ width: 70, height: 70, objectFit: "cover", borderRadius: 8, marginTop: 4 }} />}
           </div>
         ))}
+
+        {/* The conversation about this project.
+
+            Anything the admin panel sends on this record, and anything the
+            person it was mentioned to replies, is one thread — the same one the
+            Leave screen uses. Without a way in from here those messages were
+            written and never read. */}
+        <button onClick={() => { onClose && onClose(); nav(`/app/thread/${mod}/${rec._id}`); }}
+          style={{ width: "100%", marginTop: 14, padding: "12px", borderRadius: 11, border: "1.5px solid var(--accent)", background: "#eef1ff", color: "var(--accent)", fontWeight: 800, fontSize: 13.5, cursor: "pointer" }}>
+          💬 Chat {(rec.thread || []).length > 0 ? `(${(rec.thread || []).length})` : ""}
+        </button>
       </div>
     </div>
   );
@@ -4716,7 +4738,7 @@ function FieldSpecThreadList({ mod }) {
           );
         })}
       </div>
-      {viewRec && <ProjectView rec={viewRec} onClose={() => setViewRec(null)} />}
+      {viewRec && <ProjectView rec={viewRec} mod={mod} onClose={() => setViewRec(null)} />}
       {replyRec && <SpecReply rec={replyRec} mod={mod} isS2S={isS2S} onClose={() => setReplyRec(null)} onSaved={() => { setReplyRec(null); load(); }} />}
       {rementRec && <SpecRemention rec={rementRec} mod={mod} isS2S={isS2S} onClose={() => setRementRec(null)} onSaved={() => { setRementRec(null); load(); }} />}
     </>

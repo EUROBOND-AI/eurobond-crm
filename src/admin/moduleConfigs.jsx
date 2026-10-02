@@ -89,7 +89,7 @@ export const MODULES = {
 
   projectProjection: {
     path: "sfa/project-projection", title: "Project Projection", crumb: "Project Projection", addLabel: "Add Project",
-    idPrefix: "PPJ", app: true, appLabel: "Project Projection", importable: true,
+    idPrefix: "PPJ", app: true, appLabel: "Project Projection", importable: true, chat: true,
     filters: ["hod", "createdBy"],
     dateFilter: true, showButton: true,
     tabs: [
@@ -173,7 +173,7 @@ export const MODULES = {
 
   task: {
     path: "sfa/task", title: "Task List", crumb: "Task", addLabel: "Add Task",
-    idPrefix: "TSK", app: true, appLabel: "Task",
+    idPrefix: "TSK", app: true, appLabel: "Task", chat: true,
     tabs: [
       { key: "Pending", label: "Pending" }, { key: "In Progress", label: "In Progress" },
       { key: "Completed", label: "Completed" }, { key: "Close", label: "Close" }, { key: "Rejected", label: "Rejected" },

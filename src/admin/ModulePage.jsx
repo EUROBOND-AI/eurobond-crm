@@ -609,7 +609,12 @@ export default function ModulePage({ cfgKey }) {
           selectable
           onBulkDelete={canDelete(permName(cfg)) ? handleBulkDelete : null}
           onBulkForward={cfgKey === "projectProjection" ? (ids) => setFwdRow({ bulk: ids.map((id) => rows.find((r) => r._id === id)).filter(Boolean) }) : null}
-          onRowClick={["projectProjection", "salesToSpec", "specToSales"].includes(cfgKey) ? (r) => openFull(r, setProjView) : (cfg.approveFlow || cfg.isSpecThread) ? (r) => openFull(r, setChatRow) : null}
+          /* Opening a row. Project-shaped modules show the full record; the rest
+              open the conversation, which is how a task assigned from here gets
+              talked about — the admin assigns it, the person replies on their
+              phone, and both see the one thread. */
+          onRowClick={["projectProjection", "salesToSpec", "specToSales"].includes(cfgKey) ? (r) => openFull(r, setProjView) : (cfg.approveFlow || cfg.isSpecThread || cfg.chat) ? (r) => openFull(r, setChatRow) : null}
+          onChat={(cfg.approveFlow || cfg.isSpecThread || cfg.chat) ? (r) => openFull(r, setChatRow) : null}
           onDelete={canDelete(permName(cfg)) ? handleDelete : null}
           onEdit={(cfg.form && cfgKey !== "projectProjection" && canModify(permName(cfg))) ? (r) => { setEditing(r); setShowForm(true); } : null}
         />
@@ -709,9 +714,32 @@ function AdminChatModal({ row, cfgKey, onClose, onSent }) {
       const newThread = [...thread, { by: (auth.user && auth.user.name) || "Admin", text: text.trim(), doc, at: new Date().toLocaleString("en-IN") }];
       const data = { ...rec, thread: newThread }; delete data._id;
       await api.update(cfgKey, rec._id, data);
-      // notify the other party
-      const other = rec.createdBy;
-      if (other) { try { await api.notify({ to: other, title: "Reply on " + (rec.id || cfgKey), message: `${(auth.user && auth.user.name) || "Admin"}: ${text.trim() || "sent a document"}`, createdAt: new Date().toLocaleString("en-IN") }); } catch {} }
+      /* Who should hear about this.
+
+         It went to whoever created the row, which is right when the person on
+         the phone raised it. For a task the admin assigns, the admin IS the
+         creator, so the message was addressed back to the sender and the person
+         who had to do the task was never told. The people on this record are
+         tried in turn, and whoever sent this message is skipped. The link makes
+         the notification open the conversation on the phone rather than
+         dropping the person somewhere they have to find it again. */
+      const me = (auth.user && auth.user.name) || "Admin";
+      const candidates = [rec.assignee, rec.specPerson, rec.salesPerson, rec.createdBy];
+      const seen = new Set();
+      for (const who of candidates) {
+        const name = String(who || "").trim();
+        if (!name || name === me || seen.has(name.toLowerCase())) continue;
+        seen.add(name.toLowerCase());
+        try {
+          await api.notify({
+            to: name,
+            title: "Message on " + (rec.id || cfgKey),
+            message: `${me}: ${text.trim() || "sent a document"}`,
+            link: `/app/thread/${cfgKey}/${rec._id}`,
+            createdAt: new Date().toLocaleString("en-IN"),
+          });
+        } catch {}
+      }
       const updated = { ...rec, thread: newThread };
       setRec(updated); onSent(updated); setText(""); setFile(null);
     } catch (e) { alert(e.message); }
