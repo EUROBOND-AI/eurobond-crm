@@ -789,22 +789,40 @@ async function cancelLogoutReminders() {
    one press reloads the page you are looking at as well as the rest. */
 /* How many times Refresh has been pressed. The whole screen is rebuilt on each
    press, which is the only way to be sure every screen reloads — several of them
-   fetch their data in their own way and could not all be asked one by one. */
+   fetch their data in their own way and could not all be asked one by one.
+
+   This counts presses of the button and nothing else. It used to count every
+   time the app came back to the front, which rebuilt the open screen — and
+   anything half-finished on it was thrown away. Picking a screenshot sends the
+   app to the background while the phone's gallery is open, so coming back from
+   the gallery wiped the ticket being written, screenshot and all: the
+   attachment looked like it had simply failed. Returning from the background
+   still reloads data; it no longer destroys what is on screen. */
 function useRefreshTick() {
   const [tick, setTick] = useState(0);
   useEffect(() => {
     const h = () => setTick((n) => n + 1);
-    window.addEventListener("eb-app-resumed", h);
-    return () => window.removeEventListener("eb-app-resumed", h);
+    window.addEventListener("eb-refresh-pressed", h);
+    return () => window.removeEventListener("eb-refresh-pressed", h);
   }, []);
   return tick;
 }
 
+/* Reload this screen's data whenever the app comes back to the front or Refresh
+   is pressed. If the reload returns something to wait on, it is handed back to
+   the Refresh button so the spinner keeps turning until the data has actually
+   arrived rather than stopping after a fixed moment. */
 function useAppRefresh(fn) {
   const ref = useRef(fn);
   ref.current = fn;
   useEffect(() => {
-    const h = () => { try { ref.current && ref.current(); } catch {} };
+    const h = (e) => {
+      try {
+        const out = ref.current && ref.current();
+        const jobs = e && e.detail && e.detail.jobs;
+        if (jobs && out && typeof out.then === "function") jobs.push(out);
+      } catch {}
+    };
     window.addEventListener("eb-app-resumed", h);
     return () => window.removeEventListener("eb-app-resumed", h);
   }, []);
@@ -7491,7 +7509,7 @@ export default function FieldApp() {
      offered attendance to someone who had already marked it. It is a function
      now, and Refresh calls it, so pressing Refresh on Home actually re-checks
      rather than only re-drawing what was already in hand. */
-  useAppRefresh(() => { if (authed) syncAttToday(); });
+  useAppRefresh(() => (authed ? syncAttToday() : null));
 
   const [tracking, setTracking] = useState({ points: [], km: 0, startedAt: null, stoppedAt: null, error: "" });
   const [gpsAlarm, setGpsAlarm] = useState(false);
@@ -7527,13 +7545,15 @@ export default function FieldApp() {
   const reloadExpenses = () => api.list("expense", true).then((d) => setExpenses((d.records || []).map((r) => ({ _id: r.id, ...r.data })))).catch(() => {});
   useEffect(() => {
     if (!authed) return;
-    const loadLists = () => {
-      reloadExpenses();
-      api.list("leave", true).then((d) => setLeaves((d.records || []).map((r) => ({ _id: r.id, ...r.data })))).catch(() => {});
+    /* hands back the three loads together, so Refresh can keep spinning until
+       they have all answered instead of stopping after a fixed moment */
+    const loadLists = () => Promise.allSettled([
+      reloadExpenses(),
+      api.list("leave", true).then((d) => setLeaves((d.records || []).map((r) => ({ _id: r.id, ...r.data })))).catch(() => {}),
       /* the row's own created_at comes along, so "added today" can be worked out
          even for entries whose form never stored a date of its own */
-      api.list("followup", true).then((d) => setFollowups((d.records || []).map((r) => ({ _id: r.id, _at: r.created_at, ...r.data })))).catch(() => {});
-    };
+      api.list("followup", true).then((d) => setFollowups((d.records || []).map((r) => ({ _id: r.id, _at: r.created_at, ...r.data })))).catch(() => {}),
+    ]);
     loadLists();
     /* Screens used to show whatever was loaded when the app first opened, so an
        approval or a change made in admin only appeared after leaving the screen

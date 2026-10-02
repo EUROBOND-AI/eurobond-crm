@@ -583,7 +583,7 @@ function downloadQuotePdf(q) {
   const w = window.open("", "_blank");
   const rowsHtml = items.map((it, i) => `<tr>
     <td class="srno">${i + 1}</td>
-    <td class="desc">${it.grade || ""}${it.thickness ? `<span class="thk">(${it.thickness})</span>` : ""}${it.fins ? " (Running Feet)" : ""}</td>
+    <td class="desc">${tidyProduct(it.grade)}${it.thickness ? `<span class="thk">(${it.thickness})</span>` : ""}${it.fins ? " (Running Feet)" : ""}</td>
     <td class="colour">${it.colourCode ? it.colourCode + " · " : ""}${it.colour || ""}</td>
     <td class="rate">${!it.fins && it.ratePerSqm ? it.ratePerSqm : "—"}</td>
     <td class="rate">${it.rate}</td>
@@ -616,7 +616,7 @@ function downloadQuotePdf(q) {
     table.tc td.k{width:170px;white-space:nowrap}
     table.tc td.c{width:14px;text-align:center}
     table.tc td.v{padding-left:6px}
-    .thk{font-size:10px;color:#666;display:block;margin-top:2px}
+    .thk{display:block;margin-top:2px}
     .tc div{margin:2px 0}
     .sign{margin-top:26px}
     h3{margin:6px 0}
