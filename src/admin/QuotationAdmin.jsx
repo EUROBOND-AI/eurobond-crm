@@ -327,7 +327,7 @@ function QuoteAdminView({ q, onClose, onPdf }) {
               <tr key={i} style={{ borderTop: "1px solid #eef" }}>
                 <td style={{ padding: 8 }}>{i + 1}</td>
                 <td style={{ padding: 8 }}>{it.grade} {it.thickness ? <span style={{ fontSize: 10, color: "#888" }}>({it.thickness})</span> : ""} {i > 0 ? "(Running Feet)" : ""}</td>
-                <td style={{ padding: 8 }}>{it.colourCode ? it.colourCode + " · " : ""}{it.colour}</td>
+                <td style={{ padding: 8 }}>{colourCell(it)}</td>
                 <td style={{ padding: 8 }}>{i === 0 && it.ratePerSqm ? `INR ${it.ratePerSqm}` : "—"}</td>
                 <td style={{ padding: 8 }}>INR {it.rate}</td>
               </tr>
@@ -505,6 +505,24 @@ function tidyProduct(name) {
   }).join("");
 }
 
+/* The Color Code / Series cell.
+
+   Two problems showed up in a real quotation. The series arrived from the
+   Products master in block capitals, like the description did, so this column
+   stayed shouting after the description had been settled. And where a product
+   carries no separate code the code and the colour hold the same words, which
+   printed as "SOLID & METALLIC SERIES · SOLID & METALLIC SERIES" — the same
+   thing twice with a dot between. The repeat is dropped and the words are
+   written the way the rest of the quotation is written. */
+function colourCell(it) {
+  const code = tidyProduct(it.colourCode);
+  const colour = tidyProduct(it.colour);
+  if (!code) return colour || "";
+  if (!colour) return code;
+  if (code.toUpperCase() === colour.toUpperCase()) return colour;
+  return code + " \u00b7 " + colour;
+}
+
 /* A4 page HTML with letterhead background (for html2canvas capture) */
 function quotePageHtml(q) {
   const items = q.items || [{ grade: q.grade, colour: q.colour, rate: q.rate, ratePerSqm: q.ratePerSqm }];
@@ -512,7 +530,7 @@ function quotePageHtml(q) {
   const rowsHtml = items.map((it, i) => `<tr>
     <td style="text-align:center;border:1px solid #999;padding:7px;width:8%">${i + 1}</td>
     <td style="text-align:center;border:1px solid #999;padding:7px;width:38%">${tidyProduct(it.grade)}${it.thickness ? `<span style="display:block">(${it.thickness})</span>` : ""}${it.fins ? " (Running Feet)" : ""}</td>
-    <td style="text-align:center;border:1px solid #999;padding:7px;width:22%">${it.colourCode ? it.colourCode + " · " : ""}${it.colour || ""}</td>
+    <td style="text-align:center;border:1px solid #999;padding:7px;width:22%">${colourCell(it)}</td>
     <td style="text-align:center;border:1px solid #999;padding:7px;width:16%">${!it.fins && it.ratePerSqm ? it.ratePerSqm : "—"}</td>
     <td style="text-align:center;border:1px solid #999;padding:7px;width:16%">${it.rate}</td>
   </tr>`).join("");
@@ -547,7 +565,7 @@ function quoteHtml(q) {
   const rowsHtml = items.map((it, i) => `<tr>
     <td style="text-align:center;border:1px solid #999;padding:8px">${i + 1}</td>
     <td style="text-align:left;border:1px solid #999;padding:8px">${tidyProduct(it.grade)}${it.thickness ? `<br><span>(${it.thickness})</span>` : ""}${it.fins ? " (Running Feet)" : ""}</td>
-    <td style="text-align:center;border:1px solid #999;padding:8px">${it.colourCode ? it.colourCode + " · " : ""}${it.colour || ""}</td>
+    <td style="text-align:center;border:1px solid #999;padding:8px">${colourCell(it)}</td>
     <td style="text-align:center;border:1px solid #999;padding:8px">${!it.fins && it.ratePerSqm ? it.ratePerSqm : "—"}</td>
     <td style="text-align:center;border:1px solid #999;padding:8px">${it.rate}</td>
   </tr>`).join("");
@@ -584,7 +602,7 @@ function downloadQuotePdf(q) {
   const rowsHtml = items.map((it, i) => `<tr>
     <td class="srno">${i + 1}</td>
     <td class="desc">${tidyProduct(it.grade)}${it.thickness ? `<span class="thk">(${it.thickness})</span>` : ""}${it.fins ? " (Running Feet)" : ""}</td>
-    <td class="colour">${it.colourCode ? it.colourCode + " · " : ""}${it.colour || ""}</td>
+    <td class="colour">${colourCell(it)}</td>
     <td class="rate">${!it.fins && it.ratePerSqm ? it.ratePerSqm : "—"}</td>
     <td class="rate">${it.rate}</td>
   </tr>`).join("");
@@ -604,8 +622,10 @@ function downloadQuotePdf(q) {
     .top{display:flex;justify-content:space-between;align-items:flex-start}
     .qno{font-weight:bold}
     table{width:100%;border-collapse:collapse;margin:12px 0}
-    td,th{border:1px solid #999;padding:8px 10px;vertical-align:middle}
-    th{background:rgba(240,240,240,.85);text-align:center;font-size:12px}
+    /* exactly the body size — nothing in the products box is set larger than
+       the rest of the page */
+    td,th{border:1px solid #999;padding:8px 10px;vertical-align:middle;font-family:Arial;font-size:12.5px;color:#1a1a1a}
+    th{background:rgba(240,240,240,.85);text-align:center}
     td.srno{text-align:center;width:8%}
     td.desc{text-align:left;width:38%}
     td.colour{text-align:center;width:22%}
@@ -616,7 +636,7 @@ function downloadQuotePdf(q) {
     table.tc td.k{width:170px;white-space:nowrap}
     table.tc td.c{width:14px;text-align:center}
     table.tc td.v{padding-left:6px}
-    .thk{display:block;margin-top:2px}
+    .thk{display:block;margin-top:2px;font-size:12.5px;color:#1a1a1a}
     .tc div{margin:2px 0}
     .sign{margin-top:26px}
     h3{margin:6px 0}

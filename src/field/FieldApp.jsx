@@ -926,7 +926,16 @@ function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expense
             <div className="f-name">{CU().name}</div>
             <div className="f-date">{todayStr()} · {(CU().designation || CU().role || "Field")}</div>
           </div>
-          <BellWithBadge onClick={() => nav("/app/notifications")} />
+          {/* Refresh, next to the bell.
+
+              Home decides whether to offer attendance from what the server last
+              said. Left in the background, or opened on a weak connection, that
+              answer can be stale, and someone who had already marked attendance
+              was asked to mark it again — pressing this asks the server again. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <RefreshBtn size={19} />
+            <BellWithBadge onClick={() => nav("/app/notifications")} />
+          </div>
         </div>
         {doneToday ? (
           <div style={{ background: "#e8f7ee", border: "1.5px solid #7ed9a0", borderRadius: 16, padding: "16px", textAlign: "center", fontWeight: 800, color: "#1f7a44", fontSize: 14 }}>
@@ -3157,6 +3166,10 @@ function FieldHelp() {
   /* screenshots — a picture of the problem says more than describing it */
   const [shots, setShots] = useState([]);
   const [upBusy, setUpBusy] = useState(false);
+  /* Opening a screenshot used to hand it to the phone's browser, which threw
+     the person out of the app and into Chrome on a bare link. It opens here
+     instead, over the screen they are already on. */
+  const [shotView, setShotView] = useState(null);
 
   /* Attaching a screenshot.
 
@@ -3332,7 +3345,7 @@ function FieldHelp() {
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "8px 0 12px" }}>
             {shots.map((u, i) => (
               <div key={i} style={{ position: "relative" }}>
-                <img src={u} alt={`Screenshot ${i + 1}`} onClick={() => window.open(u, "_blank")}
+                <img src={u} alt={`Screenshot ${i + 1}`} onClick={() => setShotView(u)}
                   style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 10, border: "1.5px solid #d7dcef", cursor: "pointer" }} />
                 <button onClick={() => setShots((s) => s.filter((_, k) => k !== i))} aria-label="Remove"
                   style={{ position: "absolute", top: -6, right: -6, width: 22, height: 22, borderRadius: "50%", border: "none", background: "#d64545", color: "#fff", fontSize: 13, lineHeight: 1, cursor: "pointer", fontWeight: 800 }}>×</button>
@@ -3381,7 +3394,7 @@ function FieldHelp() {
             {Array.isArray(t.shots) && t.shots.length > 0 && (
               <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
                 {t.shots.map((u, k) => (
-                  <img key={k} src={u} alt={`Screenshot ${k + 1}`} onClick={() => window.open(u, "_blank")}
+                  <img key={k} src={u} alt={`Screenshot ${k + 1}`} onClick={() => setShotView(u)}
                     style={{ width: 54, height: 54, objectFit: "cover", borderRadius: 8, border: "1px solid #e2e8f5", cursor: "pointer" }} />
                 ))}
               </div>
@@ -3397,6 +3410,16 @@ function FieldHelp() {
           <div>Eurobond CRM v{__APP_VERSION__}</div>
         </div>
       </div>
+
+      {shotView && (
+        <div onClick={() => setShotView(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.92)", zIndex: 9500, display: "grid", placeItems: "center", padding: 16 }}>
+          <button onClick={() => setShotView(null)} aria-label="Close"
+            style={{ position: "absolute", top: "calc(14px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)))", right: 16, width: 40, height: 40, borderRadius: "50%", background: "rgba(255,255,255,.15)", border: "none", color: "#fff", fontSize: 22, cursor: "pointer" }}>×</button>
+          <img src={shotView} alt="Screenshot" onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: "100%", maxHeight: "88vh", borderRadius: 8 }} />
+        </div>
+      )}
     </>
   );
 }
@@ -7985,15 +8008,6 @@ export default function FieldApp() {
           <div style={{ flex: 1, display: "flex", alignItems: "center" }}>
             <img src={logoImg} alt="Eurobond" style={{ height: 22 }} />
           </div>
-          {/* Refresh for the screen underneath, including Home.
-
-              Home decides whether to offer attendance from what the server last
-              said. Left in the background, or opened on a weak connection, that
-              answer can be stale, and someone who had already marked attendance
-              was asked to mark it again. This sits in the top bar so it is in
-              the same place on every screen, and is the same button the screens
-              themselves use. */}
-          <RefreshBtn size={19} />
         </div>
 
         <div className="phone-body">
