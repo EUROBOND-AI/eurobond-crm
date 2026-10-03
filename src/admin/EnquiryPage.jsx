@@ -3,6 +3,7 @@ import { Edit3, UserPlus, Trash2, Share2, X, Search, Ban, RefreshCw, MessageSqua
 import { PageHead } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
 import { scopeRows, visibleUsers } from "../lib/scope.js";
+import { canDelete, canModify } from "../lib/perms.js";
 
 const LEAD_SOURCES = [
   "IndiaMart", "Social Media", "Direct Call", "Exhibition", "DCCHAT",
@@ -233,8 +234,8 @@ export default function EnquiryPage() {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button className="btn btn-soft" onClick={load} title="Reload from the server">↻ Refresh</button>
           <button className="btn" style={{ background: "#22a45d", color: "#fff", borderColor: "transparent" }} onClick={() => setShowAdd(true)}>Add New</button>
-          <button className="btn" style={{ background: "#3fb6d3", color: "#fff", borderColor: "transparent" }} disabled={selected.size === 0} onClick={() => setAssignFor("bulk")}>Bulk Assign</button>
-          <button className="btn btn-primary" disabled={selected.size === 0} onClick={() => { setReassign(true); setAssignFor("bulk"); }}>Bulk Re-Assign</button>
+          {canModify("Enquiry") && <button className="btn" style={{ background: "#3fb6d3", color: "#fff", borderColor: "transparent" }} disabled={selected.size === 0} onClick={() => setAssignFor("bulk")}>Bulk Assign</button>}
+          {canModify("Enquiry") && <button className="btn btn-primary" disabled={selected.size === 0} onClick={() => { setReassign(true); setAssignFor("bulk"); }}>Bulk Re-Assign</button>}
           <button className="btn" style={{ background: "#2b6fb8", color: "#fff", borderColor: "transparent" }} onClick={downloadFormat}>Download Format</button>
           <label className="btn" style={{ background: "#1f3a68", color: "#fff", borderColor: "transparent", cursor: "pointer" }}>Import File<input type="file" accept=".csv" hidden onChange={(e) => importFile(e.target.files[0])} /></label>
         </div>
@@ -319,12 +320,15 @@ export default function EnquiryPage() {
                   <td style={td}><input type="checkbox" checked={selected.has(r._id)} onChange={() => toggle(r._id)} /></td>
                   <td style={td}>
                     <div style={{ display: "flex", alignItems: "center" }}>
-                      <button title="Edit" style={iconBtn("#22a45d")} onClick={() => setEditRow(r)}><Edit3 size={14} /></button>
-                      <button title="Assign" style={iconBtn("#e8833a")} onClick={() => { setReassign(false); setAssignFor(r); }}><UserPlus size={14} /></button>
+                      {/* What this role may do, from Roles & Permission. Every
+                          one of these showed for everyone, so a role with only
+                          View ticked could still edit, reassign and delete. */}
+                      {canModify("Enquiry") && <button title="Edit" style={iconBtn("#22a45d")} onClick={() => setEditRow(r)}><Edit3 size={14} /></button>}
+                      {canModify("Enquiry") && <button title="Assign" style={iconBtn("#e8833a")} onClick={() => { setReassign(false); setAssignFor(r); }}><UserPlus size={14} /></button>}
                       <button title="Message" style={iconBtn("#0b6cb0")} onClick={() => setMsgFor(r)}><MessageSquare size={14} /></button>
-                      <button title="Delete" style={iconBtn("#e5484d")} onClick={() => del(r)}><Trash2 size={14} /></button>
-                      {(r.assignedTo || r.passto) && <button title="Re-Assign" style={iconBtn("#6c5ce7")} onClick={() => { setReassign(true); setAssignFor(r); }}><RefreshCw size={14} /></button>}
-                      <button title={String(r.status).toLowerCase() === "spam" ? "Remove from Spam" : "Mark as Spam"}
+                      {canDelete("Enquiry") && <button title="Delete" style={iconBtn("#e5484d")} onClick={() => del(r)}><Trash2 size={14} /></button>}
+                      {(r.assignedTo || r.passto) && canModify("Enquiry") && <button title="Re-Assign" style={iconBtn("#6c5ce7")} onClick={() => { setReassign(true); setAssignFor(r); }}><RefreshCw size={14} /></button>}
+                      {canModify("Enquiry") && <button title={String(r.status).toLowerCase() === "spam" ? "Remove from Spam" : "Mark as Spam"}
                         style={iconBtn(String(r.status).toLowerCase() === "spam" ? "#8a8f9e" : "#c0392b")}
                         onClick={async () => {
                           const isSpam = String(r.status).toLowerCase() === "spam";
@@ -333,7 +337,7 @@ export default function EnquiryPage() {
                             await api.update("enquiry", r._id || r.id, { ...r, status: isSpam ? (r.assignedTo || r.passto ? "Assigned" : "Pending") : "Spam" });
                             load();
                           } catch (e) { alert(e.message); }
-                        }}><Ban size={14} /></button>
+                        }}><Ban size={14} /></button>}
                     </div>
                   </td>
                   <td style={td}>{(page - 1) * pageSize + i + 1}</td>

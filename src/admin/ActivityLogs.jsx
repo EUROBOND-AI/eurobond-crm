@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
+import { visibleUsers } from "../lib/scope.js";
 
 const sel = { padding: "8px 11px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 12.5, background: "#fff" };
 const th = { padding: "10px 12px", textAlign: "left", fontSize: 11.5, fontWeight: 800, color: "var(--muted)", whiteSpace: "nowrap" };
@@ -16,13 +17,32 @@ export default function ActivityLogs() {
   const [hod, setHod] = useState("");
   const [role, setRole] = useState("");
   const [tab, setTab] = useState("detail");        // detail | summary
-  const [rows, setRows] = useState([]);
+  const [rawRows, setRows] = useState([]);
+  /* Only the people this login may see.
+
+     This page lists who did what, and it listed everybody: a HOD opening it saw
+     the whole company's activity. The names come from the same visibility rule
+     the rest of the panel uses. While the user list is still on its way nothing
+     is shown rather than everything, so the full list never flashes up. */
+  const [allowNames, setAllowNames] = useState(null);
+  const rows = useMemo(() => {
+    if (allowNames === null) return [];
+    return rawRows.filter((r) => allowNames.has(String(r.user_name || "").trim().toLowerCase()));
+  }, [rawRows, allowNames]);
   const [sum, setSum] = useState([]);
   const [shown, setShown] = useState(false);
   const [busy, setBusy] = useState(false);
   const [sel, setSel] = useState(new Set());
 
-  useEffect(() => { api.listUsers().then((d) => setUsers((d.users || []).filter((u) => u.status == 1))).catch(() => {}); }, []);
+  /* the trimmed list — this page is a record of who did what, so a HOD should
+     see their own team here and not the whole company */
+  useEffect(() => {
+    api.listUsers().then((d) => {
+      const vis = visibleUsers((d.users || []).filter((u) => u.status == 1));
+      setUsers(vis);
+      setAllowNames(new Set(vis.map((u) => String(u.name || "").trim().toLowerCase())));
+    }).catch(() => setAllowNames(new Set()));
+  }, []);
 
   const show = async () => {
     setBusy(true); setShown(true);

@@ -264,7 +264,7 @@ export default function ExpenseApprovals() {
           <label style={fLbl}>HOD</label>
           <select value={fHod} onChange={(e) => setFHod(e.target.value)} style={fSel}>
             <option value="">All</option>
-            {[...new Set(users.filter((u) => /hod/i.test(u.role || "")).map((u) => u.name))].filter(Boolean).map((n) => <option key={n}>{n}</option>)}
+            {[...new Set(visibleUsers(users).filter((u) => /hod/i.test(u.role || "")).map((u) => u.name))].filter(Boolean).map((n) => <option key={n}>{n}</option>)}
           </select>
         </div>
         <div>

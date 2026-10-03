@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { PageHead, StatCard, ToolButtons } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { scopeRows } from "../lib/scope.js";
+import { canDelete, canApprove, canExport } from "../lib/perms.js";
 import { LETTERHEAD } from "./letterhead.js";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -259,10 +260,14 @@ export default function QuotationAdmin() {
                   <td style={{ padding: "11px 14px" }}>
                     <div style={{ display: "flex", gap: 6 }}>
                       <button className="btn btn-ghost" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => setView(r)}>View</button>
-                      {(r.status || "Pending") === "Pending" && <button className="btn btn-primary" style={{ padding: "4px 10px", fontSize: 12 }} disabled={busy} onClick={() => approve(r)}>Approve</button>}
-                      {r.status === "Approved" && <button className="btn btn-soft" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => downloadQuotePdf(withDesignation(r))}>PDF</button>}
-                      {r.status === "Approved" && <button className="btn btn-soft" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => setMailFor(r)}>Mail</button>}
-                      <button className="btn btn-danger" style={{ padding: "4px 10px", fontSize: 12 }} onClick={async () => { if (window.confirm(`Delete quotation ${r.quoteNo || r.id}?`)) { try { await api.remove("quotation", r._id); load(); } catch (e) { alert(e.message); } } }}>Delete</button>
+                      {/* What this role may actually do, from Roles & Permission.
+                          These buttons used to show for everyone — a role with
+                          only View ticked could still approve, mail and delete
+                          quotations, so the grid decided nothing here. */}
+                      {(r.status || "Pending") === "Pending" && canApprove("Quotation") && <button className="btn btn-primary" style={{ padding: "4px 10px", fontSize: 12 }} disabled={busy} onClick={() => approve(r)}>Approve</button>}
+                      {r.status === "Approved" && canExport("Quotation") && <button className="btn btn-soft" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => downloadQuotePdf(withDesignation(r))}>PDF</button>}
+                      {r.status === "Approved" && canExport("Quotation") && <button className="btn btn-soft" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => setMailFor(r)}>Mail</button>}
+                      {canDelete("Quotation") && <button className="btn btn-danger" style={{ padding: "4px 10px", fontSize: 12 }} onClick={async () => { if (window.confirm(`Delete quotation ${r.quoteNo || r.id}?`)) { try { await api.remove("quotation", r._id); load(); } catch (e) { alert(e.message); } } }}>Delete</button>}
                     </div>
                   </td>
                 </tr>

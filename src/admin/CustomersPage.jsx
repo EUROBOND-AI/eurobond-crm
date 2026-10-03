@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Phone, MapPin, Eye, X } from "lucide-react";
 import { PageHead, StatCard, ToolButtons } from "../components/ui.jsx";
 import { scopeRows, visibleUsers } from "../lib/scope.js";
+import { canDelete, canModify } from "../lib/perms.js";
 import { api } from "../lib/api.js";
 import { usePager, Pager } from "../components/Pager.jsx";
 
@@ -248,14 +249,17 @@ export default function CustomersPage() {
       {sel.size > 0 && (
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", background: "linear-gradient(135deg,#eef1ff,#f4ecff)", borderRadius: 12, marginBottom: 14 }}>
           <span style={{ fontWeight: 800, fontSize: 13, color: "var(--accent)" }}>{sel.size} selected</span>
-          <button className="btn btn-primary" style={{ padding: "6px 14px", fontSize: 12.5 }}
-            onClick={() => {
-              const selRows = (rows || []).filter((r) => sel.has(r.mobile || r.name));
-              setFwdOpen({ mobiles: selRows.map((r) => r.mobile).filter(Boolean), names: selRows.map((r) => r.name).filter(Boolean) });
-            }}>➡ Forward to…</button>
+          {canModify("Customers") && (
+            <button className="btn btn-primary" style={{ padding: "6px 14px", fontSize: 12.5 }}
+              onClick={() => {
+                const selRows = (rows || []).filter((r) => sel.has(r.mobile || r.name));
+                setFwdOpen({ mobiles: selRows.map((r) => r.mobile).filter(Boolean), names: selRows.map((r) => r.name).filter(Boolean) });
+              }}>➡ Forward to…</button>
+          )}
           {/* Deleting the selection. Each row was already deletable on its own,
               so picking twenty and having nothing but Forward to offer meant
               doing it twenty times over. */}
+          {canDelete("Customers") && (
           <button className="btn btn-danger" style={{ padding: "6px 14px", fontSize: 12.5 }} disabled={bulkBusy}
             onClick={async () => {
               const selRows = (rows || []).filter((r) => sel.has(r.mobile || r.name));
@@ -271,6 +275,7 @@ export default function CustomersPage() {
               load();
               if (failed) alert(`${selRows.length - failed} deleted. ${failed} could not be deleted.`);
             }}>🗑 {bulkBusy ? "Deleting…" : `Delete ${sel.size}`}</button>
+          )}
           <button className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 12.5 }} onClick={() => setSel(new Set())}>Clear</button>
         </div>
       )}
@@ -382,12 +387,15 @@ export default function CustomersPage() {
                           } catch {}
                           window.location.href = "/admin/sfa/quotation?prefill=1";
                         }}>📄 Quotation</button>
-                      <button className="btn btn-soft" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => setFwdOpen({ mobiles: r.mobile ? [r.mobile] : [], names: [r.name] })}>➡ Forward</button>
-                      <button className="btn btn-danger" style={{ padding: "4px 10px", fontSize: 12 }}
-                        onClick={async () => {
-                          if (!window.confirm(`Delete customer ${r.name}? This removes their entries.`)) return;
-                          try { await api.deleteCustomer(r.mobile, r.name); load(); } catch (e) { alert(e.message); }
-                        }}>Delete</button>
+                      {canModify("Customers") && <button className="btn btn-soft" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => setFwdOpen({ mobiles: r.mobile ? [r.mobile] : [], names: [r.name] })}>➡ Forward</button>}
+                      {/* only for roles the grid allows to delete Customers */}
+                      {canDelete("Customers") && (
+                        <button className="btn btn-danger" style={{ padding: "4px 10px", fontSize: 12 }}
+                          onClick={async () => {
+                            if (!window.confirm(`Delete customer ${r.name}? This removes their entries.`)) return;
+                            try { await api.deleteCustomer(r.mobile, r.name); load(); } catch (e) { alert(e.message); }
+                          }}>Delete</button>
+                      )}
                     </div>
                   </td>
                 </tr>
