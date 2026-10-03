@@ -2696,6 +2696,16 @@ function FieldFollowUpNew({ add, editData }) {
             <input inputMode="numeric" value={c.mobile} onChange={(e) => setContact(i, "mobile", e.target.value.replace(/\D/g, ""))} placeholder="Contact Number" style={{ width: "100%", marginBottom: 8 }} />
             <input inputMode="numeric" value={c.whatsapp} onChange={(e) => setContact(i, "whatsapp", e.target.value.replace(/\D/g, ""))} placeholder="WhatsApp Number" style={{ width: "100%", marginBottom: 8 }} />
             <input type="email" value={c.email || ""} onChange={(e) => setContact(i, "email", e.target.value)} placeholder="Mail ID" style={{ width: "100%" }} />
+            {/* This contact's own WhatsApp.
+
+                There used to be one button at the foot of the form, and it
+                always used the first contact's number. With two or three people
+                on a firm that meant the message went to whoever happened to be
+                first, never to the person actually met. Each contact carries its
+                own button now, so the message goes to the person chosen. */}
+            <div style={{ marginTop: 8 }}>
+              <WhatsAppOnce mobile={c.whatsapp || c.mobile} recordId={ed?._id} label={`Send WhatsApp to ${c.name || "this contact"}`} />
+            </div>
           </div>
         ))}
         <button type="button" onClick={addContact} style={{ width: "100%", marginBottom: 14, padding: "9px", borderRadius: 10, border: "1.5px dashed var(--navy)", background: "#fff", color: "var(--navy)", fontWeight: 700, fontSize: 13 }}>
@@ -2720,9 +2730,6 @@ function FieldFollowUpNew({ add, editData }) {
           </>
         ) : null}
 
-        {/* The thank-you message is no longer sent on save — tap this once when
-            you want it to go out. */}
-        <WhatsAppOnce mobile={(contacts[0] || {}).whatsapp || (contacts[0] || {}).mobile} recordId={ed?._id} />
 
         <button
           className="f-submit" style={{ width: "100%" }}
@@ -4698,10 +4705,14 @@ function FieldSpecThreadList({ mod }) {
   const [rementRec, setRementRec] = useState(null);
   const me = CU().name;
 
-  const load = () => api.list(mod, false).then((d) => {
-    const list = (d.records || []).map((r) => ({ _id: r.id, ...r.data }))
-      .filter((r) => r.createdBy === me || r.specPerson === me || r.salesPerson === me);
-    setRows(list);
+  /* Only the rows this person is named on, picked out by the database.
+
+     This used to ask for every row in the module and then keep the ones that
+     named this person — the whole company's records, with every message inside
+     them, downloaded to show three. That is what made this screen slow to open,
+     and other people's records had no business being on the phone at all. */
+  const load = () => api.list(mod, false, { involved: true }).then((d) => {
+    setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data })));
   }).catch(() => setRows([]));
   useEffect(() => { load(); }, [mod]);
   useAppRefresh(load);
@@ -4924,21 +4935,12 @@ function FieldModule({ mod }) {
         list = list.filter((r) => (r.city || "").toLowerCase() === myCity);
         setRows(list);
       }).catch(() => setRows([]));
-    } else if (mod === "salesToSpec" || mod === "specToSales") {
-      /* cross-visibility: entry chesina vaadu + tag ayina vaadu iddariki kanipiyali */
-      api.list(mod, false).then((d) => {
-        const me = CU().name;
-        const list = (d.records || []).map((r) => ({ _id: r.id, ...r.data }))
-          .filter((r) => r.createdBy === me || r.specPerson === me || r.salesPerson === me);
-        setRows(list);
-      }).catch(() => setRows([]));
-    } else if (mod === "task") {
-      // tasks assigned to me OR created by me
-      api.list(mod, false).then((d) => {
-        const me = CU();
-        const list = (d.records || []).map((r) => ({ _id: r.id, ...r.data }))
-          .filter((r) => r.assignee === me.name || r.createdBy === me.name);
-        setRows(list);
+    } else if (mod === "salesToSpec" || mod === "specToSales" || mod === "task") {
+      /* The person who made the entry and the person it names both see it.
+         The database picks those rows; the phone used to fetch the module whole
+         and sift it, which is why these screens were the slow ones. */
+      api.list(mod, false, { involved: true }).then((d) => {
+        setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data })));
       }).catch(() => setRows([]));
     } else {
       api.list(mod, true).then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data })))).catch(() => setRows([]));
@@ -5507,8 +5509,11 @@ function FieldEnquiry() {
   const [reassignFor, setReassignFor] = useState(null);
 
   const load = () => {
-    api.list("enquiry", false).then((d) => {
+    api.list("enquiry", false, { involved: true }).then((d) => {
       const me = CU();
+      /* the server has already narrowed this to rows naming this person; the
+         test below is kept because this screen wants only the ones assigned to
+         them, which is narrower still */
       const list = (d.records || []).map((r) => ({ _id: r.id, ...r.data }))
         .filter((r) => (r.assignedTo === me.name || r.assignedToId === me.id) && (r.status || "").toLowerCase() !== "spam");
       setRows(list);

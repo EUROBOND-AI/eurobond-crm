@@ -135,6 +135,9 @@ export const api = {
   list: (module, mine = false, opts = {}) => {
     const p = new URLSearchParams({ module });
     if (mine) p.set("mine", "1");
+    /* only the rows this person is named on — the server picks them out, rather
+       than the phone downloading the whole module and keeping a handful */
+    if (opts.involved) p.set("involved", "1");
     if (opts.limit) p.set("limit", opts.limit);
     if (opts.offset) p.set("offset", opts.offset);
     if (opts.from) p.set("from", opts.from);
