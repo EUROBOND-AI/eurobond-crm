@@ -171,12 +171,7 @@ export default function ModulePage({ cfgKey }) {
     /* The notification module holds every message in the system, including the
        ones sent to field staff. The panel lists only what was sent to the
        backend team or created from here. */
-    let base = rows || [];
-    if (cfgKey === "notification") {
-      const me = (auth.user || {}).name;
-      base = base.filter((n) => n.to === "ADMIN" || /admin/i.test(String(n.forRole || "")) || n.createdBy === me || n._by === me);
-    }
-    let list = scopeRows(base, allUsers);
+    let list = visibleRows;
     if (fUser) list = list.filter((r) => (r.createdBy || "") === fUser);
     if (fHod) list = list.filter((r) => (r.hod || "") === fHod);
     if (fSpec) list = list.filter((r) => (r.specPerson || "") === fSpec);
@@ -200,7 +195,7 @@ export default function ModulePage({ cfgKey }) {
     if (fLead) list = list.filter((r) => (r.leadSource || "") === fLead);
     if (fAssign) list = list.filter((r) => (r.assignedTo || "") === fAssign || (r.specPerson || "") === fAssign || (r.salesPerson || "") === fAssign);
     return list;
-  }, [rows, cfg, fUser, fHod, fSpec, fSales, fStatus, fStateM, projSide, fCity, fZone, fLead, fAssign, fFrom, fTo, allUsers, cfgKey]);
+  }, [visibleRows, cfg, fUser, fHod, fSpec, fSales, fStatus, fStateM, projSide, fCity, fZone, fLead, fAssign, fFrom, fTo, cfgKey]);
 
   /* the rows the tab is then chosen from — the totals count these, so filtering
      to twenty rows no longer still reads the full table */
@@ -221,10 +216,26 @@ export default function ModulePage({ cfgKey }) {
   }, [filteredNoTab, tab, cfg, firstTab, knownTabs]);
   const pager = usePager(visible, 10, String(tab || ""));
 
+  /* Everything this login is allowed to see, worked out once.
+
+     The rows on screen were put through this, but the filter dropdowns were
+     built from the raw fetch — so the table showed one person's expenses while
+     the State list offered every state in the country, and Created By offered
+     every name in the company. A filter should only ever offer what is actually
+     in front of you, so both now come from the same set. */
+  const visibleRows = useMemo(() => {
+    let base = rows || [];
+    if (cfgKey === "notification") {
+      const me = (auth.user || {}).name;
+      base = base.filter((n) => n.to === "ADMIN" || /admin/i.test(String(n.forRole || "")) || n.createdBy === me || n._by === me);
+    }
+    return scopeRows(base, allUsers);
+  }, [rows, allUsers, cfgKey]);
+
   const distinct = (key) => {
-    let src = rows;
-    if (cfgKey === "projectProjection") src = rows.filter((r) => projSide === "Specs" ? r.isSpec : !r.isSpec);
-    return [...new Set(src.map((r) => r[key]).filter(Boolean))];
+    let src = visibleRows;
+    if (cfgKey === "projectProjection") src = src.filter((r) => projSide === "Specs" ? r.isSpec : !r.isSpec);
+    return [...new Set(src.map((r) => r[key]).filter(Boolean))].sort();
   };
   const hasCol = (key) => cfg.columns.some((c) => c.key === key);
 

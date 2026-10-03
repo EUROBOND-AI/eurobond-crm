@@ -32,7 +32,14 @@ export default function AdminUsersPage() {
   });
 
   const load = () => api.list("adminUser", false)
-    .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data }))))
+    /* The owner account is kept out of this list.
+
+       It is stored as an ordinary admin user so its sign-in token validates
+       like any other, which also put it on screen here with its login name and
+       password alongside everyone else. It is not an account anyone manages
+       from this page, so there is no reason to show it. */
+    .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data }))
+      .filter((r) => !r.owner && String(r.username || "").trim().toLowerCase() !== "karthi g")))
     .catch(() => setRows([]));
   useEffect(() => { load(); api.listUsers().then((d) => setAppUsers((d.users || []).filter((u) => u.status == 1))).catch(() => {}); }, []);
 

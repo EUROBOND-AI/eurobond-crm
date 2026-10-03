@@ -184,7 +184,9 @@ export default function QuotationAdmin() {
         <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>Created By</label>
           <select value={fPerson} onChange={(e) => setFPerson(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5 }}>
             <option value="">All Sales Persons</option>
-            {[...new Set((rows || []).map((r) => r.createdBy).filter(Boolean))].sort().map((p) => <option key={p}>{p}</option>)}
+            {/* only the people whose quotations this login can see — this list
+                was built from the raw fetch and named everybody */}
+            {[...new Set(scopeRows(rows || [], qUsers, ["createdBy", "by", "salesPerson"]).map((r) => r.createdBy).filter(Boolean))].sort().map((p) => <option key={p}>{p}</option>)}
           </select></div>
         <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>From Date</label>
           <input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5 }} /></div>

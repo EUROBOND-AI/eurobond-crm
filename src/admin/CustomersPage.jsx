@@ -56,6 +56,11 @@ export default function CustomersPage() {
 
   const applyShow = () => setApplied({ state: fState, hod: fHod, person: fPerson, from: fFrom, to: fTo });
 
+  /* What this login may see. The rows went through this, but the State and HOD
+     lists were built from the raw fetch, so they offered every state and every
+     HOD in the business while the table showed one team's customers. */
+  const visibleRows = useMemo(() => scopeRows(rows || [], users, ["by", "createdBy", "salesPerson"]), [rows, users]);
+
   const toggleSel = (key) => setSel((s) => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
 
   const list = useMemo(() => {
@@ -295,12 +300,12 @@ export default function CustomersPage() {
         <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>State</label>
           <select value={fState} onChange={(e) => setFState(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5, minWidth: 130 }}>
             <option value="">All States</option>
-            {[...new Set((rows || []).map((r) => r.state).filter(Boolean))].sort().map((s) => <option key={s}>{s}</option>)}
+            {[...new Set(visibleRows.map((r) => r.state).filter(Boolean))].sort().map((s) => <option key={s}>{s}</option>)}
           </select></div>
         <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>HOD</label>
           <select value={fHod} onChange={(e) => setFHod(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5, minWidth: 130 }}>
             <option value="">All HODs</option>
-            {[...new Set((rows || []).map((r) => r.hod).filter(Boolean))].sort().map((h) => <option key={h}>{h}</option>)}
+            {[...new Set(visibleRows.map((r) => r.hod).filter(Boolean))].sort().map((h) => <option key={h}>{h}</option>)}
           </select></div>
         <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>Sales Person</label>
           <select value={fPerson} onChange={(e) => setFPerson(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5, minWidth: 150 }}>
