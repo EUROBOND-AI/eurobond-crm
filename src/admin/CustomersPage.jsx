@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Phone, MapPin, Eye, X } from "lucide-react";
 import { PageHead, StatCard, ToolButtons } from "../components/ui.jsx";
-import { scopeRows } from "../lib/scope.js";
+import { scopeRows, visibleUsers } from "../lib/scope.js";
 import { api } from "../lib/api.js";
 import { usePager, Pager } from "../components/Pager.jsx";
 
@@ -300,7 +300,10 @@ export default function CustomersPage() {
         <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>Sales Person</label>
           <select value={fPerson} onChange={(e) => setFPerson(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5, minWidth: 150 }}>
             <option value="">All</option>
-            {users.map((u) => <option key={u.id} value={u.name}>{u.name}</option>)}
+            {/* The rows were already limited to this login's team, but this list
+                offered every name in the company. The full list is still held
+                for working out who reports to whom. */}
+            {visibleUsers(users).map((u) => <option key={u.id} value={u.name}>{u.name}</option>)}
           </select></div>
         <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>From Date</label>
           <input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5 }} /></div>

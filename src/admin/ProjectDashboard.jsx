@@ -16,7 +16,16 @@ export default function ProjectDashboard() {
   const [to, setTo] = useState("");
   const [shown, setShown] = useState(false);
 
-  useEffect(() => { api.listUsers().then((d) => setUsers(visibleUsers(d.users || []).filter((u) => u.status == 1))).catch(() => {}); }, []);
+  /* the full list resolves who reports to whom; the trimmed one fills the
+     dropdowns */
+  const [allUsers, setAllUsers] = useState([]);
+  useEffect(() => {
+    api.listUsers().then((d) => {
+      const all = d.users || [];
+      setAllUsers(all);
+      setUsers(visibleUsers(all).filter((u) => u.status == 1));
+    }).catch(() => {});
+  }, []);
 
   const show = () => {
     setShown(true); setProj(null);
@@ -40,13 +49,16 @@ export default function ProjectDashboard() {
 
   const list = useMemo(() => {
     if (!proj) return [];
-    return proj.filter((r) => {
+    /* Only what this login is allowed to see. The dropdowns were limited to
+       this person's team but the figures above them counted every project in
+       the company, so the two disagreed. */
+    return scopeRows(proj, allUsers).filter((r) => {
       if (side === "Specs" ? !r.isSpec : !!r.isSpec) return false;
       if (fUser && (r.createdBy || "") !== fUser) return false;
       if (fHod && (r.hod || "") !== fHod) return false;
       return inRange(r);
     });
-  }, [proj, side, fUser, fHod, from, to]);
+  }, [proj, allUsers, side, fUser, fHod, from, to]);
 
   const cnt = (st) => list.filter((r) => String(r.status || "Open").toLowerCase() === st).length;
   const win = cnt("win"), lost = cnt("lost"), hold = cnt("hold");

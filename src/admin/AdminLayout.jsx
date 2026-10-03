@@ -514,11 +514,13 @@ function BgTaskBadge() {
   return (
     <div style={{
       position: "fixed", right: 20, bottom: 20, zIndex: 9999,
-      background: "#1f3a68", color: "#fff", borderRadius: 12, padding: "11px 16px",
+      background: t.done ? "#146c43" : "#1f3a68", color: "#fff", borderRadius: 12, padding: "11px 16px",
       boxShadow: "0 10px 30px rgba(15,30,70,.35)", display: "flex", alignItems: "center", gap: 10,
       fontSize: 13, fontWeight: 600, maxWidth: 320,
     }}>
-      <span className="eb-spin" style={{ width: 16, height: 16, borderWidth: 2, borderTopColor: "#fff", flexShrink: 0 }} />
+      {t.done
+        ? <span style={{ fontSize: 15, flexShrink: 0 }}>✓</span>
+        : <span className="eb-spin" style={{ width: 16, height: 16, borderWidth: 2, borderTopColor: "#fff", flexShrink: 0 }} />}
       <span>
         {t.title}
         <span style={{ display: "block", fontSize: 11.5, fontWeight: 500, opacity: 0.85 }}>{t.label}</span>

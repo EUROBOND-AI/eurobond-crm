@@ -3,11 +3,12 @@ import { useEffect, useMemo, useState } from "react";
 import { MODULES } from "./moduleConfigs.jsx";
 import { PageHead, Tabs, DataTable, ToolButtons, FormModal, StatCard } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
-import { scopeRows } from "../lib/scope.js";
+import { scopeRows, visibleUsers } from "../lib/scope.js";
 import { AdminSearchSelect } from "./QuotationAdmin.jsx";
 import { canAdd, canDelete, canModify, canExport, canImport } from "../lib/perms.js";
 import { usePager, Pager } from "../components/Pager.jsx";
 import { useVisiblePoll } from "../lib/poll.js";
+import { taskFlash } from "../lib/bgTask.js";
 
 /* Which name to ask the permission grid about.
 
@@ -94,14 +95,19 @@ export default function ModulePage({ cfgKey }) {
   useEffect(() => {
     api.listUsers().then((d) => {
       const us = (d.users || []).filter((u) => u.status == 1);
+      /* The whole list stays, because working out who reports to whom needs it.
+         The names offered in the filters come from the trimmed list: the rows
+         were already limited to this person's team, but the Person dropdown
+         listed the entire company, so a sales person could pick colleagues they
+         are not meant to see and a HOD saw every name in the business. */
       setAllUsers(us);
-      setUserNames(us.map((u) => u.name));
+      setUserNames(visibleUsers(us).map((u) => u.name));
     }).catch(() => {});
   }, [cfgKey]);
 
   /* HOD-only names (role/designation contains "hod") for HOD dropdowns */
   const hodNames = useMemo(
-    () => allUsers.filter((u) => `${u.role || ""} ${u.designation || ""}`.toLowerCase().includes("hod")).map((u) => u.name),
+    () => visibleUsers(allUsers).filter((u) => `${u.role || ""} ${u.designation || ""}`.toLowerCase().includes("hod")).map((u) => u.name),
     [allUsers]
   );
 
@@ -229,7 +235,6 @@ export default function ModulePage({ cfgKey }) {
   const [chatRow, setChatRow] = useState(null);
   const [projView, setProjView] = useState(null);
   const [fwdRow, setFwdRow] = useState(null);
-  const [msgRow, setMsgRow] = useState(null);
   const [hiddenCols, setHiddenCols] = useState([]);
   const [showColCfg, setShowColCfg] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
@@ -372,6 +377,8 @@ export default function ModulePage({ cfgKey }) {
         }
       }
       setShowForm(false); setEditing(null);
+      /* say so plainly — the form closing is not proof that the row was added */
+      taskFlash(editing ? `${cfg.crumb || cfg.title} updated` : `${cfg.crumb || cfg.title} added`);
     } catch (e) {
       alert("Could not save: " + e.message);
     }
@@ -590,7 +597,6 @@ export default function ModulePage({ cfgKey }) {
             <span style={{ display: "inline-flex", gap: 4, marginRight: 6 }}>
               <button className="btn" style={{ padding: "3px 8px", fontSize: 11, background: "#e4e8ff", color: "#3949ab" }} onClick={(e) => { e.stopPropagation(); openFull(r, setProjView); }}>View</button>
               <button className="btn" style={{ padding: "3px 8px", fontSize: 11, background: "#efe7fb", color: "#8854d0" }} onClick={(e) => { e.stopPropagation(); setFwdRow(r); }}>Forward</button>
-              <button className="btn" style={{ padding: "3px 8px", fontSize: 11, background: "#e4f3ff", color: "#0b6cb0" }} onClick={(e) => { e.stopPropagation(); setMsgRow(r); }}>💬 Message</button>
             </span>
           ) : cfg.approveFlow ? (r) => (
             <span style={{ display: "inline-flex", gap: 4, marginRight: 6 }}>
@@ -625,7 +631,6 @@ export default function ModulePage({ cfgKey }) {
       {chatRow && <AdminChatModal row={chatRow} cfgKey={cfgKey} onClose={() => setChatRow(null)} onSent={(updated) => { setRows(rows.map((x) => (x._id === updated._id ? updated : x))); setChatRow(updated); }} />}
       {projView && <AdminProjectView rec={projView} onClose={() => setProjView(null)} />}
       {fwdRow && <AdminProjectForward rec={fwdRow} onClose={() => setFwdRow(null)} onSent={() => setFwdRow(null)} />}
-      {msgRow && <AdminProjectMessage rec={msgRow} onClose={() => setMsgRow(null)} />}
 
       {rejectFor && (
         <div className="modal-mask" onClick={() => setRejectFor(null)}>

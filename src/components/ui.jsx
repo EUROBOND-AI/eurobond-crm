@@ -198,6 +198,7 @@ export function FormModal({ title, fields, onClose, onSave, initial }) {
   const [values, setValues] = useState(initial || {});
   const [userOpts, setUserOpts] = useState([]);
   const [upBusy, setUpBusy] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (fields.some((f) => f.optionsSource === "users")) {
@@ -242,7 +243,17 @@ export function FormModal({ title, fields, onClose, onSave, initial }) {
         </div>
         <div className="modal-foot">
           <button className="btn btn-danger" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={() => { onSave ? onSave(values) : onClose(); }}>Save</button>
+          {/* Save waits for the save.
+
+              It used to fire and forget: the button looked untouched while the
+              row was on its way, so on a slow connection people pressed it
+              again or left not knowing whether it had been added. */}
+          <button className="btn btn-primary" disabled={saving || !!upBusy}
+            onClick={async () => {
+              if (!onSave) { onClose(); return; }
+              setSaving(true);
+              try { await onSave(values); } finally { setSaving(false); }
+            }}>{saving ? "Saving…" : "Save"}</button>
         </div>
       </div>
     </div>

@@ -14,7 +14,16 @@ export default function CustomersDashboard() {
   const [to, setTo] = useState("");
   const [shown, setShown] = useState(false);
 
-  useEffect(() => { api.listUsers().then((d) => setUsers(visibleUsers(d.users || []).filter((u) => u.status == 1))).catch(() => {}); }, []);
+  /* The full list is needed to work out who reports to whom; the trimmed one
+     fills the dropdowns. */
+  const [allUsers, setAllUsers] = useState([]);
+  useEffect(() => {
+    api.listUsers().then((d) => {
+      const all = d.users || [];
+      setAllUsers(all);
+      setUsers(visibleUsers(all).filter((u) => u.status == 1));
+    }).catch(() => {});
+  }, []);
 
   const show = () => {
     setShown(true); setRows(null);
@@ -23,7 +32,14 @@ export default function CustomersDashboard() {
 
   const list = useMemo(() => {
     if (!rows) return [];
-    return rows.filter((r) => {
+    /* Only what this login is allowed to see.
+
+       The page asked the server for every customer and counted them all. The
+       dropdowns were already limited to this person's team, which made it look
+       right until you read the totals: a sales person saw the whole company's
+       customer count as their own. The rows are put through the same visibility
+       rule the rest of the panel uses before anything is counted. */
+    return scopeRows(rows, allUsers).filter((r) => {
       if (fUser && (r.by || "") !== fUser) return false;
       if (fHod && (r.hod || "") !== fHod) return false;
       if (fState && (r.state || "") !== fState) return false;
@@ -32,7 +48,7 @@ export default function CustomersDashboard() {
       if (to && (!d || d > new Date(to + "T23:59:59"))) return false;
       return true;
     });
-  }, [rows, fUser, fHod, fState, from, to]);
+  }, [rows, allUsers, fUser, fHod, fState, from, to]);
 
   /* new customers = 1 entry; repeat/follow-up = more than 1 */
   const newCust = list.filter((r) => (Number(r.followups) || 1) <= 1).length;
@@ -52,7 +68,7 @@ export default function CustomersDashboard() {
   }, [list]);
 
   const hods = [...new Set(users.map((u) => u.manager).filter(Boolean))];
-  const states = [...new Set((rows || []).map((r) => r.state).filter(Boolean))];
+  const states = [...new Set(list.map((r) => r.state).filter(Boolean))];
 
   return (
     <div>

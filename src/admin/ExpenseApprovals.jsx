@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PageHead, StatCard, ToolButtons } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { buildExpensePdf } from "../lib/expensePdf.js";
-import { scopeRows } from "../lib/scope.js";
+import { scopeRows, visibleUsers } from "../lib/scope.js";
 import { HEADER_COLS, LINE_COLS, NUMATCARD_START, depoKey, headerRow, lineRows, downloadSheet, LOCATION, FIXED } from "../lib/sapExport.js";
 import { usePager, Pager } from "../components/Pager.jsx";
 import { canDelete } from "../lib/perms.js";
@@ -255,7 +255,9 @@ export default function ExpenseApprovals() {
           <label style={fLbl}>Sales Person</label>
           <select value={fPerson} onChange={(e) => setFPerson(e.target.value)} style={fSel}>
             <option value="">All</option>
-            {[...new Set(users.map((u) => u.name))].filter(Boolean).map((n) => <option key={n}>{n}</option>)}
+            {/* only the people this login is allowed to see; the full list is
+                still kept for working out who reports to whom */}
+            {[...new Set(visibleUsers(users).map((u) => u.name))].filter(Boolean).map((n) => <option key={n}>{n}</option>)}
           </select>
         </div>
         <div>

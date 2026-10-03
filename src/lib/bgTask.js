@@ -39,3 +39,23 @@ export function taskDone() {
   state = { running: false, label: "", title: "" };
   emit();
 }
+
+/* A short confirmation in the same badge.
+
+   Saving a record gave no sign that anything had happened: the click did not
+   change, and on a slow connection people pressed Save again or went away
+   unsure whether the row had been added. This says plainly that it was, then
+   clears itself. `done: true` tells the badge to show a tick rather than a
+   spinner, so a finished job does not look like one still running. */
+let flashTimer = null;
+
+export function taskFlash(title, ms = 2600) {
+  if (flashTimer) { clearTimeout(flashTimer); flashTimer = null; }
+  state = { running: true, done: true, title, label: "" };
+  emit();
+  flashTimer = setTimeout(() => {
+    flashTimer = null;
+    state = { running: false, done: false, label: "", title: "" };
+    emit();
+  }, ms);
+}

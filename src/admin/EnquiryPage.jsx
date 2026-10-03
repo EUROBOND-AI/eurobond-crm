@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Edit3, UserPlus, Trash2, Share2, X, Search, Ban, RefreshCw, MessageSquare } from "lucide-react";
 import { PageHead } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
-import { scopeRows } from "../lib/scope.js";
+import { scopeRows, visibleUsers } from "../lib/scope.js";
 
 const LEAD_SOURCES = [
   "IndiaMart", "Social Media", "Direct Call", "Exhibition", "DCCHAT",
@@ -382,7 +382,9 @@ export default function EnquiryPage() {
       {(showAdd || editRow) && <EnquiryForm row={editRow} onClose={() => { setShowAdd(false); setEditRow(null); }} onSaved={() => { setShowAdd(false); setEditRow(null); load(); }} />}
       {viewRow && <AdminEnquiryView r={viewRow} onClose={() => setViewRow(null)} />}
       {msgFor && <EnquiryMessage r={msgFor} onClose={() => setMsgFor(null)} onDone={load} />}
-      {assignFor && <AssignModal users={users} reassign={reassign} count={assignFor === "bulk" ? selected.size : 1} onClose={() => { setAssignFor(null); setReassign(false); }} onAssign={doAssign} />}
+      {/* the people this login may assign to — admin still sees everyone,
+          a HOD sees their own team */}
+      {assignFor && <AssignModal users={visibleUsers(users)} reassign={reassign} count={assignFor === "bulk" ? selected.size : 1} onClose={() => { setAssignFor(null); setReassign(false); }} onAssign={doAssign} />}
     </div>
   );
 }
