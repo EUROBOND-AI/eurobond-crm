@@ -7,7 +7,7 @@ import { scopeRows } from "../lib/scope.js";
 const LEAD_SOURCES = [
   "IndiaMart", "Social Media", "Direct Call", "Exhibition", "DCCHAT",
   "IndiaMart (ARCHER)", "Google AD (Eurobond)", "Google AD (Archer)",
-  "Website Archer", "Website Eurobond", "Other",
+  "Website Archer", "Website Eurobond", "Display Centers", "Other",
 ];
 const UOMS = ["Sq.Mtr", "Sq.Ft", "Nos", "Kg", "Ton", "Sheet"];
 

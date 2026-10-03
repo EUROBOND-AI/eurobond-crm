@@ -139,7 +139,7 @@ export const MODULES = {
     ],
     form: [
       { name: "type", label: "Leave Type", type: "select", options: ["Casual Leave", "Sick Leave", "Privilege Leave"], required: true },
-      { name: "mode", label: "Mode", type: "select", options: ["Full Day", "Half Day"], required: true },
+      { name: "mode", label: "Mode", type: "select", options: ["Full Day"], required: true },
       { name: "from", label: "From Date", type: "date", required: true },
       { name: "to", label: "To Date", type: "date", required: true },
       { name: "reason", label: "Reason", type: "textarea", full: true },

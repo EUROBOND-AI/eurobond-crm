@@ -2217,7 +2217,7 @@ function FieldLeaveNew({ add }) {
         </select>
         <label>Mode <b>*</b></label>
         <select value={f.mode} onChange={(e) => setF({ ...f, mode: e.target.value })} style={{ width: "100%", marginBottom: 12 }}>
-          <option>Full Day</option><option>Half Day</option>
+          <option>Full Day</option>
         </select>
         <label>From <b>*</b></label>
         <input type="date" value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} style={{ width: "100%", marginBottom: 12 }} />
@@ -2573,7 +2573,7 @@ function FieldFollowUpNew({ add, editData }) {
   const removeContact = (i) => setContacts((cs) => cs.filter((_, idx) => idx !== i));
 
   const inp = { width: "100%", marginBottom: 12 };
-  const CATS = ["Distributor", "End User", "Architect", "Fabricator", "Consultant", "Dealer", "Builder", "Corporate", "Government", "Contractor"];
+  const CATS = ["Distributor", "End User", "Architect", "Fabricator", "Consultant", "Dealer", "Builder", "Corporate", "Government", "Contractor", "Petroleum"];
 
   /* Visiting card scan — Gemini OCR auto-fill */
   const scanCard = async (file) => {
@@ -2692,6 +2692,7 @@ function FieldFollowUpNew({ add, editData }) {
               {contacts.length > 1 && <button type="button" onClick={() => removeContact(i)} style={{ background: "none", border: "none", color: "#c03636", fontSize: 12, fontWeight: 700 }}>Remove</button>}
             </div>
             <input value={c.name} onChange={(e) => setContact(i, "name", e.target.value)} placeholder="Contact Name" style={{ width: "100%", marginBottom: 8 }} />
+            <input value={c.designation || ""} onChange={(e) => setContact(i, "designation", e.target.value)} placeholder="Designation" style={{ width: "100%", marginBottom: 8 }} />
             <input inputMode="numeric" value={c.mobile} onChange={(e) => setContact(i, "mobile", e.target.value.replace(/\D/g, ""))} placeholder="Contact Number" style={{ width: "100%", marginBottom: 8 }} />
             <input inputMode="numeric" value={c.whatsapp} onChange={(e) => setContact(i, "whatsapp", e.target.value.replace(/\D/g, ""))} placeholder="WhatsApp Number" style={{ width: "100%", marginBottom: 8 }} />
             <input type="email" value={c.email || ""} onChange={(e) => setContact(i, "email", e.target.value)} placeholder="Mail ID" style={{ width: "100%" }} />
@@ -2734,6 +2735,9 @@ function FieldFollowUpNew({ add, editData }) {
               projectName: projList.join(", "), projects: projList,
               contacts,
               contactName: primary.name, contactNumber: primary.mobile, whatsapp: primary.whatsapp, email: primary.email, clientEmail: primary.email,
+              /* the main contact's designation at the top level too, so lists and
+                 exports can show it without digging into the contacts array */
+              contactDesignation: primary.designation || "",
               mobile: primary.mobile, place: f.address.split(",").slice(0, 2).join(",").trim(),
               status: "To-Do", createdBy: CU().name,
               updates: [{ date: new Date().toISOString().slice(0, 10), type: f.type, remark: f.notes, at: new Date().toLocaleString("en-IN") }],
@@ -5569,7 +5573,8 @@ function FieldEnquiry() {
                 };
                 nav("/app/followup/new");
               }} style={enqBtn("#0f7a44", "#e7f7ef")}>👤 Move to Customer</button>
-              {r.status !== "Win" && <button onClick={() => setWinFor(r)} style={enqBtn("#0f7a44", "#e5f9f1")}>🏆 Win</button>}
+              {/* stays after the win so a second invoice can be added later */}
+              <button onClick={() => setWinFor(r)} style={enqBtn("#0f7a44", "#e5f9f1")}>{r.status === "Win" ? "➕ Invoice" : "🏆 Win"}</button>
             </div>
           </div>
         ))}
@@ -5862,7 +5867,8 @@ function EnquiryWin({ r, onClose, onDone }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 300, display: "grid", placeItems: "center", padding: 16 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 400, padding: 20 }}>
-        <h3 style={{ marginTop: 0, fontSize: 16 }}>Mark as Win 🏆</h3>
+        <h3 style={{ marginTop: 0, fontSize: 16 }}>{r.status === "Win" ? "➕ Add Invoice" : "Mark as Win 🏆"}</h3>
+        <WinEntries rec={r} />
         <label style={{ fontSize: 12.5, fontWeight: 700 }}>Order (Sq. Meter)</label>
         <input inputMode="decimal" value={sqm} onChange={(e) => setSqm(e.target.value.replace(/[^\d.]/g, ""))} placeholder="e.g. 250" style={{ width: "100%", marginBottom: 12, padding: "9px 11px", borderRadius: 9, border: "1px solid #d7dcef" }} />
         <label style={{ fontSize: 12.5, fontWeight: 700 }}>Amount (₹)</label>
@@ -5874,13 +5880,13 @@ function EnquiryWin({ r, onClose, onDone }) {
           <button disabled={busy || !sqm} onClick={async () => {
             setBusy(true);
             try {
-              let invoiceUrl = r.winInvoice || "";
+              let invoiceUrl = "";
               if (file) invoiceUrl = (await api.uploadPhoto(file, "enquiry")).url;
-              await api.update("enquiry", r._id, { ...r, status: "Win", winSqm: sqm, winAmount: amount, winInvoice: invoiceUrl, winAt: new Date().toLocaleString("en-IN") });
+              await api.update("enquiry", r._id, { ...r, status: "Win", ...winAppend(r, { sqm, amount, url: invoiceUrl }) });
               try { await api.create("notification", { title: "Enquiry Won 🎉", message: `${CU().name} won ${r.company || r.customer} (${sqm} Sq.Mtr${amount ? ", ₹" + amount : ""})`, forRole: "Admin", link: "/admin/sfa/enquiry", at: new Date().toISOString() }); } catch {}
               onDone(); onClose();
             } catch (e) { alert(e.message); setBusy(false); }
-          }} style={{ flex: 1, padding: 10, borderRadius: 9, border: "none", background: "#0f7a44", color: "#fff", fontWeight: 700 }}>{busy ? "Saving…" : "Save Win"}</button>
+          }} style={{ flex: 1, padding: 10, borderRadius: 9, border: "none", background: "#0f7a44", color: "#fff", fontWeight: 700 }}>{busy ? "Saving…" : (r.status === "Win" ? "Add Invoice" : "Save Win")}</button>
         </div>
       </div>
     </div>
@@ -6027,7 +6033,8 @@ function FieldQuotationList() {
                 <div style={{ display: "flex", gap: 5, marginTop: 8 }}>
                   <button onClick={() => setView(q)} style={{ ...actBtn("#3949ab"), flex: 1, background: "#eef1ff", color: "#3949ab", padding: "6px 4px", fontSize: 11 }}>👁 View</button>
                   <button onClick={() => { QUOTE_EDIT.data = q; nav("/app/m/quotation/new"); }} style={{ ...actBtn("#f59e0b"), flex: 1, background: "#fef3e2", color: "#c07f00", padding: "6px 4px", fontSize: 11 }}>✎ Edit</button>
-                  {q.status !== "Win" && <button onClick={() => setWinFor(q)} style={{ ...actBtn("#059669"), flex: 1, background: "#e5f9f1", color: "#059669", padding: "6px 4px", fontSize: 11 }}>🏆 Win</button>}
+                  {/* stays after the win so a second invoice can be added later */}
+                  <button onClick={() => setWinFor(q)} style={{ ...actBtn("#059669"), flex: 1, background: "#e5f9f1", color: "#059669", padding: "6px 4px", fontSize: 11 }}>{q.status === "Win" ? "➕ Inv" : "🏆 Win"}</button>
                 </div>
               </div>
             ))}
@@ -6087,6 +6094,68 @@ function QuotationView({ q, onClose }) {
   );
 }
 
+/* Adding an invoice to a won deal.
+
+   A win used to hold one invoice, one sq.metre figure and one amount, and
+   saving again replaced them. Real orders are not invoiced all at once — part
+   of the material goes out against one invoice and the rest against another
+   later — so the second invoice had nowhere to go and the first was overwritten
+   by it.
+
+   Each invoice is kept as its own entry now. The single fields stay, holding
+   the totals, so every report, dashboard and target that already reads winSqm
+   or winAmount keeps working and simply sees the full order rather than the
+   last part of it. */
+function winAppend(rec, { sqm, amount, url }) {
+  const existing = Array.isArray(rec.winInvoices) && rec.winInvoices.length
+    ? rec.winInvoices
+    : ((rec.winInvoice || rec.winSqm || rec.winAmount)
+        ? [{ url: rec.winInvoice || "", sqm: rec.winSqm || "", amount: rec.winAmount || "", at: rec.winAt || "", by: rec.winBy || "" }]
+        : []);
+  const list = [...existing, {
+    url: url || "", sqm: sqm || "", amount: amount || "",
+    at: new Date().toLocaleString("en-IN"), by: CU().name,
+  }];
+  const total = (k) => list.reduce((t, x) => t + (parseFloat(x[k]) || 0), 0);
+  const sqmTotal = total("sqm");
+  const amtTotal = total("amount");
+  return {
+    winInvoices: list,
+    winSqm: sqmTotal ? String(Math.round(sqmTotal * 100) / 100) : "",
+    winAmount: amtTotal ? String(Math.round(amtTotal * 100) / 100) : "",
+    /* the first attached document, for the older screens that show just one */
+    winInvoice: (list.find((x) => x.url) || {}).url || "",
+    winAt: new Date().toLocaleString("en-IN"),
+  };
+}
+
+/* the invoices already on this record, shown above the form */
+function WinEntries({ rec }) {
+  const list = Array.isArray(rec.winInvoices) && rec.winInvoices.length
+    ? rec.winInvoices
+    : ((rec.winInvoice || rec.winSqm) ? [{ url: rec.winInvoice || "", sqm: rec.winSqm || "", amount: rec.winAmount || "", at: rec.winAt || "" }] : []);
+  if (!list.length) return null;
+  const total = (k) => list.reduce((t, x) => t + (parseFloat(x[k]) || 0), 0);
+  return (
+    <div style={{ background: "#f3faf6", border: "1px solid #cfe8d8", borderRadius: 10, padding: "10px 12px", marginBottom: 12 }}>
+      <div style={{ fontSize: 12, fontWeight: 800, color: "#0f7a44", marginBottom: 6 }}>Already added ({list.length})</div>
+      {list.map((x, i) => (
+        <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12, padding: "3px 0", borderTop: i ? "1px solid #dcefe3" : "none" }}>
+          <span style={{ color: "var(--muted)" }}>
+            #{i + 1} {x.at ? "· " + String(x.at).split(",")[0] : ""}
+            {x.url ? <span onClick={() => openAppPhoto(x.url)} style={{ color: "var(--accent)", fontWeight: 700, marginLeft: 6, cursor: "pointer" }}>view</span> : null}
+          </span>
+          <b>{x.sqm ? x.sqm + " Sq.M" : ""}{x.amount ? " · ₹" + Number(x.amount).toLocaleString("en-IN") : ""}</b>
+        </div>
+      ))}
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 800, marginTop: 6, paddingTop: 6, borderTop: "1px solid #cfe8d8" }}>
+        <span>Total</span>
+        <span>{total("sqm") ? Math.round(total("sqm") * 100) / 100 + " Sq.M" : ""}{total("amount") ? " · ₹" + total("amount").toLocaleString("en-IN") : ""}</span>
+      </div>
+    </div>
+  );
+}
+
 /* Win modal — attach Sq meter + invoice (photo/pdf), in-app open */
 function QuotationWin({ q, onClose, onDone }) {
   const [sqm, setSqm] = useState("");
@@ -6095,7 +6164,10 @@ function QuotationWin({ q, onClose, onDone }) {
   return (
     <div className="f-sheet-mask" onClick={onClose}>
       <div className="f-sheet sheet-3d" onClick={(e) => e.stopPropagation()}>
-        <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 12 }}>🏆 Mark as Win — {q.quoteNo || q.id}</div>
+        <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 12 }}>
+          {q.status === "Win" ? "➕ Add Invoice" : "🏆 Mark as Win"} — {q.quoteNo || q.id}
+        </div>
+        <WinEntries rec={q} />
         <label style={{ fontSize: 12.5, fontWeight: 700 }}>Sq. Meter</label>
         <input inputMode="decimal" value={sqm} onChange={(e) => setSqm(e.target.value.replace(/[^\d.]/g, ""))} placeholder="e.g. 500" style={{ width: "100%", marginBottom: 12 }} />
         <label style={{ fontSize: 12.5, fontWeight: 700 }}>Invoice (photo / PDF)</label>
@@ -6104,13 +6176,13 @@ function QuotationWin({ q, onClose, onDone }) {
           onClick={async () => {
             setBusy(true);
             try {
-              let invoiceUrl = q.winInvoice || "";
+              let invoiceUrl = "";
               if (file) invoiceUrl = (await api.uploadPhoto(file, "quotation")).url;
-              await api.update("quotation", q._id, { ...q, status: "Win", winSqm: sqm, winInvoice: invoiceUrl });
+              await api.update("quotation", q._id, { ...q, status: "Win", ...winAppend(q, { sqm, url: invoiceUrl }) });
               try { await api.create("notification", { title: "Quotation Won", message: `${q.quoteNo || q.id} marked as Win`, forRole: "Admin", link: "/admin/sfa/quotation", at: new Date().toISOString() }); } catch {}
               onDone();
             } catch (e) { alert(e.message); setBusy(false); }
-          }}>Save Win</button>
+          }}>{q.status === "Win" ? "Add Invoice" : "Save Win"}</button>
       </div>
     </div>
   );
@@ -6185,6 +6257,24 @@ function FieldQuotationNew({ prefill }) {
   };
   useEffect(() => { rows.forEach((r) => r.grade && loadColours(r.grade)); /* eslint-disable-next-line */ }, [gradeNames.length]);
 
+  /* the customer's people, and which of them this quotation is for. The first
+     is ticked to begin with, which is what used to happen automatically. */
+  const pickContacts = Array.isArray(pf.contacts) ? pf.contacts.filter((c) => c && (c.name || c.mobile)) : [];
+  const [chosen, setChosen] = useState(pickContacts.length ? [0] : []);
+  const toggleContact = (i) => {
+    setChosen((prev) => {
+      const next = prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i].sort((a, b) => a - b);
+      const picked = next.map((k) => pickContacts[k]).filter(Boolean);
+      setF((x) => ({
+        ...x,
+        contactName: picked.map((c) => c.name).filter(Boolean).join(", "),
+        contactNumber: picked.map((c) => c.mobile).filter(Boolean).join(", "),
+        clientEmail: picked.map((c) => c.email).filter(Boolean).join(", "),
+      }));
+      return next;
+    });
+  };
+
   const inp = { width: "100%", marginBottom: 12 };
   const setRow = (i, k, v) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
 
@@ -6205,6 +6295,33 @@ function FieldQuotationNew({ prefill }) {
           : <input value={f.projectName} onChange={(e) => setF({ ...f, projectName: e.target.value })} style={inp} />}
         <label>Address</label>
         <textarea rows={2} value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} style={inp} />
+        {/* Which of the customer's people this quotation is for.
+
+            A customer can hold several contacts. The quotation took only the
+            first one, so a firm with three people always got the same name on
+            it whoever the quotation was actually meant for. When there is more
+            than one they are listed here, and the ones ticked — one, two or all
+            of them — go onto the quotation. */}
+        {pickContacts.length > 1 && (
+          <>
+            <label>Quotation For <b>*</b></label>
+            <div style={{ background: "#f7f9ff", borderRadius: 12, padding: 10, marginBottom: 12 }}>
+              {pickContacts.map((c, i) => (
+                <label key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "7px 4px", borderTop: i ? "1px solid #e6ebf8" : "none", cursor: "pointer" }}>
+                  <input type="checkbox" checked={chosen.includes(i)} onChange={() => toggleContact(i)} style={{ marginTop: 3, width: 17, height: 17 }} />
+                  <span style={{ fontSize: 13 }}>
+                    <b>{c.name || "—"}</b>
+                    {c.designation ? <span style={{ color: "var(--muted)" }}> · {c.designation}</span> : null}
+                    <div style={{ fontSize: 11.5, color: "var(--muted)" }}>
+                      {[c.mobile, c.email].filter(Boolean).join(" · ") || "no number"}
+                    </div>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </>
+        )}
+
         <label>Contact Name</label>
         <input value={f.contactName} onChange={(e) => setF({ ...f, contactName: e.target.value })} style={inp} />
         <label>Contact Number</label>
@@ -6606,7 +6723,7 @@ function FieldCustomers({ nearbyOnly = false }) {
               }} style={{ ...actBtn("#1a73e8"), background: "#e8f1ff", color: "#1a73e8", padding: "6px 8px", fontSize: 11 }}>🧭 Direction</button>
               <button onClick={() => setViewCust(r)} style={{ ...actBtn("#3949ab"), background: "#eef1ff", color: "#3949ab", padding: "6px 8px", fontSize: 11 }}>👁 View</button>
               <button onClick={() => { CUST_EDIT.data = r; nav("/app/customer/edit"); }} style={{ ...actBtn("#f59e0b"), background: "#fef3e2", color: "#c07f00", padding: "6px 8px", fontSize: 11 }}>✎ Edit</button>
-              <button onClick={() => { QUOTE_PREFILL.data = { customer: r.name, partyName: r.name, contactName: r.contactName || r.name, contactNumber: r.mobile, mobile: r.mobile, email: r.email, clientEmail: r.email, address: r.address || r.place, category: r.category, projects: r.projects || (r.projectName ? String(r.projectName).split(",").map((x) => x.trim()).filter(Boolean) : []), type: r.type }; nav("/app/m/quotation/new"); }} style={{ ...actBtn("#0b3c8c"), background: "#e8f0ff", color: "#0b3c8c", padding: "6px 8px", fontSize: 11 }}>📄 Quote</button>
+              <button onClick={() => { QUOTE_PREFILL.data = { customer: r.name, partyName: r.name, contactName: r.contactName || r.name, contactNumber: r.mobile, mobile: r.mobile, email: r.email, clientEmail: r.email, address: r.address || r.place, category: r.category, contacts: Array.isArray(r.contacts) ? r.contacts : [], projects: r.projects || (r.projectName ? String(r.projectName).split(",").map((x) => x.trim()).filter(Boolean) : []), type: r.type }; nav("/app/m/quotation/new"); }} style={{ ...actBtn("#0b3c8c"), background: "#e8f0ff", color: "#0b3c8c", padding: "6px 8px", fontSize: 11 }}>📄 Quote</button>
             </div>
           </div>
         ))}
