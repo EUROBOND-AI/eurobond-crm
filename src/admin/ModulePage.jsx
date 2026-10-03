@@ -167,10 +167,26 @@ export default function ModulePage({ cfgKey }) {
     } catch {}
   };
 
-  const filteredNoTab = useMemo(() => {
+  /* Everything this login is allowed to see, worked out once.
+
+     The rows on screen were put through this, but the filter dropdowns were
+     built from the raw fetch — so the table showed one person's expenses while
+     the State list offered every state in the country, and Created By offered
+     every name in the company. A filter should only ever offer what is actually
+     in front of you, so both now come from the same set. */
+  const visibleRows = useMemo(() => {
+    let base = rows || [];
     /* The notification module holds every message in the system, including the
        ones sent to field staff. The panel lists only what was sent to the
        backend team or created from here. */
+    if (cfgKey === "notification") {
+      const me = (auth.user || {}).name;
+      base = base.filter((n) => n.to === "ADMIN" || /admin/i.test(String(n.forRole || "")) || n.createdBy === me || n._by === me);
+    }
+    return scopeRows(base, allUsers);
+  }, [rows, allUsers, cfgKey]);
+
+  const filteredNoTab = useMemo(() => {
     let list = visibleRows;
     if (fUser) list = list.filter((r) => (r.createdBy || "") === fUser);
     if (fHod) list = list.filter((r) => (r.hod || "") === fHod);
@@ -215,22 +231,6 @@ export default function ModulePage({ cfgKey }) {
     });
   }, [filteredNoTab, tab, cfg, firstTab, knownTabs]);
   const pager = usePager(visible, 10, String(tab || ""));
-
-  /* Everything this login is allowed to see, worked out once.
-
-     The rows on screen were put through this, but the filter dropdowns were
-     built from the raw fetch — so the table showed one person's expenses while
-     the State list offered every state in the country, and Created By offered
-     every name in the company. A filter should only ever offer what is actually
-     in front of you, so both now come from the same set. */
-  const visibleRows = useMemo(() => {
-    let base = rows || [];
-    if (cfgKey === "notification") {
-      const me = (auth.user || {}).name;
-      base = base.filter((n) => n.to === "ADMIN" || /admin/i.test(String(n.forRole || "")) || n.createdBy === me || n._by === me);
-    }
-    return scopeRows(base, allUsers);
-  }, [rows, allUsers, cfgKey]);
 
   const distinct = (key) => {
     let src = visibleRows;
