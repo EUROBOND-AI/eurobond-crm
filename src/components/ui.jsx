@@ -246,10 +246,12 @@ export function FormModal({ title, fields, onClose, onSave, initial }) {
                 <select value={values[f.name] || ""}
                   onChange={(e) => {
                     const v = e.target.value;
-                    /* changing the state clears whoever was picked under it, so
-                       a name from another state cannot be left behind */
-                    if (f.optionsSource === "userStates") setValues({ ...values, [f.name]: v, assignee: "", assigneeList: [] });
-                    else setValues({ ...values, [f.name]: v });
+                    /* The state only decides which names are offered; whoever
+                       has already been picked stays. It used to clear them,
+                       which made it impossible to put people from two states on
+                       the same task — choosing the second state dropped the
+                       first person. */
+                    setValues({ ...values, [f.name]: v });
                   }}>
                   <option value="">{f.optionsSource === "userStates" ? "All states" : "Select an option"}</option>
                   {(f.optionsSource === "users" ? userOpts

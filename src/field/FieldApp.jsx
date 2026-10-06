@@ -5177,9 +5177,9 @@ function FieldModuleNew({ mod }) {
                 </div>
               ) : opts ? (
                 <select value={f[x.name] || ""}
-                  onChange={(e) => setF(x.optionsSource === "userStates"
-                    ? { ...f, [x.name]: e.target.value, assignee: "", assigneeList: [] }
-                    : { ...f, [x.name]: e.target.value })}
+                  /* the state only narrows the names on offer — anyone already
+                     picked stays, so a task can hold people from two states */
+                  onChange={(e) => setF({ ...f, [x.name]: e.target.value })}
                   style={{ width: "100%", marginBottom: 12 }}>
                   <option value="">{x.optionsSource === "userStates" ? "All states" : "Select"}</option>
                   {opts.map((o) => <option key={o}>{o}</option>)}
@@ -6698,12 +6698,17 @@ function FieldNearbyProjects() {
     const term = q.trim().toLowerCase();
     let base = rows.filter((r) => r.lat && r.lng);
     if (term) base = base.filter((r) => `${r.projectName} ${r.address || ""} ${r.city || ""}`.toLowerCase().includes(term));
-    if (!myLoc || myLoc === "denied") return base;
+    if (myLoc === null) return null;      // waiting for the position
+    if (myLoc === "denied") return base;
     return base
       .map((r) => ({ ...r, dist: haversineKm(myLoc, { lat: Number(r.lat), lng: Number(r.lng) }) }))
       .filter((r) => r.dist * 1000 <= rangeM)
       .sort((a, b) => a.dist - b.dist);
   }, [rows, myLoc, rangeM, q]);
+
+  /* Projects saved without a position. They cannot be measured from here, so
+     they are listed separately rather than dropped without a word. */
+  const offMap = useMemo(() => (rows || []).filter((r) => !(r.lat && r.lng)), [rows]);
 
   const firstContact = (r) => {
     const c = (r.contacts || [])[0] || {};
@@ -6794,6 +6799,33 @@ function FieldNearbyProjects() {
             </div>
           );
         })}
+
+        {/* Projects with no position saved against them — they cannot be
+            measured from here, so they are listed rather than dropped. */}
+        {offMap.length > 0 && (
+          <>
+            <div style={{ fontWeight: 800, fontSize: 12.5, color: "var(--muted)", margin: "16px 0 7px" }}>
+              No location saved ({offMap.length}) — cannot be measured from here
+            </div>
+            {offMap.map((r, i) => (
+              <div key={`nl-${i}`} style={{ background: "#fff", borderRadius: 10, padding: "10px 12px", marginBottom: 7, boxShadow: "var(--shadow)", opacity: 0.92 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontWeight: 700, fontSize: 13 }}>
+                  <span>{r.projectName || "Project"}</span>
+                  {(r._by || r.createdBy) && (
+                    <span style={{ fontSize: 10.5, color: "var(--muted)", fontWeight: 700, flexShrink: 0 }}>👤 {r._by || r.createdBy}</span>
+                  )}
+                </div>
+                {(r.address || r.city) && (
+                  <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 3 }}>📍 {r.address || r.city}</div>
+                )}
+                <div style={{ display: "flex", gap: 5, marginTop: 7 }}>
+                  <button onClick={() => nav("/app/m/projectProjection")}
+                    style={{ ...actBtn("#3949ab"), background: "#eef1ff", color: "#3949ab", padding: "6px 8px", fontSize: 11 }}>👁 Open</button>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
       </div>
     </>
   );
@@ -6850,12 +6882,29 @@ function FieldCustomers({ nearbyOnly = false }) {
       base = base.filter((r) => dayOf(r.last_followup || r.createdAt || r.date || r._at) === todayKey);
     }
     if (!nearbyOnly) return base;
-    if (!myLoc || myLoc === "denied") return base;
+    /* Still finding the phone's position. Showing everything for that moment
+       and then filtering is what made a row appear and disappear again; the
+       screen waits instead. */
+    if (myLoc === null) return null;
+    if (myLoc === "denied") return base;
     return base
       .map((r) => ({ ...r, dist: r.lat && r.lng ? haversineKm(myLoc, { lat: Number(r.lat), lng: Number(r.lng) }) : null }))
       .filter((r) => r.dist != null && r.dist * 1000 <= rangeM)
       .sort((a, b) => a.dist - b.dist);
   }, [rows, myLoc, nearbyOnly, rangeM, scope]);
+
+  /* Customers that cannot be placed on a map.
+
+     A customer appears in Near By only if a position was saved with the entry.
+     A row without one was dropped silently — and because the position of the
+     phone arrives a moment after the screen opens, such a row would show for an
+     instant and then vanish, which reads as a fault rather than as "this one
+     has no location". They are listed below instead, under their own heading,
+     so a team's customers are never simply missing. */
+  const offMap = useMemo(() => {
+    if (!nearbyOnly || !rows) return [];
+    return rows.filter((r) => !(r.lat && r.lng));
+  }, [rows, nearbyOnly]);
 
   return (
     <>
@@ -6967,6 +7016,38 @@ function FieldCustomers({ nearbyOnly = false }) {
             </div>
           </div>
         ))}
+
+        {/* Customers with no position saved against them.
+
+            They can never be "near by", because there is nothing to measure.
+            Listing them here means a team's customers are visible even when the
+            entry was made without capturing the location — before, they were
+            dropped without a word. */}
+        {offMap.length > 0 && (
+          <>
+            <div style={{ fontWeight: 800, fontSize: 12.5, color: "var(--muted)", margin: "16px 0 7px" }}>
+              No location saved ({offMap.length}) — cannot be measured from here
+            </div>
+            {offMap.map((r, i) => (
+              <div key={`nl-${i}`} style={{ background: "#fff", borderRadius: 10, padding: "10px 12px", marginBottom: 7, boxShadow: "var(--shadow)", opacity: 0.92 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontWeight: 700, fontSize: 13 }}>
+                  <span>{r.name}</span>
+                  {(r.by || r.createdBy) && (
+                    <span style={{ fontSize: 10.5, color: "var(--muted)", fontWeight: 700, flexShrink: 0 }}>👤 {r.by || r.createdBy}</span>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 2, alignItems: "center" }}>
+                  {r.category && <span style={{ fontSize: 10.5, background: "var(--accent-soft)", color: "var(--accent)", fontWeight: 700, padding: "1px 7px", borderRadius: 6 }}>{r.category}</span>}
+                  {(r.place || r.address) && <span style={{ fontSize: 11, color: "var(--muted)" }}>📍 {r.place || r.address}</span>}
+                </div>
+                <div style={{ display: "flex", gap: 5, marginTop: 7, flexWrap: "wrap" }}>
+                  {r.mobile && <button onClick={() => (window.location.href = `tel:${r.mobile}`)} style={{ ...actBtn("#1f9d55"), padding: "6px 8px", fontSize: 11 }}>📞</button>}
+                  <button onClick={() => setViewCust(r)} style={{ ...actBtn("#3949ab"), background: "#eef1ff", color: "#3949ab", padding: "6px 8px", fontSize: 11 }}>👁 View</button>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
       </div>
       {viewCust && (
         <div className="f-sheet-mask" onClick={() => setViewCust(null)}>
