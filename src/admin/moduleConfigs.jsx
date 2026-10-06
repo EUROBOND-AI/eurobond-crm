@@ -187,6 +187,9 @@ export const MODULES = {
     ],
     form: [
       { name: "title", label: "Task Title", required: true },
+      /* pick a state and the Assign To list below narrows to that state's
+         people — the whole company in one dropdown was unworkable */
+      { name: "assignState", label: "State", optionsSource: "userStates" },
       { name: "assignee", label: "Assign To", type: "select", optionsSource: "users", required: true },
       { name: "due", label: "Due Date", type: "date", required: true },
       { name: "priority", label: "Priority", type: "select", options: ["Low", "Medium", "High"], required: true },

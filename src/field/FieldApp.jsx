@@ -2918,6 +2918,33 @@ function ProjectView({ rec, onClose, mod = "projectProjection" }) {
             <div style={{ fontSize: 10.5, color: "var(--muted)" }}>{rp.at}</div>
           </div>
         ))}
+        {/* The attachments, opened full screen inside the app.
+
+            They were not shown here at all, so the only way to see a site photo
+            was to leave this popup. Tapping one hands it to the app's own
+            viewer — the same one the rest of the app uses — rather than sending
+            the person out to the browser. */}
+        {(() => {
+          const atts = [rec.photo, rec.doc, ...(Array.isArray(rec.photos) ? rec.photos : [])]
+            .filter(Boolean)
+            .filter((u, i, a) => a.indexOf(u) === i);
+          if (!atts.length) return null;
+          return (
+            <>
+              <div style={{ fontWeight: 800, fontSize: 12.5, margin: "12px 0 6px", color: "var(--navy)" }}>Attachments ({atts.length})</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {atts.map((u, i) => (
+                  isPdfUrl(u)
+                    ? <div key={i} onClick={() => openAppPhoto(u)}
+                        style={{ width: 58, height: 58, borderRadius: 8, border: "1px solid #dfe4f0", background: "#fdf2f2", color: "#c0392b", display: "grid", placeItems: "center", cursor: "pointer", fontSize: 10.5, fontWeight: 800 }}>📄 PDF</div>
+                    : <img key={i} src={u} alt={`Attachment ${i + 1}`} onClick={() => openAppPhoto(u)}
+                        style={{ width: 58, height: 58, objectFit: "cover", borderRadius: 8, border: "1px solid #dfe4f0", cursor: "pointer" }} />
+                ))}
+              </div>
+            </>
+          );
+        })()}
+
         <div style={{ fontWeight: 800, fontSize: 12.5, margin: "12px 0 6px", color: "var(--navy)" }}>Followup History ({fups.length})</div>
         {fups.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No followups yet.</div> : fups.slice().reverse().map((fu, i) => (
           <div key={i} style={{ borderLeft: "3px solid var(--accent)", background: "#f7f9ff", borderRadius: 8, padding: "7px 10px", marginBottom: 6 }}>
@@ -3593,6 +3620,9 @@ function FieldProjectNew() {
   /* the project's position, taken once when the form opens and again whenever
      the button below is pressed */
   const [projLocBusy, setProjLocBusy] = useState(false);
+  /* reading and shrinking a few files takes a moment — say so, or it looks
+     like nothing happened */
+  const [attBusy, setAttBusy] = useState(false);
   const captureProjectAddress = () => {
     if (!navigator.geolocation) { alert("Location is not available on this device."); return; }
     setProjLocBusy(true);
@@ -3786,38 +3816,57 @@ function FieldProjectNew() {
             project with four site photos could carry one. They are collected
             into a list; the first also stays in the single `photo` field, which
             is what the older screens read. */}
-        <label>Photos (optional)</label>
-        <input type="file" accept="image/*" multiple style={inp}
+        <label>Attachments (optional) <span style={{ color: "var(--muted)", fontWeight: 600 }}>— up to 5 photos or PDFs</span></label>
+        <input type="file" accept="image/*,application/pdf" multiple disabled={attBusy} style={inp}
           onChange={async (e) => {
             const picked = Array.from(e.target.files || []);
             e.target.value = "";
             if (!picked.length) return;
+            const already = Array.isArray(f.photos) ? f.photos.length : (f.photo ? 1 : 0);
+            const room = MAX_ATTACH - already;
+            if (room <= 0) { alert(`You can attach up to ${MAX_ATTACH} files.`); return; }
+            if (picked.length > room) alert(`Only ${room} more can be attached — the rest were left out.`);
+            setAttBusy(true);
             const read = (file) => new Promise((done) => {
               const rd = new FileReader();
               rd.onload = () => done(rd.result);
               rd.onerror = () => done(null);
               rd.readAsDataURL(file);
             });
-            /* shrink first — a few phone photos as raw data would be megabytes */
-            const { compressImage } = await import("../lib/api.js");
             const urls = [];
-            for (const file of picked) {
-              const small = await compressImage(file, 1280, 0.7).catch(() => file);
+            for (const file of picked.slice(0, room)) {
+              /* a PDF is kept as it is; a photo is shrunk first, or a few phone
+                 pictures would be several megabytes inside one record */
+              const isPdf = /pdf$/i.test(file.type) || /\.pdf$/i.test(file.name || "");
+              const small = isPdf ? file : await compressImageLazy(file);
               const url = await read(small);
               if (url) urls.push(url);
             }
+            setAttBusy(false);
             if (!urls.length) return;
             setF((x) => {
-              const all = [...(Array.isArray(x.photos) ? x.photos : (x.photo ? [x.photo] : [])), ...urls].slice(0, 8);
+              const all = [...(Array.isArray(x.photos) ? x.photos : (x.photo ? [x.photo] : [])), ...urls].slice(0, MAX_ATTACH);
               return { ...x, photos: all, photo: all[0] };
             });
           }} />
+        {attBusy && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: -6, marginBottom: 10, fontSize: 12.5, color: "var(--accent)", fontWeight: 700 }}>
+            <span className="eb-spin" style={{ width: 13, height: 13, borderWidth: 2 }} /> Attaching…
+          </div>
+        )}
         {Array.isArray(f.photos) && f.photos.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: -4, marginBottom: 12 }}>
             {f.photos.map((u, i) => (
               <div key={i} style={{ position: "relative" }}>
-                <img src={u} alt={`Photo ${i + 1}`} onClick={() => openAppPhoto(u)}
-                  style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 9, border: "1px solid #d7dcef", cursor: "pointer" }} />
+                {isPdfUrl(u) ? (
+                  <div onClick={() => openAppPhoto(u)}
+                    style={{ width: 64, height: 64, borderRadius: 9, border: "1px solid #d7dcef", background: "#fdf2f2", color: "#c0392b", display: "grid", placeItems: "center", cursor: "pointer", fontSize: 11, fontWeight: 800 }}>
+                    📄 PDF
+                  </div>
+                ) : (
+                  <img src={u} alt={`Attachment ${i + 1}`} onClick={() => openAppPhoto(u)}
+                    style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 9, border: "1px solid #d7dcef", cursor: "pointer" }} />
+                )}
                 <button type="button" aria-label="Remove"
                   onClick={() => setF((x) => {
                     const all = (x.photos || []).filter((_, k) => k !== i);
@@ -5704,6 +5753,19 @@ function WhatsAppOnce({ mobile, recordId, label = "Send WhatsApp to customer" })
 }
 
 
+/* Attachments on a record: how many, and telling a PDF from a picture.
+
+   A data URL carries its own type, and an uploaded file keeps its extension, so
+   both shapes are recognised. */
+const MAX_ATTACH = 5;
+const isPdfUrl = (u) => /^data:application\/pdf/i.test(String(u || "")) || /\.pdf($|\?)/i.test(String(u || ""));
+const compressImageLazy = async (file) => {
+  try {
+    const { compressImage } = await import("../lib/api.js");
+    return await compressImage(file, 1280, 0.7);
+  } catch { return file; }
+};
+
 /* Re-run a loader whenever the app returns from the background. */
 function useOnResume(fn) {
   useEffect(() => {
@@ -6644,9 +6706,21 @@ function FieldNearbyProjects() {
           const c = firstContact(r);
           return (
             <div key={i} style={{ background: "#fff", borderRadius: 10, padding: "10px 12px", marginBottom: 7, boxShadow: "var(--shadow)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 13 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontWeight: 700, fontSize: 13 }}>
                 <span>{r.projectName || "Project"}</span>
-                {r.dist != null && <span style={{ color: "var(--accent)", fontSize: 11.5 }}>{fmtKm(r.dist)}</span>}
+                <span style={{ textAlign: "right", flexShrink: 0 }}>
+                  {r.dist != null && <span style={{ color: "var(--accent)", fontSize: 11.5 }}>{fmtKm(r.dist)}</span>}
+                  {/* Whose project this is.
+
+                      A HOD now sees their whole team's projects here, so
+                      without a name there is no telling who entered which —
+                      it only says who added it, which is what is being asked. */}
+                  {(r._by || r.createdBy) && (r._by || r.createdBy) !== CU().name && (
+                    <span style={{ display: "block", fontSize: 10.5, color: "var(--muted)", fontWeight: 700, marginTop: 2 }}>
+                      👤 {r._by || r.createdBy}
+                    </span>
+                  )}
+                </span>
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 3, alignItems: "center" }}>
                 {r.projectType && <span style={{ fontSize: 10.5, background: "var(--accent-soft)", color: "var(--accent)", fontWeight: 700, padding: "1px 7px", borderRadius: 6 }}>{r.projectType}</span>}
@@ -6785,9 +6859,19 @@ function FieldCustomers({ nearbyOnly = false }) {
           </div>
         ) : list.map((r, i) => (
           <div key={i} style={{ background: "#fff", borderRadius: 10, padding: "10px 12px", marginBottom: 7, boxShadow: "var(--shadow)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 13 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontWeight: 700, fontSize: 13 }}>
               <span>{r.name}</span>
-              {r.dist != null && <span style={{ color: "var(--accent)", fontSize: 11.5 }}>{fmtKm(r.dist)}</span>}
+              <span style={{ textAlign: "right", flexShrink: 0 }}>
+                {r.dist != null && <span style={{ color: "var(--accent)", fontSize: 11.5 }}>{fmtKm(r.dist)}</span>}
+                {/* Whose customer this is. Near By shows a HOD their whole
+                    team's customers, so the name says who added it. It is left
+                    off this person's own rows, which would only be noise. */}
+                {(r.by || r.createdBy) && (r.by || r.createdBy) !== CU().name && (
+                  <span style={{ display: "block", fontSize: 10.5, color: "var(--muted)", fontWeight: 700, marginTop: 2 }}>
+                    👤 {r.by || r.createdBy}
+                  </span>
+                )}
+              </span>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 2, alignItems: "center" }}>
               {r.type && <span style={{ fontSize: 10.5, background: "var(--accent-soft)", color: "var(--accent)", fontWeight: 700, padding: "1px 7px", borderRadius: 6 }}>{r.type}</span>}
@@ -7014,7 +7098,7 @@ function FieldGenericThread({ mod, id }) {
         {(rec.photo || rec.photos || rec.doc) && (
           <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
             {[rec.photo, rec.doc, ...(Array.isArray(rec.photos) ? rec.photos : [])].filter(Boolean).map((u, i) => (
-              String(u).match(/\.pdf$/i)
+              isPdfUrl(u)
                 ? <span key={i} onClick={() => openAppPhoto(u)} style={{ fontSize: 12, color: "var(--accent)", fontWeight: 700, cursor: "pointer" }}>📄 Attachment</span>
                 : <img key={i} src={u} alt="" onClick={() => openAppPhoto(u)} style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 8, border: "1px solid #dfe4f0", cursor: "pointer" }} />
             ))}
@@ -7511,14 +7595,27 @@ function AppPhotoViewer() {
   const fullUrl = /^(https?:|data:|blob:)/i.test(String(url))
     ? String(url)
     : `${API_BASE.replace(/\/$/, "")}/${String(url).replace(/^\//, "")}`;
-  const isPdf = String(fullUrl).match(/\.pdf$/i);
+  /* A PDF attached from the phone is carried inside the record as a data URL,
+     which does not end in ".pdf" — looking only at the ending treated it as a
+     picture, the picture failed to load, and the only way out offered was a
+     link that left the app. */
+  const isPdf = isPdfUrl(fullUrl);
   const openOutside = async () => {
+    /* A data URL is far too long to hand to another app, so it is turned into
+       a temporary local address first. */
+    let target = fullUrl;
+    try {
+      if (/^data:/i.test(target)) {
+        const res = await fetch(target);
+        target = URL.createObjectURL(await res.blob());
+      }
+    } catch {}
     try {
       const Cap = window.Capacitor;
       const P = (Cap && Cap.Plugins) || {};
-      if (P.Browser && P.Browser.open) { await P.Browser.open({ url: fullUrl }); return; }
-      window.open(fullUrl, "_blank");
-    } catch { window.open(fullUrl, "_blank"); }
+      if (P.Browser && P.Browser.open) { await P.Browser.open({ url: target }); return; }
+      window.open(target, "_blank");
+    } catch { window.open(target, "_blank"); }
   };
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.92)", zIndex: 4000, display: "flex", flexDirection: "column" }}>

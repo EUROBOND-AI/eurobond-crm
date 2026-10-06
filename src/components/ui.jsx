@@ -198,17 +198,18 @@ export function ToolButtons({ onAdd, addLabel = "Add", onRefresh, onExport, onIm
 export function FormModal({ title, fields, onClose, onSave, initial }) {
   const [values, setValues] = useState(initial || {});
   const [userPeople, setUserPeople] = useState([]);
-  /* Narrowing Assign To by state.
+  /* Narrowing a people field by state.
 
      Every person in the business was listed in one dropdown, which on a company
-     this size means scrolling past hundreds of names to find one colleague.
-     Picking a state first leaves only the people in it. Leaving it on "All
-     states" keeps the old behaviour, so nothing is forced. */
-  const [byState, setByState] = useState("");
+     this size means scrolling past hundreds of names to find one colleague. A
+     form can offer a State field of its own (optionsSource "userStates"); once
+     a state is chosen, the people field below it lists only the people in that
+     state. Left blank it lists everyone, so nothing is forced. */
   const userStates = useMemo(
     () => [...new Set(userPeople.map((u) => (u.state || "").trim()).filter(Boolean))].sort(),
     [userPeople]
   );
+  const byState = String(values.assignState || "").trim();
   const userOpts = useMemo(() => {
     const pick = byState ? userPeople.filter((u) => (u.state || "").trim() === byState) : userPeople;
     return [...new Set(pick.map((u) => u.name).filter(Boolean))].sort();
@@ -240,20 +241,20 @@ export function FormModal({ title, fields, onClose, onSave, initial }) {
           {fields.map((f) => (
             <div key={f.name} className={`field ${f.full ? "full" : ""}`}>
               <label>{f.label} {f.required && <b>*</b>}</label>
-              {f.type === "select" || f.optionsSource === "users" ? (
-                <>
-                  {f.optionsSource === "users" && userStates.length > 1 && (
-                    <select value={byState} onChange={(e) => { setByState(e.target.value); setValues({ ...values, [f.name]: "" }); }}
-                      style={{ marginBottom: 6 }}>
-                      <option value="">All states</option>
-                      {userStates.map((st) => <option key={st}>{st}</option>)}
-                    </select>
-                  )}
-                  <select value={values[f.name] || ""} onChange={(e) => setValues({ ...values, [f.name]: e.target.value })}>
-                    <option value="">Select an option</option>
-                    {(f.optionsSource === "users" ? userOpts : (f.options || [])).map((o) => <option key={o}>{o}</option>)}
-                  </select>
-                </>
+              {f.type === "select" || f.optionsSource === "users" || f.optionsSource === "userStates" ? (
+                <select value={values[f.name] || ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    /* changing the state clears whoever was picked under it, so
+                       a name from another state cannot be left behind */
+                    if (f.optionsSource === "userStates") setValues({ ...values, [f.name]: v, assignee: "" });
+                    else setValues({ ...values, [f.name]: v });
+                  }}>
+                  <option value="">{f.optionsSource === "userStates" ? "All states" : "Select an option"}</option>
+                  {(f.optionsSource === "users" ? userOpts
+                    : f.optionsSource === "userStates" ? userStates
+                    : (f.options || [])).map((o) => <option key={o}>{o}</option>)}
+                </select>
               ) : f.type === "textarea" ? (
                 <textarea rows={3} value={values[f.name] || ""} onChange={(e) => setValues({ ...values, [f.name]: e.target.value })} />
               ) : f.type === "file" ? (
