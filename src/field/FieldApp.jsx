@@ -2012,7 +2012,14 @@ function ExpenseFormatView({ list, reload }) {
   return (
     <>
       <ScreenHead title="Expense Statement" />
-      <div style={{ padding: "0 16px 30px" }}>
+      {/* Room at the foot for the bottom bar.
+
+          This screen left 30px, which is less than the bar is tall, so the last
+          part of it sat behind the bar. With a dozen bills in the statement that
+          is exactly where "View Bills" and "Submit to Admin" ended up: the list
+          scrolled, the buttons could not be reached. Every other screen leaves
+          the bar's own height plus a margin, and so does this one now. */}
+      <div style={{ padding: "0 16px", paddingBottom: "calc(var(--f-nav-total) + 30px)" }}>
         {/* status banner */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 10, boxShadow: "var(--shadow)" }}>
           <div>
@@ -3547,25 +3554,37 @@ function FieldProjectNew() {
       }
       r = await api.create("projectProjection", payload);
       const projId = r.id;
-      /* route to the mentioned person's module + notify */
-      if (!isSpec && f.specPerson) {
-        await api.create("salesToSpec", {
-          projId, projectName: f.projectName, salesPerson: CU().name, specPerson: f.specPerson,
-          items: rows, contacts, city: f.city, projectType: f.projectType, expectedMonth: f.expectedMonth,
-          helpNeeded: f.helpNeeded, photo: f.photo, status: "Pending",
-          createdBy: CU().name, createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
-        });
-        try { await api.create("notification", { title: "New Project for Specs", message: `${CU().name} sent project "${f.projectName}"`, to: f.specPerson, link: "/app/m/salesToSpec", at: new Date().toISOString() }); } catch {}
-      }
-      if (isSpec && f.salesPerson) {
-        await api.create("specToSales", {
-          projId, projectName: f.projectName, specPerson: CU().name, salesPerson: f.salesPerson,
-          items: rows, contacts, city: f.city, projectType: f.projectType, expectedMonth: f.expectedMonth,
-          category: f.category, categoryFirm: f.categoryFirm,
-          helpNeeded: f.helpNeeded, photo: f.photo, status: "Pending",
-          createdBy: CU().name, createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
-        });
-        try { await api.create("notification", { title: "New Project from Specs", message: `${CU().name} sent project "${f.projectName}"`, to: f.salesPerson, link: "/app/m/specToSales", at: new Date().toISOString() }); } catch {}
+      /* Route it to each person mentioned, one record each.
+
+         The form lets you name several specification people and keeps them as
+         one piece of text — "Ramesh, Suresh". That whole string was written into
+         a single record as the spec person, and every screen looks for a record
+         whose spec person IS that person, so "Ramesh, Suresh" matched neither of
+         them and the project reached nobody. Tagging someone afterwards worked
+         because that dropdown takes one name. The list is split here and each
+         person gets their own record and their own notification. */
+      const namesOf = (v) => String(v || "").split(",").map((x) => x.trim()).filter(Boolean);
+      const stamp = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+      const shared = {
+        projId, projectName: f.projectName, items: rows, contacts, city: f.city,
+        projectType: f.projectType, expectedMonth: f.expectedMonth,
+        helpNeeded: f.helpNeeded, photo: f.photo,
+        ...(Array.isArray(f.photos) && f.photos.length ? { photos: f.photos } : {}),
+        status: "Pending", createdBy: CU().name, createdAt: stamp,
+      };
+      if (!isSpec) {
+        for (const who of namesOf(f.specPerson)) {
+          await api.create("salesToSpec", { ...shared, salesPerson: CU().name, specPerson: who });
+          try { await api.create("notification", { title: "New Project for Specs", message: `${CU().name} sent project "${f.projectName}"`, to: who, link: "/app/m/salesToSpec", at: new Date().toISOString() }); } catch {}
+        }
+      } else {
+        for (const who of namesOf(f.salesPerson)) {
+          await api.create("specToSales", {
+            ...shared, specPerson: CU().name, salesPerson: who,
+            category: f.category, categoryFirm: f.categoryFirm,
+          });
+          try { await api.create("notification", { title: "New Project from Specs", message: `${CU().name} sent project "${f.projectName}"`, to: who, link: "/app/m/specToSales", at: new Date().toISOString() }); } catch {}
+        }
       }
       setOk(true); setTimeout(() => nav("/app/m/projectProjection"), 900);
     } catch (e) { alert(e.message); setBusy(false); savingRef.current = false; }
@@ -3761,8 +3780,54 @@ function FieldProjectNew() {
           <textarea value={f.helpNeeded} onChange={(e) => set("helpNeeded", e.target.value)} rows={3} style={inp} />
         </>)}
 
-        <label>Photo (optional)</label>
-        <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files[0]; if (!file) return; const rd = new FileReader(); rd.onload = () => set("photo", rd.result); rd.readAsDataURL(file); }} style={inp} />
+        {/* Several photos, not one.
+
+            The picker took only the first file chosen and kept only that, so a
+            project with four site photos could carry one. They are collected
+            into a list; the first also stays in the single `photo` field, which
+            is what the older screens read. */}
+        <label>Photos (optional)</label>
+        <input type="file" accept="image/*" multiple style={inp}
+          onChange={async (e) => {
+            const picked = Array.from(e.target.files || []);
+            e.target.value = "";
+            if (!picked.length) return;
+            const read = (file) => new Promise((done) => {
+              const rd = new FileReader();
+              rd.onload = () => done(rd.result);
+              rd.onerror = () => done(null);
+              rd.readAsDataURL(file);
+            });
+            /* shrink first — a few phone photos as raw data would be megabytes */
+            const { compressImage } = await import("../lib/api.js");
+            const urls = [];
+            for (const file of picked) {
+              const small = await compressImage(file, 1280, 0.7).catch(() => file);
+              const url = await read(small);
+              if (url) urls.push(url);
+            }
+            if (!urls.length) return;
+            setF((x) => {
+              const all = [...(Array.isArray(x.photos) ? x.photos : (x.photo ? [x.photo] : [])), ...urls].slice(0, 8);
+              return { ...x, photos: all, photo: all[0] };
+            });
+          }} />
+        {Array.isArray(f.photos) && f.photos.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: -4, marginBottom: 12 }}>
+            {f.photos.map((u, i) => (
+              <div key={i} style={{ position: "relative" }}>
+                <img src={u} alt={`Photo ${i + 1}`} onClick={() => openAppPhoto(u)}
+                  style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 9, border: "1px solid #d7dcef", cursor: "pointer" }} />
+                <button type="button" aria-label="Remove"
+                  onClick={() => setF((x) => {
+                    const all = (x.photos || []).filter((_, k) => k !== i);
+                    return { ...x, photos: all, photo: all[0] || "" };
+                  })}
+                  style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", border: "none", background: "#d64545", color: "#fff", fontSize: 12, lineHeight: 1, cursor: "pointer", fontWeight: 800 }}>×</button>
+              </div>
+            ))}
+          </div>
+        )}
         {f.photo && <img src={f.photo} alt="" style={{ width: 90, height: 90, objectFit: "cover", borderRadius: 10, marginBottom: 12 }} />}
 
         {ok && <div style={{ background: "#e8f7ee", color: "#1f9d55", borderRadius: 10, padding: "10px 12px", fontSize: 12.5, fontWeight: 700, margin: "12px 0" }}>✔ Project saved</div>}
@@ -4237,8 +4302,15 @@ function FieldTeamCustomers() {
                     setMsgBusy(true);
                     try {
                       await api.create("notification", {
-                        title: `Message from ${CU().name}`,
-                        message: msgText.trim(),
+                        /* which customer this is about, in the title.
+
+                           It was kept in a field of its own that the
+                           notifications screen does not show, so all the
+                           recipient saw was "Message from <name>" and the text —
+                           with nothing to say which of their customers it
+                           concerned. */
+                        title: `Message from ${CU().name}${msgTo.customer ? " · " + msgTo.customer : ""}`,
+                        message: msgTo.customer ? `About ${msgTo.customer}\n\n${msgText.trim()}` : msgText.trim(),
                         note: msgText.trim(),
                         about: msgTo.customer,
                         to: msgTo.member,
@@ -5287,6 +5359,11 @@ function FieldNotifications() {
               <button onClick={() => setDetail(null)} style={{ background: "none", border: "none", fontSize: 20, lineHeight: 1, cursor: "pointer", color: "#94a3b8" }}>×</button>
             </div>
             <div style={{ padding: "16px 18px" }}>
+              {detail.about && (
+                <div style={{ marginBottom: 10, background: "#eef2ff", color: "#3949ab", borderRadius: 9, padding: "7px 10px", fontSize: 12.5, fontWeight: 700 }}>
+                  About: {detail.about}
+                </div>
+              )}
               <p style={{ margin: 0, fontSize: 14, lineHeight: 1.65, color: "#334155", whiteSpace: "pre-wrap" }}>{detail.message || detail.body || "—"}</p>
               {/* a quotation notice carries its figures, so they are laid out
                   here instead of leaving the reader with only a number */}
@@ -6501,10 +6578,13 @@ function FieldNearbyProjects() {
   const [q, setQ] = useState("");
   const rangeM = Number(CU().nearby_range_m || CU().nearbyRange || 500);
 
-  /* Only this person's own projects, the same as Near By Customers. Reading
-     everyone's put one person's project on a colleague's screen, which is not
-     what this is for. */
-  const loadProjects = () => api.list("projectProjection", true)
+  /* This person's projects, and their team's if they lead one.
+
+     Reading everyone's put a colleague's project on someone's screen, which is
+     not what this is for. A HOD and a Sub HOD are answerable for their people's
+     work, so they see their team's as well; everyone else sees only their own.
+     The server decides who is in the team. */
+  const loadProjects = () => api.list("projectProjection", false, { team: true })
     .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, _by: r.created_by_name, ...r.data }))))
     .catch(() => setRows([]));
 
@@ -6618,7 +6698,10 @@ function FieldCustomers({ nearbyOnly = false }) {
     );
   }, [nearbyOnly]);
 
-  const loadCustomers = () => api.customers(q.trim(), true)
+  /* Near By shows a HOD and a Sub HOD their team's customers as well as their
+     own; the ordinary Customers list stays as it was, this person's own. The
+     server works out who is in the team. */
+  const loadCustomers = () => api.customers(q.trim(), true, nearbyOnly)
     .then((d) => setRows(d.customers || [])).catch(() => setRows([]));
   useEffect(() => {
     const t = setTimeout(loadCustomers, q ? 300 : 0);

@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, CloudOff, RefreshCw, Plus, Upload, FileText, Trash2, Pencil, Eye, MessageSquare } from "lucide-react";
 import { api } from "../lib/api.js";
+import { visibleUsers } from "../lib/scope.js";
 import { can } from "../lib/perms.js";
 
 export function PageHead({ crumb, title, actions, note }) {
@@ -196,13 +197,30 @@ export function ToolButtons({ onAdd, addLabel = "Add", onRefresh, onExport, onIm
 // Generic modal form built from field definitions
 export function FormModal({ title, fields, onClose, onSave, initial }) {
   const [values, setValues] = useState(initial || {});
-  const [userOpts, setUserOpts] = useState([]);
+  const [userPeople, setUserPeople] = useState([]);
+  /* Narrowing Assign To by state.
+
+     Every person in the business was listed in one dropdown, which on a company
+     this size means scrolling past hundreds of names to find one colleague.
+     Picking a state first leaves only the people in it. Leaving it on "All
+     states" keeps the old behaviour, so nothing is forced. */
+  const [byState, setByState] = useState("");
+  const userStates = useMemo(
+    () => [...new Set(userPeople.map((u) => (u.state || "").trim()).filter(Boolean))].sort(),
+    [userPeople]
+  );
+  const userOpts = useMemo(() => {
+    const pick = byState ? userPeople.filter((u) => (u.state || "").trim() === byState) : userPeople;
+    return [...new Set(pick.map((u) => u.name).filter(Boolean))].sort();
+  }, [userPeople, byState]);
   const [upBusy, setUpBusy] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (fields.some((f) => f.optionsSource === "users")) {
-      api.listUsers().then((d) => setUserOpts((d.users || []).map((u) => u.name))).catch(() => {});
+      /* the whole person is kept, not just the name, so a field can be narrowed
+         by their state (see byState below) */
+      api.listUsers().then((d) => setUserPeople(visibleUsers((d.users || []).filter((u) => u.status == 1)))).catch(() => {});
     }
   }, []);
 
@@ -223,10 +241,19 @@ export function FormModal({ title, fields, onClose, onSave, initial }) {
             <div key={f.name} className={`field ${f.full ? "full" : ""}`}>
               <label>{f.label} {f.required && <b>*</b>}</label>
               {f.type === "select" || f.optionsSource === "users" ? (
-                <select value={values[f.name] || ""} onChange={(e) => setValues({ ...values, [f.name]: e.target.value })}>
-                  <option value="">Select an option</option>
-                  {(f.optionsSource === "users" ? userOpts : (f.options || [])).map((o) => <option key={o}>{o}</option>)}
-                </select>
+                <>
+                  {f.optionsSource === "users" && userStates.length > 1 && (
+                    <select value={byState} onChange={(e) => { setByState(e.target.value); setValues({ ...values, [f.name]: "" }); }}
+                      style={{ marginBottom: 6 }}>
+                      <option value="">All states</option>
+                      {userStates.map((st) => <option key={st}>{st}</option>)}
+                    </select>
+                  )}
+                  <select value={values[f.name] || ""} onChange={(e) => setValues({ ...values, [f.name]: e.target.value })}>
+                    <option value="">Select an option</option>
+                    {(f.optionsSource === "users" ? userOpts : (f.options || [])).map((o) => <option key={o}>{o}</option>)}
+                  </select>
+                </>
               ) : f.type === "textarea" ? (
                 <textarea rows={3} value={values[f.name] || ""} onChange={(e) => setValues({ ...values, [f.name]: e.target.value })} />
               ) : f.type === "file" ? (

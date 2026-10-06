@@ -138,6 +138,9 @@ export const api = {
     /* only the rows this person is named on — the server picks them out, rather
        than the phone downloading the whole module and keeping a handful */
     if (opts.involved) p.set("involved", "1");
+    /* this person plus their team, for a HOD or Sub HOD; just this person for
+       everyone else — the server works the team out from the users table */
+    if (opts.team) p.set("team", "1");
     if (opts.limit) p.set("limit", opts.limit);
     if (opts.offset) p.set("offset", opts.offset);
     if (opts.from) p.set("from", opts.from);
@@ -259,7 +262,7 @@ export const api = {
   sapPushBulk: (ids) => req("/sap_push.php?action=push_bulk", { method: "POST", body: { ids } }),
   visitWhatsApp: (mobile, id) => req("/records.php?module=followup&action=visit_whatsapp", { method: "POST", body: { mobile, id } }),
   customersImport: (rows) => req("/customers.php?action=import", { method: "POST", body: { rows } }),
-  customers: (q = "", mine = false) => req(`/customers.php?action=list${q ? "&q=" + encodeURIComponent(q) : ""}${mine ? "&mine=1" : ""}`),
+  customers: (q = "", mine = false, team = false) => req(`/customers.php?action=list${q ? "&q=" + encodeURIComponent(q) : ""}${mine ? "&mine=1" : ""}${team ? "&team=1" : ""}`),
 
   /* ---------- Notifications ---------- */
   notify: (data) => req("/records.php?module=notification", { method: "POST", body: { data } }),
