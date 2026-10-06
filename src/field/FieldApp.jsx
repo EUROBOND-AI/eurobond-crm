@@ -2876,6 +2876,33 @@ function ProjectView({ rec, onClose, mod = "projectProjection" }) {
           {rec.winSales && <div><b>Sales:</b> ₹{Number(rec.winSales).toLocaleString("en-IN")}</div>}
           {rec.statusRemark && <div><b>Remark:</b> {rec.statusRemark}</div>}
         </div>
+        {/* The attachments, opened full screen inside the app.
+
+            They were not shown here at all, so the only way to see a site photo
+            was to leave this popup. Tapping one hands it to the app's own
+            viewer — the same one the rest of the app uses — rather than sending
+            the person out to the browser. */}
+        {(() => {
+          const atts = [rec.photo, rec.doc, ...(Array.isArray(rec.photos) ? rec.photos : [])]
+            .filter(Boolean)
+            .filter((u, i, a) => a.indexOf(u) === i);
+          if (!atts.length) return null;
+          return (
+            <>
+              <div style={{ fontWeight: 800, fontSize: 12.5, margin: "12px 0 6px", color: "var(--navy)" }}>Attachments ({atts.length})</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {atts.map((u, i) => (
+                  isPdfUrl(u)
+                    ? <div key={i} onClick={() => openAppPhoto(u)}
+                        style={{ width: 58, height: 58, borderRadius: 8, border: "1px solid #dfe4f0", background: "#fdf2f2", color: "#c0392b", display: "grid", placeItems: "center", cursor: "pointer", fontSize: 10.5, fontWeight: 800 }}>📄 PDF</div>
+                    : <img key={i} src={u} alt={`Attachment ${i + 1}`} onClick={() => openAppPhoto(u)}
+                        style={{ width: 58, height: 58, objectFit: "cover", borderRadius: 8, border: "1px solid #dfe4f0", cursor: "pointer" }} />
+                ))}
+              </div>
+            </>
+          );
+        })()}
+
         {(rec.contacts || []).length > 0 && <div style={{ fontWeight: 800, fontSize: 12.5, margin: "12px 0 6px", color: "var(--navy)" }}>Contacts</div>}
         {(rec.contacts || []).map((c, i) => (
           <div key={i} style={{ background: "#f4f6fc", borderRadius: 9, padding: 9, marginBottom: 6, fontSize: 12 }}>
@@ -2918,33 +2945,6 @@ function ProjectView({ rec, onClose, mod = "projectProjection" }) {
             <div style={{ fontSize: 10.5, color: "var(--muted)" }}>{rp.at}</div>
           </div>
         ))}
-        {/* The attachments, opened full screen inside the app.
-
-            They were not shown here at all, so the only way to see a site photo
-            was to leave this popup. Tapping one hands it to the app's own
-            viewer — the same one the rest of the app uses — rather than sending
-            the person out to the browser. */}
-        {(() => {
-          const atts = [rec.photo, rec.doc, ...(Array.isArray(rec.photos) ? rec.photos : [])]
-            .filter(Boolean)
-            .filter((u, i, a) => a.indexOf(u) === i);
-          if (!atts.length) return null;
-          return (
-            <>
-              <div style={{ fontWeight: 800, fontSize: 12.5, margin: "12px 0 6px", color: "var(--navy)" }}>Attachments ({atts.length})</div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {atts.map((u, i) => (
-                  isPdfUrl(u)
-                    ? <div key={i} onClick={() => openAppPhoto(u)}
-                        style={{ width: 58, height: 58, borderRadius: 8, border: "1px solid #dfe4f0", background: "#fdf2f2", color: "#c0392b", display: "grid", placeItems: "center", cursor: "pointer", fontSize: 10.5, fontWeight: 800 }}>📄 PDF</div>
-                    : <img key={i} src={u} alt={`Attachment ${i + 1}`} onClick={() => openAppPhoto(u)}
-                        style={{ width: 58, height: 58, objectFit: "cover", borderRadius: 8, border: "1px solid #dfe4f0", cursor: "pointer" }} />
-                ))}
-              </div>
-            </>
-          );
-        })()}
-
         <div style={{ fontWeight: 800, fontSize: 12.5, margin: "12px 0 6px", color: "var(--navy)" }}>Followup History ({fups.length})</div>
         {fups.length === 0 ? <div style={{ fontSize: 12, color: "var(--muted)" }}>No followups yet.</div> : fups.slice().reverse().map((fu, i) => (
           <div key={i} style={{ borderLeft: "3px solid var(--accent)", background: "#f7f9ff", borderRadius: 8, padding: "7px 10px", marginBottom: 6 }}>
@@ -6663,8 +6663,12 @@ function FieldNearbyProjects() {
      not what this is for. A HOD and a Sub HOD are answerable for their people's
      work, so they see their team's as well; everyone else sees only their own.
      The server decides who is in the team. */
+  const [teamInfo, setTeamInfo] = useState(null);
   const loadProjects = () => api.list("projectProjection", true, { team: true })
-    .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, _by: r.created_by_name, ...r.data }))))
+    .then((d) => {
+      setTeamInfo(d.team || null);
+      setRows((d.records || []).map((r) => ({ _id: r.id, _by: r.created_by_name, ...r.data })));
+    })
     .catch(() => setRows([]));
 
   useEffect(() => {
@@ -6711,6 +6715,7 @@ function FieldNearbyProjects() {
             "nothing nearby". The counts say which it is. */}
         <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 8 }}>
           Projects within {rangeM >= 1000 ? `${(rangeM / 1000).toFixed(1)} km` : `${rangeM} m`} of you
+          {teamInfo && teamInfo.lead && <span>{" · "}team of {teamInfo.people}</span>}
           {rows !== null && (
             <span>
               {" · "}{(list || []).length} of {rows.filter((r) => r.lat && r.lng).length} with a location
