@@ -6706,9 +6706,22 @@ function FieldNearbyProjects() {
       .sort((a, b) => a.dist - b.dist);
   }, [rows, myLoc, rangeM, q]);
 
-  /* Projects saved without a position. They cannot be measured from here, so
-     they are listed separately rather than dropped without a word. */
-  const offMap = useMemo(() => (rows || []).filter((r) => !(r.lat && r.lng)), [rows]);
+  /* Every project that did NOT make the near-by list, and why: no position
+     saved, or further away than the range allows. The screen said neither
+     before, so a missing project could not be explained. */
+  const offMap = useMemo(() => {
+    if (!rows) return [];
+    const shown = new Set((list || []).map((r) => r._id));
+    return rows
+      .filter((r) => !shown.has(r._id))
+      .map((r) => {
+        const has = !!(r.lat && r.lng);
+        const dist = has && myLoc && myLoc !== "denied"
+          ? haversineKm(myLoc, { lat: Number(r.lat), lng: Number(r.lng) })
+          : null;
+        return { ...r, _has: has, _dist: dist };
+      });
+  }, [rows, list, myLoc]);
 
   const firstContact = (r) => {
     const c = (r.contacts || [])[0] || {};
@@ -6805,15 +6818,20 @@ function FieldNearbyProjects() {
         {offMap.length > 0 && (
           <>
             <div style={{ fontWeight: 800, fontSize: 12.5, color: "var(--muted)", margin: "16px 0 7px" }}>
-              No location saved ({offMap.length}) — cannot be measured from here
+              Not in range ({offMap.length}) — your range is {rangeM >= 1000 ? `${(rangeM / 1000)} km` : `${rangeM} m`}
             </div>
             {offMap.map((r, i) => (
               <div key={`nl-${i}`} style={{ background: "#fff", borderRadius: 10, padding: "10px 12px", marginBottom: 7, boxShadow: "var(--shadow)", opacity: 0.92 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontWeight: 700, fontSize: 13 }}>
                   <span>{r.projectName || "Project"}</span>
-                  {(r._by || r.createdBy) && (
-                    <span style={{ fontSize: 10.5, color: "var(--muted)", fontWeight: 700, flexShrink: 0 }}>👤 {r._by || r.createdBy}</span>
-                  )}
+                  <span style={{ textAlign: "right", flexShrink: 0 }}>
+                    <span style={{ fontSize: 11, color: r._has ? "var(--accent)" : "#8a5200", fontWeight: 700 }}>
+                      {r._has ? (r._dist != null ? fmtKm(r._dist) : "has location") : "no location"}
+                    </span>
+                    {(r._by || r.createdBy) && (
+                      <span style={{ display: "block", fontSize: 10.5, color: "var(--muted)", fontWeight: 700, marginTop: 2 }}>👤 {r._by || r.createdBy}</span>
+                    )}
+                  </span>
                 </div>
                 {(r.address || r.city) && (
                   <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 3 }}>📍 {r.address || r.city}</div>
@@ -6901,10 +6919,26 @@ function FieldCustomers({ nearbyOnly = false }) {
      instant and then vanish, which reads as a fault rather than as "this one
      has no location". They are listed below instead, under their own heading,
      so a team's customers are never simply missing. */
+  /* Everything that did NOT make the near-by list, and why.
+
+     A row was dropped for one of two reasons and the screen said neither, so
+     "my team member's customer is not here" could not be told apart from "it is
+     saved without a position" or "it is further away than the range allows".
+     Each one now says which, with its real distance, so what is actually
+     happening is visible rather than guessed at. */
   const offMap = useMemo(() => {
     if (!nearbyOnly || !rows) return [];
-    return rows.filter((r) => !(r.lat && r.lng));
-  }, [rows, nearbyOnly]);
+    const shown = new Set((list || []).map((r) => r.id ?? r.mobile ?? r.name));
+    return rows
+      .filter((r) => !shown.has(r.id ?? r.mobile ?? r.name))
+      .map((r) => {
+        const has = !!(r.lat && r.lng);
+        const dist = has && myLoc && myLoc !== "denied"
+          ? haversineKm(myLoc, { lat: Number(r.lat), lng: Number(r.lng) })
+          : null;
+        return { ...r, _has: has, _dist: dist };
+      });
+  }, [rows, nearbyOnly, list, myLoc]);
 
   return (
     <>
@@ -7026,15 +7060,20 @@ function FieldCustomers({ nearbyOnly = false }) {
         {offMap.length > 0 && (
           <>
             <div style={{ fontWeight: 800, fontSize: 12.5, color: "var(--muted)", margin: "16px 0 7px" }}>
-              No location saved ({offMap.length}) — cannot be measured from here
+              Not in range ({offMap.length}) — your range is {rangeM >= 1000 ? `${(rangeM / 1000)} km` : `${rangeM} m`}
             </div>
             {offMap.map((r, i) => (
               <div key={`nl-${i}`} style={{ background: "#fff", borderRadius: 10, padding: "10px 12px", marginBottom: 7, boxShadow: "var(--shadow)", opacity: 0.92 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontWeight: 700, fontSize: 13 }}>
                   <span>{r.name}</span>
-                  {(r.by || r.createdBy) && (
-                    <span style={{ fontSize: 10.5, color: "var(--muted)", fontWeight: 700, flexShrink: 0 }}>👤 {r.by || r.createdBy}</span>
-                  )}
+                  <span style={{ textAlign: "right", flexShrink: 0 }}>
+                    <span style={{ fontSize: 11, color: r._has ? "var(--accent)" : "#8a5200", fontWeight: 700 }}>
+                      {r._has ? (r._dist != null ? fmtKm(r._dist) : "has location") : "no location"}
+                    </span>
+                    {(r.by || r.createdBy) && (
+                      <span style={{ display: "block", fontSize: 10.5, color: "var(--muted)", fontWeight: 700, marginTop: 2 }}>👤 {r.by || r.createdBy}</span>
+                    )}
+                  </span>
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 2, alignItems: "center" }}>
                   {r.category && <span style={{ fontSize: 10.5, background: "var(--accent-soft)", color: "var(--accent)", fontWeight: 700, padding: "1px 7px", borderRadius: 6 }}>{r.category}</span>}
