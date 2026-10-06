@@ -6668,18 +6668,10 @@ function FieldNearbyProjects() {
   const [q, setQ] = useState("");
   const rangeM = Number(CU().nearby_range_m || CU().nearbyRange || 500);
 
-  /* This person's projects, and their team's if they lead one.
-
-     Reading everyone's put a colleague's project on someone's screen, which is
-     not what this is for. A HOD and a Sub HOD are answerable for their people's
-     work, so they see their team's as well; everyone else sees only their own.
-     The server decides who is in the team. */
-  const [teamInfo, setTeamInfo] = useState(null);
-  const loadProjects = () => api.list("projectProjection", true, { team: true })
-    .then((d) => {
-      setTeamInfo(d.team || null);
-      setRows((d.records || []).map((r) => ({ _id: r.id, _by: r.created_by_name, ...r.data })));
-    })
+  /* This person's own projects. Reading everyone's put a colleague's project on
+     someone's screen, which is not what this is for. */
+  const loadProjects = () => api.list("projectProjection", true)
+    .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data }))))
     .catch(() => setRows([]));
 
   useEffect(() => {
@@ -6706,23 +6698,6 @@ function FieldNearbyProjects() {
       .sort((a, b) => a.dist - b.dist);
   }, [rows, myLoc, rangeM, q]);
 
-  /* Every project that did NOT make the near-by list, and why: no position
-     saved, or further away than the range allows. The screen said neither
-     before, so a missing project could not be explained. */
-  const offMap = useMemo(() => {
-    if (!rows) return [];
-    const shown = new Set((list || []).map((r) => r._id));
-    return rows
-      .filter((r) => !shown.has(r._id))
-      .map((r) => {
-        const has = !!(r.lat && r.lng);
-        const dist = has && myLoc && myLoc !== "denied"
-          ? haversineKm(myLoc, { lat: Number(r.lat), lng: Number(r.lng) })
-          : null;
-        return { ...r, _has: has, _dist: dist };
-      });
-  }, [rows, list, myLoc]);
-
   const firstContact = (r) => {
     const c = (r.contacts || [])[0] || {};
     const p = (c.people || [])[0] || {};
@@ -6744,7 +6719,6 @@ function FieldNearbyProjects() {
             "nothing nearby". The counts say which it is. */}
         <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 8 }}>
           Projects within {rangeM >= 1000 ? `${(rangeM / 1000).toFixed(1)} km` : `${rangeM} m`} of you
-          {teamInfo && teamInfo.lead && <span>{" · "}team of {teamInfo.people}</span>}
           {rows !== null && (
             <span>
               {" · "}{(list || []).length} of {rows.filter((r) => r.lat && r.lng).length} with a location
@@ -6778,14 +6752,6 @@ function FieldNearbyProjects() {
                 <span>{r.projectName || "Project"}</span>
                 <span style={{ textAlign: "right", flexShrink: 0 }}>
                   {r.dist != null && <span style={{ color: "var(--accent)", fontSize: 11.5 }}>{fmtKm(r.dist)}</span>}
-                  {/* Who added this project — shown on every row, including
-                      this person's own, so there is never any doubt whose it
-                      is once a HOD is seeing their whole team's. */}
-                  {(r._by || r.createdBy) && (
-                    <span style={{ display: "block", fontSize: 10.5, color: "var(--muted)", fontWeight: 700, marginTop: 2 }}>
-                      👤 {r._by || r.createdBy}
-                    </span>
-                  )}
                 </span>
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 3, alignItems: "center" }}>
@@ -6813,37 +6779,6 @@ function FieldNearbyProjects() {
           );
         })}
 
-        {/* Projects with no position saved against them — they cannot be
-            measured from here, so they are listed rather than dropped. */}
-        {offMap.length > 0 && (
-          <>
-            <div style={{ fontWeight: 800, fontSize: 12.5, color: "var(--muted)", margin: "16px 0 7px" }}>
-              Not in range ({offMap.length}) — your range is {rangeM >= 1000 ? `${(rangeM / 1000)} km` : `${rangeM} m`}
-            </div>
-            {offMap.map((r, i) => (
-              <div key={`nl-${i}`} style={{ background: "#fff", borderRadius: 10, padding: "10px 12px", marginBottom: 7, boxShadow: "var(--shadow)", opacity: 0.92 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontWeight: 700, fontSize: 13 }}>
-                  <span>{r.projectName || "Project"}</span>
-                  <span style={{ textAlign: "right", flexShrink: 0 }}>
-                    <span style={{ fontSize: 11, color: r._has ? "var(--accent)" : "#8a5200", fontWeight: 700 }}>
-                      {r._has ? (r._dist != null ? fmtKm(r._dist) : "has location") : "no location"}
-                    </span>
-                    {(r._by || r.createdBy) && (
-                      <span style={{ display: "block", fontSize: 10.5, color: "var(--muted)", fontWeight: 700, marginTop: 2 }}>👤 {r._by || r.createdBy}</span>
-                    )}
-                  </span>
-                </div>
-                {(r.address || r.city) && (
-                  <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 3 }}>📍 {r.address || r.city}</div>
-                )}
-                <div style={{ display: "flex", gap: 5, marginTop: 7 }}>
-                  <button onClick={() => nav("/app/m/projectProjection")}
-                    style={{ ...actBtn("#3949ab"), background: "#eef1ff", color: "#3949ab", padding: "6px 8px", fontSize: 11 }}>👁 Open</button>
-                </div>
-              </div>
-            ))}
-          </>
-        )}
       </div>
     </>
   );
@@ -6870,12 +6805,9 @@ function FieldCustomers({ nearbyOnly = false }) {
     );
   }, [nearbyOnly]);
 
-  /* Near By shows a HOD and a Sub HOD their team's customers as well as their
-     own; the ordinary Customers list stays as it was, this person's own. The
-     server works out who is in the team. */
-  const [custTeam, setCustTeam] = useState(null);
-  const loadCustomers = () => api.customers(q.trim(), true, nearbyOnly)
-    .then((d) => { setCustTeam(d.team || null); setRows(d.customers || []); })
+  /* This person's own customers, on both the Customers list and Near By. */
+  const loadCustomers = () => api.customers(q.trim(), true)
+    .then((d) => setRows(d.customers || []))
     .catch(() => setRows([]));
   useEffect(() => {
     const t = setTimeout(loadCustomers, q ? 300 : 0);
@@ -6911,34 +6843,6 @@ function FieldCustomers({ nearbyOnly = false }) {
       .sort((a, b) => a.dist - b.dist);
   }, [rows, myLoc, nearbyOnly, rangeM, scope]);
 
-  /* Customers that cannot be placed on a map.
-
-     A customer appears in Near By only if a position was saved with the entry.
-     A row without one was dropped silently — and because the position of the
-     phone arrives a moment after the screen opens, such a row would show for an
-     instant and then vanish, which reads as a fault rather than as "this one
-     has no location". They are listed below instead, under their own heading,
-     so a team's customers are never simply missing. */
-  /* Everything that did NOT make the near-by list, and why.
-
-     A row was dropped for one of two reasons and the screen said neither, so
-     "my team member's customer is not here" could not be told apart from "it is
-     saved without a position" or "it is further away than the range allows".
-     Each one now says which, with its real distance, so what is actually
-     happening is visible rather than guessed at. */
-  const offMap = useMemo(() => {
-    if (!nearbyOnly || !rows) return [];
-    const shown = new Set((list || []).map((r) => r.id ?? r.mobile ?? r.name));
-    return rows
-      .filter((r) => !shown.has(r.id ?? r.mobile ?? r.name))
-      .map((r) => {
-        const has = !!(r.lat && r.lng);
-        const dist = has && myLoc && myLoc !== "denied"
-          ? haversineKm(myLoc, { lat: Number(r.lat), lng: Number(r.lng) })
-          : null;
-        return { ...r, _has: has, _dist: dist };
-      });
-  }, [rows, nearbyOnly, list, myLoc]);
 
   return (
     <>
@@ -6974,15 +6878,9 @@ function FieldCustomers({ nearbyOnly = false }) {
         {nearbyOnly && (
           <div style={{ background: "#eef4ff", color: "#33406b", padding: "8px 11px", borderRadius: 10, fontSize: 12, marginBottom: 10, fontWeight: 600 }}>
             Showing customers within <b>{rangeM >= 1000 ? (rangeM / 1000) + " km" : rangeM + " m"}</b> of you
-            {/* What was found and what was left out.
-
-                A customer only appears here if a position was saved with the
-                entry. When a team's entries were made without one there is
-                nothing to measure against, so the screen looked empty however
-                far the range was widened — indistinguishable from "nothing
-                nearby". These counts say which it is, and whether the team was
-                recognised at all. */}
-            {custTeam && custTeam.lead && <span style={{ fontWeight: 500 }}> · team of {custTeam.people}</span>}
+            {/* A customer appears here only if a position was saved with the
+                entry, so the counts say how many could be measured at all —
+                otherwise an empty screen reads as a fault. */}
             {rows !== null && (
               <span style={{ fontWeight: 500 }}>
                 {" · "}{(list || []).length} of {rows.filter((r) => r.lat && r.lng).length} with a location
@@ -7015,13 +6913,6 @@ function FieldCustomers({ nearbyOnly = false }) {
               <span>{r.name}</span>
               <span style={{ textAlign: "right", flexShrink: 0 }}>
                 {r.dist != null && <span style={{ color: "var(--accent)", fontSize: 11.5 }}>{fmtKm(r.dist)}</span>}
-                {/* Who added this customer — on every row, this person's own
-                    included, so whose it is is never in doubt. */}
-                {(r.by || r.createdBy) && (
-                  <span style={{ display: "block", fontSize: 10.5, color: "var(--muted)", fontWeight: 700, marginTop: 2 }}>
-                    👤 {r.by || r.createdBy}
-                  </span>
-                )}
               </span>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 2, alignItems: "center" }}>
@@ -7051,42 +6942,6 @@ function FieldCustomers({ nearbyOnly = false }) {
           </div>
         ))}
 
-        {/* Customers with no position saved against them.
-
-            They can never be "near by", because there is nothing to measure.
-            Listing them here means a team's customers are visible even when the
-            entry was made without capturing the location — before, they were
-            dropped without a word. */}
-        {offMap.length > 0 && (
-          <>
-            <div style={{ fontWeight: 800, fontSize: 12.5, color: "var(--muted)", margin: "16px 0 7px" }}>
-              Not in range ({offMap.length}) — your range is {rangeM >= 1000 ? `${(rangeM / 1000)} km` : `${rangeM} m`}
-            </div>
-            {offMap.map((r, i) => (
-              <div key={`nl-${i}`} style={{ background: "#fff", borderRadius: 10, padding: "10px 12px", marginBottom: 7, boxShadow: "var(--shadow)", opacity: 0.92 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontWeight: 700, fontSize: 13 }}>
-                  <span>{r.name}</span>
-                  <span style={{ textAlign: "right", flexShrink: 0 }}>
-                    <span style={{ fontSize: 11, color: r._has ? "var(--accent)" : "#8a5200", fontWeight: 700 }}>
-                      {r._has ? (r._dist != null ? fmtKm(r._dist) : "has location") : "no location"}
-                    </span>
-                    {(r.by || r.createdBy) && (
-                      <span style={{ display: "block", fontSize: 10.5, color: "var(--muted)", fontWeight: 700, marginTop: 2 }}>👤 {r.by || r.createdBy}</span>
-                    )}
-                  </span>
-                </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 2, alignItems: "center" }}>
-                  {r.category && <span style={{ fontSize: 10.5, background: "var(--accent-soft)", color: "var(--accent)", fontWeight: 700, padding: "1px 7px", borderRadius: 6 }}>{r.category}</span>}
-                  {(r.place || r.address) && <span style={{ fontSize: 11, color: "var(--muted)" }}>📍 {r.place || r.address}</span>}
-                </div>
-                <div style={{ display: "flex", gap: 5, marginTop: 7, flexWrap: "wrap" }}>
-                  {r.mobile && <button onClick={() => (window.location.href = `tel:${r.mobile}`)} style={{ ...actBtn("#1f9d55"), padding: "6px 8px", fontSize: 11 }}>📞</button>}
-                  <button onClick={() => setViewCust(r)} style={{ ...actBtn("#3949ab"), background: "#eef1ff", color: "#3949ab", padding: "6px 8px", fontSize: 11 }}>👁 View</button>
-                </div>
-              </div>
-            ))}
-          </>
-        )}
       </div>
       {viewCust && (
         <div className="f-sheet-mask" onClick={() => setViewCust(null)}>
