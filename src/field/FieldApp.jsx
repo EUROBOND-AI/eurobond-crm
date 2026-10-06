@@ -18,6 +18,7 @@ import BiltraxList from "./BiltraxList.jsx";
 import { buildExpensePdf } from "../lib/expensePdf.js";
 import { snapToRoads } from "../lib/roadline.js";
 import { useVisiblePoll } from "../lib/poll.js";
+import { MultiPeople, MultiFiles } from "../components/FormBits.jsx";
 import ScreenHead, { parentOf } from "../components/ScreenHead.jsx";
 import { MODULES } from "../admin/moduleConfigs.jsx";
 
@@ -2883,7 +2884,7 @@ function ProjectView({ rec, onClose, mod = "projectProjection" }) {
             viewer — the same one the rest of the app uses — rather than sending
             the person out to the browser. */}
         {(() => {
-          const atts = [rec.photo, rec.doc, ...(Array.isArray(rec.photos) ? rec.photos : [])]
+          const atts = [rec.photo, rec.doc, ...(Array.isArray(rec.photos) ? rec.photos : []), ...(Array.isArray(rec.attachments) ? rec.attachments : [])]
             .filter(Boolean)
             .filter((u, i, a) => a.indexOf(u) === i);
           if (!atts.length) return null;
@@ -5164,10 +5165,20 @@ function FieldModuleNew({ mod }) {
           return (
             <div key={x.name}>
               <label>{x.label} {x.required && <b>*</b>}</label>
-              {opts ? (
+              {x.type === "multiuser" ? (
+                <div style={{ marginBottom: 12 }}>
+                  <MultiPeople value={f[x.name]} listValue={f[x.name + "List"]}
+                    options={opts || []}
+                    onChange={(line, list) => setF({ ...f, [x.name]: line, [x.name + "List"]: list })} />
+                </div>
+              ) : x.type === "files" ? (
+                <div style={{ marginBottom: 12 }}>
+                  <MultiFiles value={f[x.name]} onChange={(list) => setF({ ...f, [x.name]: list })} />
+                </div>
+              ) : opts ? (
                 <select value={f[x.name] || ""}
                   onChange={(e) => setF(x.optionsSource === "userStates"
-                    ? { ...f, [x.name]: e.target.value, assignee: "" }
+                    ? { ...f, [x.name]: e.target.value, assignee: "", assigneeList: [] }
                     : { ...f, [x.name]: e.target.value })}
                   style={{ width: "100%", marginBottom: 12 }}>
                   <option value="">{x.optionsSource === "userStates" ? "All states" : "Select"}</option>
@@ -6812,8 +6823,10 @@ function FieldCustomers({ nearbyOnly = false }) {
   /* Near By shows a HOD and a Sub HOD their team's customers as well as their
      own; the ordinary Customers list stays as it was, this person's own. The
      server works out who is in the team. */
+  const [custTeam, setCustTeam] = useState(null);
   const loadCustomers = () => api.customers(q.trim(), true, nearbyOnly)
-    .then((d) => setRows(d.customers || [])).catch(() => setRows([]));
+    .then((d) => { setCustTeam(d.team || null); setRows(d.customers || []); })
+    .catch(() => setRows([]));
   useEffect(() => {
     const t = setTimeout(loadCustomers, q ? 300 : 0);
     return () => clearTimeout(t);
@@ -6878,6 +6891,25 @@ function FieldCustomers({ nearbyOnly = false }) {
         {nearbyOnly && (
           <div style={{ background: "#eef4ff", color: "#33406b", padding: "8px 11px", borderRadius: 10, fontSize: 12, marginBottom: 10, fontWeight: 600 }}>
             Showing customers within <b>{rangeM >= 1000 ? (rangeM / 1000) + " km" : rangeM + " m"}</b> of you
+            {/* What was found and what was left out.
+
+                A customer only appears here if a position was saved with the
+                entry. When a team's entries were made without one there is
+                nothing to measure against, so the screen looked empty however
+                far the range was widened — indistinguishable from "nothing
+                nearby". These counts say which it is, and whether the team was
+                recognised at all. */}
+            {custTeam && custTeam.lead && <span style={{ fontWeight: 500 }}> · team of {custTeam.people}</span>}
+            {rows !== null && (
+              <span style={{ fontWeight: 500 }}>
+                {" · "}{(list || []).length} of {rows.filter((r) => r.lat && r.lng).length} with a location
+                {rows.length > rows.filter((r) => r.lat && r.lng).length && (
+                  <span style={{ color: "#8a5200" }}>
+                    {" · "}{rows.length - rows.filter((r) => r.lat && r.lng).length} saved without one
+                  </span>
+                )}
+              </span>
+            )}
           </div>
         )}
         {nearbyOnly && myLoc === "denied" && (
@@ -7060,9 +7092,12 @@ function FieldGenericThread({ mod, id }) {
          conversation's own address so tapping it opens the conversation rather
          than a list. */
       const meNow = CU().name;
+      const assignees = Array.isArray(rec.assigneeList) && rec.assigneeList.length
+        ? rec.assigneeList
+        : String(rec.assignee || "").split(",").map((x) => x.trim()).filter(Boolean);
       const others = mod === "leave"
         ? [meNow === rec.createdBy ? (rec.approvedBy || rec.manager || CU().manager) : rec.createdBy]
-        : [rec.assignee, rec.specPerson, rec.salesPerson, rec.createdBy];
+        : [...assignees, rec.specPerson, rec.salesPerson, rec.createdBy];
       const told = new Set();
       for (const who of others) {
         const name = String(who || "").trim();
@@ -7133,7 +7168,7 @@ function FieldGenericThread({ mod, id }) {
         {/* first photos attached at creation */}
         {(rec.photo || rec.photos || rec.doc) && (
           <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-            {[rec.photo, rec.doc, ...(Array.isArray(rec.photos) ? rec.photos : [])].filter(Boolean).map((u, i) => (
+            {[rec.photo, rec.doc, ...(Array.isArray(rec.photos) ? rec.photos : []), ...(Array.isArray(rec.attachments) ? rec.attachments : [])].filter(Boolean).filter((u, i, a) => a.indexOf(u) === i).map((u, i) => (
               isPdfUrl(u)
                 ? <span key={i} onClick={() => openAppPhoto(u)} style={{ fontSize: 12, color: "var(--accent)", fontWeight: 700, cursor: "pointer" }}>📄 Attachment</span>
                 : <img key={i} src={u} alt="" onClick={() => openAppPhoto(u)} style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 8, border: "1px solid #dfe4f0", cursor: "pointer" }} />
@@ -7654,7 +7689,13 @@ function AppPhotoViewer() {
     } catch { window.open(target, "_blank"); }
   };
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.92)", zIndex: 4000, display: "flex", flexDirection: "column" }}>
+    /* Above every popup, not behind them.
+
+       The viewer sat at 4000 while the record popups sit at 9999, so tapping an
+       attachment from inside a popup opened the picture *underneath* it — the
+       popup had to be closed before the picture could be seen. The viewer is
+       opened from those popups, so it has to sit above them. */
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.92)", zIndex: 100001, display: "flex", flexDirection: "column" }}>
       {/* top bar */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", gap: 10 }}>
         <button onClick={() => setUrl(null)} style={{ background: "rgba(255,255,255,.15)", border: "none", color: "#fff", width: 38, height: 38, borderRadius: "50%", fontSize: 20, cursor: "pointer" }}>×</button>

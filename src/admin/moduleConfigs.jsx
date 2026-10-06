@@ -190,10 +190,14 @@ export const MODULES = {
       /* pick a state and the Assign To list below narrows to that state's
          people — the whole company in one dropdown was unworkable */
       { name: "assignState", label: "State", type: "select", optionsSource: "userStates" },
-      { name: "assignee", label: "Assign To", type: "select", optionsSource: "users", required: true },
+      /* more than one person can be put on a task; the names are kept as one
+         readable line and also as a list, which is what the "mine" lookups
+         match against */
+      { name: "assignee", label: "Assign To", type: "multiuser", optionsSource: "users", required: true },
       { name: "due", label: "Due Date", type: "date", required: true },
       { name: "priority", label: "Priority", type: "select", options: ["Low", "Medium", "High"], required: true },
       { name: "desc", label: "Description", type: "textarea", full: true },
+      { name: "attachments", label: "Attachments", type: "files", full: true },
     ],
   },
 

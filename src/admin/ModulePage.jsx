@@ -740,7 +740,12 @@ function AdminChatModal({ row, cfgKey, onClose, onSent }) {
          the notification open the conversation on the phone rather than
          dropping the person somewhere they have to find it again. */
       const me = (auth.user && auth.user.name) || "Admin";
-      const candidates = [rec.assignee, rec.specPerson, rec.salesPerson, rec.createdBy];
+      /* a task can name several people, so the list is used where there is one
+         and the single name only as a fallback */
+      const assignees = Array.isArray(rec.assigneeList) && rec.assigneeList.length
+        ? rec.assigneeList
+        : String(rec.assignee || "").split(",").map((x) => x.trim()).filter(Boolean);
+      const candidates = [...assignees, rec.specPerson, rec.salesPerson, rec.createdBy];
       const seen = new Set();
       for (const who of candidates) {
         const name = String(who || "").trim();
@@ -767,6 +772,24 @@ function AdminChatModal({ row, cfgKey, onClose, onSent }) {
       <div className="modal" style={{ maxWidth: 480, display: "flex", flexDirection: "column", maxHeight: "80vh" }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginBottom: 4 }}>{rec.id} · {rec.project || rec.name || rec.category || rec.type || ""}</h3>
         <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 8 }}>{rec.createdBy} {rec.specPerson || rec.salesPerson ? "↔ " + (rec.specPerson || rec.salesPerson) : ""} {rec.help ? "· " + rec.help : ""}</div>
+        {(() => {
+          /* whatever was attached to this record, opened in a new tab from the
+             panel — a task can carry up to five photos or PDFs */
+          const atts = [rec.photo, rec.doc, ...(Array.isArray(rec.photos) ? rec.photos : []), ...(Array.isArray(rec.attachments) ? rec.attachments : [])]
+            .filter(Boolean).filter((u, i, a) => a.indexOf(u) === i);
+          if (!atts.length) return null;
+          const open = (u) => { try { const w = window.open(); if (w) { w.document.write(`<iframe src="${u}" style="position:fixed;inset:0;width:100%;height:100%;border:0"></iframe>`); } } catch {} };
+          return (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+              {atts.map((u, i) => (
+                /^data:application\/pdf/i.test(String(u)) || /\.pdf($|\?)/i.test(String(u))
+                  ? <button key={i} className="btn btn-soft" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => open(u)}>📄 PDF {i + 1}</button>
+                  : <img key={i} src={u} alt={`Attachment ${i + 1}`} onClick={() => open(u)}
+                      style={{ width: 54, height: 54, objectFit: "cover", borderRadius: 7, border: "1px solid #dfe4f0", cursor: "pointer" }} />
+              ))}
+            </div>
+          );
+        })()}
         <div style={{ background: "#f6f8fd", borderRadius: 10, padding: "9px 11px", fontSize: 12, display: "grid", gap: 4, marginBottom: 10 }}>
           {rec.category && <div><b>Category:</b> {rec.category}</div>}
           {rec.type && <div><b>Type:</b> {rec.type}</div>}

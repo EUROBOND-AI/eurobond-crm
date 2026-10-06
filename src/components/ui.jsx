@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, CloudOff, RefreshCw, Plus, Upload, FileText, Trash2, Pencil, Eye, MessageSquare } from "lucide-react";
 import { api } from "../lib/api.js";
 import { visibleUsers } from "../lib/scope.js";
+import { MultiPeople, MultiFiles } from "./FormBits.jsx";
 import { can } from "../lib/perms.js";
 
 export function PageHead({ crumb, title, actions, note }) {
@@ -247,7 +248,7 @@ export function FormModal({ title, fields, onClose, onSave, initial }) {
                     const v = e.target.value;
                     /* changing the state clears whoever was picked under it, so
                        a name from another state cannot be left behind */
-                    if (f.optionsSource === "userStates") setValues({ ...values, [f.name]: v, assignee: "" });
+                    if (f.optionsSource === "userStates") setValues({ ...values, [f.name]: v, assignee: "", assigneeList: [] });
                     else setValues({ ...values, [f.name]: v });
                   }}>
                   <option value="">{f.optionsSource === "userStates" ? "All states" : "Select an option"}</option>
@@ -255,6 +256,12 @@ export function FormModal({ title, fields, onClose, onSave, initial }) {
                     : f.optionsSource === "userStates" ? userStates
                     : (f.options || [])).map((o) => <option key={o}>{o}</option>)}
                 </select>
+              ) : f.type === "multiuser" ? (
+                <MultiPeople value={values[f.name]} listValue={values[f.name + "List"]}
+                  options={userOpts}
+                  onChange={(line, list) => setValues({ ...values, [f.name]: line, [f.name + "List"]: list })} />
+              ) : f.type === "files" ? (
+                <MultiFiles value={values[f.name]} onChange={(list) => setValues({ ...values, [f.name]: list })} />
               ) : f.type === "textarea" ? (
                 <textarea rows={3} value={values[f.name] || ""} onChange={(e) => setValues({ ...values, [f.name]: e.target.value })} />
               ) : f.type === "file" ? (
