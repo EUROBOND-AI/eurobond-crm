@@ -5119,10 +5119,13 @@ function FieldModuleNew({ mod }) {
   const [photoUrl, setPhotoUrl] = useState("");
   const [upBusy, setUpBusy] = useState(false);
 
+  /* the whole person is kept, so a people field can be narrowed by their state */
+  const [people, setPeople] = useState([]);
   useEffect(() => {
-    if ((cfg?.form || []).some((x) => x.optionsSource === "users" || x.optionsSource === "specUsers")) {
+    if ((cfg?.form || []).some((x) => ["users", "specUsers", "userStates"].includes(x.optionsSource))) {
       api.listUsers().then((d) => {
         const act = (d.users || []).filter((u) => u.status == 1);
+        setPeople(act);
         setUserOpts(act.map((u) => u.name));
         setSpecOpts(act.filter((u) => `${u.role || ""} ${u.designation || ""}`.toLowerCase().includes("spec")).map((u) => u.name));
       }).catch(() => {});
@@ -5147,13 +5150,27 @@ function FieldModuleNew({ mod }) {
       <ScreenHead title={"Add " + (cfg.appLabel || cfg.crumb)} />
       <div className="f-form">
         {fields.map((x) => {
-          const opts = x.optionsSource === "users" ? userOpts : x.optionsSource === "specUsers" ? specOpts : x.options;
+          /* A State field offers the states the people are in; a people field
+             below it then lists only that state's people. This renderer knew
+             only "users" and "specUsers", so a State field fell through to a
+             plain text box and had to be typed by hand. */
+          const states = [...new Set(people.map((u) => (u.state || "").trim()).filter(Boolean))].sort();
+          const pickedState = String(f.assignState || "").trim();
+          const inState = pickedState ? people.filter((u) => (u.state || "").trim() === pickedState) : people;
+          const opts = x.optionsSource === "users" ? inState.map((u) => u.name).filter(Boolean).sort()
+            : x.optionsSource === "specUsers" ? specOpts
+            : x.optionsSource === "userStates" ? states
+            : x.options;
           return (
             <div key={x.name}>
               <label>{x.label} {x.required && <b>*</b>}</label>
               {opts ? (
-                <select value={f[x.name] || ""} onChange={(e) => setF({ ...f, [x.name]: e.target.value })} style={{ width: "100%", marginBottom: 12 }}>
-                  <option value="">Select</option>
+                <select value={f[x.name] || ""}
+                  onChange={(e) => setF(x.optionsSource === "userStates"
+                    ? { ...f, [x.name]: e.target.value, assignee: "" }
+                    : { ...f, [x.name]: e.target.value })}
+                  style={{ width: "100%", marginBottom: 12 }}>
+                  <option value="">{x.optionsSource === "userStates" ? "All states" : "Select"}</option>
                   {opts.map((o) => <option key={o}>{o}</option>)}
                 </select>
               ) : x.type === "textarea" ? (
@@ -6646,7 +6663,7 @@ function FieldNearbyProjects() {
      not what this is for. A HOD and a Sub HOD are answerable for their people's
      work, so they see their team's as well; everyone else sees only their own.
      The server decides who is in the team. */
-  const loadProjects = () => api.list("projectProjection", false, { team: true })
+  const loadProjects = () => api.list("projectProjection", true, { team: true })
     .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, _by: r.created_by_name, ...r.data }))))
     .catch(() => setRows([]));
 
@@ -6685,8 +6702,25 @@ function FieldNearbyProjects() {
       <div className="f-list-pad">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search project or address…"
           style={{ width: "100%", padding: "9px 11px", borderRadius: 10, border: "1px solid #d7dcef", fontSize: 13, marginBottom: 10 }} />
+        {/* What was found, and what was left out and why.
+
+            A project only appears here if a position was saved with it. When a
+            team's projects were entered without capturing the location there is
+            nothing to measure a distance against, so the screen looked empty
+            however far the range was widened — with no way to tell that from
+            "nothing nearby". The counts say which it is. */}
         <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 8 }}>
           Projects within {rangeM >= 1000 ? `${(rangeM / 1000).toFixed(1)} km` : `${rangeM} m`} of you
+          {rows !== null && (
+            <span>
+              {" · "}{(list || []).length} of {rows.filter((r) => r.lat && r.lng).length} with a location
+              {rows.length > rows.filter((r) => r.lat && r.lng).length && (
+                <span style={{ color: "#8a5200" }}>
+                  {" · "}{rows.length - rows.filter((r) => r.lat && r.lng).length} saved without one
+                </span>
+              )}
+            </span>
+          )}
         </div>
         {myLoc === "denied" && (
           <div style={{ background: "#fff7e6", border: "1px solid #ffc069", borderRadius: 10, padding: "10px 12px",
@@ -6710,12 +6744,10 @@ function FieldNearbyProjects() {
                 <span>{r.projectName || "Project"}</span>
                 <span style={{ textAlign: "right", flexShrink: 0 }}>
                   {r.dist != null && <span style={{ color: "var(--accent)", fontSize: 11.5 }}>{fmtKm(r.dist)}</span>}
-                  {/* Whose project this is.
-
-                      A HOD now sees their whole team's projects here, so
-                      without a name there is no telling who entered which —
-                      it only says who added it, which is what is being asked. */}
-                  {(r._by || r.createdBy) && (r._by || r.createdBy) !== CU().name && (
+                  {/* Who added this project — shown on every row, including
+                      this person's own, so there is never any doubt whose it
+                      is once a HOD is seeing their whole team's. */}
+                  {(r._by || r.createdBy) && (
                     <span style={{ display: "block", fontSize: 10.5, color: "var(--muted)", fontWeight: 700, marginTop: 2 }}>
                       👤 {r._by || r.createdBy}
                     </span>
@@ -6863,10 +6895,9 @@ function FieldCustomers({ nearbyOnly = false }) {
               <span>{r.name}</span>
               <span style={{ textAlign: "right", flexShrink: 0 }}>
                 {r.dist != null && <span style={{ color: "var(--accent)", fontSize: 11.5 }}>{fmtKm(r.dist)}</span>}
-                {/* Whose customer this is. Near By shows a HOD their whole
-                    team's customers, so the name says who added it. It is left
-                    off this person's own rows, which would only be noise. */}
-                {(r.by || r.createdBy) && (r.by || r.createdBy) !== CU().name && (
+                {/* Who added this customer — on every row, this person's own
+                    included, so whose it is is never in doubt. */}
+                {(r.by || r.createdBy) && (
                   <span style={{ display: "block", fontSize: 10.5, color: "var(--muted)", fontWeight: 700, marginTop: 2 }}>
                     👤 {r.by || r.createdBy}
                   </span>
