@@ -370,7 +370,7 @@ function QuoteAdminView({ q, onClose, onPdf }) {
    is configured with, plus a fixed draft */
 function MailModal({ q, onClose }) {
   const [to, setTo] = useState(q.clientEmail || "");
-  const [cc, setCc] = useState("sales@eurobondacp.com, sales3@eurobondacp.com, rahul@eurobondacp.com");
+  const [cc, setCc] = useState("sales1@eurobondacp.com, sales2@eurobondacp.com, sales4@eurobondacp.com, rahul@eurobondacp.com");
   const defaultDraft = `Dear Sir,
 
 Please find attached the quotation for your kind perusal.
