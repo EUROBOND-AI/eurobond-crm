@@ -8,6 +8,38 @@ import { useBulk, BulkHead, BulkCell, BulkBar } from "../components/Bulk.jsx";
    Product Name (Grade Name) select -> its Colour Codes + Colours + Grade + Thickness.
    App Quotation lo Grade Name filter -> ee colour codes cascade avutundi.
    CSV import: Product Name, Thickness, Code, Colour, Grade columns. */
+/* Split one CSV line into its fields.
+
+   A regular expression over the whole line cannot do this: an empty field is
+   two commas with nothing between them, and a pattern that asks for at least
+   one character skips it, which silently moved every later value one column to
+   the left. A row whose Grade was blank then landed its colour code under
+   Grade, its thickness under the code, and its price under the thickness. This
+   walks the line instead, so an empty field stays an empty field, and a comma
+   inside quotes ("0.50 AL, LDPE") stays part of its value. */
+function csvFields(line) {
+  const out = [];
+  let cur = "";
+  let quoted = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (quoted) {
+      /* "" inside a quoted field is one real quote */
+      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+      else if (ch === '"') quoted = false;
+      else cur += ch;
+    } else if (ch === '"') {
+      quoted = true;
+    } else if (ch === ",") {
+      out.push(cur); cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  out.push(cur);
+  return out.map((x) => x.trim());
+}
+
 export default function ProductsPage() {
   const [names, setNames] = useState([]);
   const [sel, setSel] = useState("");
@@ -60,7 +92,7 @@ export default function ProductsPage() {
     try {
       const text = await file.text();
       const lines = text.split(/\r?\n/).filter((l) => l.trim());
-      const header = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/^"|"$/g, ""));
+      const header = csvFields(lines[0]).map((h) => h.toLowerCase());
       /* Matching a header by "contains" put three different columns on the same
          one: "Colour Code" contains both "colour" and "code", and
          "Product Name (Grade Name)" contains "grade". Each column is now looked
@@ -81,8 +113,8 @@ export default function ProductsPage() {
       if (pIdx < 0) { alert("CSV needs at least a 'Product Name' column."); setBusy(false); return; }
       const parsed = [];
       for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i].match(/(".*?"|[^,]+)/g) || [];
-        const clean = (n) => (n >= 0 ? (cols[n] || "").trim().replace(/^"|"$/g, "") : "");
+        const cols = csvFields(lines[i]);
+        const clean = (n) => (n >= 0 ? (cols[n] || "") : "");
         const pn = clean(pIdx);
         if (!pn) continue;
         parsed.push({ productName: pn, thickness: clean(tIdx), code: clean(cIdx), colour: clean(colIdx),
