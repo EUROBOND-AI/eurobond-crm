@@ -238,6 +238,11 @@ export const api = {
 
   /* ---------- Customers (from follow-ups) ---------- */
   sendMail: (payload) => req("/mail.php", { method: "POST", body: payload }),
+  /* which mailbox the server actually sends from — the screen used to name one
+     in its own text, which then said the wrong address the moment the server's
+     mail settings changed */
+  mailFrom: (sender = "") => memo("mailFrom:" + sender, 300000,
+    () => req("/mail.php?action=from" + (sender ? "&sender=" + encodeURIComponent(sender) : ""))),
   productNames: () => memo("productNames", 300000, () => req("/products.php?action=names")),
   productsByName: (name) => req("/products.php?action=byName&name=" + encodeURIComponent(name)),
   productSearch: (q) => req("/products.php?action=search&q=" + encodeURIComponent(q)),

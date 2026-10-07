@@ -11,7 +11,8 @@ import { usePager, Pager } from "../components/Pager.jsx";
 
 /* Admin Quotation — same "From" reflects, quotation-to-quotation format,
    Action: Approve -> app shows approved + PDF auto-generates (company format).
-   Mail: To=client, CC=chosen, from sales1@eurobondacp.com with fixed draft. */
+   Mail: To=client, CC=chosen, sent from the server's configured mailbox,
+   with a fixed draft. */
 /* The rate each grade is meant to sell at, from the Products master. Admin only —
    the field app never sees these. A quotation is looked up by its grade, its
    colour code or its product name, because different screens fill in different
@@ -365,7 +366,8 @@ function QuoteAdminView({ q, onClose, onPdf }) {
   );
 }
 
-/* Mail modal — To=client, CC=chosen, from sales1@eurobondacp.com + fixed draft */
+/* Mail modal — To=client, CC=chosen, sent from whichever mailbox the server
+   is configured with, plus a fixed draft */
 function MailModal({ q, onClose }) {
   const [to, setTo] = useState(q.clientEmail || "");
   const [cc, setCc] = useState("sales@eurobondacp.com, sales3@eurobondacp.com, rahul@eurobondacp.com");
@@ -391,6 +393,10 @@ E: sales@eurobondacp.com I W: www.eurobondacp.com
 A: 12th Floor, Solitaire Business Center, Borivali Sheela CHS Ltd,
 Market Road, Opp. Ajanta Talkies, Borivali West,
 Mumbai - 400092, Maharashtra, India`;
+  /* asked of the server rather than written in here, so this line and the mail
+     itself can never disagree */
+  const [fromAddr, setFromAddr] = useState("");
+  useEffect(() => { api.mailFrom("quote").then((d) => setFromAddr((d && d.from) || "")).catch(() => {}); }, []);
   const [draft, setDraft] = useState(defaultDraft);
   const [subject, setSubject] = useState(`Quotation ${q.quoteNo || q.id} - Eurobond`);
   const [busy, setBusy] = useState(false);
@@ -402,7 +408,7 @@ Mumbai - 400092, Maharashtra, India`;
       /* quotation ni real PDF (letterhead) attachment ga build cheddam */
       const pdfB64 = await buildQuotePdfBase64(q);
       const res = await api.sendMail({
-        to, cc, from: "sales1@eurobondacp.com", subject, body: draft,
+        to, cc, subject, body: draft, sender: "quote",
         attachment: { name: `Quotation-${(q.quoteNo || q.id).replace(/\//g, "-")}.pdf`, mime: "application/pdf", base64: pdfB64 },
       });
       if (res && res.sent) {
@@ -426,7 +432,7 @@ Mumbai - 400092, Maharashtra, India`;
           <h3 style={{ margin: 0 }}>Mail Quotation — {q.quoteNo || q.id}</h3>
           <button className="btn btn-ghost" style={{ padding: 4 }} onClick={onClose}><X size={16} /></button>
         </div>
-        <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>From: sales1@eurobondacp.com · 📎 Quotation PDF attached</div>
+        <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>From: {fromAddr || "…"} · 📎 Quotation PDF attached</div>
         <label style={{ fontSize: 12.5, fontWeight: 700 }}>To (Client Email)</label>
         <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="client@example.com" style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid var(--line)", margin: "6px 0 12px" }} />
         <label style={{ fontSize: 12.5, fontWeight: 700 }}>CC</label>
