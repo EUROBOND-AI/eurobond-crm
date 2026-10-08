@@ -269,15 +269,20 @@ export default function QuotationAdmin() {
                       for (const n of names) { const v = m[norm(n)]; if (v) return v; }
                       return 0;
                     };
-                    const std =
-                      look(stdPrice.code, it.colourCode, it.colour, r.colour) ||
-                      look(stdPrice.product, it.productName, r.productName) ||
-                      look(stdPrice.grade, it.grade, r.grade);
+                    const codeKey = [it.colourCode, it.colour, r.colour].find((x) => stdPrice.code[norm(x)]);
+                    const prodKey = [it.productName, r.productName].find((x) => stdPrice.product[norm(x)]);
+                    const gradeKey = [it.grade, r.grade].find((x) => stdPrice.grade[norm(x)]);
+                    const std = codeKey ? stdPrice.code[norm(codeKey)]
+                      : prodKey ? stdPrice.product[norm(prodKey)]
+                      : gradeKey ? stdPrice.grade[norm(gradeKey)] : 0;
+                    /* named in the tooltip, so it is obvious which master row
+                       the comparison came from rather than a bare number */
+                    const from = codeKey || prodKey || gradeKey || "";
                     const rate = Number(r.rate);
                     const under = std > 0 && rate > 0 && rate < std;
                     return (
                       <td style={{ padding: "11px 14px", color: under ? "#c0392b" : "inherit", fontWeight: under ? 800 : 400 }}
-                        title={under ? `Below the standard rate of ₹${std}` : (std ? `Standard ₹${std}` : "")}>
+                        title={std ? `${under ? "Below the s" : "S"}tandard rate ₹${std}${from ? ` — ${from}` : ""}` : "No standard rate found for this product"}>
                         {r.rate ? `₹${r.rate}` : "—"}{under ? " ▼" : ""}
                       </td>
                     );
@@ -566,6 +571,14 @@ function colourCell(it) {
   return code + " \u00b7 " + colour;
 }
 
+/* A rate always printed with its paise: 160 reads as 160.00, so a column of
+   rates lines up and nobody has to wonder whether a figure was rounded. */
+function rate2(v) {
+  const n = Number(String(v ?? "").replace(/[^\d.]/g, ""));
+  if (!isFinite(n) || !n) return String(v ?? "");
+  return n.toFixed(2);
+}
+
 /* A4 page HTML with letterhead background (for html2canvas capture) */
 function quotePageHtml(q) {
   const items = q.items || [{ grade: q.grade, colour: q.colour, rate: q.rate, ratePerSqm: q.ratePerSqm }];
@@ -575,7 +588,7 @@ function quotePageHtml(q) {
     <td style="text-align:center;border:1px solid #999;padding:7px;width:38%">${tidyProduct(it.grade)}${it.thickness ? `<span style="display:block">(${it.thickness})</span>` : ""}${it.fins ? " (Running Feet)" : ""}</td>
     <td style="text-align:center;border:1px solid #999;padding:7px;width:22%">${colourCell(it)}</td>
     <td style="text-align:center;border:1px solid #999;padding:7px;width:16%">${!it.fins && it.ratePerSqm ? it.ratePerSqm : "—"}</td>
-    <td style="text-align:center;border:1px solid #999;padding:7px;width:16%">${it.rate}</td>
+    <td style="text-align:center;border:1px solid #999;padding:7px;width:16%">${rate2(it.rate)}</td>
   </tr>`).join("");
   return `<div class="page" style="position:relative;width:794px;min-height:1123px;padding:158px 68px 128px;font-family:Arial;font-size:13px;color:#1a1a1a;box-sizing:border-box;background-image:url('${LETTERHEAD}');background-size:794px 1123px;background-repeat:no-repeat">
     <div style="display:flex;justify-content:space-between"><b>DATE: ${q.createdAt || new Date().toLocaleDateString("en-GB")}</b><b>${q.quoteNo || q.id}</b></div>
@@ -607,10 +620,10 @@ function quoteHtml(q) {
   const tc = q.tc || {};
   const rowsHtml = items.map((it, i) => `<tr>
     <td style="text-align:center;border:1px solid #999;padding:8px">${i + 1}</td>
-    <td style="text-align:left;border:1px solid #999;padding:8px">${tidyProduct(it.grade)}${it.thickness ? `<br><span>(${it.thickness})</span>` : ""}${it.fins ? " (Running Feet)" : ""}</td>
+    <td style="text-align:center;border:1px solid #999;padding:8px">${tidyProduct(it.grade)}${it.thickness ? `<br><span>(${it.thickness})</span>` : ""}${it.fins ? " (Running Feet)" : ""}</td>
     <td style="text-align:center;border:1px solid #999;padding:8px">${colourCell(it)}</td>
     <td style="text-align:center;border:1px solid #999;padding:8px">${!it.fins && it.ratePerSqm ? it.ratePerSqm : "—"}</td>
-    <td style="text-align:center;border:1px solid #999;padding:8px">${it.rate}</td>
+    <td style="text-align:center;border:1px solid #999;padding:8px">${rate2(it.rate)}</td>
   </tr>`).join("");
   return `<html><head><meta charset="utf-8"><title>${q.quoteNo || q.id}</title></head>
   <body style="font-family:Arial;color:#1a1a1a;font-size:13px;max-width:800px;margin:auto;padding:20px">
@@ -647,7 +660,7 @@ function downloadQuotePdf(q) {
     <td class="desc">${tidyProduct(it.grade)}${it.thickness ? `<span class="thk">(${it.thickness})</span>` : ""}${it.fins ? " (Running Feet)" : ""}</td>
     <td class="colour">${colourCell(it)}</td>
     <td class="rate">${!it.fins && it.ratePerSqm ? it.ratePerSqm : "—"}</td>
-    <td class="rate">${it.rate}</td>
+    <td class="rate">${rate2(it.rate)}</td>
   </tr>`).join("");
   const tc = q.tc || {};
   w.document.write(`<html><head><title>${q.quoteNo || q.id}</title>
@@ -670,7 +683,7 @@ function downloadQuotePdf(q) {
     td,th{border:1px solid #999;padding:8px 10px;vertical-align:middle;font-family:Arial;font-size:12.5px;color:#1a1a1a}
     th{background:rgba(240,240,240,.85);text-align:center}
     td.srno{text-align:center;width:8%}
-    td.desc{text-align:left;width:38%}
+    td.desc{text-align:center;width:38%}
     td.colour{text-align:center;width:22%}
     td.rate{text-align:center;width:16%}
     /* terms line up in one column with a clear gap, whatever the label length */

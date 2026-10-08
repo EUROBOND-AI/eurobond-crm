@@ -70,7 +70,8 @@ export default function BiltraxPage() {
      have added a remark · Win = closed */
   const stageOf = (r) => {
     if (r.status === "Win") return "Win";
-    const worked = (Array.isArray(r.followups) && r.followups.length) || r.lastRemark;
+    /* a list row carries the count, not the trail itself */
+    const worked = (r.followupsCount ?? (Array.isArray(r.followups) ? r.followups.length : 0)) || r.lastRemark;
     if (worked) return "Processing";
     return r.assignPerson ? "Assigned" : "Draft";
   };

@@ -106,7 +106,7 @@ export default function EnquiryPage() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
-  const TABS = ["Enquiries", "Pending to Assign", "Assigned", "Processing", "Spam", "Reassign", "Win"];
+  const TABS = ["Enquiries", "Pending to Assign", "Assigned", "Processing", "Pending", "Spam", "Reassign", "Win"];
 
   const load = () => api.list("enquiry", false)
     .then((d) => setRows((d.records || []).map((r) => ({ ...r.data, _id: r.id, _created: r.created_at }))))
@@ -121,14 +121,24 @@ export default function EnquiryPage() {
     }
   }, []);
 
-  const tabFilter = (r) => {
+  /* Waiting on us: the last thing said on the enquiry came from the sales
+     person, so their answer has not been picked up yet. Processing only says
+     they have started; it does not say a reply is sitting there unread. */
+  const awaitingAdmin = (r) => {
+    const c = Array.isArray(r.chat) ? r.chat : [];
+    const last = c[c.length - 1];
+    return !!last && !last.admin;
+  };
+
+  const matchesTab = (r, t) => {
     const st = (r.status || "Pending").toLowerCase();
-    switch (tab) {
+    switch (t) {
       case "Enquiries": return true;
       case "Pending to Assign": return st === "pending" || !r.assignedTo;
       /* the sales person has started working it — a remark has been added */
       case "Assigned": return st === "assigned";
       case "Processing": return st === "processing";
+      case "Pending": return awaitingAdmin(r);
       case "Spam": return st === "spam";
       case "Reassign": return !!r.reassigned;
       case "Win": return st === "win";
@@ -136,11 +146,12 @@ export default function EnquiryPage() {
     }
   };
 
-  const list = useMemo(() => {
+  /* Everything the filters leave, before the tab is applied — so each tab can
+     say how many it holds without the tabs disagreeing with the table. */
+  const scoped = useMemo(() => {
     let l = rows || [];
     if (!applied.shown) return [];   // nothing until Show is clicked
     l = scopeRows(l, users, ["assignedTo", "assigned_to", "createdBy", "by"]);   // role visibility
-    l = l.filter(tabFilter);
     /* Enquiry From (applied via Show) */
     if (applied.sources.length < LEAD_SOURCES.length) l = l.filter((r) => applied.sources.includes(r.leadFrom || r.leadSource));
     /* date range (applied via Show) */
@@ -168,7 +179,14 @@ export default function EnquiryPage() {
       if (vv) l = l.filter((r) => String(r[k] ?? "").toLowerCase().includes(vv));
     });
     return l;
-  }, [rows, search, colSearch, applied, tab, users, stateSel]);
+  }, [rows, search, colSearch, applied, users, stateSel]);
+
+  const list = useMemo(() => scoped.filter((r) => matchesTab(r, tab)), [scoped, tab]);
+  const tabCounts = useMemo(() => {
+    const m = {};
+    TABS.forEach((t) => { m[t] = scoped.filter((r) => matchesTab(r, t)).length; });
+    return m;
+  }, [scoped]);
 
   const applyShow = () => { setApplied({ from: fromDate, to: toDate, sources: [...sourceSel], shown: true }); setPage(1); };
 
@@ -289,7 +307,7 @@ export default function EnquiryPage() {
           const on = tab === t;
           return <button key={t} onClick={() => { setTab(t); setPage(1); }}
             style={{ padding: "8px 14px", borderRadius: 10, fontSize: 12.5, fontWeight: 700, cursor: "pointer", border: "1px solid " + (on ? "#2b6fb8" : "#ccd2e6"), background: on ? "linear-gradient(135deg,#1f3a68,#2b6fb8)" : "#fff", color: on ? "#fff" : "#5a6484" }}>
-            {t}
+            {t} <span style={{ opacity: 0.85, fontWeight: 800 }}>({tabCounts[t] || 0})</span>
           </button>;
         })}
       </div>

@@ -141,6 +141,10 @@ export const api = {
     /* this person plus their team, for a HOD or Sub HOD; just this person for
        everyone else — the server works the team out from the users table */
     if (opts.team) p.set("team", "1");
+    /* list-sized rows: attachments, the follow-up trail and the chat thread
+       are left out and only their counts come back. The panel's tables show
+       none of them, and sending them made the heaviest module slow to open. */
+    if (opts.slim) p.set("slim", "1");
     if (opts.limit) p.set("limit", opts.limit);
     if (opts.offset) p.set("offset", opts.offset);
     if (opts.from) p.set("from", opts.from);
