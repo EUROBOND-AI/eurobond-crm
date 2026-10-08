@@ -30,30 +30,39 @@ import { usePager, Pager } from "../components/Pager.jsx";
    on the price; where they disagree it answers with nothing, and the quotation
    is left alone rather than accused on a guess. */
 function useStdPrices() {
-  const [maps, setMaps] = useState({ code: {}, product: {}, grade: {} });
+  const [maps, setMaps] = useState({ code: {}, product: {}, colour: {}, grade: {} });
   useEffect(() => {
     if (!api.productsAll) return;
     api.productsAll().then((d) => {
       const code = {};
       const product = {};
-      const gradeSeen = {};        // grade -> Set of prices found under it
+      const colourSeen = {};       // colour name -> prices seen under it
+      const gradeSeen = {};        // grade code  -> prices seen under it
       const norm = (x) => String(x || "").trim().toLowerCase();
+      const note = (bag, key, p) => {
+        const k = norm(key);
+        if (!k) return;
+        (bag[k] = bag[k] || new Set()).add(p);
+      };
       (d.rows || d.products || []).forEach((r) => {
         if (!r) return;
         const p = Number(r.price);
         if (!p || isNaN(p)) return;
         if (r.code) code[norm(r.code)] = p;
         if (r.productName) product[norm(r.productName)] = p;
-        if (r.grade) {
-          const g = norm(r.grade);
-          (gradeSeen[g] = gradeSeen[g] || new Set()).add(p);
-        }
+        note(colourSeen, r.colour, p);
+        note(gradeSeen, r.grade, p);
       });
-      const grade = {};
-      Object.entries(gradeSeen).forEach(([g, set]) => {
-        if (set.size === 1) grade[g] = [...set][0];
-      });
-      setMaps({ code, product, grade });
+      /* A colour name or a grade code covers several rows, and those can carry
+         different rates. One is allowed to answer only where every row under it
+         agrees; otherwise it answers with nothing and the quotation is left
+         alone rather than accused on a guess. */
+      const only = (bag) => {
+        const out = {};
+        Object.entries(bag).forEach(([k, set]) => { if (set.size === 1) out[k] = [...set][0]; });
+        return out;
+      };
+      setMaps({ code, product, colour: only(colourSeen), grade: only(gradeSeen) });
     }).catch(() => {});
   }, []);
   return maps;
@@ -269,15 +278,24 @@ export default function QuotationAdmin() {
                       for (const n of names) { const v = m[norm(n)]; if (v) return v; }
                       return 0;
                     };
+                    /* A quotation's "grade" field holds the product name — it
+                       is what the PDF prints as the description — while the
+                       master's grade is a short code like 4PL. Looking that
+                       field up among grade codes found nothing, or the wrong
+                       row, which is how a rate equal to its own master price
+                       came out marked as below someone else's. It is tried
+                       against the product names first. */
                     const codeKey = [it.colourCode, it.colour, r.colour].find((x) => stdPrice.code[norm(x)]);
-                    const prodKey = [it.productName, r.productName].find((x) => stdPrice.product[norm(x)]);
+                    const prodKey = [it.productName, r.productName, it.grade, r.grade].find((x) => stdPrice.product[norm(x)]);
+                    const colourKey = [it.colour, r.colour].find((x) => stdPrice.colour[norm(x)]);
                     const gradeKey = [it.grade, r.grade].find((x) => stdPrice.grade[norm(x)]);
                     const std = codeKey ? stdPrice.code[norm(codeKey)]
                       : prodKey ? stdPrice.product[norm(prodKey)]
+                      : colourKey ? stdPrice.colour[norm(colourKey)]
                       : gradeKey ? stdPrice.grade[norm(gradeKey)] : 0;
                     /* named in the tooltip, so it is obvious which master row
                        the comparison came from rather than a bare number */
-                    const from = codeKey || prodKey || gradeKey || "";
+                    const from = codeKey || prodKey || colourKey || gradeKey || "";
                     const rate = Number(r.rate);
                     const under = std > 0 && rate > 0 && rate < std;
                     return (

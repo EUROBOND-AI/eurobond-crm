@@ -52,6 +52,33 @@ function csvFields(line) {
   return out.map((x) => x.trim());
 }
 
+/* A long enquiry message in a table cell.
+
+   The IndiaMART text runs to six or seven lines and arrives as HTML with <br>
+   between them, which stretched the column across the screen and printed the
+   tags as text. A short preview is shown with "read more" to open the rest in
+   place, and the markup is turned back into line breaks. */
+function LongCell({ text, limit = 90 }) {
+  const [open, setOpen] = useState(false);
+  const clean = String(text || "")
+    .replace(/<\s*br\s*\/?\s*>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .trim();
+  if (!clean) return "—";
+  if (clean.length <= limit) return <span style={{ whiteSpace: "pre-line" }}>{clean}</span>;
+  const link = { color: "var(--accent)", cursor: "pointer", fontWeight: 700, fontSize: 11.5 };
+  return (
+    <span style={{ whiteSpace: "pre-line" }}>
+      {open ? clean : clean.slice(0, limit).trimEnd() + "… "}
+      <span onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }} style={link}>
+        {open ? " read less" : "read more"}
+      </span>
+    </span>
+  );
+}
+
 /* Enquiry (admin) — BreezeCRM style. India Mart + manual leads, assign to sales person. */
 export default function EnquiryPage() {
   const [rows, setRows] = useState(null);
@@ -121,24 +148,32 @@ export default function EnquiryPage() {
     }
   }, []);
 
-  /* Waiting on us: the last thing said on the enquiry came from the sales
-     person, so their answer has not been picked up yet. Processing only says
-     they have started; it does not say a reply is sitting there unread. */
-  const awaitingAdmin = (r) => {
+  /* Has the person it went to said anything at all?
+
+     A remark, a next call or visit, or a message from them all count. Nothing
+     at the slightest means it is still sitting with them untouched. */
+  const heardBack = (r) => {
+    if (String(r.lastRemark || "").trim()) return true;
+    if (Array.isArray(r.remarks) && r.remarks.length) return true;
+    if (r.nextFollowDate || r.nextDate) return true;
     const c = Array.isArray(r.chat) ? r.chat : [];
-    const last = c[c.length - 1];
-    return !!last && !last.admin;
+    return c.some((m) => m && !m.admin);
   };
 
   const matchesTab = (r, t) => {
     const st = (r.status || "Pending").toLowerCase();
+    const assignedTo = r.assignedTo || r.passto || "";
     switch (t) {
       case "Enquiries": return true;
-      case "Pending to Assign": return st === "pending" || !r.assignedTo;
-      /* the sales person has started working it — a remark has been added */
+      /* nobody on it yet. Spam and closed ones are not waiting to be given to
+         anyone, so they stay out of this list. */
+      case "Pending to Assign":
+        return !assignedTo && st !== "spam" && st !== "win";
       case "Assigned": return st === "assigned";
-      case "Processing": return st === "processing";
-      case "Pending": return awaitingAdmin(r);
+      /* they have entered a remark or a next call — it is moving */
+      case "Processing": return st === "processing" || (!!assignedTo && heardBack(r) && st !== "spam" && st !== "win");
+      /* given to someone and still not a word back from them */
+      case "Pending": return !!assignedTo && !heardBack(r) && st !== "spam" && st !== "win";
       case "Spam": return st === "spam";
       case "Reassign": return !!r.reassigned;
       case "Win": return st === "win";
@@ -431,7 +466,7 @@ export default function EnquiryPage() {
                       the Area alone is not enough to find the place */}
                   <td style={{ ...td, maxWidth: 260, whiteSpace: "normal" }}>{r.address || r.fullAddress || "—"}</td>
                   <td style={td}>{r.product || "—"}</td>
-                  <td style={{ ...td, maxWidth: 160, whiteSpace: "normal" }}>{r.enquiryDetails || "—"}</td>
+                  <td style={{ ...td, maxWidth: 220, whiteSpace: "normal" }}><LongCell text={r.enquiryDetails} /></td>
                   <td style={td}>{r.hod || "—"}</td>
                   <td style={td}>{r.passto || r.assignedTo || "—"}</td>
                   <td style={td}><span style={{ fontSize: 11, fontWeight: 800, padding: "2px 9px", borderRadius: 8, background: statusBg(r.status), color: statusFg(r.status) }}>{r.status || "Pending"}</span></td>
