@@ -142,7 +142,7 @@ export default function ModulePage({ cfgKey }) {
     let alive = true;
     setLoading(true); setErr("");
     api.list(cfgKey, false, { slim: true })
-      .then((d) => { if (alive) setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: r.data.followupsCount ?? (r.data.followups || []).length, productsText: projProductsText(r.data.items), ...projCategoryCols(r.data.contacts), achievementPct: targetPct(r.data), planSummary: beatSummary(r.data), planRemarks: beatRemarks(r.data), ...beatDayCols(r.data) }))); })
+      .then((d) => { if (alive) setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: r.data.followupsCount ?? (r.data.followups || []).length, productsText: r.data.productsText ?? projProductsText(r.data.items), ...(r.data.catCols || projCategoryCols(r.data.contacts)), achievementPct: targetPct(r.data), planSummary: beatSummary(r.data), planRemarks: beatRemarks(r.data), ...beatDayCols(r.data) }))); })
       .catch((e) => { if (alive) setErr(e.message); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
@@ -279,7 +279,7 @@ export default function ModulePage({ cfgKey }) {
   const reload = () => {
     setRefreshing(true); setErr("");
     api.list(cfgKey, false, { slim: true })
-      .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: r.data.followupsCount ?? (r.data.followups || []).length, productsText: projProductsText(r.data.items), ...projCategoryCols(r.data.contacts), achievementPct: targetPct(r.data), planSummary: beatSummary(r.data), planRemarks: beatRemarks(r.data), ...beatDayCols(r.data) }))))
+      .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: r.data.followupsCount ?? (r.data.followups || []).length, productsText: r.data.productsText ?? projProductsText(r.data.items), ...(r.data.catCols || projCategoryCols(r.data.contacts)), achievementPct: targetPct(r.data), planSummary: beatSummary(r.data), planRemarks: beatRemarks(r.data), ...beatDayCols(r.data) }))))
       .catch((e) => setErr(e.message))
       .finally(() => setRefreshing(false));
   };

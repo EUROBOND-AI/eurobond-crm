@@ -29,47 +29,82 @@ import { usePager, Pager } from "../components/Pager.jsx";
    A grade is therefore only allowed to answer when every row under it agrees
    on the price; where they disagree it answers with nothing, and the quotation
    is left alone rather than accused on a guess. */
+/* The standard rate of the product a quotation line is for.
+
+   One name is not enough to find it. The same colour code — "Solid & Metalic"
+   — is used across many products at different rates, so a code on its own
+   answered with whatever row was read last; and a quotation's "grade" field
+   holds the product name, not the master's short grade code. What identifies a
+   master row is the combination: the product, the code and the thickness.
+
+   So the master is indexed under several combinations, from the most telling
+   to the least, and each is only allowed to answer where every row under it
+   agrees on the price. Where they disagree it answers with nothing and the
+   quotation is left alone rather than accused on a guess. */
+const STD_COMBOS = [
+  ["product", "code", "thickness"],
+  ["product", "code"],
+  ["code", "thickness"],
+  ["product", "thickness"],
+  ["code"],
+  ["product"],
+  ["colour"],
+  ["grade"],
+];
+
+const stdNorm = (x) => String(x ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+
 function useStdPrices() {
-  const [maps, setMaps] = useState({ code: {}, product: {}, colour: {}, grade: {} });
+  const [find, setFind] = useState(() => () => ({ std: 0, from: "" }));
   useEffect(() => {
     if (!api.productsAll) return;
     api.productsAll().then((d) => {
-      const code = {};
-      const product = {};
-      const colourSeen = {};       // colour name -> prices seen under it
-      const gradeSeen = {};        // grade code  -> prices seen under it
-      const norm = (x) => String(x || "").trim().toLowerCase();
-      const note = (bag, key, p) => {
-        const k = norm(key);
-        if (!k) return;
-        (bag[k] = bag[k] || new Set()).add(p);
-      };
-      (d.rows || d.products || []).forEach((r) => {
-        if (!r) return;
-        const p = Number(r.price);
-        if (!p || isNaN(p)) return;
-        if (r.code) code[norm(r.code)] = p;
-        if (r.productName) product[norm(r.productName)] = p;
-        note(colourSeen, r.colour, p);
-        note(gradeSeen, r.grade, p);
+      const rows = (d.rows || d.products || []).filter((r) => r && Number(r.price) > 0);
+      /* combination -> key -> set of prices seen under it */
+      const bags = STD_COMBOS.map(() => ({}));
+      rows.forEach((r) => {
+        const of = {
+          product: r.productName,
+          code: r.code,
+          colour: r.colour,
+          grade: r.grade,
+          thickness: r.thickness,
+        };
+        STD_COMBOS.forEach((combo, i) => {
+          const parts = combo.map((f) => stdNorm(of[f]));
+          if (parts.some((p) => !p)) return;          // a combination needs all its parts
+          const key = parts.join("||");
+          (bags[i][key] = bags[i][key] || new Set()).add(Number(r.price));
+        });
       });
-      /* A colour name or a grade code covers several rows, and those can carry
-         different rates. One is allowed to answer only where every row under it
-         agrees; otherwise it answers with nothing and the quotation is left
-         alone rather than accused on a guess. */
-      const only = (bag) => {
+      const maps = bags.map((bag) => {
         const out = {};
         Object.entries(bag).forEach(([k, set]) => { if (set.size === 1) out[k] = [...set][0]; });
         return out;
-      };
-      setMaps({ code, product, colour: only(colourSeen), grade: only(gradeSeen) });
+      });
+      setFind(() => (it, rec) => {
+        const of = {
+          product: it.productName || rec.productName || it.grade || rec.grade,
+          code: it.colourCode || it.colour || rec.colour,
+          colour: it.colour || rec.colour,
+          grade: it.grade || rec.grade,
+          thickness: it.thickness || rec.thickness,
+        };
+        for (let i = 0; i < STD_COMBOS.length; i++) {
+          const parts = STD_COMBOS[i].map((f) => stdNorm(of[f]));
+          if (parts.some((p) => !p)) continue;
+          const v = maps[i][parts.join("||")];
+          if (v) return { std: v, from: STD_COMBOS[i].map((f) => of[f]).join(" · ") };
+        }
+        return { std: 0, from: "" };
+      });
     }).catch(() => {});
   }, []);
-  return maps;
+  return find;
 }
 
 export default function QuotationAdmin() {
-  const stdPrice = useStdPrices();          // standard rates from Products master
+  const stdRateFor = useStdPrices();        // standard rate of a quotation line, from the Products master
   /* Older quotations have no designation on the record, so look it up from App
      Users and attach it just before printing. */
   const desigRef = useRef({});
@@ -271,31 +306,7 @@ export default function QuotationAdmin() {
                        is the one that needs a second look, so it is called out;
                        at the standard or above is fine and is left alone. */
                     const it = (r.items && r.items[0]) || {};
-                    const norm = (x) => String(x || "").trim().toLowerCase();
-                    /* most precise name first: a colour code is one row, a
-                       product name is one product, a grade is many */
-                    const look = (m, ...names) => {
-                      for (const n of names) { const v = m[norm(n)]; if (v) return v; }
-                      return 0;
-                    };
-                    /* A quotation's "grade" field holds the product name — it
-                       is what the PDF prints as the description — while the
-                       master's grade is a short code like 4PL. Looking that
-                       field up among grade codes found nothing, or the wrong
-                       row, which is how a rate equal to its own master price
-                       came out marked as below someone else's. It is tried
-                       against the product names first. */
-                    const codeKey = [it.colourCode, it.colour, r.colour].find((x) => stdPrice.code[norm(x)]);
-                    const prodKey = [it.productName, r.productName, it.grade, r.grade].find((x) => stdPrice.product[norm(x)]);
-                    const colourKey = [it.colour, r.colour].find((x) => stdPrice.colour[norm(x)]);
-                    const gradeKey = [it.grade, r.grade].find((x) => stdPrice.grade[norm(x)]);
-                    const std = codeKey ? stdPrice.code[norm(codeKey)]
-                      : prodKey ? stdPrice.product[norm(prodKey)]
-                      : colourKey ? stdPrice.colour[norm(colourKey)]
-                      : gradeKey ? stdPrice.grade[norm(gradeKey)] : 0;
-                    /* named in the tooltip, so it is obvious which master row
-                       the comparison came from rather than a bare number */
-                    const from = codeKey || prodKey || colourKey || gradeKey || "";
+                    const { std, from } = stdRateFor(it, r);
                     const rate = Number(r.rate);
                     const under = std > 0 && rate > 0 && rate < std;
                     return (
