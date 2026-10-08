@@ -451,14 +451,33 @@ function AdminBell({ nav }) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState([]);
   const readKey = "eb_admin_notif_read";
-  const getRead = () => { try { return new Set(JSON.parse(localStorage.getItem(readKey) || "[]")); } catch { return new Set(); } };
+  /* Cleared ones are remembered here rather than deleted, because the record
+     itself belongs to everyone who was notified — clearing the panel is this
+     person tidying their own list, not removing the notice. */
+  const clearKey = "eb_admin_notif_cleared";
+  const getSet = (k) => { try { return new Set(JSON.parse(localStorage.getItem(k) || "[]")); } catch { return new Set(); } };
+  const getRead = () => getSet(readKey);
 
   const load = () => {
     api.list("notification", false).then((d) => {
+      const gone = getSet(clearKey);
       const list = (d.records || []).map((r) => ({ _id: String(r.id), ...r.data }))
-        .filter((n) => n.to === "ADMIN").slice(0, 30);
+        .filter((n) => n.to === "ADMIN" && !gone.has(n._id)).slice(0, 30);
       setRows(list);
     }).catch(() => {});
+  };
+
+  /* Clear empties the list and counts everything in it as read, so the badge
+     goes with it. A notice that arrives afterwards still shows. */
+  const clearAll = () => {
+    const gone = getSet(clearKey);
+    const seen = getRead();
+    rows.forEach((n) => { gone.add(n._id); seen.add(n._id); });
+    try {
+      localStorage.setItem(clearKey, JSON.stringify([...gone].slice(-500)));
+      localStorage.setItem(readKey, JSON.stringify([...seen].slice(-300)));
+    } catch {}
+    setRows([]);
   };
   useVisiblePoll(load, 60000);
 
@@ -482,7 +501,15 @@ function AdminBell({ nav }) {
         <>
           <div style={{ position: "fixed", inset: 0, zIndex: 60 }} onClick={() => setOpen(false)} />
           <div style={{ position: "absolute", right: 0, top: "115%", width: 330, maxHeight: 420, overflowY: "auto", background: "#fff", borderRadius: 14, boxShadow: "0 18px 50px rgba(15,20,45,.22)", zIndex: 61, border: "1px solid #e6eaf4" }}>
-            <div style={{ padding: "11px 14px", fontWeight: 800, fontSize: 13, borderBottom: "1px solid #eef1f8", fontFamily: "Bricolage Grotesque" }}>Notifications</div>
+            <div style={{ padding: "11px 14px", borderBottom: "1px solid #eef1f8", display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontWeight: 800, fontSize: 13, fontFamily: "Bricolage Grotesque", flex: 1 }}>Notifications</span>
+              {rows.length > 0 && (
+                <button onClick={clearAll}
+                  style={{ border: "none", background: "transparent", color: "#2b6fb8", fontWeight: 700, fontSize: 12, cursor: "pointer", padding: 0 }}>
+                  Clear
+                </button>
+              )}
+            </div>
             {rows.length === 0 ? (
               <div style={{ padding: 22, textAlign: "center", color: "var(--muted)", fontSize: 12.5 }}>No notifications yet</div>
             ) : rows.map((n, i) => {

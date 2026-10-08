@@ -17,23 +17,46 @@ import { usePager, Pager } from "../components/Pager.jsx";
    the field app never sees these. A quotation is looked up by its grade, its
    colour code or its product name, because different screens fill in different
    ones of the three. */
+/* The standard rate of each product, from the Products master.
+
+   The three ways a product can be named are kept apart, because they are not
+   equally precise. A colour code names exactly one row. A product name names
+   one product. A grade covers many colour codes, and those can carry different
+   rates — so putting all three in one map meant a grade answered with whatever
+   row happened to be read last, and a quotation at the correct rate was marked
+   as being below a rate belonging to another product entirely.
+
+   A grade is therefore only allowed to answer when every row under it agrees
+   on the price; where they disagree it answers with nothing, and the quotation
+   is left alone rather than accused on a guess. */
 function useStdPrices() {
-  const [map, setMap] = useState({});
+  const [maps, setMaps] = useState({ code: {}, product: {}, grade: {} });
   useEffect(() => {
-    api.productsAll ? api.productsAll().then((d) => {
-      const m = {};
+    if (!api.productsAll) return;
+    api.productsAll().then((d) => {
+      const code = {};
+      const product = {};
+      const gradeSeen = {};        // grade -> Set of prices found under it
+      const norm = (x) => String(x || "").trim().toLowerCase();
       (d.rows || d.products || []).forEach((r) => {
         if (!r) return;
         const p = Number(r.price);
         if (!p || isNaN(p)) return;
-        [r.productName, r.grade, r.code].filter(Boolean).forEach((k) => {
-          m[String(k).trim().toLowerCase()] = p;
-        });
+        if (r.code) code[norm(r.code)] = p;
+        if (r.productName) product[norm(r.productName)] = p;
+        if (r.grade) {
+          const g = norm(r.grade);
+          (gradeSeen[g] = gradeSeen[g] || new Set()).add(p);
+        }
       });
-      setMap(m);
-    }).catch(() => {}) : null;
+      const grade = {};
+      Object.entries(gradeSeen).forEach(([g, set]) => {
+        if (set.size === 1) grade[g] = [...set][0];
+      });
+      setMaps({ code, product, grade });
+    }).catch(() => {});
   }, []);
-  return map;
+  return maps;
 }
 
 export default function QuotationAdmin() {
@@ -239,10 +262,17 @@ export default function QuotationAdmin() {
                        is the one that needs a second look, so it is called out;
                        at the standard or above is fine and is left alone. */
                     const it = (r.items && r.items[0]) || {};
-                    const keys = [r.grade, it.grade, it.colourCode, it.colour, r.colour, it.productName, r.productName]
-                      .filter(Boolean).map((k) => String(k).trim().toLowerCase());
-                    let std = 0;
-                    for (const k of keys) { if (stdPrice[k]) { std = stdPrice[k]; break; } }
+                    const norm = (x) => String(x || "").trim().toLowerCase();
+                    /* most precise name first: a colour code is one row, a
+                       product name is one product, a grade is many */
+                    const look = (m, ...names) => {
+                      for (const n of names) { const v = m[norm(n)]; if (v) return v; }
+                      return 0;
+                    };
+                    const std =
+                      look(stdPrice.code, it.colourCode, it.colour, r.colour) ||
+                      look(stdPrice.product, it.productName, r.productName) ||
+                      look(stdPrice.grade, it.grade, r.grade);
                     const rate = Number(r.rate);
                     const under = std > 0 && rate > 0 && rate < std;
                     return (

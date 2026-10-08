@@ -34,6 +34,7 @@ export default function BiltraxPage() {
   const [fState, setFState] = useState("");
   const [fHod, setFHod] = useState("");
   const [fPerson, setFPerson] = useState("");
+  const [fAppt, setFAppt] = useState("");
   const [shown, setShown] = useState(false);
   const [tab, setTab] = useState("Draft");
   const [selected, setSelected] = useState(new Set());
@@ -53,6 +54,18 @@ export default function BiltraxPage() {
   };
   useEffect(load, []);
 
+  /* Two dates are the same day whichever way round they were written —
+     2026-10-09, 09-10-2026 and 09/10/2026 all mean the same thing, and the
+     sheets we import do not agree on one. */
+  const sameDay = (raw, iso) => {
+    const t = String(raw || "").trim();
+    if (!t || !iso) return false;
+    if (t.startsWith(iso)) return true;
+    const m = t.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/);
+    if (m) return `${m[3]}-${String(m[2]).padStart(2, "0")}-${String(m[1]).padStart(2, "0")}` === iso;
+    return false;
+  };
+
   /* Draft = nobody on it yet · Assigned = given to someone · Processing = they
      have added a remark · Win = closed */
   const stageOf = (r) => {
@@ -68,11 +81,15 @@ export default function BiltraxPage() {
     if (fState && (r.state || "") !== fState) return false;
     if (fHod && (r.hod || "") !== fHod) return false;
     if (fPerson && (r.assignPerson || "") !== fPerson) return false;
+    /* An appointment date arrives either from the form (2026-10-09) or from an
+       imported sheet (09-10-2026 or 09/10/2026), so the day is compared rather
+       than the text. */
+    if (fAppt && !sameDay(r.appointmentDate, fAppt)) return false;
     if (!q.trim()) return true;
     const t = q.toLowerCase();
     return `${r.projectName} ${r.address} ${r.landmark} ${r.assignPerson}`.toLowerCase().includes(t);
-  })), [rows, shown, tab, fType, fState, fHod, fPerson, q]);
-  const pager = usePager(list, 10, tab + fType + fState + fHod + fPerson + q);
+  })), [rows, shown, tab, fType, fState, fHod, fPerson, fAppt, q]);
+  const pager = usePager(list, 10, tab + fType + fState + fHod + fPerson + fAppt + q);
 
   const save = async (data) => {
     try {
@@ -90,10 +107,15 @@ export default function BiltraxPage() {
   const exportCsv = () => {
     const head = ["Type", "Project Link", "Project Name", "Latest Sub Status", "Landmark", "Address", "State",
       "Associated Companies", "Building Use", "Professional Detail 1", "Professional Detail 2",
-      "Professional Detail 3", "Professional Detail 4", "Assign Person", "HOD", "Assigned Date", "Appointment Date", "Last Remark", "Next Call / Visit", "Status"];
+      "Professional Detail 3", "Professional Detail 4", "Assign Person", "Assigned By", "HOD", "Assigned Date", "Appointment Date", "Last Remark", "Next Call / Visit", "Status"];
     const body = list.map((r) => [r.biltraxType, r.projectLink, r.projectName, r.latestSubStatus, r.landmark,
       r.address, r.state, r.associatedCompanies, r.buildingUse, r.professional1, r.professional2, r.professional3,
-      r.professional4, r.assignPerson, r.hod, r.assignedDate, r.appointmentDate, r.status]);
+      r.professional4, r.assignPerson, r.assignedBy || r.reassignedBy || r.createdBy || "", r.hod, r.assignedDate, r.appointmentDate,
+      /* these two were missing, so every value after them sat one column to the
+         left and Status was exported under the Last Remark heading */
+      r.lastRemark || "",
+      r.nextFollowDate ? `${r.nextFollowType || "Call"} ${r.nextFollowDate}${r.nextFollowTime ? " " + r.nextFollowTime : ""}` : "",
+      r.status]);
     const csv = [head, ...body].map((x) => x.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
@@ -210,8 +232,10 @@ export default function BiltraxPage() {
           <option value="">All Persons</option>
           {[...new Set(rows.map((r) => r.assignPerson).filter(Boolean))].sort().map((x) => <option key={x}>{x}</option>)}
         </select>
+        <input type="date" value={fAppt} onChange={(e) => setFAppt(e.target.value)} title="Appointment date"
+          style={{ ...inp, width: 170, marginBottom: 0 }} />
         <button className="btn btn-primary" style={{ padding: "9px 22px", fontWeight: 700 }} onClick={() => setShown(true)}>Show</button>
-        {shown && <button className="btn btn-ghost" onClick={() => { setShown(false); setQ(""); setFType(""); setFState(""); setFHod(""); setFPerson(""); }}>Clear</button>}
+        {shown && <button className="btn btn-ghost" onClick={() => { setShown(false); setQ(""); setFType(""); setFState(""); setFHod(""); setFPerson(""); setFAppt(""); }}>Clear</button>}
       </div>
 
       {/* status tabs */}
@@ -235,19 +259,19 @@ export default function BiltraxPage() {
               </th>
               {["Action", "Type", "Project Link", "Project Name", "Latest Sub Status", "Landmark", "Address", "State",
               "Associated Companies", "Building Use", "Professional Detail 1", "Professional Detail 2",
-              "Professional Detail 3", "Professional Detail 4", "Assign Person", "HOD", "Assigned Date", "Appointment Date", "Last Remark", "Next Call / Visit", "Status"]
+              "Professional Detail 3", "Professional Detail 4", "Assign Person", "Assigned By", "HOD", "Assigned Date", "Appointment Date", "Last Remark", "Next Call / Visit", "Status"]
               .map((h) => <th key={h} style={th}>{h}</th>)}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={22} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
+              <tr><td colSpan={23} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
             ) : !shown ? (
-              <tr><td colSpan={22} style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>
+              <tr><td colSpan={23} style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>
                 Set your filters and click <b>Show</b> to load the list.
               </td></tr>
             ) : list.length === 0 ? (
-              <tr><td colSpan={22} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>No Biltrax projects match these filters.</td></tr>
+              <tr><td colSpan={23} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>No Biltrax projects match these filters.</td></tr>
             ) : pager.slice.map((r) => (
               <tr key={r._id} style={{ background: selected.has(r._id) ? "#f2f6ff" : "transparent" }}>
                 <td style={td}>
@@ -287,6 +311,9 @@ export default function BiltraxPage() {
                 <td style={td}>{r.professional3 || "—"}</td>
                 <td style={td}>{r.professional4 || "—"}</td>
                 <td style={td}>{r.assignPerson || "—"}</td>
+                {/* who sent it — older rows never stored it, so the person who
+                    re-assigned or first entered it stands in */}
+                <td style={td}>{r.assignedBy || r.reassignedBy || r.createdBy || "—"}</td>
                 <td style={td}>{r.hod || "—"}</td>
                 <td style={td}>{r.assignedDate || "—"}</td>
                 <td style={td}>{r.appointmentDate ? `${r.appointmentDate}${r.appointmentTime ? " " + r.appointmentTime : ""}` : "—"}</td>
@@ -592,6 +619,9 @@ function BiltraxAssign({ rows, users, reassign, onClose, onDone }) {
       for (const r of rows) {
         await api.update("biltrax", r._id, {
           ...r, assignPerson: pick, hod: u?.manager || r.hod || "",
+          /* who handed it over — the row showed who it went to but never who
+             sent it, so nobody could tell where an assignment came from */
+          assignedBy: me.name || r.assignedBy || "",
           assignedDate: today, status: r.status === "Win" ? r.status : "Assigned",
           ...(reassign ? { reassigned: true, reassignedBy: me.name || "", reassignRemark: remark.trim(), reassignAt: today } : {}),
         });

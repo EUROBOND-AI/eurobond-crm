@@ -120,9 +120,25 @@ export default function ModulePage({ cfgKey }) {
     [cfg, userNames, hodNames]
   );
 
+  const [shown, setShown] = useState(false);   // show data only after "Show" is clicked
+  /* modules that wait for Show before fetching anything into view.
+
+     Declared here, above the read that uses it: a value read during render has
+     to exist by then, and leaving it further down the file is what made other
+     screens fail to open at all. */
+  const gated = ["projectProjection", "salesToSpec", "specToSales", "target", "leave", "expense", "beatPlan"].includes(cfgKey);
+
   useEffect(() => { setTab(cfg.tabs?.[0]?.key); setShown(false); }, [cfgKey]);
 
+  /* On a Show-gated module nothing is fetched until Show is pressed.
+
+     The whole page used to wait on this read: the filters appeared only once
+     the rows had arrived, so there was nothing to set while the slowest
+     modules were still loading, and the fetch happened whether or not anyone
+     wanted the rows. Now the filters are there at once and the read follows
+     the button. */
   useEffect(() => {
+    if (gated && !shown) { setRows([]); setLoading(false); setErr(""); return; }
     let alive = true;
     setLoading(true); setErr("");
     api.list(cfgKey)
@@ -130,7 +146,7 @@ export default function ModulePage({ cfgKey }) {
       .catch((e) => { if (alive) setErr(e.message); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [cfgKey]);
+  }, [cfgKey, gated, shown]);
 
   const [fUser, setFUser] = useState("");
   const [fHod, setFHod] = useState("");
@@ -144,9 +160,6 @@ export default function ModulePage({ cfgKey }) {
      was re-reading every module every minute for nothing. */
   useVisiblePoll(() => { try { reload(); } catch {} }, 60000);
   const [fTo, setFTo] = useState("");
-  const [shown, setShown] = useState(false);   // projectProjection: show data only after "Show" clicked
-  /* modules that wait for Show before fetching anything into view */
-  const gated = ["projectProjection", "salesToSpec", "specToSales", "target", "leave", "expense", "beatPlan"].includes(cfgKey);
   const [fSpec, setFSpec] = useState("");
   const [fSales, setFSales] = useState("");
   const [fStatus, setFStatus] = useState("");
@@ -232,10 +245,23 @@ export default function ModulePage({ cfgKey }) {
   }, [filteredNoTab, tab, cfg, firstTab, knownTabs]);
   const pager = usePager(visible, 10, String(tab || ""));
 
+  /* What a filter should offer: whatever the rows in front of you contain.
+
+     Before Show there are no rows yet, and an empty dropdown cannot be set —
+     which defeats the point of choosing filters first. So until the rows
+     arrive, the people-based filters are answered from the staff list and the
+     status one from the module's own tabs. Once the rows are in, they narrow
+     to what is actually there. */
   const distinct = (key) => {
     let src = visibleRows;
     if (cfgKey === "projectProjection") src = src.filter((r) => projSide === "Specs" ? r.isSpec : !r.isSpec);
-    return [...new Set(src.map((r) => r[key]).filter(Boolean))].sort();
+    const found = [...new Set(src.map((r) => r[key]).filter(Boolean))].sort();
+    if (found.length || !(gated && !shown)) return found;
+    if (["createdBy", "specPerson", "salesPerson", "assignedTo"].includes(key)) return userNames;
+    if (key === "hod") return hodNames;
+    if (key === "state") return [...new Set(visibleUsers(allUsers).map((u) => u.state).filter(Boolean))].sort();
+    if (key === "status") return (cfg.tabs || []).map((t) => t.key);
+    return found;
   };
   const hasCol = (key) => cfg.columns.some((c) => c.key === key);
 
@@ -505,7 +531,10 @@ export default function ModulePage({ cfgKey }) {
           ))}
         </div>
       )}
-      {rows.length > 0 && (
+      {/* The filter bar used to wait for the rows, so on the modules that are
+          meant to be filtered first there was nothing on screen to filter
+          with. It is drawn straight away there. */}
+      {(gated || rows.length > 0) && (
         <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
           <input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} title="From date" style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }} />
           <input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} title="To date" style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }} />

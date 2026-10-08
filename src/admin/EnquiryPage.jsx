@@ -27,6 +27,31 @@ function enqDate(r) {
   return null;
 }
 
+/* Split one CSV line into its fields.
+
+   A pattern asking for at least one character between commas drops an empty
+   field altogether, which shifted every later value one column to the left —
+   so a sheet with a blank cell imported the wrong thing into every column
+   after it. This walks the line, keeping empty fields empty and commas inside
+   quotes part of their value. */
+function csvFields(line) {
+  const out = [];
+  let cur = "";
+  let quoted = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (quoted) {
+      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+      else if (ch === '"') quoted = false;
+      else cur += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === ",") { out.push(cur); cur = ""; }
+    else cur += ch;
+  }
+  out.push(cur);
+  return out.map((x) => x.trim());
+}
+
 /* Enquiry (admin) — BreezeCRM style. India Mart + manual leads, assign to sales person. */
 export default function EnquiryPage() {
   const [rows, setRows] = useState(null);
@@ -45,7 +70,17 @@ export default function EnquiryPage() {
   }, [srcOpen]);
   const [fromDate, setFromDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [stateF, setStateF] = useState("");
+  /* Several states at once: one person covers more than one, and picking them
+     one at a time meant running the same report over and over. Empty means all. */
+  const [stateSel, setStateSel] = useState([]);
+  const [stOpen, setStOpen] = useState(false);
+  const stRef = useRef(null);
+  useEffect(() => {
+    if (!stOpen) return;
+    const onDoc = (e) => { if (stRef.current && !stRef.current.contains(e.target)) setStOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [stOpen]);
   const today = new Date().toISOString().slice(0, 10);
   const [applied, setApplied] = useState({ from: today, to: today, sources: [...LEAD_SOURCES], shown: false });   // data shows only after Show is clicked
   const [tab, setTab] = useState("Enquiries");   // status tabs
@@ -111,7 +146,7 @@ export default function EnquiryPage() {
     /* date range (applied via Show) */
     if (applied.from) l = l.filter((r) => { const d = enqDate(r); return d && d >= applied.from; });
     if (applied.to) l = l.filter((r) => { const d = enqDate(r); return d && d <= applied.to; });
-    if (stateF) l = l.filter((r) => (r.state || "") === stateF);
+    if (stateSel.length) l = l.filter((r) => stateSel.includes(r.state || ""));
     if (search) {
       const q = search.toLowerCase();
       l = l.filter((r) => {
@@ -133,7 +168,7 @@ export default function EnquiryPage() {
       if (vv) l = l.filter((r) => String(r[k] ?? "").toLowerCase().includes(vv));
     });
     return l;
-  }, [rows, search, colSearch, applied, tab, users, stateF]);
+  }, [rows, search, colSearch, applied, tab, users, stateSel]);
 
   const applyShow = () => { setApplied({ from: fromDate, to: toDate, sources: [...sourceSel], shown: true }); setPage(1); };
 
@@ -172,8 +207,8 @@ export default function EnquiryPage() {
   };
 
   const exportCsv = () => {
-    const head = ["Sl#", "Lead From", "Year", "Month", "Date", "Company", "Contact", "Email", "State", "Area", "HOD", "Passto", "Product", "Enquiry Details", "Status", "Assign Date", "Assign Time", "Assigned By"];
-    const body = list.map((r, i) => [i + 1, r.leadFrom || r.leadSource, r.year, r.month, r.date, r.company || r.customer, r.contact || r.phone, r.email, r.state, r.area || r.city, r.hod, r.passto || r.assignedTo, r.product, r.enquiryDetails, r.status || "Pending", r.assignDate, r.assignTime || "", r.assignedBy || ""]);
+    const head = ["Sl#", "Lead From", "Year", "Month", "Date", "Company", "Contact", "Email", "State", "Area", "Full Address", "HOD", "Passto", "Product", "Enquiry Details", "Status", "Assign Date", "Assign Time", "Assigned By"];
+    const body = list.map((r, i) => [i + 1, r.leadFrom || r.leadSource, r.year, r.month, r.date, r.company || r.customer, r.contact || r.phone, r.email, r.state, r.area || r.city, r.address || r.fullAddress || "", r.hod, r.passto || r.assignedTo, r.product, r.enquiryDetails, r.status || "Pending", r.assignDate, r.assignTime || "", r.assignedBy || ""]);
     const csv = [head, ...body].map((row) => row.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
@@ -183,10 +218,11 @@ export default function EnquiryPage() {
   const downloadFormat = () => {
     /* all enquiry fields + a sample row */
     const head = ["Date", "Customer Name", "Contact Person", "Phone No", "Email",
-      "State", "Area", "Location", "Lead From", "Product Required", "Quantity", "UOM",
+      "State", "Area", "Location", "Full Address", "Lead From", "Product Required", "Quantity", "UOM",
       "Order Value", "Enquiry Details", "HOD", "Passto", "Status"];
     const sample = [new Date().toISOString().slice(0, 10), "ABC Constructions", "Ramesh Kumar",
       "9876543210", "ramesh@example.com", "Telangana", "Hyderabad", "Banjara Hills",
+      "Plot 14, Road No 2, Banjara Hills, Hyderabad, Telangana - 500034",
       "IndiaMart", "4MM ACP", "500", "Sq.Mtr", "250000", "Needs quotation for facade",
       "HOD Name", "Sales Person Name", "Pending"];
     const csv = [head, sample].map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(",")).join("\n") + "\n";
@@ -200,11 +236,11 @@ export default function EnquiryPage() {
     try {
       const text = await file.text();
       const lines = text.split(/\r?\n/).filter((l) => l.trim());
-      const header = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/^"|"$/g, ""));
+      const header = csvFields(lines[0]).map((h) => h.toLowerCase());
       const idx = (k) => header.findIndex((h) => h.includes(k));
       let ok = 0;
       for (let i = 1; i < lines.length; i++) {
-        const cols = (lines[i].match(/(".*?"|[^,]+)/g) || []).map((c) => c.trim().replace(/^"|"$/g, ""));
+        const cols = csvFields(lines[i]);
         const g = (k) => { const j = idx(k); return j >= 0 ? cols[j] : ""; };
         const cust = g("customer") || g("company");
         if (!cust) continue;
@@ -212,7 +248,13 @@ export default function EnquiryPage() {
         await api.create("enquiry", {
           date: g("date") || now.toLocaleDateString("en-GB"), year: String(now.getFullYear()), month: String(now.getMonth() + 1).padStart(2, "0"),
           company: cust, customer: cust, contactPerson: g("contact person"), contact: g("phone"), phone: g("phone"),
-          email: g("email"), area: g("location"), leadFrom: g("lead from") || "Other",
+          email: g("email"), area: g("location") || g("area"),
+          /* the state was never read from the sheet, so every imported enquiry
+             arrived with none and fell out of the State filter */
+          state: g("state"),
+          /* the full address as the enquiry gave it, pincode included */
+          address: g("full address") || g("address"),
+          leadFrom: g("lead from") || "Other",
           product: g("product"), quantity: g("quantity"), uom: g("uom"), orderValue: g("order value"),
           enquiryDetails: g("enquiry details"), status: "Pending",
         });
@@ -284,12 +326,28 @@ export default function EnquiryPage() {
           <label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>To Date</label>
           <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5 }} />
         </div>
-        <div>
+        <div ref={stRef} style={{ position: "relative", minWidth: 220 }}>
           <label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>State</label>
-          <select value={stateF} onChange={(e) => setStateF(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5 }}>
-            <option value="">All States</option>
-            {[...new Set((rows || []).map((r) => r.state).filter(Boolean))].sort().map((s) => <option key={s}>{s}</option>)}
-          </select>
+          <div onClick={() => setStOpen((v) => !v)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fff" }}>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 180 }}>
+              {stateSel.length === 0 ? "All States" : stateSel.join(", ")}
+            </span>
+            <span style={{ marginLeft: 8 }}>▾</span>
+          </div>
+          {stOpen && (
+            <div style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, background: "#fff", borderRadius: 10, boxShadow: "0 12px 30px rgba(20,25,60,.25)", zIndex: 50, padding: 8, maxHeight: 280, overflowY: "auto" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                <input type="checkbox" checked={stateSel.length === 0} onChange={() => setStateSel([])} /> All States
+              </label>
+              <div style={{ borderTop: "1px solid #eef1f8", margin: "4px 0" }} />
+              {[...new Set((rows || []).map((r) => r.state).filter(Boolean))].sort().map((s) => (
+                <label key={s} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", fontSize: 12.5, cursor: "pointer" }}>
+                  <input type="checkbox" checked={stateSel.includes(s)}
+                    onChange={(e) => setStateSel((f) => e.target.checked ? [...f, s] : f.filter((x) => x !== s))} /> {s}
+                </label>
+              ))}
+            </div>
+          )}
         </div>
         <button className="btn" style={{ background: "#22a45d", color: "#fff", borderColor: "transparent" }} onClick={applyShow}>Show</button>
         <button className="btn btn-soft" onClick={exportCsv}>Export to Excel</button>
@@ -307,14 +365,14 @@ export default function EnquiryPage() {
               <tr style={{ background: "linear-gradient(135deg,#1f3a68,#2b6fb8)" }}>
                 <th style={th}><input type="checkbox" checked={pageRows.length > 0 && selected.size === pageRows.length} onChange={toggleAll} /></th>
                 <th style={th}>Action</th>
-                {["Sl#", "Lead From", "Year", "Month", "Date", "Company Name", "Contact number", "Contact Person", "Email Id", "State", "Area", "Product Request", "Enquiry details", "HOD", "Passto", "Status", "Last Remark", "Next Call / Visit", "Assign Date", "Assign Time", "Assigned By"].map((h) => <th key={h} style={th}>{h}</th>)}
+                {["Sl#", "Lead From", "Year", "Month", "Date", "Company Name", "Contact number", "Contact Person", "Email Id", "State", "Area", "Full Address", "Product Request", "Enquiry details", "HOD", "Passto", "Status", "Last Remark", "Next Call / Visit", "Assign Date", "Assign Time", "Assigned By"].map((h) => <th key={h} style={th}>{h}</th>)}
               </tr>
             </thead>
             <tbody>
               {rows === null ? (
-                <tr><td colSpan={22} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
+                <tr><td colSpan={23} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
               ) : pageRows.length === 0 ? (
-                <tr><td colSpan={22} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>{applied.shown ? "No enquiries found for the selected date / filter." : "Select date & Enquiry From, then click Show to load enquiries."}</td></tr>
+                <tr><td colSpan={23} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>{applied.shown ? "No enquiries found for the selected date / filter." : "Select date & Enquiry From, then click Show to load enquiries."}</td></tr>
               ) : pageRows.map((r, i) => (
                 <tr key={r._id} style={{ background: selected.has(r._id) ? "#eef5ff" : "#fff" }}>
                   <td style={td}><input type="checkbox" checked={selected.has(r._id)} onChange={() => toggle(r._id)} /></td>
@@ -351,6 +409,9 @@ export default function EnquiryPage() {
                   <td style={{ ...td, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis" }}>{r.email || "—"}</td>
                   <td style={td}>{r.state || "—"}</td>
                   <td style={td}>{r.area || r.city || "—"}</td>
+                  {/* the address as the enquiry gave it, pincode and all —
+                      the Area alone is not enough to find the place */}
+                  <td style={{ ...td, maxWidth: 260, whiteSpace: "normal" }}>{r.address || r.fullAddress || "—"}</td>
                   <td style={td}>{r.product || "—"}</td>
                   <td style={{ ...td, maxWidth: 160, whiteSpace: "normal" }}>{r.enquiryDetails || "—"}</td>
                   <td style={td}>{r.hod || "—"}</td>
@@ -400,7 +461,7 @@ function EnquiryForm({ row, onClose, onSaved }) {
   const [mAreas, setMAreas] = useState([]);
   const [f, setF] = useState(row || {
     date: new Date().toISOString().slice(0, 10), customer: "", contactPerson: "", phone: "", email: "",
-    area: "", state: "", leadFrom: "IndiaMart", product: "", quantity: "", uom: "Sq.Mtr", orderValue: "", enquiryDetails: "",
+    area: "", state: "", address: "", leadFrom: "IndiaMart", product: "", quantity: "", uom: "Sq.Mtr", orderValue: "", enquiryDetails: "",
   });
   const [busy, setBusy] = useState(false);
   const inp = { width: "100%", marginBottom: 10, padding: "9px 11px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13 };
@@ -465,6 +526,10 @@ function EnquiryForm({ row, onClose, onSaved }) {
             </select>
           </div>
         </div>
+        <label style={{ fontSize: 11.5, fontWeight: 700 }}>Full Address (with pincode)</label>
+        <textarea rows={2} value={f.address || ""} onChange={(e) => set("address", e.target.value)}
+          placeholder="Street, locality, city, state — 400092"
+          style={{ ...inp, resize: "vertical" }} />
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 8 }}>
           <div><label style={{ fontSize: 11.5, fontWeight: 700 }}>Product Required</label><input value={f.product} onChange={(e) => set("product", e.target.value)} style={inp} /></div>
           <div><label style={{ fontSize: 11.5, fontWeight: 700 }}>Quantity</label><input value={f.quantity} onChange={(e) => set("quantity", e.target.value)} style={inp} /></div>
@@ -542,6 +607,7 @@ function AdminEnquiryView({ r, onClose }) {
         {row("Email", r.email)}
         {row("State", r.state)}
         {row("Area", r.area || r.city)}
+        {row("Full Address", r.address || r.fullAddress)}
         {row("Product Request", r.product)}
         {row("Quantity", r.quantity ? `${r.quantity} ${r.uom || ""}` : "")}
         {row("Order Value", r.orderValue)}
