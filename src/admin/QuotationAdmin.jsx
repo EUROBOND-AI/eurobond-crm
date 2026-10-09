@@ -297,25 +297,42 @@ export default function QuotationAdmin() {
                   {colVisible("Attn") && <td style={{ padding: "11px 14px" }}>{r.contactName || "—"}</td>}
                   {colVisible("Mobile") && <td style={{ padding: "11px 14px" }}>{r.contactNumber || r.mobile || "—"}</td>}
                   {colVisible("Email") && <td style={{ padding: "11px 14px" }}>{r.clientEmail || "—"}</td>}
-                  {colVisible("Grade") && <td style={{ padding: "11px 14px" }}>{r.grade || (r.items && r.items[0] && r.items[0].grade) || "—"}</td>}
-                  {colVisible("Thickness") && <td style={{ padding: "11px 14px", fontSize: 11 }}>{(r.items && r.items[0] && r.items[0].thickness) || r.thickness || "—"}</td>}
-                  {colVisible("Colour Code") && <td style={{ padding: "11px 14px" }}>{(r.items && r.items[0] && (r.items[0].colourCode || r.items[0].colour)) || r.colour || "—"}</td>}
-                  {colVisible("Rate/SqMtr") && <td style={{ padding: "11px 14px" }}>{(r.items && r.items[0] && r.items[0].ratePerSqm) ? `₹${r.items[0].ratePerSqm}` : (r.ratePerSqm ? `₹${r.ratePerSqm}` : "—")}</td>}
-                  {colVisible("Rate/SqFt") && (() => {
-                    /* The standard rate is the floor. A quotation written BELOW it
-                       is the one that needs a second look, so it is called out;
-                       at the standard or above is fine and is left alone. */
-                    const it = (r.items && r.items[0]) || {};
-                    const { std, from } = stdRateFor(it, r);
-                    const rate = Number(r.rate);
-                    const under = std > 0 && rate > 0 && rate < std;
-                    return (
-                      <td style={{ padding: "11px 14px", color: under ? "#c0392b" : "inherit", fontWeight: under ? 800 : 400 }}
-                        title={std ? `${under ? "Below the s" : "S"}tandard rate ₹${std}${from ? ` — ${from}` : ""}` : "No standard rate found for this product"}>
-                        {r.rate ? `₹${r.rate}` : "—"}{under ? " ▼" : ""}
-                      </td>
-                    );
-                  })()}
+                  {/* Every item on the quotation, a line each, so the columns
+                      stay side by side.
+
+                      Only the first item was shown, so a quotation with two or
+                      three products looked like one and the rate check could
+                      only ever see that first line — the rest had to be opened
+                      to be looked at. */}
+                  {colVisible("Grade") && <td style={{ padding: "11px 14px" }}>
+                    {qItems(r).map((it, k) => <div key={k} style={{ padding: "1px 0" }}>{it.grade || "—"}{it.fins ? " (Running Feet)" : ""}</div>)}
+                  </td>}
+                  {colVisible("Thickness") && <td style={{ padding: "11px 14px", fontSize: 11 }}>
+                    {qItems(r).map((it, k) => <div key={k} style={{ padding: "1px 0" }}>{it.thickness || "—"}</div>)}
+                  </td>}
+                  {colVisible("Colour Code") && <td style={{ padding: "11px 14px" }}>
+                    {qItems(r).map((it, k) => <div key={k} style={{ padding: "1px 0" }}>{it.colourCode || it.colour || "—"}</div>)}
+                  </td>}
+                  {colVisible("Rate/SqMtr") && <td style={{ padding: "11px 14px" }}>
+                    {qItems(r).map((it, k) => <div key={k} style={{ padding: "1px 0" }}>{!it.fins && it.ratePerSqm ? `₹${it.ratePerSqm}` : "—"}</div>)}
+                  </td>}
+                  {colVisible("Rate/SqFt") && <td style={{ padding: "11px 14px" }}>
+                    {/* The standard rate is the floor. A line written BELOW it is
+                        the one that needs a second look, so it is called out; at
+                        the standard or above is fine and is left alone. Each line
+                        is judged against its own product. */}
+                    {qItems(r).map((it, k) => {
+                      const { std, from } = stdRateFor(it, r);
+                      const rate = Number(it.rate);
+                      const under = std > 0 && rate > 0 && rate < std;
+                      return (
+                        <div key={k} style={{ padding: "1px 0", color: under ? "#c0392b" : "inherit", fontWeight: under ? 800 : 400 }}
+                          title={std ? `${under ? "Below the s" : "S"}tandard rate ₹${std}${from ? ` — ${from}` : ""}` : "No standard rate found for this product"}>
+                          {rate ? `₹${it.rate}` : "—"}{under ? " ▼" : ""}
+                        </div>
+                      );
+                    })}
+                  </td>}
                   {colVisible("Created By") && <td style={{ padding: "11px 14px" }}>{r.createdBy || "—"}</td>}
                   {colVisible("Status") && <td style={{ padding: "11px 14px" }}>
                     <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 9px", borderRadius: 8,
@@ -372,7 +389,7 @@ export default function QuotationAdmin() {
 }
 
 function QuoteAdminView({ q, onClose, onPdf }) {
-  const items = q.items || [{ grade: q.grade, colour: q.colour, rate: q.rate, ratePerSqm: q.ratePerSqm }];
+  const items = qItems(q);
   return (
     <div className="modal-mask" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
@@ -612,6 +629,16 @@ function rate2(v) {
   return n.toFixed(2);
 }
 
+/* The lines of a quotation.
+
+   Older records kept a single grade and rate on the record itself rather than
+   an items list, so both shapes are read and either way the caller gets a
+   list it can walk. */
+function qItems(q) {
+  if (Array.isArray(q.items) && q.items.length) return q.items;
+  return [{ grade: q.grade, colour: q.colour, colourCode: q.colourCode, thickness: q.thickness, rate: q.rate, ratePerSqm: q.ratePerSqm }];
+}
+
 /* The person the quotation is addressed to, as three labelled lines.
 
    It used to run along one line with the number and the address in brackets,
@@ -632,7 +659,7 @@ function attnBlock(q, mt = 12) {
 
 /* A4 page HTML with letterhead background (for html2canvas capture) */
 function quotePageHtml(q) {
-  const items = q.items || [{ grade: q.grade, colour: q.colour, rate: q.rate, ratePerSqm: q.ratePerSqm }];
+  const items = qItems(q);
   const tc = q.tc || {};
   const rowsHtml = items.map((it, i) => `<tr>
     <td style="text-align:center;border:1px solid #999;padding:7px;width:8%">${i + 1}</td>
@@ -667,7 +694,7 @@ function quotePageHtml(q) {
 
 /* Quotation as HTML string (for mail attachment) — letterhead format */
 function quoteHtml(q) {
-  const items = q.items || [{ grade: q.grade, colour: q.colour, rate: q.rate, ratePerSqm: q.ratePerSqm }];
+  const items = qItems(q);
   const tc = q.tc || {};
   const rowsHtml = items.map((it, i) => `<tr>
     <td style="text-align:center;border:1px solid #999;padding:8px">${i + 1}</td>
@@ -704,7 +731,7 @@ function quoteHtml(q) {
 
 /* Company-format PDF (print window) — EP/08/160/26-27 numbering, letterhead style */
 function downloadQuotePdf(q) {
-  const items = q.items || [{ grade: q.grade, colour: q.colour, rate: q.rate, ratePerSqm: q.ratePerSqm }];
+  const items = qItems(q);
   const w = window.open("", "_blank");
   const rowsHtml = items.map((it, i) => `<tr>
     <td class="srno">${i + 1}</td>
@@ -911,10 +938,12 @@ function AdminQuoteForm({ onClose, onSaved }) {
           return (
             <div key={i} style={{ background: "#f7f9ff", borderRadius: 10, padding: 10, marginBottom: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)" }}>{isFins ? "Running Feet Rate" : `Item ${rows.slice(0, i + 1).filter((x) => !x.fins).length}`}</span>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)" }}>Item {i + 1}</span>
                 {rows.length > 1 && <button onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} style={{ background: "none", border: "none", color: "#c03636", fontWeight: 700, fontSize: 11.5, cursor: "pointer" }}>Remove</button>}
               </div>
-              {!isFins && (
+              {/* grade and colour belong to the item either way — a Running Feet
+                  rate is still quoted for a product */}
+              {true && (
                 <>
                   <AdminSearchSelect value={r.grade} placeholder="— Search & select grade —" options={gradeNames}
                     onChange={(g) => { setRow(i, "grade", g); setRow(i, "colour", ""); setRow(i, "colourCode", ""); setRow(i, "thickness", ""); loadColours(g); }} />
@@ -925,14 +954,27 @@ function AdminQuoteForm({ onClose, onSaved }) {
                   {r.thickness && <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 6 }}>Thickness: {r.thickness}</div>}
                 </>
               )}
+              {/* one rate, quoted one way or the other — a Running Feet rate used
+                  to be a second item row, so the product appeared twice */}
+              <div style={{ display: "flex", background: "#eef1ff", borderRadius: 8, padding: 3, marginBottom: 7 }}>
+                {[["sqft", "Rate (per Sq.Ft)"], ["rft", "Running Feet Rate"]].map(([k, lbl]) => {
+                  const on = k === "rft" ? !!isFins : !isFins;
+                  return (
+                    <button key={k} type="button" onClick={() => setRow(i, "fins", k === "rft")}
+                      style={{ flex: 1, padding: "6px 6px", borderRadius: 6, border: "none", fontWeight: 700, fontSize: 11, cursor: "pointer",
+                        background: on ? "var(--navy)" : "transparent", color: on ? "#fff" : "var(--navy)" }}>
+                      {lbl}
+                    </button>
+                  );
+                })}
+              </div>
               <input inputMode="decimal" value={r.rate} onChange={(e) => setRow(i, "rate", e.target.value.replace(/[^\d.]/g, ""))} placeholder={r.fins ? "Rate (per Running ft ₹)" : "Rate (per sq ft ₹)"} style={{ ...inp, marginBottom: 0 }} />
               {!isFins && r.rate && <div style={{ fontSize: 11, color: "#1f7a44", marginTop: 5, fontWeight: 700 }}>= ₹{(Number(r.rate) * 10.764).toFixed(2)} / sq.mtr</div>}
             </div>
           );
         })}
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <button onClick={() => setRows((rs) => [...rs, { grade: "", thickness: "", colour: "", colourCode: "", rate: "" }])} style={{ flex: 1, padding: 8, borderRadius: 9, border: "1.5px dashed var(--navy)", background: "#fff", color: "var(--navy)", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>➕ Add Grade Item</button>
-          <button onClick={() => setRows((rs) => [...rs, { grade: "", thickness: "", colour: "", colourCode: "", rate: "", fins: true }])} style={{ flex: 1, padding: 8, borderRadius: 9, border: "1.5px dashed #8b7cc8", background: "#fff", color: "#6c5ce7", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>➕ Running Feet</button>
+          <button onClick={() => setRows((rs) => [...rs, { grade: "", thickness: "", colour: "", colourCode: "", rate: "" }])} style={{ flex: 1, padding: 8, borderRadius: 9, border: "1.5px dashed var(--navy)", background: "#fff", color: "var(--navy)", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>➕ Add Item</button>
         </div>
 
         <div style={{ fontWeight: 800, fontSize: 13, margin: "6px 0 8px" }}>Terms & Conditions</div>

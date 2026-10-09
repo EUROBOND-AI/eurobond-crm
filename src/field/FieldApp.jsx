@@ -6511,11 +6511,12 @@ function FieldQuotationNew({ prefill }) {
           return (
           <div key={i} style={{ background: "#f7f9ff", borderRadius: 12, padding: 12, marginBottom: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)" }}>{isFins ? "Running Feet Rate" : `Item ${rows.slice(0, i + 1).filter((x) => !x.fins).length}`}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)" }}>Item {i + 1}</span>
               {rows.length > 1 && <button type="button" onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} style={{ background: "none", border: "none", color: "#c03636", fontWeight: 700, fontSize: 12 }}>Remove</button>}
             </div>
-            {/* grade item -> searchable grade + colour cascade + rate (formula). Running Feet -> only rate */}
-            {!isFins && (
+            {/* Grade and colour belong to the item either way — a Running Feet
+                rate is still quoted for a product. Only the rate changes. */}
+            {true && (
               <>
                 <label style={{ fontSize: 12 }}>Grade Name (Product)</label>
                 <SearchSelect
@@ -6536,6 +6537,24 @@ function FieldQuotationNew({ prefill }) {
                 {r.thickness && <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>Thickness: {r.thickness}</div>}
               </>
             )}
+            {/* One rate on the item, quoted one way or the other.
+
+                There used to be a second item row for a Running Feet rate, so
+                the same product appeared twice and both rates showed at once.
+                It is the same rate field; this only says what the figure in it
+                means. */}
+            <div style={{ display: "flex", background: "#eef1ff", borderRadius: 9, padding: 3, marginBottom: 8 }}>
+              {[["sqft", "Rate (per Sq.Ft)"], ["rft", "Running Feet Rate"]].map(([k, lbl]) => {
+                const on = k === "rft" ? !!isFins : !isFins;
+                return (
+                  <button key={k} type="button" onClick={() => setRow(i, "fins", k === "rft")}
+                    style={{ flex: 1, padding: "7px 6px", borderRadius: 7, border: "none", fontWeight: 700, fontSize: 11.5,
+                      background: on ? "var(--navy)" : "transparent", color: on ? "#fff" : "var(--navy)" }}>
+                    {lbl}
+                  </button>
+                );
+              })}
+            </div>
             <label style={{ fontSize: 12 }}>{isFins ? "Rate (per Running ft ₹)" : "Rate (per sq ft ₹)"}</label>
             <input inputMode="decimal" value={r.rate} onChange={(e) => setRow(i, "rate", e.target.value.replace(/[^\d.]/g, ""))} placeholder="e.g. 350" style={{ width: "100%" }} />
             {!isFins && r.rate && (
@@ -6548,11 +6567,10 @@ function FieldQuotationNew({ prefill }) {
           );
         })}
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          {/* one button: a Running Feet rate is a way of quoting an item, not an
+              item of its own, so it is chosen inside the item above */}
           <button type="button" onClick={() => setRows((rs) => [...rs, { grade: "", thickness: "", colour: "", colourCode: "", rate: "" }])} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "1.5px dashed var(--navy)", background: "#fff", color: "var(--navy)", fontWeight: 700, fontSize: 12.5 }}>
-            ➕ Add Grade Item
-          </button>
-          <button type="button" onClick={() => setRows((rs) => [...rs, { grade: "", thickness: "", colour: "", colourCode: "", rate: "", fins: true }])} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "1.5px dashed #8b7cc8", background: "#fff", color: "#6c5ce7", fontWeight: 700, fontSize: 12.5 }}>
-            ➕ Running Feet Rate
+            ➕ Add Item
           </button>
         </div>
 
