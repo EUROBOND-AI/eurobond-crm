@@ -85,19 +85,38 @@ async function reqRaw(path, { method = "GET", body, isForm = false } = {}) {
     payload = JSON.stringify(body);
   }
   let res, data;
+  /* Reaching the server and understanding its reply are two different failures,
+     and they used to be reported as one.
+
+     The reply was read as JSON inside the same guard as the request, so a
+     server that answered perfectly well — with a PHP warning, an nginx error
+     page, an upload refused for being too large — came out as "Network error,
+     check internet". People then checked their internet, which was fine, and
+     the actual message from the server was never seen by anybody. Now only a
+     request that never arrived says that, and a reply that is not JSON is
+     repeated back with its status code, so the real reason is on screen. */
   try {
     /* abort after 25s so the UI never hangs forever (e.g. slow SMTP on OTP send) */
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 25000);
     try {
       res = await fetch(API_BASE + path, { method, headers, body: payload, signal: ctrl.signal });
-      data = await res.json();
     } finally {
       clearTimeout(timer);
     }
   } catch (e) {
     if (e.name === "AbortError") throw new Error("Server is taking too long. Please try again.");
     throw new Error("Network error — check internet or try again");
+  }
+  let raw = "";
+  try { raw = await res.text(); } catch {}
+  try {
+    data = raw.trim() ? JSON.parse(raw) : {};
+  } catch {
+    /* tags stripped and squeezed onto one line, so an error page reads as a
+       sentence rather than filling the screen with markup */
+    const hint = raw.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 200);
+    throw new Error(`Server error ${res.status}${hint ? " — " + hint : ""}`);
   }
   if (!res.ok) {
     /* remember this BEFORE any clear() below, otherwise the check further down
