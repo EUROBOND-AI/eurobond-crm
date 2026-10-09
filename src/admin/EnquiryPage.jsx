@@ -15,7 +15,6 @@ const UOMS = ["Sq.Mtr", "Sq.Ft", "Nos", "Kg", "Ton", "Sheet"];
 /* enquiry date (yyyy-mm-dd) for range filter */
 const statusBg = (s) => { const st = (s || "pending").toLowerCase(); return st === "win" ? "#e5f9f1" : st === "assigned" ? "#e8f0ff" : st === "processing" ? "#f3efff" : st === "spam" ? "#fdecec" : "#fef3e2"; };
 const statusFg = (s) => { const st = (s || "pending").toLowerCase(); return st === "win" ? "#059669" : st === "assigned" ? "#2563eb" : st === "processing" ? "#6c5ce7" : st === "spam" ? "#c0392b" : "#c07f00"; };
-function enqDate(r) {
 /* When the enquiry came in.
 
    IndiaMART records carry it; older ones only have the row's own timestamp,
@@ -35,6 +34,7 @@ function enqTime(r) {
   return "";
 }
 
+function enqDate(r) {
   /* prefer the actual enquiry/lead date over the sync (_created) date */
   if (r.date) {
     const p = String(r.date).split(/[-/]/);
