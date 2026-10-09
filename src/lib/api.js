@@ -108,16 +108,30 @@ async function reqRaw(path, { method = "GET", body, isForm = false } = {}) {
     if (e.name === "AbortError") throw new Error("Server is taking too long. Please try again.");
     throw new Error("Network error — check internet or try again");
   }
-  let raw = "";
-  try { raw = await res.text(); } catch {}
+  /* The reply is read with .json() first, and only a reply that is not JSON is
+     read again as text to quote it back.
+
+     Order matters on the phone. CapacitorHttp replaces fetch with a native
+     bridge there, and its Response is not the browser's: .json() is the method
+     it is built around, while .text() and .clone() cannot be relied on. Reading
+     as text first would have worked in every browser and could have left four
+     hundred phones unable to reach the server at all. So the proven path runs
+     first, and the nicer message is best effort — a reply whose body cannot be
+     read a second time still reports its status code, which is the part that
+     says what went wrong. */
   try {
-    data = raw.trim() ? JSON.parse(raw) : {};
+    data = await res.json();
   } catch {
+    let raw = "";
+    try { raw = await res.text(); } catch { /* body already read, or no text() */ }
     /* tags stripped and squeezed onto one line, so an error page reads as a
        sentence rather than filling the screen with markup */
     const hint = raw.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 200);
-    throw new Error(`Server error ${res.status}${hint ? " — " + hint : ""}`);
+    /* an empty body on a reply that otherwise succeeded is not a failure */
+    if (res.ok && !hint) data = {};
+    else throw new Error(`Server error ${res.status}${hint ? " — " + hint : ""}`);
   }
+  if (!data || typeof data !== "object") data = {};
   if (!res.ok) {
     /* remember this BEFORE any clear() below, otherwise the check further down
        always sees an empty token */

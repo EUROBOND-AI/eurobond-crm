@@ -136,11 +136,17 @@ export default function UsersPage() {
   const depoOpts = [...new Set(users.map((u) => u.depo).filter(Boolean))];
   /* City belongs to a State — until a State is picked there is nothing to choose,
      so a city can never be saved (or added) under the wrong state. */
-  const cityOpts = !form || !form.state
-    ? []
-    : (stateCities.length ? stateCities
-       : [...new Set(users.filter((u) => u.state === form.state).map((u) => u.city).filter(Boolean))]);
-  const stateOpts = [...new Set([...statesList, ...users.map((u) => u.state).filter(Boolean)])];
+  const cityOpts = !form || !form.state ? [] : [...stateCities].filter(Boolean);
+  /* State and City come from the Area Master and nowhere else.
+
+     They used to be the master's list joined with whatever text happened to be
+     sitting on existing user rows, and the dropdown carried an "Add New" entry
+     that typed a fresh value straight onto the user. Between them, a spelling
+     nobody meant — "Telangana ", "TELANGANA", a city under the wrong state —
+     became a permanent option that the next person picked in good faith, and
+     the State filter then split one state into three. A place is added in Area
+     Master now, and every screen reads the same list. */
+  const stateOpts = [...statesList].filter(Boolean);
   /* Reporting managers: for a Sub HOD → only HODs; for a normal user → HODs + Sub HODs + Admin */
   const isSubHodForm = form && (form.isSubHod || /^Sub HOD/.test(form.role || ""));
   const managerOpts = [...new Set(
@@ -323,17 +329,19 @@ export default function UsersPage() {
               <Field label="Designation" val={form.designation} on={(v) => setForm({ ...form, designation: v })} />
               <Field label="Date of Joining" type="date" val={form.doj || ""} on={(v) => setForm({ ...form, doj: v })} />
               <Field label="Date of Birth" type="date" val={form.dob || ""} on={(v) => setForm({ ...form, dob: v })} />
-              <SelectOrAdd label="State" val={form.state} on={(v) => setForm({ ...form, state: v, city: "" })} options={stateOpts} />
-              <SelectOrAdd label="Zone" val={form.zone} on={(v) => setForm({ ...form, zone: v })} options={zoneOpts} />
-              <SelectOrAdd label="Depo" val={form.depo} on={(v) => setForm({ ...form, depo: v })} options={depoOpts} />
+              <PickOne label="State" val={form.state} on={(v) => setForm({ ...form, state: v, city: "" })} options={stateOpts}
+                empty="No states in Area Master yet" />
+              <PickOne label="Zone" val={form.zone} on={(v) => setForm({ ...form, zone: v })} options={zoneOpts} />
+              <PickOne label="Depo" val={form.depo} on={(v) => setForm({ ...form, depo: v })} options={depoOpts} />
               {form.state
-                ? <SelectOrAdd label="City" val={form.city} on={(v) => setForm({ ...form, city: v })} options={cityOpts} />
+                ? <PickOne label="City" val={form.city} on={(v) => setForm({ ...form, city: v })} options={cityOpts}
+                    empty={`No areas under ${form.state} in Area Master`} />
                 : <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>City</label>
                     <div style={{ padding: "9px 12px", borderRadius: 9, border: "1px dashed #dde2ef", fontSize: 12.5, color: "var(--muted)", background: "#f7f9ff" }}>Select a State first</div>
                   </div>}
               <Field label="Near-by Range (meters)" type="number" val={form.nearby_range_m ?? 500} on={(v) => setForm({ ...form, nearby_range_m: v })} />
               {!form.isHod && !(/^HOD /.test(form.role || "")) && (
-                <SelectOrAdd label={form.isSubHod || /^Sub HOD/.test(form.role || "") ? "Reporting HOD" : "Reporting Manager"} val={form.manager} on={(v) => setForm({ ...form, manager: v })} options={managerOpts} />
+                <PickOne label={form.isSubHod || /^Sub HOD/.test(form.role || "") ? "Reporting HOD" : "Reporting Manager"} val={form.manager} on={(v) => setForm({ ...form, manager: v })} options={managerOpts} />
               )}
             </div>
             {form.id && <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>Use the key icon on the list to reset password.</p>}
@@ -348,26 +356,27 @@ export default function UsersPage() {
   );
 }
 
-function SelectOrAdd({ label, val, on, options }) {
-  const [adding, setAdding] = useState(false);
-  const isNew = val && !options.includes(val);
+/* A pick from a list, and only from the list.
+
+   A value already on the row is kept as an option even when it is no longer in
+   the list, so opening an old user to change their phone number does not
+   silently blank out their city. It is marked, so it is clear that it is not a
+   master value. */
+function PickOne({ label, val, on, options, empty = "" }) {
+  const list = (options || []).filter(Boolean);
+  const current = String(val || "").trim();
+  const stale = current && !list.some((o) => String(o).trim() === current);
   return (
     <div className="field">
       <label>{label}</label>
-      {adding || isNew ? (
-        <div style={{ display: "flex", gap: 6 }}>
-          <input value={val} onChange={(e) => on(e.target.value)} placeholder={"New " + label} style={{ flex: 1 }} autoFocus />
-          <button type="button" className="btn btn-primary" title="Save new value" style={{ padding: "0 12px", fontWeight: 800 }}
-            onClick={() => setAdding(false)} disabled={!val}>✓ Save</button>
-          <button type="button" className="btn btn-ghost" style={{ padding: "0 10px" }} onClick={() => { on(""); setAdding(false); }}>✕</button>
-        </div>
-      ) : (
-        <select value={val} onChange={(e) => { if (e.target.value === "__add__") { on(""); setAdding(true); } else on(e.target.value); }}>
-          <option value="">Select {label}</option>
-          {options.map((o) => <option key={o} value={o}>{o}</option>)}
-          <option value="__add__">➕ Add New…</option>
-        </select>
-      )}
+      <select value={val || ""} onChange={(e) => on(e.target.value)}>
+        <option value="">Select {label}</option>
+        {list.map((o) => <option key={o} value={o}>{o}</option>)}
+        {stale && <option value={current}>{current} (not in master)</option>}
+      </select>
+      {!list.length && empty ? (
+        <div style={{ fontSize: 11.5, color: "#b0640a", marginTop: 4, fontWeight: 600 }}>{empty}</div>
+      ) : null}
     </div>
   );
 }
