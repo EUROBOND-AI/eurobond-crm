@@ -398,9 +398,13 @@ function QuoteAdminView({ q, onClose, onPdf }) {
             {items.map((it, i) => (
               <tr key={i} style={{ borderTop: "1px solid #eef" }}>
                 <td style={{ padding: 8 }}>{i + 1}</td>
-                <td style={{ padding: 8 }}>{it.grade} {it.thickness ? <span style={{ fontSize: 10, color: "#888" }}>({it.thickness})</span> : ""} {i > 0 ? "(Running Feet)" : ""}</td>
+                {/* Running Feet is what the line itself says it is, not where it
+                    happens to sit. Going by position called every line after the
+                    first a Running Feet line and hid its per-sq-mtr rate, so two
+                    ordinary items looked wrong here while the PDF read right. */}
+                <td style={{ padding: 8 }}>{it.grade} {it.thickness ? <span style={{ fontSize: 10, color: "#888" }}>({it.thickness})</span> : ""} {it.fins ? "(Running Feet)" : ""}</td>
                 <td style={{ padding: 8 }}>{colourCell(it)}</td>
-                <td style={{ padding: 8 }}>{i === 0 && it.ratePerSqm ? `INR ${it.ratePerSqm}` : "—"}</td>
+                <td style={{ padding: 8 }}>{!it.fins && it.ratePerSqm ? `INR ${it.ratePerSqm}` : "—"}</td>
                 <td style={{ padding: 8 }}>INR {it.rate}</td>
               </tr>
             ))}
@@ -608,6 +612,22 @@ function rate2(v) {
   return n.toFixed(2);
 }
 
+/* The person the quotation is addressed to, as three labelled lines.
+
+   It used to run along one line with the number and the address in brackets,
+   which reads as an aside rather than as the contact details of the person
+   expected to act on it. A line each, each one bold, and a line only when
+   there is something to put on it. */
+function attnBlock(q, mt = 12) {
+  const name = String(q.contactName || "").trim();
+  const mob = String(q.contactNumber || q.mobile || "").trim();
+  const mail = String(q.clientEmail || q.contactEmail || "").trim();
+  const line = (k, v) => v ? `<div><b>${k} : ${v}</b></div>` : "";
+  return `<div style="margin-top:${mt}px;line-height:1.5">`
+    + line("Kind Attn", name) + line("Mob. No", mob) + line("Email", mail)
+    + `</div>`;
+}
+
 /* A4 page HTML with letterhead background (for html2canvas capture) */
 function quotePageHtml(q) {
   const items = q.items || [{ grade: q.grade, colour: q.colour, rate: q.rate, ratePerSqm: q.ratePerSqm }];
@@ -623,7 +643,7 @@ function quotePageHtml(q) {
     <div style="display:flex;justify-content:space-between"><b>DATE: ${q.createdAt || new Date().toLocaleDateString("en-GB")}</b><b>${q.quoteNo || q.id}</b></div>
     <div style="margin-top:14px"><b>To,</b><br>${q.contactName || q.partyName || ""}<br>${(q.address || "").replace(/,/g, ",<br>")}</div>
     <div style="margin-top:10px">Project Name : ${q.projectName || ""}</div>
-    <div style="margin-top:12px"><b>Kind Attn. ${q.contactName || ""} ${q.contactNumber ? "(Mob.No. " + q.contactNumber + ")" : ""}</b></div>
+    ${attnBlock(q)}
     <div style="margin-top:6px"><b>Sub :-Quotation For Eurobond</b></div>
     <p>Sir,<br>In reference to the discussion held with you regarding the said subject, we are pleased to quote our most preferred rates & other terms and conditions for the same as follows.</p>
     <table style="width:100%;border-collapse:collapse;margin:12px 0;font-family:Arial;font-size:13px;color:#1a1a1a">
@@ -660,7 +680,7 @@ function quoteHtml(q) {
     <div style="display:flex;justify-content:space-between"><b>DATE: ${q.createdAt || new Date().toLocaleDateString("en-GB")}</b><b>${q.quoteNo || q.id}</b></div>
     <div style="margin-top:14px"><b>To,</b><br>${q.contactName || q.partyName || ""}<br>${(q.address || "").replace(/,/g, ",<br>")}</div>
     <div style="margin-top:10px">Project Name : ${q.projectName || ""}</div>
-    <div style="margin-top:12px"><b>Kind Attn. ${q.contactName || ""} ${q.contactNumber ? "(Mob.No. " + q.contactNumber + ")" : ""}</b></div>
+    ${attnBlock(q)}
     <div style="margin-top:6px"><b>Sub :-Quotation For Eurobond</b></div>
     <p>Sir,<br>In reference to the discussion held with you regarding the said subject, we are pleased to quote our most preferred rates & other terms and conditions for the same as follows.</p>
     <table style="width:100%;border-collapse:collapse;margin:12px 0;font-family:Arial;font-size:13px;color:#1a1a1a">
@@ -738,7 +758,7 @@ function downloadQuotePdf(q) {
         <b>To,</b><br>${tidyName(q.contactName || q.partyName || "")}<br>${tidyAddress(q.address)}
       </div>
       <div style="margin-top:10px">Project Name : ${q.projectName || ""}</div>
-      <div style="margin-top:12px"><b>Kind Attn. ${tidyName(q.contactName || "")} ${q.contactNumber ? "(Mob.No. " + q.contactNumber + ")" : ""}${q.clientEmail || q.contactEmail ? " (Email : " + (q.clientEmail || q.contactEmail) + ")" : ""}</b></div>
+      ${attnBlock({ ...q, contactName: tidyName(q.contactName || "") })}
       <div style="margin-top:6px"><b>Sub :-Quotation For Eurobond</b></div>
       <p>Sir,<br>In reference to the discusssion held with you regarding the said subject, we are please to quote our most preferred rates & others terms and condition for the same as follows.</p>
       <table>

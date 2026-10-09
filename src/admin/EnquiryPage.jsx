@@ -16,6 +16,25 @@ const UOMS = ["Sq.Mtr", "Sq.Ft", "Nos", "Kg", "Ton", "Sheet"];
 const statusBg = (s) => { const st = (s || "pending").toLowerCase(); return st === "win" ? "#e5f9f1" : st === "assigned" ? "#e8f0ff" : st === "processing" ? "#f3efff" : st === "spam" ? "#fdecec" : "#fef3e2"; };
 const statusFg = (s) => { const st = (s || "pending").toLowerCase(); return st === "win" ? "#059669" : st === "assigned" ? "#2563eb" : st === "processing" ? "#6c5ce7" : st === "spam" ? "#c0392b" : "#c07f00"; };
 function enqDate(r) {
+/* When the enquiry came in.
+
+   IndiaMART records carry it; older ones only have the row's own timestamp,
+   which is close enough — that is the moment the sync wrote it. */
+function enqTime(r) {
+  if (r.time) return r.time;
+  const m = String(r.createdAt || "").match(/(\d{1,2}:\d{2})\s*([ap]\.?m\.?)?/i);
+  if (m) return (m[1] + " " + (m[2] || "")).trim();
+  const c = String(r._created || "");
+  if (c.length >= 16) {
+    const [h, mi] = c.slice(11, 16).split(":");
+    const hr = Number(h);
+    const ampm = hr >= 12 ? "pm" : "am";
+    const h12 = hr % 12 === 0 ? 12 : hr % 12;
+    return `${h12}:${mi} ${ampm}`;
+  }
+  return "";
+}
+
   /* prefer the actual enquiry/lead date over the sync (_created) date */
   if (r.date) {
     const p = String(r.date).split(/[-/]/);
@@ -288,8 +307,8 @@ export default function EnquiryPage() {
   };
 
   const exportCsv = () => {
-    const head = ["Sl#", "Lead From", "Year", "Month", "Date", "Company", "Contact", "Email", "State", "Area", "Full Address", "HOD", "Passto", "Product", "Enquiry Details", "Status", "Assign Date", "Assign Time", "Assigned By"];
-    const body = list.map((r, i) => [i + 1, r.leadFrom || r.leadSource, r.year, r.month, r.date, r.company || r.customer, r.contact || r.phone, r.email, r.state, r.area || r.city, r.address || r.fullAddress || "", r.hod, r.passto || r.assignedTo, r.product, r.enquiryDetails, r.status || "Pending", r.assignDate, r.assignTime || "", r.assignedBy || ""]);
+    const head = ["Sl#", "Lead From", "Year", "Month", "Date", "Time", "Company", "Contact", "Email", "State", "Area", "Full Address", "HOD", "Passto", "Product", "Enquiry Details", "Status", "Assign Date", "Assign Time", "Assigned By"];
+    const body = list.map((r, i) => [i + 1, r.leadFrom || r.leadSource, r.year, r.month, r.date, enqTime(r), r.company || r.customer, r.contact || r.phone, r.email, r.state, r.area || r.city, r.address || r.fullAddress || "", r.hod, r.passto || r.assignedTo, r.product, r.enquiryDetails, r.status || "Pending", r.assignDate, r.assignTime || "", r.assignedBy || ""]);
     const csv = [head, ...body].map((row) => row.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
@@ -446,14 +465,14 @@ export default function EnquiryPage() {
               <tr style={{ background: "linear-gradient(135deg,#1f3a68,#2b6fb8)" }}>
                 <th style={th}><input type="checkbox" checked={pageRows.length > 0 && selected.size === pageRows.length} onChange={toggleAll} /></th>
                 <th style={th}>Action</th>
-                {["Sl#", "Lead From", "Year", "Month", "Date", "Company Name", "Contact number", "Contact Person", "Email Id", "State", "Area", "Full Address", "Product Request", "Enquiry details", "HOD", "Passto", "Status", "Last Remark", "Next Call / Visit", "Assign Date", "Assign Time", "Assigned By"].map((h) => <th key={h} style={th}>{h}</th>)}
+                {["Sl#", "Lead From", "Year", "Month", "Date", "Time", "Company Name", "Contact number", "Contact Person", "Email Id", "State", "Area", "Full Address", "Product Request", "Enquiry details", "HOD", "Passto", "Status", "Last Remark", "Next Call / Visit", "Assign Date", "Assign Time", "Assigned By"].map((h) => <th key={h} style={th}>{h}</th>)}
               </tr>
             </thead>
             <tbody>
               {rows === null ? (
-                <tr><td colSpan={23} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
+                <tr><td colSpan={24} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
               ) : pageRows.length === 0 ? (
-                <tr><td colSpan={23} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>{applied.shown ? "No enquiries found for the selected date / filter." : "Select date & Enquiry From, then click Show to load enquiries."}</td></tr>
+                <tr><td colSpan={24} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>{applied.shown ? "No enquiries found for the selected date / filter." : "Select date & Enquiry From, then click Show to load enquiries."}</td></tr>
               ) : pageRows.map((r, i) => (
                 <tr key={r._id} style={{
                   background: selected.has(r._id) ? "#eef5ff" : isDupRow(r) ? "#fdeeee" : "#fff",
@@ -500,6 +519,7 @@ export default function EnquiryPage() {
                   <td style={td}>{r.year || (r._created ? r._created.slice(0, 4) : "—")}</td>
                   <td style={td}>{r.month || (r._created ? r._created.slice(5, 7) : "—")}</td>
                   <td style={td}>{r.date || (r._created ? r._created.slice(8, 10) : "—")}</td>
+                  <td style={td}>{enqTime(r) || "—"}</td>
                   <td style={td}><span onClick={() => setViewRow(r)} style={{ color: "var(--accent)", cursor: "pointer", fontWeight: 600 }}>{r.company || r.customer || "—"}</span></td>
                   <td style={td}>{r.contact || r.phone || "—"}</td>
                   <td style={td}>{r.contactPerson || "—"}</td>

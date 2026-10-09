@@ -6236,8 +6236,10 @@ function QuotationView({ q, onClose }) {
         <div style={{ fontWeight: 800, fontSize: 13, margin: "14px 0 8px", color: "var(--navy)" }}>Items</div>
         {items.map((it, i) => (
           <div key={i} style={{ background: "#f6f8fd", borderRadius: 10, padding: "8px 12px", marginBottom: 6, fontSize: 12.5 }}>
-            <div style={{ fontWeight: 700 }}>{it.grade || "—"} {i > 0 ? <span style={{ color: "#c07f00", fontSize: 11 }}>(Fins)</span> : ""}</div>
-            <div style={{ color: "var(--muted)" }}>Colour: {it.colour || "—"} · ₹{it.rate}/sq.ft {i === 0 && it.ratePerSqm ? `· ₹${it.ratePerSqm}/sq.mtr` : ""}</div>
+            {/* a Running Feet line is the one that says so, not whichever one
+                comes second — going by position mislabelled ordinary items */}
+            <div style={{ fontWeight: 700 }}>{it.grade || "—"} {it.fins ? <span style={{ color: "#c07f00", fontSize: 11 }}>(Running Feet)</span> : ""}</div>
+            <div style={{ color: "var(--muted)" }}>Colour: {it.colour || "—"} · ₹{it.rate}/{it.fins ? "running ft" : "sq.ft"} {!it.fins && it.ratePerSqm ? `· ₹${it.ratePerSqm}/sq.mtr` : ""}</div>
           </div>
         ))}
         {q.tc && (
