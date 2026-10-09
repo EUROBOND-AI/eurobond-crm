@@ -26,7 +26,48 @@ export const auth = {
   get isLoggedIn() { return !!this.token; },
 };
 
+/* "Saving…" while a write is on its way.
+
+   Every screen used to decide for itself whether to say anything, so some said
+   "Saving…", some went quiet and some looked as though nothing had happened
+   until the row appeared. The request layer is the one place that knows a write
+   is in flight, so it is counted here and anything listening can show it.
+
+   Background writes are left out: the phone posts its position every few
+   minutes and registers for notifications on its own, and announcing those
+   would put "Saving…" on the screen while nobody was saving anything. */
+const QUIET_WRITES = [
+  "/attendance.php?action=points",
+  "/attendance.php?action=gpsstatus",
+  "/attendance.php?action=save_address",
+  "push",
+  "whatsapp",
+  "indiamart.php",
+  "mail.php",
+];
+let writesInFlight = 0;
+const saveWatchers = new Set();
+function tellSaveWatchers() {
+  const busy = writesInFlight > 0;
+  saveWatchers.forEach((fn) => { try { fn(busy); } catch {} });
+}
+export function onSaving(fn) {
+  saveWatchers.add(fn);
+  try { fn(writesInFlight > 0); } catch {}
+  return () => saveWatchers.delete(fn);
+}
+
 async function req(path, { method = "GET", body, isForm = false } = {}) {
+  const isWrite = method !== "GET" && !QUIET_WRITES.some((q) => path.includes(q));
+  if (isWrite) { writesInFlight++; tellSaveWatchers(); }
+  try {
+    return await reqRaw(path, { method, body, isForm });
+  } finally {
+    if (isWrite) { writesInFlight = Math.max(0, writesInFlight - 1); tellSaveWatchers(); }
+  }
+}
+
+async function reqRaw(path, { method = "GET", body, isForm = false } = {}) {
   const headers = {};
   if (auth.token) headers.Authorization = "Bearer " + auth.token;
   let payload;

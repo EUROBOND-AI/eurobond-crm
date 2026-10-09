@@ -34,6 +34,21 @@ function enqTime(r) {
   return "";
 }
 
+/* The month as a name, always.
+
+   IndiaMART leads were stored as "Oct" and anything entered or imported here
+   as "10", so the column read both ways down the same page. The name is shown
+   whichever way it was stored, and new rows are written as the name. */
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function monthLabel(r) {
+  const raw = String(r.month ?? "").trim();
+  if (/^\d{1,2}$/.test(raw)) return MONTH_NAMES[Number(raw) - 1] || raw;
+  if (raw) return raw.slice(0, 3);
+  const c = String(r._created || "");
+  if (c.length >= 7) return MONTH_NAMES[Number(c.slice(5, 7)) - 1] || "";
+  return "";
+}
+
 function enqDate(r) {
   /* prefer the actual enquiry/lead date over the sync (_created) date */
   if (r.date) {
@@ -308,7 +323,7 @@ export default function EnquiryPage() {
 
   const exportCsv = () => {
     const head = ["Sl#", "Lead From", "Year", "Month", "Date", "Time", "Company", "Contact", "Email", "State", "Area", "Full Address", "HOD", "Passto", "Product", "Enquiry Details", "Status", "Assign Date", "Assign Time", "Assigned By"];
-    const body = list.map((r, i) => [i + 1, r.leadFrom || r.leadSource, r.year, r.month, r.date, enqTime(r), r.company || r.customer, r.contact || r.phone, r.email, r.state, r.area || r.city, r.address || r.fullAddress || "", r.hod, r.passto || r.assignedTo, r.product, r.enquiryDetails, r.status || "Pending", r.assignDate, r.assignTime || "", r.assignedBy || ""]);
+    const body = list.map((r, i) => [i + 1, r.leadFrom || r.leadSource, r.year, monthLabel(r), r.date, enqTime(r), r.company || r.customer, r.contact || r.phone, r.email, r.state, r.area || r.city, r.address || r.fullAddress || "", r.hod, r.passto || r.assignedTo, r.product, r.enquiryDetails, r.status || "Pending", r.assignDate, r.assignTime || "", r.assignedBy || ""]);
     const csv = [head, ...body].map((row) => row.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
@@ -346,7 +361,7 @@ export default function EnquiryPage() {
         if (!cust) continue;
         const now = new Date();
         await api.create("enquiry", {
-          date: g("date") || now.toLocaleDateString("en-GB"), year: String(now.getFullYear()), month: String(now.getMonth() + 1).padStart(2, "0"),
+          date: g("date") || now.toLocaleDateString("en-GB"), year: String(now.getFullYear()), month: MONTH_NAMES[now.getMonth()],
           company: cust, customer: cust, contactPerson: g("contact person"), contact: g("phone"), phone: g("phone"),
           email: g("email"), area: g("location") || g("area"),
           /* the state was never read from the sheet, so every imported enquiry
@@ -517,7 +532,7 @@ export default function EnquiryPage() {
                   <td style={td}>{(page - 1) * pageSize + i + 1}</td>
                   <td style={td}>{r.leadFrom || r.leadSource || "—"}</td>
                   <td style={td}>{r.year || (r._created ? r._created.slice(0, 4) : "—")}</td>
-                  <td style={td}>{r.month || (r._created ? r._created.slice(5, 7) : "—")}</td>
+                  <td style={td}>{monthLabel(r) || "—"}</td>
                   <td style={td}>{r.date || (r._created ? r._created.slice(8, 10) : "—")}</td>
                   <td style={td}>{enqTime(r) || "—"}</td>
                   <td style={td}><span onClick={() => setViewRow(r)} style={{ color: "var(--accent)", cursor: "pointer", fontWeight: 600 }}>{r.company || r.customer || "—"}</span></td>
@@ -598,7 +613,7 @@ function EnquiryForm({ row, onClose, onSaved }) {
       const now = new Date();
       const payload = {
         ...f, company: f.customer,
-        year: f.year || String(now.getFullYear()), month: f.month || String(now.getMonth() + 1).padStart(2, "0"),
+        year: f.year || String(now.getFullYear()), month: f.month || MONTH_NAMES[now.getMonth()],
         contact: f.phone, status: f.status || "Pending",
       };
       if (row?._id) await api.update("enquiry", row._id, payload);

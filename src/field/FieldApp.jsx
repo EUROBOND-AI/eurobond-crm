@@ -3564,6 +3564,10 @@ function FieldProjectNew() {
   const savingRef = useRef(false);
   const save = async () => {
     if (!f.projectName) { alert("Project Name required"); return; }
+    /* a contact block with a category but no firm name is of no use to anyone
+       downstream, so it is not allowed through */
+    const noFirm = contacts.find((c) => String(c.category || "").trim() && !String(c.firmName || "").trim());
+    if (noFirm) { alert(`Firm Name is required for the ${noFirm.category} contact.`); return; }
     if (savingRef.current) return;
     savingRef.current = true;
     setBusy(true);
@@ -3729,8 +3733,14 @@ function FieldProjectNew() {
               <option value="">Select…</option>{CONTACT_CATS.map((x) => <option key={x}>{x}</option>)}
             </select>
             {c.category && (<>
-              <label>Firm Name</label>
-              <input value={c.firmName} onChange={(e) => setContact(ci, "firmName", e.target.value)} style={{ width: "100%", marginBottom: 8 }} />
+              {/* A contact with a category but no firm cannot be matched to
+                  anything later, and such rows were being saved — so it is
+                  required once a category is chosen, and marked while empty. */}
+              <label style={{ color: !String(c.firmName || "").trim() ? "#c0392b" : undefined }}>
+                Firm Name <b style={{ color: "#c0392b" }}>*</b>
+              </label>
+              <input value={c.firmName} onChange={(e) => setContact(ci, "firmName", e.target.value)}
+                style={{ width: "100%", marginBottom: 8, ...(String(c.firmName || "").trim() ? {} : { borderColor: "#e5484d", background: "#fff6f6" }) }} />
               {c.people.map((p, pi) => (
                 <div key={pi} style={{ background: "#fff", borderRadius: 9, padding: 9, marginBottom: 8 }}>
                   {c.people.length > 1 && <div style={{ textAlign: "right" }}><button onClick={() => setContacts((cs) => cs.map((cc, j) => j === ci ? { ...cc, people: cc.people.filter((_, k) => k !== pi) } : cc))} style={{ background: "none", border: "none", color: "#c03636", fontWeight: 700, fontSize: 11, cursor: "pointer" }}>✕ remove person</button></div>}
@@ -5164,7 +5174,11 @@ function FieldModuleNew({ mod }) {
             : x.options;
           return (
             <div key={x.name}>
-              <label>{x.label} {x.required && <b>*</b>}</label>
+              {/* a required field still empty is marked, so it is obvious which
+                  one is holding the Submit button rather than just greyed out */}
+              <label style={{ color: x.required && !f[x.name] ? "#c0392b" : undefined }}>
+                {x.label} {x.required && <b style={{ color: "#c0392b" }}>*</b>}
+              </label>
               {x.type === "multiuser" ? (
                 <div style={{ marginBottom: 12 }}>
                   <MultiPeople value={f[x.name]} listValue={f[x.name + "List"]}
@@ -5198,6 +5212,11 @@ function FieldModuleNew({ mod }) {
         {upBusy && <div style={{ fontSize: 12, color: "var(--muted)" }}>Uploading photo…</div>}
         {photoUrl && <img src={photoUrl} alt="uploaded" style={{ width: "100%", borderRadius: 10, marginBottom: 8 }} />}
 
+        {missing.length > 0 && (
+          <div style={{ color: "#c0392b", fontSize: 12.5, fontWeight: 700, marginBottom: 8 }}>
+            Please fill: {missing.map((x) => x.label).join(", ")}
+          </div>
+        )}
         <button
           className="f-submit" style={{ width: "100%", marginTop: 4, opacity: busy ? 0.7 : 1 }}
           disabled={missing.length > 0 || busy || upBusy}

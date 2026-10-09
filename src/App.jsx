@@ -5,6 +5,7 @@ import { api, auth } from "./lib/api.js";
 import { Monitor, Smartphone } from "lucide-react";
 import AdminLogin from "./admin/AdminLogin.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
+import SavingOverlay from "./components/SavingOverlay.jsx";
 import AdminLayout from "./admin/AdminLayout.jsx";
 const HomeDashboard = lazy(() => import("./admin/HomeDashboard.jsx"));
 const DealPipeline = lazy(() => import("./admin/DealPipeline.jsx"));
@@ -87,6 +88,8 @@ export default function App() {
   const isNative = typeof window !== "undefined" && window.Capacitor && typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform();
   return (
     <ErrorBoundary routeKey={location.pathname}>
+    {/* one "Saving…" for the whole app, panel and phone alike */}
+    <SavingOverlay />
     <Suspense fallback={<div className="eb-loading" style={{ minHeight: "60vh" }}><div className="eb-spin" /></div>}>
     <Routes>
       <Route path="/" element={isNative ? <Navigate to="/app" replace /> : <Portal />} />

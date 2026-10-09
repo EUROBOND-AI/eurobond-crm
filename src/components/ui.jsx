@@ -217,6 +217,13 @@ export function FormModal({ title, fields, onClose, onSave, initial }) {
   }, [userPeople, byState]);
   const [upBusy, setUpBusy] = useState("");
   const [saving, setSaving] = useState(false);
+  /* The required fields that were left empty on the last attempt to save.
+
+     A required field was marked with a star and then not checked, so a form
+     saved without it and the row arrived incomplete — a customer with no firm
+     name, for instance, which nothing downstream could match. Save now stops
+     and the fields that are missing are outlined in red. */
+  const [missing, setMissing] = useState([]);
 
   useEffect(() => {
     if (fields.some((f) => f.optionsSource === "users")) {
@@ -240,8 +247,11 @@ export function FormModal({ title, fields, onClose, onSave, initial }) {
         <h3>{title}</h3>
         <div className="form-grid">
           {fields.map((f) => (
-            <div key={f.name} className={`field ${f.full ? "full" : ""}`}>
-              <label>{f.label} {f.required && <b>*</b>}</label>
+            <div key={f.name} className={`field ${f.full ? "full" : ""}`}
+              data-missing={missing.includes(f.name) ? "1" : undefined}>
+              <label style={{ color: missing.includes(f.name) ? "#c0392b" : undefined }}>
+                {f.label} {f.required && <b style={{ color: "#c0392b" }}>*</b>}
+              </label>
               {f.type === "select" || f.optionsSource === "users" || f.optionsSource === "userStates" ? (
                 <select value={values[f.name] || ""}
                   onChange={(e) => {
@@ -280,6 +290,11 @@ export function FormModal({ title, fields, onClose, onSave, initial }) {
         </div>
         <div className="modal-foot">
           <button className="btn btn-danger" onClick={onClose}>Cancel</button>
+          {missing.length > 0 && (
+            <div style={{ flex: 1, color: "#c0392b", fontSize: 12.5, fontWeight: 700, alignSelf: "center" }}>
+              Please fill: {missing.map((n) => (fields.find((f) => f.name === n) || {}).label || n).join(", ")}
+            </div>
+          )}
           {/* Save waits for the save.
 
               It used to fire and forget: the button looked untouched while the
@@ -288,6 +303,14 @@ export function FormModal({ title, fields, onClose, onSave, initial }) {
           <button className="btn btn-primary" disabled={saving || !!upBusy}
             onClick={async () => {
               if (!onSave) { onClose(); return; }
+              const empty = fields.filter((f) => {
+                if (!f.required) return false;
+                const v = values[f.name];
+                if (Array.isArray(v)) return v.length === 0;
+                return v === undefined || v === null || String(v).trim() === "";
+              }).map((f) => f.name);
+              setMissing(empty);
+              if (empty.length) return;
               setSaving(true);
               try { await onSave(values); } finally { setSaving(false); }
             }}>{saving ? "Saving…" : "Save"}</button>

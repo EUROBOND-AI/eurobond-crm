@@ -575,3 +575,16 @@ body.freeze-head .content .table-wrap { overflow: auto; }
 /* a cell holding a long note lets it wrap; everything else still stays on one
    line, which is what keeps the columns readable */
 table.grid td:has(> span[data-longtext]) { white-space: normal; vertical-align: top; }
+
+/* A required field that was left empty.
+
+   The star beside the label said a field was needed but nothing checked it, so
+   a form could be saved without it. Save now stops and marks what is missing —
+   an outline on the control itself, because a message at the bottom of a long
+   form is read after the scroll, not before. */
+.field[data-missing] input,
+.field[data-missing] select,
+.field[data-missing] textarea {
+  border-color: #e5484d !important;
+  background: #fff6f6;
+}
