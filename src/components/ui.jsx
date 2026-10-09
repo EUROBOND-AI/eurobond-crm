@@ -310,7 +310,15 @@ export function FormModal({ title, fields, onClose, onSave, initial }) {
                 return v === undefined || v === null || String(v).trim() === "";
               }).map((f) => f.name);
               setMissing(empty);
-              if (empty.length) return;
+              if (empty.length) {
+                /* said out loud as well as marked: a message at the foot of a
+                   long form is read after the scroll, not before */
+                const names = empty.map((n) => (fields.find((f) => f.name === n) || {}).label || n);
+                alert(names.length === 1
+                  ? `${names[0]} is required.`
+                  : `Please fill these fields:\n\n• ${names.join("\n• ")}`);
+                return;
+              }
               setSaving(true);
               try { await onSave(values); } finally { setSaving(false); }
             }}>{saving ? "Saving…" : "Save"}</button>

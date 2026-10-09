@@ -5219,8 +5219,17 @@ function FieldModuleNew({ mod }) {
         )}
         <button
           className="f-submit" style={{ width: "100%", marginTop: 4, opacity: busy ? 0.7 : 1 }}
-          disabled={missing.length > 0 || busy || upBusy}
+          /* Submit stays live so pressing it says what is missing — greyed
+             out, it looked broken and nobody could tell which field held it */
+          disabled={busy || upBusy}
           onClick={async () => {
+            if (missing.length) {
+              const names = missing.map((x) => x.label);
+              alert(names.length === 1
+                ? `${names[0]} is required.`
+                : `Please fill these fields:\n\n• ${names.join("\n• ")}`);
+              return;
+            }
             setBusy(true);
             try {
               const seq = String(Date.now()).slice(-4);
