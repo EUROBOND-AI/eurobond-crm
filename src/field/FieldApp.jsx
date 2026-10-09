@@ -386,7 +386,7 @@ function ebLoadDirectory(force = false) {
   if (EB_PEOPLE.length && !force) {
     /* refresh quietly in the background; what is on screen uses what we have */
     dirLoading = api.directory().then((d) => {
-      if (Array.isArray(d.people)) {
+      if (Array.isArray(d && d.people) && d.people.length) {
         EB_PEOPLE = d.people;
         try { localStorage.setItem(DIR_KEY, JSON.stringify(EB_PEOPLE)); } catch {}
         dirWatchers.forEach((f) => { try { f(EB_PEOPLE); } catch {} });
@@ -396,7 +396,17 @@ function ebLoadDirectory(force = false) {
     return Promise.resolve(EB_PEOPLE);
   }
   dirLoading = api.directory().then((d) => {
-    EB_PEOPLE = Array.isArray(d.people) ? d.people : [];
+    /* An answer with nobody in it is not an answer.
+
+       A server still running the previous users.php replies to this with the
+       old shape, which has no people in it at all, and that nothing was being
+       written to storage as though it were the real directory — so no face and
+       no birthday, and the phone kept believing it until the store was cleared
+       by hand. An empty reply now changes nothing and is simply asked for
+       again next time. */
+    const list = Array.isArray(d && d.people) ? d.people : null;
+    if (!list || !list.length) return EB_PEOPLE;
+    EB_PEOPLE = list;
     try { localStorage.setItem(DIR_KEY, JSON.stringify(EB_PEOPLE)); } catch {}
     dirWatchers.forEach((f) => { try { f(EB_PEOPLE); } catch {} });
     return EB_PEOPLE;
