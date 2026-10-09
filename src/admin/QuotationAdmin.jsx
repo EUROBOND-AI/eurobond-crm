@@ -622,7 +622,9 @@ function attnBlock(q, mt = 12) {
   const name = String(q.contactName || "").trim();
   const mob = String(q.contactNumber || q.mobile || "").trim();
   const mail = String(q.clientEmail || q.contactEmail || "").trim();
-  const line = (k, v) => v ? `<div><b>${k} : ${v}</b></div>` : "";
+  /* the label is bold, the value is not — the name and number should read as
+     the answer to the label, not as another heading */
+  const line = (k, v) => v ? `<div><b>${k} :</b> ${v}</div>` : "";
   return `<div style="margin-top:${mt}px;line-height:1.5">`
     + line("Kind Attn", name) + line("Mob. No", mob) + line("Email", mail)
     + `</div>`;

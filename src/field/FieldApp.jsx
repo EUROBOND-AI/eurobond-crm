@@ -6640,7 +6640,12 @@ function FieldQuotationNew({ prefill }) {
                   try { await api.create("notification", { title: "New Quotation", message: quoteMsg, to: myHod, link: "/app/m/quotation", quotation: quoteNote, at: new Date().toISOString() }); } catch {}
                 }
                 /* mail notification to sales1@eurobondacp.com */
-                try { await api.sendMail({ to: "sales1@eurobondacp.com", from: "sales1@eurobondacp.com", subject: `New Quotation ${quoteNo} created`, body: `${CU().name} created quotation ${quoteNo} for ${f.partyName}.\n\nProject: ${f.projectName || "-"}\nContact: ${f.contactName || "-"} ${f.contactNumber || ""}\n\nPlease review in the CRM admin panel.` }); } catch {}
+                /* the desk that handles quotations, not one person: it went to
+                   sales1 alone, so nobody else knew a quotation had been
+                   raised until they happened to look in the panel. The sending
+                   address comes from the server's mail settings, so it is not
+                   named here any more. */
+                try { await api.sendMail({ to: "sales1@eurobondacp.com", cc: "sales@eurobondacp.com, sales3@eurobondacp.com", subject: `New Quotation ${quoteNo} created`, body: `${CU().name} created quotation ${quoteNo} for ${f.partyName}.\n\nProject: ${f.projectName || "-"}\nContact: ${f.contactName || "-"} ${f.contactNumber || ""}\n\nPlease review in the CRM admin panel.` }); } catch {}
               }
               nav("/app/m/quotation");
             } catch (e) { alert(e.message); setBusy(false); }
