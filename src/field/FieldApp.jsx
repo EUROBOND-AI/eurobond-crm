@@ -11,6 +11,7 @@ import {
 import RefreshBtn, { startRefresh } from "../components/RefreshBtn.jsx";
 import { ebFlushQueue, ebQueueSize, watchLocation, startTracker, stopTracker, setTrackerHandler, setTrackerSession, isTrackerActive, showTrackingNotification, hideTrackingNotification, totalDistanceKm, haversineKm, fmtKm, fmtDuration } from "../lib/geo.js";
 import { api, auth, API_BASE, clearApiCache } from "../lib/api.js";
+import { Avatar, fileUrl } from "../lib/avatar.jsx";
 import BeatPlan, { BeatPlanConfirm } from "./BeatPlan.jsx";
 import ErrorBoundary from "../components/ErrorBoundary.jsx";
 import MeetingCalendar from "./MeetingCalendar.jsx";
@@ -286,8 +287,47 @@ function useNotifTapHandler() {
   }, []);
 }
 
-/* ---- reverse geocoding (location names) with cache ---- */
-const geoCache = {};
+/* ---- reverse geocoding (location names) with cache ----
+
+   The answers are kept on the phone, not just for the life of the screen. They
+   were held in a plain object that went with the page, so leaving a timeline
+   and coming back looked the same place up again and every row went back to
+   saying "Finding address…" for a place that had already been found. The same
+   answers are also handed to the server, so the next person to open that day —
+   or the admin panel — has them already. */
+const GEO_CACHE_KEY = "eb_place_cache";
+const geoCache = (() => {
+  try { return JSON.parse(localStorage.getItem(GEO_CACHE_KEY) || "{}") || {}; }
+  catch { return {}; }
+})();
+let geoSaveTimer = 0;
+function geoPersist() {
+  clearTimeout(geoSaveTimer);
+  geoSaveTimer = setTimeout(() => {
+    try {
+      const keys = Object.keys(geoCache);
+      /* the oldest are dropped first so the store cannot grow without end */
+      const keep = keys.length > 3000 ? keys.slice(keys.length - 3000) : keys;
+      const o = {};
+      keep.forEach((k) => { if (geoCache[k]) o[k] = geoCache[k]; });
+      localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(o));
+    } catch {}
+  }, 1200);
+}
+/* Addresses found here are sent back in one batch, so they are stored against
+   the point itself and nobody looks them up a third time. */
+let geoPushQueue = [];
+let geoPushTimer = 0;
+function geoShare(lat, lng, address) {
+  if (!address || address === "—") return;
+  geoPushQueue.push({ lat, lng, address });
+  clearTimeout(geoPushTimer);
+  geoPushTimer = setTimeout(() => {
+    const rows = geoPushQueue.splice(0, geoPushQueue.length);
+    if (rows.length) { try { api.attSaveAddress(rows); } catch {} }
+  }, 2500);
+}
+
 async function placeName(lat, lng) {
   const key = lat.toFixed(4) + "," + lng.toFixed(4);
   if (geoCache[key]) return geoCache[key];
@@ -319,7 +359,110 @@ async function placeName(lat, lng) {
   }
   if (!name) name = "—";
   geoCache[key] = name;
+  geoPersist();
+  geoShare(lat, lng, name);
   return name;
+}
+
+
+/* ---------------------------------------------------------------------------
+   Faces and birthdays
+
+   Name, photo and date of birth for everyone, fetched once and kept on the
+   phone, so a notification can show who sent it and the app knows whose
+   birthday it is without asking the server every time a screen opens.
+--------------------------------------------------------------------------- */
+const DIR_KEY = "eb_people_dir";
+let EB_PEOPLE = (() => {
+  try { return JSON.parse(localStorage.getItem(DIR_KEY) || "[]") || []; }
+  catch { return []; }
+})();
+let dirLoading = null;
+const dirWatchers = new Set();
+function ebLoadDirectory(force = false) {
+  /* nothing to ask for before somebody has signed in */
+  if (!auth.isLoggedIn) return Promise.resolve(EB_PEOPLE);
+  if (dirLoading) return dirLoading;
+  if (EB_PEOPLE.length && !force) {
+    /* refresh quietly in the background; what is on screen uses what we have */
+    dirLoading = api.directory().then((d) => {
+      if (Array.isArray(d.people)) {
+        EB_PEOPLE = d.people;
+        try { localStorage.setItem(DIR_KEY, JSON.stringify(EB_PEOPLE)); } catch {}
+        dirWatchers.forEach((f) => { try { f(EB_PEOPLE); } catch {} });
+      }
+      return EB_PEOPLE;
+    }).catch(() => EB_PEOPLE).finally(() => { dirLoading = null; });
+    return Promise.resolve(EB_PEOPLE);
+  }
+  dirLoading = api.directory().then((d) => {
+    EB_PEOPLE = Array.isArray(d.people) ? d.people : [];
+    try { localStorage.setItem(DIR_KEY, JSON.stringify(EB_PEOPLE)); } catch {}
+    dirWatchers.forEach((f) => { try { f(EB_PEOPLE); } catch {} });
+    return EB_PEOPLE;
+  }).catch(() => EB_PEOPLE).finally(() => { dirLoading = null; });
+  return dirLoading;
+}
+function useDirectory() {
+  const [people, setPeople] = useState(EB_PEOPLE);
+  useEffect(() => {
+    dirWatchers.add(setPeople);
+    ebLoadDirectory().then((p) => setPeople(p));
+    return () => dirWatchers.delete(setPeople);
+  }, []);
+  return people;
+}
+/* a name is matched without worrying about case or stray spaces */
+function ebPerson(people, name) {
+  const n = String(name || "").trim().toLowerCase();
+  if (!n) return null;
+  return (people || []).find((p) => String(p.name || "").trim().toLowerCase() === n) || null;
+}
+/* An address already found for this spot, from the phone's own store. Used
+   while drawing, so a timeline that has been looked at before shows its places
+   at once instead of going back to "Finding…". */
+function ebCachedPlace(lat, lng) {
+  try { return geoCache[Number(lat).toFixed(4) + "," + Number(lng).toFixed(4)] || ""; }
+  catch { return ""; }
+}
+
+function ebPhotoOf(people, name) {
+  const p = ebPerson(people, name);
+  return p ? p.photo || "" : "";
+}
+
+/* Whose birthday it is today. Only the day and month are compared — the year
+   stored is the year they were born. */
+function ebIsBirthdayToday(dob, now = new Date()) {
+  const s = String(dob || "").slice(0, 10);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return false;
+  if (m[1] === "0000") return false;
+  return Number(m[2]) === now.getMonth() + 1 && Number(m[3]) === now.getDate();
+}
+
+/* The people a birthday is announced to: the person themselves, their manager,
+   whoever reports to them, and everyone who reports to the same manager. That
+   is the group that works together day to day — the whole company would be
+   four hundred popups on a busy date. */
+function ebSameTeam(people, meName, otherName) {
+  const me = ebPerson(people, meName);
+  const other = ebPerson(people, otherName);
+  if (!me || !other) return false;
+  const low = (x) => String(x || "").trim().toLowerCase();
+  if (low(me.name) === low(other.name)) return true;
+  if (low(me.manager) && low(me.manager) === low(other.name)) return true;
+  if (low(other.manager) && low(other.manager) === low(me.name)) return true;
+  if (low(me.manager) && low(me.manager) === low(other.manager)) return true;
+  return false;
+}
+
+/* Today's birthdays worth showing to the signed-in person. */
+function ebBirthdaysForMe(people, meName, now = new Date()) {
+  return (people || [])
+    .filter((p) => ebIsBirthdayToday(p.dob, now))
+    .filter((p) => ebSameTeam(people, meName, p.name))
+    .map((p) => ({ ...p, isMe: String(p.name || "").trim().toLowerCase() === String(meName || "").trim().toLowerCase() }));
 }
 
 /* ---- iPhone-style slide to start/stop ---- */
@@ -1386,11 +1529,14 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
       for (const p of pts) {
         if (stop) return;
         const key = p.lat.toFixed(4) + "," + p.lng.toFixed(4);
-        if (p.address || names[key]) continue;   // already have it (stored or cached) → no re-fetch
+        if (p.address || names[key]) continue;   // already have it (stored or on screen)
+        /* found on an earlier visit — taken straight from the phone's store,
+           with none of the waiting a lookup needs */
+        if (geoCache[key]) { setNames((n) => ({ ...n, [key]: geoCache[key] })); continue; }
         const nm = await placeName(p.lat, p.lng);
         if (stop) return;
         setNames((n) => ({ ...n, [key]: nm }));
-        await new Promise((r) => setTimeout(r, 900));
+        await new Promise((r) => setTimeout(r, 900));   // only after a real lookup
       }
     })();
     return () => { stop = true; };
@@ -1647,7 +1793,7 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
               <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", background: "#fff", borderRadius: 12, padding: "11px 12px", marginBottom: 8, boxShadow: "var(--shadow)", fontSize: 12.5, borderLeft: p.stop ? "4px solid #eb3b5a" : "4px solid var(--accent)" }}>
                 <MapPin size={16} color={p.stop ? "#eb3b5a" : "var(--accent)"} style={{ marginTop: 2 }} />
                 <div style={{ flex: 1 }}>
-                  <b style={{ fontSize: 13 }}>{p.address || names[key] || "Finding location…"}</b>
+                  <b style={{ fontSize: 13 }}>{p.address || names[key] || ebCachedPlace(p.lat, p.lng) || "Finding location…"}</b>
                   {p.isStart && <span style={{ background: "#e8f7ee", color: "#1f7a44", fontSize: 10, fontWeight: 800, padding: "1px 6px", borderRadius: 6, marginLeft: 6 }}>START</span>}
                   {p.isEnd && !p.isStart && <span style={{ background: attendanceOn ? "#e8f0ff" : "#fdecec", color: attendanceOn ? "#2f6fed" : "#c03636", fontSize: 10, fontWeight: 800, padding: "1px 6px", borderRadius: 6, marginLeft: 6 }}>{attendanceOn ? "LIVE" : "END"}</span>}
                   {p.stop && <span style={{ background: "#fdecec", color: "#c03636", fontSize: 10, fontWeight: 800, padding: "1px 6px", borderRadius: 6, marginLeft: 6 }}>STOP</span>}
@@ -4101,10 +4247,12 @@ function FieldTeamTracking() {
         if (stop) break;
         const key = `${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`;
         if (p.address || hodAddr[key]) continue;
+        const cached = ebCachedPlace(p.lat, p.lng);
+        if (cached) { setHodAddr((m) => ({ ...m, [key]: cached })); continue; }
         try {
           const nm = await placeName(p.lat, p.lng);
           if (nm && !stop) setHodAddr((m) => ({ ...m, [key]: nm }));
-          await new Promise((r) => setTimeout(r, 300));
+          await new Promise((r) => setTimeout(r, 300));   // only after a real lookup
         } catch {}
       }
     })();
@@ -4186,7 +4334,7 @@ function FieldTeamTracking() {
                     <span style={{ fontSize: 10.5, fontWeight: 800, color: "var(--muted)" }}>{label}</span>
                     <span style={{ fontSize: 10, color: "var(--muted)" }}>🔋 {p.battery != null ? p.battery + "%" : "NA"} {p.online === 1 || p.online === true ? "🟢" : ""}</span>
                   </div>
-                  <div style={{ fontSize: 11.5, color: "var(--ink)", marginTop: 2, fontWeight: 500 }}>{p.address || hodAddr[`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`] || "Finding address…"}</div>
+                  <div style={{ fontSize: 11.5, color: "var(--ink)", marginTop: 2, fontWeight: 500 }}>{p.address || hodAddr[`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`] || ebCachedPlace(p.lat, p.lng) || "Finding address…"}</div>
                   <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 1 }}>{p.recorded_at ? String(p.recorded_at).slice(11, 16) : ""}</div>
                 </div>
               );
@@ -4690,7 +4838,6 @@ function FieldProfile({ onLogout }) {
     }).catch(() => {});
     return () => { alive = false; };
   }, []);
-  const initials = String(u.name || "").trim().split(/\s+/).filter(Boolean).map((x) => x[0]).join("").slice(0, 2) || "?";
   const row = (ic, k, v) => (
     <div key={k} style={{ display: "flex", gap: 12, alignItems: "center", background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "var(--shadow)", fontSize: 13 }}>
       <span style={{ width: 34, height: 34, borderRadius: 10, background: "var(--accent-soft)", color: "var(--accent)", display: "grid", placeItems: "center" }}>{ic}</span>
@@ -4704,8 +4851,12 @@ function FieldProfile({ onLogout }) {
     <>
       <ScreenHead title="Profile" refresh={false} />
       <div style={{ textAlign: "center", padding: "18px 18px 6px" }}>
-        <div style={{ width: 78, height: 78, borderRadius: "50%", margin: "0 auto 10px", background: "linear-gradient(135deg,#4b5cf0,#7b5cf0)", color: "#fff", display: "grid", placeItems: "center", fontFamily: "Bricolage Grotesque", fontWeight: 800, fontSize: 28 }}>
-          {initials}
+        {/* The photo the admin uploaded under App Users, in a round frame; the
+            initials stand in until there is one. Tapping it opens it full size,
+            the same way any other picture in the app does. */}
+        <div style={{ width: 78, margin: "0 auto 10px" }}
+          onClick={() => openAppPhoto(u.photo)}>
+          <Avatar name={u.name} photo={u.photo} size={78} ring="#fff" />
         </div>
         <div style={{ fontFamily: "Bricolage Grotesque", fontWeight: 800, fontSize: 18 }}>{u.name || "—"}</div>
         <div style={{ color: "var(--muted)", fontSize: 12.5, fontWeight: 700 }}>{u.code} · {u.role}</div>
@@ -5323,8 +5474,25 @@ function FieldModuleNew({ mod }) {
   );
 }
 
+/* Which notices carry a face.
+
+   A notice one person sent another shows that person's photo; everything else —
+   a holiday, an announcement, anything the system raised — keeps the Eurobond
+   logo it has always had. The two are told apart by where the notice points,
+   not by its wording: an announcement that happens to mention a task is still
+   an announcement. */
+const PERSON_NOTIF = /^\/app\/(m\/(task|projectProjection|salesToSpec|specToSales)|thread\/)/i;
+function notifSender(n) {
+  if (!n || n._bday) return "";
+  const from = String(n.from || "").trim();
+  if (!from) return "";
+  return PERSON_NOTIF.test(String(n.link || "")) ? from : "";
+}
+
 function FieldNotifications() {
   const nav = useNavigate();
+  const people = useDirectory();
+  const [bday, setBday] = useState(null);
   const [rows, setRows] = useState(null);
   const [read, setRead] = useState(() => getReadIds());
   const [dismissed, setDismissed] = useState(() => {
@@ -5346,6 +5514,9 @@ function FieldNotifications() {
   const [detail, setDetail] = useState(null);
 
   const open = (n) => {
+    /* a birthday opens the full-screen greeting, and is left in the list so it
+       can be opened again for the rest of the day */
+    if (n._bday) { setBday(n._bday); return; }
     markRead(n._id);
     setRead(getReadIds());
     /* once viewed, remove it so it never shows again (even after re-login) */
@@ -5399,6 +5570,7 @@ function FieldNotifications() {
        back after logging out and in again (or on another phone) */
     (async () => {
       try {
+        if (String(id).startsWith("bday|")) return;   // worked out on the phone; there is no record to mark
         const rec = (rows || []).find((x) => String(x._id) === String(id));
         if (!rec) return;
         const by = new Set([...(rec.dismissedBy || []), CU().name]);
@@ -5414,7 +5586,27 @@ function FieldNotifications() {
     } catch {}
   };
 
-  const visible = (rows || []).filter((n) => !dismissed.has(String(n._id)));
+  /* Today's birthdays appear in this list as well, so the greeting can be
+     opened again after the popup has been closed. They are worked out on the
+     phone from the team directory rather than being written into the database:
+     one record per person per reader would be thousands of rows a year, and
+     everybody's phone already knows the dates. */
+  const bdayRows = useMemo(() => {
+    const today = new Date();
+    const stamp = today.toLocaleDateString("en-CA");
+    return ebBirthdaysForMe(people, (CU() || {}).name, today).map((p) => ({
+      _id: `bday|${stamp}|${String(p.name || "").toLowerCase()}`,
+      _bday: p,
+      title: p.isMe ? "Happy Birthday! 🎉" : `🎂 ${p.name}'s Birthday Today`,
+      message: p.isMe
+        ? "Wishing you a wonderful year ahead — from everyone at Eurobond."
+        : `${p.name}${p.designation ? ` · ${p.designation}` : ""} — tap to send your wishes.`,
+      link: "/app/notifications",
+      createdAt: today.toLocaleDateString("en-GB"),
+    }));
+  }, [people]);
+
+  const visible = [...bdayRows, ...(rows || [])].filter((n) => !dismissed.has(String(n._id)));
 
   const clearAll = () => {
     if (!visible.length) return;
@@ -5425,6 +5617,7 @@ function FieldNotifications() {
        back (uninstall wipes local storage, the server records stay). */
     (async () => {
       for (const n of visible) {
+        if (n._bday) continue;
         try {
           const by = new Set([...(n.dismissedBy || []), CU().name]);
           await api.update("notification", n._id, { ...n, dismissedBy: [...by] });
@@ -5461,10 +5654,20 @@ function FieldNotifications() {
             <div style={{ fontWeight: 700 }}>No notifications yet</div>
           </div>
         ) : visible.map((n, i) => {
-          const unread = !read.has(String(n._id));
-          return <SwipeNotif key={n._id || i} n={n} unread={unread} onOpen={() => open(n)} onInfo={() => setDetail(n)} onDismiss={() => dismiss(n._id)} />;
+          const unread = n._bday ? true : !read.has(String(n._id));
+          const sender = n._bday ? n._bday.name : notifSender(n);
+          return (
+            <SwipeNotif key={n._id || i} n={n} unread={unread}
+              sender={sender}
+              senderPhoto={sender ? ebPhotoOf(people, sender) : ""}
+              onOpen={() => open(n)}
+              onInfo={() => (n._bday ? setBday(n._bday) : setDetail(n))}
+              onDismiss={() => dismiss(n._id)} />
+          );
         })}
       </div>
+
+      {bday && <BirthdayCard person={bday} onClose={() => setBday(null)} />}
 
       {/* full-detail popup — used for Holiday / Announcement / Resource notices */}
       {detail && (
@@ -5517,7 +5720,7 @@ function FieldNotifications() {
 }
 
 /* Swipe-left to dismiss (phone-style), tap to open */
-function SwipeNotif({ n, unread, onOpen, onInfo, onDismiss }) {
+function SwipeNotif({ n, unread, onOpen, onInfo, onDismiss, sender = "", senderPhoto = "" }) {
   const [dx, setDx] = useState(0);
   const startX = useRef(null);
   const moved = useRef(false);
@@ -5549,19 +5752,108 @@ function SwipeNotif({ n, unread, onOpen, onInfo, onDismiss }) {
           cursor: "pointer", opacity: unread ? 1 : 0.72,
           transform: `translateX(${dx}px)`, transition: startX.current == null ? "transform .18s" : "none",
         }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-          {unread && <span style={{ width: 7, height: 7, borderRadius: 4, background: "#e5484d", flexShrink: 0 }} />}
-          <div style={{ fontWeight: unread ? 700 : 600, fontSize: 13.5, flex: 1 }}>{n.title || "Notification"}</div>
-          {/* info: open the full text in a popup */}
-          <button onClick={(e) => { e.stopPropagation(); onInfo && onInfo(); }}
-            title="View details"
-            style={{ background: "#eef2ff", color: "#4f46e5", border: "none", borderRadius: 999, width: 24, height: 24, fontWeight: 800, fontSize: 13, cursor: "pointer", flexShrink: 0, lineHeight: 1 }}>i</button>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+          {/* a notice somebody sent carries their face; everything else keeps
+              the company mark, exactly as before */}
+          {sender
+            ? <Avatar name={sender} photo={senderPhoto} size={38} />
+            : <div style={{ width: 38, height: 38, minWidth: 38, borderRadius: "50%", overflow: "hidden", background: "#fff", border: "1px solid #e6eaf4", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                <img src={logoImg} alt="Eurobond" style={{ width: "76%", height: "76%", objectFit: "contain" }} />
+              </div>}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              {unread && <span style={{ width: 7, height: 7, borderRadius: 4, background: "#e5484d", flexShrink: 0 }} />}
+              <div style={{ fontWeight: unread ? 700 : 600, fontSize: 13.5, flex: 1 }}>{n.title || "Notification"}</div>
+              {/* info: open the full text in a popup */}
+              <button onClick={(e) => { e.stopPropagation(); onInfo && onInfo(); }}
+                title="View details"
+                style={{ background: "#eef2ff", color: "#4f46e5", border: "none", borderRadius: 999, width: 24, height: 24, fontWeight: 800, fontSize: 13, cursor: "pointer", flexShrink: 0, lineHeight: 1 }}>i</button>
+            </div>
+            <div style={{ color: "var(--muted)", fontSize: 12.5, marginTop: 3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{n.message}</div>
+            {sender && <div style={{ color: "var(--muted)", fontSize: 11, marginTop: 4, fontWeight: 700 }}>{sender}</div>}
+            {n.createdAt && <div style={{ color: "var(--muted)", fontSize: 11, marginTop: 5 }}>{n.createdAt}</div>}
+          </div>
         </div>
-        <div style={{ color: "var(--muted)", fontSize: 12.5, marginTop: 3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{n.message}</div>
-        {n.createdAt && <div style={{ color: "var(--muted)", fontSize: 11, marginTop: 5 }}>{n.createdAt}</div>}
       </div>
     </div>
   );
+}
+
+
+/* ------------------------------------------------ BIRTHDAY ------------------------------------------------
+   A full-screen greeting with the person's photo.
+
+   It appears once — the first time the app is opened on the day — and not
+   again, however many times the app is opened or whichever screen is visited
+   afterwards. That is what the stamp in storage is for: the day it was shown
+   is written down, and a day already written down is skipped. Closing it does
+   not lose the greeting: it stays in the notifications list for the rest of
+   the day and opens again from there. */
+function BirthdayCard({ person, onClose }) {
+  const p = person || {};
+  const first = String(p.name || "").trim().split(/\s+/)[0] || "";
+  return (
+    <div onClick={onClose}
+      style={{ position: "fixed", inset: 0, zIndex: 11000, background: "rgba(12,18,45,.72)", display: "grid", placeItems: "center", padding: 18 }}>
+      <div onClick={(e) => e.stopPropagation()}
+        style={{ background: "#fff", borderRadius: 22, width: "100%", maxWidth: 360, overflow: "hidden", boxShadow: "0 30px 70px rgba(0,0,0,.4)", textAlign: "center" }}>
+        <div style={{ background: "linear-gradient(140deg,#4b5cf0,#9333ea)", padding: "26px 20px 20px", color: "#fff", position: "relative" }}>
+          <div style={{ position: "absolute", inset: 0, opacity: 0.25, fontSize: 30, letterSpacing: 10, lineHeight: "40px", overflow: "hidden", userSelect: "none" }}>
+            🎉🎊🎈🎁🎉🎊🎈🎁🎉🎊🎈🎁🎉🎊🎈🎁
+          </div>
+          <div style={{ position: "relative" }}>
+            <div style={{ width: 118, margin: "0 auto 12px" }}>
+              <Avatar name={p.name} photo={p.photo} size={118} ring="rgba(255,255,255,.85)" />
+            </div>
+            <div style={{ fontSize: 34, lineHeight: 1 }}>🎂</div>
+            <h2 style={{ margin: "10px 0 2px", fontSize: 22, fontFamily: "Bricolage Grotesque", fontWeight: 800 }}>
+              Happy Birthday{first ? `, ${first}!` : "!"}
+            </h2>
+            <div style={{ fontSize: 13, opacity: 0.92, fontWeight: 600 }}>
+              {p.designation || p.role || ""}{p.city ? ` · ${p.city}` : ""}
+            </div>
+          </div>
+        </div>
+        <div style={{ padding: "18px 22px 20px" }}>
+          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.65, color: "#334155" }}>
+            {p.isMe
+              ? "Wishing you a wonderful year ahead. Thank you for everything you do — from everyone at Euro Panel Products."
+              : `Today is ${p.name}'s birthday. Do send your wishes!`}
+          </p>
+          <button className="f-submit" style={{ width: "100%", marginTop: 16 }} onClick={onClose}>
+            {p.isMe ? "Thank you 🎉" : "Send Wishes 🎉"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Shown by the app shell. Holds the queue of today's birthdays and the stamp
+   that keeps it to one appearance a day. */
+const BDAY_SHOWN_KEY = "eb_bday_shown_on";
+function BirthdayGreeter() {
+  const people = useDirectory();
+  const [queue, setQueue] = useState([]);
+  /* the date this already ran for, not a plain flag: a phone that is never
+     closed would otherwise never greet anybody again after the first day */
+  const firedFor = useRef("");
+  useEffect(() => {
+    if (!people || !people.length) return;
+    const today = new Date();
+    const stamp = today.toLocaleDateString("en-CA");
+    if (firedFor.current === stamp) return;
+    let shownOn = "";
+    try { shownOn = localStorage.getItem(BDAY_SHOWN_KEY) || ""; } catch {}
+    if (shownOn === stamp) { firedFor.current = stamp; return; }
+    const mine = ebBirthdaysForMe(people, (CU() || {}).name, today);
+    if (!mine.length) return;        // nothing today — the stamp is left for a day there is
+    firedFor.current = stamp;
+    try { localStorage.setItem(BDAY_SHOWN_KEY, stamp); } catch {}
+    setQueue(mine);
+  }, [people]);
+  if (!queue.length) return null;
+  return <BirthdayCard person={queue[0]} onClose={() => setQueue((q) => q.slice(1))} />;
 }
 
 
@@ -8543,6 +8835,8 @@ export default function FieldApp() {
         </div>
 
         <MenuDrawer open={menu} close={() => setMenu(false)} />
+        {/* first open of the day only */}
+        <BirthdayGreeter />
         {overlayWarn && (
           <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.6)", zIndex: 10000, display: "grid", placeItems: "center", padding: 18 }}>
             <div style={{ background: "#fff", borderRadius: 16, maxWidth: 360, width: "100%", padding: 22 }}>

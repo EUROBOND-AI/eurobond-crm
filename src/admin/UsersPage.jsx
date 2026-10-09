@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import { UserPlus, KeyRound, Trash2, Search, Download, Upload } from "lucide-react";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
+import { Avatar } from "../lib/avatar.jsx";
 import { visibleUsers } from "../lib/scope.js";
 
 const ROLES = ["Admin", "HOD (Sales)", "HOD (Specs)", "Sub HOD (Sales)", "Sub HOD (Specs)", "Sales Person", "Specs Person", "Sales Collection"];
 const GRADES = ["S1", "S2", "S3", "S4", "S5", "M1", "M2", "M3"];
-const empty = { name: "", mobile: "", code: "", email: "", role: "Sales Person", grade: "", designation: "", doj: "", dob: "", state: "", zone: "", city: "", manager: "", password: "", nearby_range_m: 500 };
+const empty = { name: "", mobile: "", code: "", email: "", role: "Sales Person", grade: "", designation: "", doj: "", dob: "", state: "", zone: "", city: "", manager: "", password: "", photo: "", nearby_range_m: 500 };
 
 const selStyle = { background: "#fff", border: "1px solid var(--line)", borderRadius: 10, padding: "9px 11px", fontSize: 13 };
 
@@ -231,15 +232,15 @@ export default function UsersPage() {
                   <input type="checkbox" checked={filtered.length > 0 && filtered.every((u) => picked.has(u.id))}
                     onChange={(e) => setPicked(e.target.checked ? new Set(filtered.map((u) => u.id)) : new Set())} />
                 </th>
-                <th>S.No</th><th>Name</th><th>Mobile</th><th>Code</th><th>Email</th><th>Role</th><th>Designation</th><th>Grade</th><th>State</th><th>Zone</th><th>Depo</th><th>City</th><th>Manager</th><th>DOJ</th><th>Status</th><th>Actions</th></tr>
+                <th>S.No</th><th>Photo</th><th>Name</th><th>Mobile</th><th>Code</th><th>Email</th><th>Role</th><th>Designation</th><th>Grade</th><th>State</th><th>Zone</th><th>Depo</th><th>City</th><th>Manager</th><th>DOJ</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody>
               {!shown ? (
-                <tr><td colSpan={17} style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>
+                <tr><td colSpan={18} style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>
                   Set your filters and click <b>Show</b> to load the list.
                 </td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={17} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No users match these filters.</td></tr>
+                <tr><td colSpan={18} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No users match these filters.</td></tr>
               ) : filtered.map((u, idx) => (
                 <tr key={u.id} style={{ background: picked.has(u.id) ? "#f2f6ff" : "transparent" }}>
                   <td>
@@ -247,6 +248,7 @@ export default function UsersPage() {
                       onChange={(e) => setPicked((p) => { const n = new Set(p); e.target.checked ? n.add(u.id) : n.delete(u.id); return n; })} />
                   </td>
                   <td style={{ color: "var(--muted)", fontWeight: 700 }}>{idx + 1}</td>
+                  <td><Avatar name={u.name} photo={u.photo} size={34} /></td>
                   <td style={{ fontWeight: 700 }}>{u.name}</td>
                   <td>{u.mobile}</td>
                   <td>{u.code || "—"}</td>
@@ -300,6 +302,7 @@ export default function UsersPage() {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>{form.id ? "Edit User" : form.isHod ? "Add HOD" : form.isSubHod ? "Add Sub HOD" : "Add User"}</h3>
             <div className="form-grid">
+              <PhotoField form={form} setForm={setForm} />
               <Field label="Full Name" req val={form.name} on={(v) => setForm({ ...form, name: v })} />
               <Field label="Mobile (login id)" req val={form.mobile} on={(v) => setForm({ ...form, mobile: v.replace(/\D/g, "") })} />
               <Field label="Employee Code" val={form.code} on={(v) => setForm({ ...form, code: v })} />
@@ -365,6 +368,40 @@ function SelectOrAdd({ label, val, on, options }) {
           <option value="__add__">➕ Add New…</option>
         </select>
       )}
+    </div>
+  );
+}
+
+/* The person's photo. It is uploaded the moment it is chosen, and only the
+   path is kept on the row, so the picture is never carried inside the user
+   list — four hundred of them would make every screen that reads users slow. */
+function PhotoField({ form, setForm }) {
+  const [busy, setBusy] = useState(false);
+  const pick = async (file) => {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const u = await api.uploadCompressed(file, "avatar");
+      const url = u.url || u.path || "";
+      if (!url) throw new Error("Upload did not return a file");
+      setForm((f) => ({ ...f, photo: url }));
+    } catch (e) { alert("Photo upload failed: " + (e && e.message ? e.message : e)); }
+    setBusy(false);
+  };
+  return (
+    <div className="field" style={{ gridColumn: "1 / -1" }}>
+      <label>Photo</label>
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <Avatar name={form.name} photo={form.photo} size={64} />
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <label className="btn btn-ghost" style={{ cursor: "pointer" }}>
+            {busy ? "Uploading…" : form.photo ? "Change Photo" : "Upload Photo"}
+            <input type="file" accept="image/*" hidden onChange={(e) => pick(e.target.files && e.target.files[0])} />
+          </label>
+          {form.photo && <button type="button" className="btn btn-danger" onClick={() => setForm((f) => ({ ...f, photo: "" }))}>Remove</button>}
+          <span style={{ fontSize: 11.5, color: "var(--muted)" }}>Shown on the phone profile and on notifications they send.</span>
+        </div>
+      </div>
     </div>
   );
 }

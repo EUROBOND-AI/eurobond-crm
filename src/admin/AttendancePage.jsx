@@ -419,25 +419,46 @@ export default function AttendancePage() {
   useEffect(() => {
     let stop = false;
     const resolved = [];
+    /* What still has to be looked up, worked out before anything is fetched.
+
+       Every point used to go through the loop whether or not it needed an
+       answer, and the loop paused between batches, so a day whose addresses
+       were all found and stored weeks ago still sat on "Finding address…" for
+       ten seconds before showing anything. Now a day that is already resolved
+       appears the moment it is opened.
+
+       Answers found earlier in this browser are reused as well: they were held
+       in screen state alone, so closing the day and opening it again looked up
+       the same places from scratch. */
+    const needKey = (p) => `${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`;
+    const shown = timelinePoints.slice(0, 150);
+    const seed = {};
+    shown.forEach((p) => {
+      const k = needKey(p);
+      if (!ptAddr[k] && EB_ADDR_CACHE.get(k)) seed[k] = EB_ADDR_CACHE.get(k);
+    });
+    if (Object.keys(seed).length) setPtAddr((m) => ({ ...seed, ...m }));
+    const wanted = (p) => {
+      const k = needKey(p);
+      if (ptAddr[k] || seed[k]) return false;
+      const stored = p.address || "";
+      /* "Mumbai, Maharashtra" is a city-level answer, not an address. Anything
+         this short gets looked up again so every row reads the same way. */
+      const looksCoarse = !stored
+        || stored.split(",").length <= 3
+        || (/zone \d|ward|district|suburban/i.test(stored) && stored.split(",").length <= 4);
+      return !(stored && !looksCoarse);
+    };
+    const queue = shown.filter(wanted);
+    if (!queue.length) { setAddrReady(true); return () => { stop = true; }; }
     setAddrReady(false);
     (async () => {
-      /* only the stops actually shown — the dense track underneath is not listed */
-      const queue = timelinePoints.slice(0, 150);
       const BATCH = 6;
       for (let bi = 0; bi < queue.length; bi += BATCH) {
         if (stop) break;
         await Promise.all(queue.slice(bi, bi + BATCH).map(async (p) => {
         if (stop) return;
-        const key = `${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`;
-        /* geocode if we don't have a browser address yet AND the stored one looks coarse
-           (no street/road/society — e.g. only "Mumbai Zone 4, R/C Ward" from a fallback) */
-        const stored = p.address || "";
-        /* "Mumbai, Maharashtra" is a city-level answer, not an address. Anything
-           this short gets looked up again so every row reads the same way. */
-        const looksCoarse = !stored
-          || stored.split(",").length <= 3
-          || (/zone \d|ward|district|suburban/i.test(stored) && stored.split(",").length <= 4);
-        if (ptAddr[key] || (stored && !looksCoarse)) return;
+        const key = needKey(p);
         let full = "";
         /* 1) Nominatim — has real street/road/society detail */
         try {
@@ -483,7 +504,10 @@ export default function AttendancePage() {
         }
         if (full && !stop) {
           setPtAddr((m) => ({ ...m, [key]: full }));
-          /* keep it on the server so this point never needs geocoding again */
+          /* kept twice over: in this browser, so re-opening the day is instant,
+             and on the server, so nobody else looks this place up either */
+          EB_ADDR_CACHE.set(key, full);
+          ebAddrPersist();
           resolved.push({ lat: p.lat, lng: p.lng, address: full });
         }
         }));
@@ -499,7 +523,7 @@ export default function AttendancePage() {
   const exportStops = useMemo(
     () => timelinePoints.map((p) => ({
       ...p,
-      address: p.address || ptAddr[`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`] || "",
+      address: p.address || ptAddr[`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`] || EB_ADDR_CACHE.get(`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`) || "",
     })),
     [timelinePoints, ptAddr]
   );
@@ -777,7 +801,7 @@ export default function AttendancePage() {
                   const prev = i > 0 ? timelinePoints[i - 1] : null;
                   const tOf = (x) => (x && x.recorded_at ? Date.parse(String(x.recorded_at).replace(" ", "T")) : 0);
                   const gapMin = prev ? Math.round((tOf(p) - tOf(prev)) / 60000) : 0;
-                  const geoAddr = ptAddr[`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`];
+                  const geoAddr = ptAddr[`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`] || EB_ADDR_CACHE.get(`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`);
                   const addr = geoAddr || p.address;
                   return (
                   <div key={i}>

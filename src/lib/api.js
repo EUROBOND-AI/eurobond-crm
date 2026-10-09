@@ -217,7 +217,7 @@ export const api = {
     return { records: all, total };
   },
   get: (module, id) => req(`/records.php?module=${module}&id=${id}`),
-  create: (module, data) => req(`/records.php?module=${module}`, { method: "POST", body: { data } }),
+  create: (module, data) => req(`/records.php?module=${module}`, { method: "POST", body: { data: stampSender(module, data) } }),
   update: (module, id, data) => req(`/records.php?module=${module}&id=${id}&action=update`, { method: "POST", body: { data } }),
   remove: (module, id) => req(`/records.php?module=${module}&id=${id}&action=delete`, { method: "POST" }),
 
@@ -322,7 +322,9 @@ export const api = {
   customers: (q = "", mine = false, team = false) => req(`/customers.php?action=list${q ? "&q=" + encodeURIComponent(q) : ""}${mine ? "&mine=1" : ""}${team ? "&team=1" : ""}`),
 
   /* ---------- Notifications ---------- */
-  notify: (data) => req("/records.php?module=notification", { method: "POST", body: { data } }),
+  notify: (data) => req("/records.php?module=notification", { method: "POST", body: { data: stampSender("notification", data) } }),
+  /* name, photo and birthday for everyone — small enough to load on every start */
+  directory: () => memo("directory", 10 * 60000, () => req("/users.php?action=directory")),
   myNotifications: () => req("/records.php?module=notification"),
 
   /* ---------- Photo upload (auto-compressed: disk/inode save on Hostinger) ---------- */
@@ -340,6 +342,22 @@ export const api = {
   },
 };
 
+
+/* Who sent a notification.
+
+   Every screen that raises one wrote the sender's name into the message text
+   and nowhere else, so nothing could tell a notice sent by a person from one
+   the system put out — which is what decides whether a face or the company
+   logo belongs beside it. Stamping it here covers all of them at once, and
+   leaves alone any that already names a sender. */
+function stampSender(module, data) {
+  if (module !== "notification" || !data || typeof data !== "object") return data;
+  if (data.from) return data;
+  const me = (auth && auth.user) || {};
+  const name = String(me.name || "").trim();
+  if (!name) return data;
+  return { ...data, from: name };
+}
 
 /* Resize + JPEG-compress a photo in the browser before upload.
    2-4 MB camera photo -> ~150-300 KB. Hostinger disk + inode limit safe. */
