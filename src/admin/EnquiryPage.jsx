@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Edit3, UserPlus, Trash2, Share2, X, Search, Ban, RefreshCw, MessageSquare } from "lucide-react";
+import { Edit3, UserPlus, Trash2, Share2, X, Search, Ban, RefreshCw, MessageSquare, Copy } from "lucide-react";
 import { PageHead } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
 import { scopeRows, visibleUsers } from "../lib/scope.js";
@@ -133,7 +133,7 @@ export default function EnquiryPage() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
-  const TABS = ["Enquiries", "Pending to Assign", "Assigned", "Processing", "Pending", "Spam", "Reassign", "Win"];
+  const TABS = ["Enquiries", "Pending to Assign", "Assigned", "Processing", "Pending", "Spam", "Duplicate", "Reassign", "Win"];
 
   const load = () => api.list("enquiry", false)
     .then((d) => setRows((d.records || []).map((r) => ({ ...r.data, _id: r.id, _created: r.created_at }))))
@@ -147,6 +147,30 @@ export default function EnquiryPage() {
       api.indiamartSync().then((r) => { localStorage.setItem(key, "1"); if (r.added > 0) load(); }).catch(() => {});
     }
   }, []);
+
+  /* The same buyer sent twice.
+
+     IndiaMART delivers the same enquiry more than once, so a number that
+     appears on more than one row is flagged — those rows are shown in red
+     until somebody moves the extra ones to Duplicate. A row already marked is
+     left out of the count, so the one that is kept stops being red once its
+     copies have been moved away. */
+  const dupNumbers = useMemo(() => {
+    const seen = {};
+    (rows || []).forEach((r) => {
+      if (r.isDuplicate) return;
+      const n = String(r.contact || r.phone || "").replace(/\D/g, "").slice(-10);
+      if (n.length < 10) return;
+      seen[n] = (seen[n] || 0) + 1;
+    });
+    return new Set(Object.keys(seen).filter((n) => seen[n] > 1));
+  }, [rows]);
+
+  const isDupRow = (r) => {
+    if (r.isDuplicate) return false;
+    const n = String(r.contact || r.phone || "").replace(/\D/g, "").slice(-10);
+    return n.length === 10 && dupNumbers.has(n);
+  };
 
   /* Has the person it went to said anything at all?
 
@@ -163,6 +187,9 @@ export default function EnquiryPage() {
   const matchesTab = (r, t) => {
     const st = (r.status || "Pending").toLowerCase();
     const assignedTo = r.assignedTo || r.passto || "";
+    const dup = !!r.isDuplicate;
+    /* a copy is not work waiting to be done, so it only shows under Duplicate */
+    if (dup && t !== "Duplicate" && t !== "Enquiries") return false;
     switch (t) {
       case "Enquiries": return true;
       /* nobody on it yet. Spam and closed ones are not waiting to be given to
@@ -175,6 +202,7 @@ export default function EnquiryPage() {
       /* given to someone and still not a word back from them */
       case "Pending": return !!assignedTo && !heardBack(r) && st !== "spam" && st !== "win";
       case "Spam": return st === "spam";
+      case "Duplicate": return dup;
       case "Reassign": return !!r.reassigned;
       case "Win": return st === "win";
       default: return true;
@@ -427,7 +455,13 @@ export default function EnquiryPage() {
               ) : pageRows.length === 0 ? (
                 <tr><td colSpan={23} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>{applied.shown ? "No enquiries found for the selected date / filter." : "Select date & Enquiry From, then click Show to load enquiries."}</td></tr>
               ) : pageRows.map((r, i) => (
-                <tr key={r._id} style={{ background: selected.has(r._id) ? "#eef5ff" : "#fff" }}>
+                <tr key={r._id} style={{
+                  background: selected.has(r._id) ? "#eef5ff" : isDupRow(r) ? "#fdeeee" : "#fff",
+                  /* the same number on more than one row — in red until the
+                     extra ones are moved to Duplicate */
+                  color: isDupRow(r) ? "#c0392b" : "inherit",
+                  fontWeight: isDupRow(r) ? 700 : 400,
+                }}>
                   <td style={td}><input type="checkbox" checked={selected.has(r._id)} onChange={() => toggle(r._id)} /></td>
                   <td style={td}>
                     <div style={{ display: "flex", alignItems: "center" }}>
@@ -439,6 +473,16 @@ export default function EnquiryPage() {
                       <button title="Message" style={iconBtn("#0b6cb0")} onClick={() => setMsgFor(r)}><MessageSquare size={14} /></button>
                       {canDelete("Enquiry") && <button title="Delete" style={iconBtn("#e5484d")} onClick={() => del(r)}><Trash2 size={14} /></button>}
                       {(r.assignedTo || r.passto) && canModify("Enquiry") && <button title="Re-Assign" style={iconBtn("#6c5ce7")} onClick={() => { setReassign(true); setAssignFor(r); }}><RefreshCw size={14} /></button>}
+                      {canModify("Enquiry") && <button title={r.isDuplicate ? "Move out of Duplicate" : "Move to Duplicate"}
+                        style={iconBtn(r.isDuplicate ? "#8a8f9e" : "#b8860b")}
+                        onClick={async () => {
+                          const was = !!r.isDuplicate;
+                          if (!window.confirm(was ? "Move this enquiry out of Duplicate?" : "Move this enquiry to Duplicate?")) return;
+                          try {
+                            await api.update("enquiry", r._id || r.id, { ...r, isDuplicate: !was });
+                            load();
+                          } catch (e) { alert(e.message); }
+                        }}><Copy size={14} /></button>}
                       {canModify("Enquiry") && <button title={String(r.status).toLowerCase() === "spam" ? "Remove from Spam" : "Mark as Spam"}
                         style={iconBtn(String(r.status).toLowerCase() === "spam" ? "#8a8f9e" : "#c0392b")}
                         onClick={async () => {
