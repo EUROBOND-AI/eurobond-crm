@@ -173,7 +173,18 @@ function useUnreadCount() {
         .filter((n) => isMine(n, me))
         .filter((n) => !dis.has(String(n.id)))
         .filter((n) => !(Array.isArray(n.dismissedBy) && n.dismissedBy.includes(me.name)));
-      setCount(mine.filter((n) => !read.has(String(n.id))).length);
+      let n = mine.filter((x) => !read.has(String(x.id))).length;
+      /* Today's birthdays are worked out on the phone rather than stored as
+         records, so they were missing from this count and the bell showed
+         nothing at all for them. They are counted the same way: until the
+         greeting has been opened or cleared. */
+      try {
+        ebBirthdaysForMe(EB_PEOPLE, me.name).forEach((p) => {
+          const id = ebBdayId(p.name);
+          if (!dis.has(id) && !read.has(id)) n++;
+        });
+      } catch {}
+      setCount(n);
     }).catch(() => {});
   };
   /* every minute while the app is open and being looked at */
@@ -473,6 +484,40 @@ function ebBirthdaysForMe(people, meName, now = new Date()) {
     .filter((p) => ebIsBirthdayToday(p.dob, now))
     .filter((p) => ebSameTeam(people, meName, p.name))
     .map((p) => ({ ...p, isMe: String(p.name || "").trim().toLowerCase() === String(meName || "").trim().toLowerCase() }));
+}
+const ebToday = () => new Date().toLocaleDateString("en-CA");
+/* The id a birthday row carries, so it can be marked read and counted on the
+   bell exactly like a notice that came from the server. */
+const ebBdayId = (name, stamp = ebToday()) => `bday|${stamp}|${String(name || "").toLowerCase()}`;
+
+/* A stamp is the day AND the build it was written by.
+
+   Writing only the day meant a build installed later the same day found the
+   day already stamped and stayed silent — which is what happened while this
+   was being tried out. The build is part of it now, so a new version always
+   gets its chance on the day it arrives. */
+const ebDayStamp = () => `${ebToday()}|${typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : ""}`;
+function ebStampDone(key) {
+  try { return localStorage.getItem(key) === ebDayStamp(); } catch { return false; }
+}
+function ebStampSet(key) {
+  try { localStorage.setItem(key, ebDayStamp()); } catch {}
+}
+
+/* Wishes already sent today, so the button cannot send twice. */
+const WISH_KEY = "eb_bday_wished";
+function ebWishedSet() {
+  try {
+    const o = JSON.parse(localStorage.getItem(WISH_KEY) || "{}") || {};
+    return new Set(o.on === ebToday() && Array.isArray(o.names) ? o.names : []);
+  } catch { return new Set(); }
+}
+function ebMarkWished(name) {
+  try {
+    const set = ebWishedSet();
+    set.add(String(name || "").toLowerCase());
+    localStorage.setItem(WISH_KEY, JSON.stringify({ on: ebToday(), names: [...set] }));
+  } catch {}
 }
 
 /* ---- iPhone-style slide to start/stop ---- */
@@ -5526,7 +5571,14 @@ function FieldNotifications() {
   const open = (n) => {
     /* a birthday opens the full-screen greeting, and is left in the list so it
        can be opened again for the rest of the day */
-    if (n._bday) { setBday(n._bday); return; }
+    if (n._bday) {
+      setBday(n._bday);
+      /* read, so the bell stops counting it — but left in the list, so the
+         greeting can be opened again for the rest of the day */
+      markRead(n._id);
+      setRead(getReadIds());
+      return;
+    }
     markRead(n._id);
     setRead(getReadIds());
     /* once viewed, remove it so it never shows again (even after re-login) */
@@ -5603,9 +5655,8 @@ function FieldNotifications() {
      everybody's phone already knows the dates. */
   const bdayRows = useMemo(() => {
     const today = new Date();
-    const stamp = today.toLocaleDateString("en-CA");
     return ebBirthdaysForMe(people, (CU() || {}).name, today).map((p) => ({
-      _id: `bday|${stamp}|${String(p.name || "").toLowerCase()}`,
+      _id: ebBdayId(p.name),
       _bday: p,
       title: p.isMe ? "Happy Birthday! 🎉" : `🎂 ${p.name}'s Birthday Today`,
       message: p.isMe
@@ -5649,9 +5700,14 @@ function FieldNotifications() {
 
   return (
     <>
-      <ScreenHead title="Notifications" />
+      <ScreenHead title={`Notifications${visible.length ? ` (${visible.length})` : ""}`} />
       {visible.length > 0 && (
-        <div style={{ padding: "8px 16px 0", display: "flex", justifyContent: "flex-end" }}>
+        <div style={{ padding: "8px 16px 0", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+          {/* how many there are — the screen never said, so there was no way
+              to tell at a glance without counting the cards by hand */}
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)" }}>
+            {visible.length} notification{visible.length === 1 ? "" : "s"}
+          </div>
           <button onClick={clearAll} style={{ background: "#fdecec", color: "#c0392b", border: "none", borderRadius: 8, padding: "6px 12px", fontWeight: 700, fontSize: 12 }}>Clear All</button>
         </div>
       )}
@@ -5664,7 +5720,7 @@ function FieldNotifications() {
             <div style={{ fontWeight: 700 }}>No notifications yet</div>
           </div>
         ) : visible.map((n, i) => {
-          const unread = n._bday ? true : !read.has(String(n._id));
+          const unread = !read.has(String(n._id));
           const sender = n._bday ? n._bday.name : notifSender(n);
           return (
             <SwipeNotif key={n._id || i} n={n} unread={unread}
@@ -5802,6 +5858,30 @@ function SwipeNotif({ n, unread, onOpen, onInfo, onDismiss, sender = "", senderP
 function BirthdayCard({ person, onClose }) {
   const p = person || {};
   const first = String(p.name || "").trim().split(/\s+/)[0] || "";
+  /* "Send Wishes" used to only close the card, which is not what the words
+     say. It now sends the person a notice from whoever tapped it, once a day,
+     and then says so rather than offering to send again. */
+  const [wished, setWished] = useState(() => ebWishedSet().has(String(p.name || "").toLowerCase()));
+  const [sending, setSending] = useState(false);
+  const sendWish = async () => {
+    if (p.isMe || wished || sending) { onClose && onClose(); return; }
+    setSending(true);
+    try {
+      await api.notify({
+        to: p.name,
+        title: "🎉 Birthday Wishes",
+        message: `${CU().name || "A colleague"} wished you a very happy birthday!`,
+        link: "/app/notifications",
+        at: new Date().toISOString(),
+        createdAt: new Date().toLocaleString("en-IN"),
+      });
+      ebMarkWished(p.name);
+      setWished(true);
+    } catch (e) {
+      alert("Could not send wishes: " + (e && e.message ? e.message : e));
+    }
+    setSending(false);
+  };
   return (
     <div onClick={onClose}
       style={{ position: "fixed", inset: 0, zIndex: 11000, background: "rgba(12,18,45,.72)", display: "grid", placeItems: "center", padding: 18 }}>
@@ -5830,9 +5910,26 @@ function BirthdayCard({ person, onClose }) {
               ? "Wishing you a wonderful year ahead. Thank you for everything you do — from everyone at Euro Panel Products."
               : `Today is ${p.name}'s birthday. Do send your wishes!`}
           </p>
-          <button className="f-submit" style={{ width: "100%", marginTop: 16 }} onClick={onClose}>
-            {p.isMe ? "Thank you 🎉" : "Send Wishes 🎉"}
-          </button>
+          {p.isMe ? (
+            <button className="f-submit" style={{ width: "100%", marginTop: 16 }} onClick={onClose}>Thank you 🎉</button>
+          ) : wished ? (
+            <>
+              <div style={{ marginTop: 14, background: "#e8f7ee", color: "#1f7a44", borderRadius: 10, padding: "10px 12px", fontSize: 13, fontWeight: 700, textAlign: "center" }}>
+                ✓ Your wishes have been sent
+              </div>
+              <button className="f-submit" style={{ width: "100%", marginTop: 10, background: "#64748b" }} onClick={onClose}>Close</button>
+            </>
+          ) : (
+            <>
+              <button className="f-submit" style={{ width: "100%", marginTop: 16 }} disabled={sending} onClick={sendWish}>
+                {sending ? "Sending…" : "Send Wishes 🎉"}
+              </button>
+              <button onClick={onClose}
+                style={{ width: "100%", marginTop: 8, padding: 11, borderRadius: 10, border: "1.5px solid #d7dcef", background: "#fff", fontWeight: 700, cursor: "pointer" }}>
+                Later
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -5842,6 +5939,7 @@ function BirthdayCard({ person, onClose }) {
 /* Shown by the app shell. Holds the queue of today's birthdays and the stamp
    that keeps it to one appearance a day. */
 const BDAY_SHOWN_KEY = "eb_bday_shown_on";
+const BDAY_NOTIF_KEY = "eb_bday_notified_on";
 function BirthdayGreeter() {
   const people = useDirectory();
   const [queue, setQueue] = useState([]);
@@ -5853,17 +5951,44 @@ function BirthdayGreeter() {
     const today = new Date();
     const stamp = today.toLocaleDateString("en-CA");
     if (firedFor.current === stamp) return;
-    let shownOn = "";
-    try { shownOn = localStorage.getItem(BDAY_SHOWN_KEY) || ""; } catch {}
-    if (shownOn === stamp) { firedFor.current = stamp; return; }
+    if (ebStampDone(BDAY_SHOWN_KEY)) { firedFor.current = stamp; return; }
     const mine = ebBirthdaysForMe(people, (CU() || {}).name, today);
     if (!mine.length) return;        // nothing today — the stamp is left for a day there is
     firedFor.current = stamp;
-    try { localStorage.setItem(BDAY_SHOWN_KEY, stamp); } catch {}
+    /* The stamp is NOT written here.
+
+       It used to be written the moment the greeting was worked out, so if the
+       screen was replaced before it was drawn — which is what navigating away
+       during start-up does — the day was already marked and the greeting never
+       appeared again. It is written when the person closes it, which is the
+       point at which they have actually seen it. */
     setQueue(mine);
+    /* and once in the phone's own notification tray, so it is noticed even if
+       the app is not being looked at */
+    if (!ebStampDone(BDAY_NOTIF_KEY)) {
+      ebStampSet(BDAY_NOTIF_KEY);
+      const me = mine.find((x) => x.isMe);
+      const others = mine.filter((x) => !x.isMe);
+      if (me) {
+        phoneNotify("🎉 Happy Birthday!", "Wishing you a wonderful year ahead — Euro Panel Products.",
+          { notifId: ebBdayId(me.name), link: "/app/notifications" });
+      }
+      if (others.length) {
+        const names = others.map((x) => x.name).join(", ");
+        phoneNotify("🎂 Birthday today", `${names} — tap to send your wishes.`,
+          { notifId: ebBdayId(others[0].name), link: "/app/notifications" });
+      }
+    }
   }, [people]);
+  const close = () => {
+    setQueue((q) => {
+      const rest = q.slice(1);
+      if (!rest.length) ebStampSet(BDAY_SHOWN_KEY);
+      return rest;
+    });
+  };
   if (!queue.length) return null;
-  return <BirthdayCard person={queue[0]} onClose={() => setQueue((q) => q.slice(1))} />;
+  return <BirthdayCard person={queue[0]} onClose={close} />;
 }
 
 
