@@ -46,20 +46,27 @@ const QUIET_WRITES = [
   "mail.php",
 ];
 let writesInFlight = 0;
+let writeWord = "Saving";
 const saveWatchers = new Set();
 function tellSaveWatchers() {
   const busy = writesInFlight > 0;
-  saveWatchers.forEach((fn) => { try { fn(busy); } catch {} });
+  saveWatchers.forEach((fn) => { try { fn(busy, writeWord); } catch {} });
 }
 export function onSaving(fn) {
   saveWatchers.add(fn);
-  try { fn(writesInFlight > 0); } catch {}
+  try { fn(writesInFlight > 0, writeWord); } catch {}
   return () => saveWatchers.delete(fn);
 }
 
 async function req(path, { method = "GET", body, isForm = false } = {}) {
   const isWrite = method !== "GET" && !QUIET_WRITES.some((q) => path.includes(q));
-  if (isWrite) { writesInFlight++; tellSaveWatchers(); }
+  if (isWrite) {
+    /* changing something that is already there reads as "Updating…", a new row
+       as "Saving…" — the same spinner, the right word */
+    if (writesInFlight === 0) writeWord = (method === "PUT" || path.includes("action=update")) ? "Updating" : "Saving";
+    writesInFlight++;
+    tellSaveWatchers();
+  }
   try {
     return await reqRaw(path, { method, body, isForm });
   } finally {

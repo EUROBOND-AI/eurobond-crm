@@ -1916,7 +1916,7 @@ function FieldExpenseNew({ add }) {
           <option>Outstation</option><option>Exstation</option>
         </select>
 
-        <label>Category <b>*</b></label>
+        <label style={{ color: String(f.category || "").trim() ? undefined : "#c0392b" }}>Category <b style={{ color: "#c0392b" }}>*</b></label>
         <select value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })} style={{ width: "100%", marginBottom: 6 }}>
           {EXP_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
         </select>
@@ -2664,8 +2664,9 @@ function FieldFollowUpNew({ add, editData }) {
           {CATS.map((c) => <option key={c}>{c}</option>)}
         </select>
 
-        <label>Firm Name <b>*</b></label>
-        <input value={f.partyName} onChange={(e) => setF({ ...f, partyName: e.target.value })} style={inp} />
+        <label style={{ color: String(f.partyName || "").trim() ? undefined : "#c0392b" }}>Firm Name <b style={{ color: "#c0392b" }}>*</b></label>
+        <input value={f.partyName} onChange={(e) => setF({ ...f, partyName: e.target.value })}
+          style={{ ...inp, ...(String(f.partyName || "").trim() ? {} : { borderColor: "#e5484d", background: "#fff6f6" }) }} />
 
         <label>Project Name</label>
         {projects.map((p, i) => (
@@ -2741,8 +2742,18 @@ function FieldFollowUpNew({ add, editData }) {
 
         <button
           className="f-submit" style={{ width: "100%" }}
-          disabled={!f.partyName}
+          /* Save stays live so pressing it says what is missing — greyed out,
+             it looked broken and nobody could tell which field held it. */
           onClick={() => {
+            const need = [];
+            if (!String(f.category || "").trim()) need.push("Category");
+            if (!String(f.partyName || "").trim()) need.push("Firm Name");
+            if (need.length) {
+              alert(need.length === 1
+                ? `${need[0]} is required.`
+                : `Please fill these fields:\n\n• ${need.join("\n• ")}`);
+              return;
+            }
             const primary = contacts[0] || {};
             const projList = projects.map((p) => p.trim()).filter(Boolean);
             add({
@@ -7721,8 +7732,14 @@ function AppPhotoViewer() {
        popup had to be closed before the picture could be seen. The viewer is
        opened from those popups, so it has to sit above them. */
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.92)", zIndex: 100001, display: "flex", flexDirection: "column" }}>
-      {/* top bar */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", gap: 10 }}>
+      {/* The row of controls, clear of the phone's own status bar.
+
+          It sat right at the top edge, where the clock and the notch are, so
+          the close, zoom and info buttons were partly under them and awkward to
+          hit. The safe-area inset pushes it below whatever the phone puts
+          there, with a little room of its own on top. */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+        padding: "12px 14px", paddingTop: "calc(env(safe-area-inset-top, 0px) + 22px)" }}>
         <button onClick={() => setUrl(null)} style={{ background: "rgba(255,255,255,.15)", border: "none", color: "#fff", width: 38, height: 38, borderRadius: "50%", fontSize: 20, cursor: "pointer" }}>×</button>
         {!isPdf && (
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>

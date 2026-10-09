@@ -14,11 +14,13 @@ import { onSaving } from "../lib/api.js";
 
 export default function SavingOverlay() {
   const [show, setShow] = useState(false);
+  const [word, setWord] = useState("Saving");
 
   useEffect(() => {
     let timer = null;
-    const off = onSaving((busy) => {
+    const off = onSaving((busy, w) => {
       if (busy) {
+        setWord(w || "Saving");
         if (!timer) timer = setTimeout(() => setShow(true), 180);
       } else {
         if (timer) { clearTimeout(timer); timer = null; }
@@ -46,7 +48,7 @@ export default function SavingOverlay() {
           border: "2.5px solid #d7dcef", borderTopColor: "var(--navy, #1f3a68)",
           display: "inline-block", animation: "eb-save-spin .7s linear infinite",
         }} />
-        Saving…
+        {word}…
       </div>
       <style>{"@keyframes eb-save-spin{to{transform:rotate(360deg)}}"}</style>
     </div>
