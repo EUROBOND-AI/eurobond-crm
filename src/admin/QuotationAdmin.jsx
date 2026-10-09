@@ -304,19 +304,19 @@ export default function QuotationAdmin() {
                       three products looked like one and the rate check could
                       only ever see that first line — the rest had to be opened
                       to be looked at. */}
-                  {colVisible("Grade") && <td style={{ padding: "11px 14px" }}>
-                    {qItems(r).map((it, k) => <div key={k} style={{ padding: "1px 0" }}>{it.grade || "—"}{it.fins ? " (Running Feet)" : ""}</div>)}
+                  {colVisible("Grade") && <td style={{ padding: "11px 14px", verticalAlign: "top" }}>
+                    {qItems(r).map((it, k) => <div key={k} style={{ padding: "3px 0", borderTop: k ? "1px dashed #d7dcef" : "none" }}>{it.grade || "—"}{it.fins ? " (Running Feet)" : ""}</div>)}
                   </td>}
-                  {colVisible("Thickness") && <td style={{ padding: "11px 14px", fontSize: 11 }}>
-                    {qItems(r).map((it, k) => <div key={k} style={{ padding: "1px 0" }}>{it.thickness || "—"}</div>)}
+                  {colVisible("Thickness") && <td style={{ padding: "11px 14px", fontSize: 11, verticalAlign: "top" }}>
+                    {qItems(r).map((it, k) => <div key={k} style={{ padding: "3px 0", borderTop: k ? "1px dashed #d7dcef" : "none" }}>{it.thickness || "—"}</div>)}
                   </td>}
-                  {colVisible("Colour Code") && <td style={{ padding: "11px 14px" }}>
-                    {qItems(r).map((it, k) => <div key={k} style={{ padding: "1px 0" }}>{it.colourCode || it.colour || "—"}</div>)}
+                  {colVisible("Colour Code") && <td style={{ padding: "11px 14px", verticalAlign: "top" }}>
+                    {qItems(r).map((it, k) => <div key={k} style={{ padding: "3px 0", borderTop: k ? "1px dashed #d7dcef" : "none" }}>{it.colourCode || it.colour || "—"}</div>)}
                   </td>}
-                  {colVisible("Rate/SqMtr") && <td style={{ padding: "11px 14px" }}>
-                    {qItems(r).map((it, k) => <div key={k} style={{ padding: "1px 0" }}>{!it.fins && it.ratePerSqm ? `₹${it.ratePerSqm}` : "—"}</div>)}
+                  {colVisible("Rate/SqMtr") && <td style={{ padding: "11px 14px", verticalAlign: "top" }}>
+                    {qItems(r).map((it, k) => <div key={k} style={{ padding: "3px 0", borderTop: k ? "1px dashed #d7dcef" : "none" }}>{!it.fins && it.ratePerSqm ? `₹${it.ratePerSqm}` : "—"}</div>)}
                   </td>}
-                  {colVisible("Rate/SqFt") && <td style={{ padding: "11px 14px" }}>
+                  {colVisible("Rate/SqFt") && <td style={{ padding: "11px 14px", verticalAlign: "top" }}>
                     {/* The standard rate is the floor. A line written BELOW it is
                         the one that needs a second look, so it is called out; at
                         the standard or above is fine and is left alone. Each line
@@ -326,7 +326,7 @@ export default function QuotationAdmin() {
                       const rate = Number(it.rate);
                       const under = std > 0 && rate > 0 && rate < std;
                       return (
-                        <div key={k} style={{ padding: "1px 0", color: under ? "#c0392b" : "inherit", fontWeight: under ? 800 : 400 }}
+                        <div key={k} style={{ padding: "3px 0", borderTop: k ? "1px dashed #d7dcef" : "none", color: under ? "#c0392b" : "inherit", fontWeight: under ? 800 : 400 }}
                           title={std ? `${under ? "Below the s" : "S"}tandard rate ₹${std}${from ? ` — ${from}` : ""}` : "No standard rate found for this product"}>
                           {rate ? `₹${it.rate}` : "—"}{under ? " ▼" : ""}
                         </div>
