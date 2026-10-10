@@ -134,7 +134,9 @@ export const MODULES = {
     columns: [
       { key: "createdBy", label: "Applied By" }, { key: "type", label: "Leave Type" },
       { key: "mode", label: "Mode" }, { key: "from", label: "From" }, { key: "to", label: "To" },
-      { key: "reason", label: "Reason" }, { key: "photo", label: "Attachment", render: attach },
+      /* a long reason used to run off the right of the table as one line;
+         longText wraps it inside its own column with "read more" underneath */
+      { key: "reason", label: "Reason", render: longText }, { key: "photo", label: "Attachment", render: attach },
       { key: "approvedBy", label: "Approved By" }, { key: "status", label: "Status", render: pill },
     ],
     form: [

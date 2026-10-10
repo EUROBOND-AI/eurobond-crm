@@ -1,4 +1,5 @@
 import logoImg from "../assets/logo.jpg";
+import hexLogo from "../assets/hexlogo.png";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Routes, Route, Link, NavLink, useNavigate, Navigate, useParams, useLocation } from "react-router-dom";
 import {
@@ -260,6 +261,9 @@ function phoneNotify(title, body, extra = {}) {
         if (link.includes("expense")) link = "/app/expense";
         else if (link.includes("enquiry")) link = "/app/m/enquiry";
         else if (link.includes("followup")) link = "/app/followup";
+        /* the approval screen before the plain list — see the note in the
+           notifications screen; the short match used to win */
+        else if (link.includes("leave-approval")) link = "/app/leave-approval";
         else if (link.includes("leave")) link = "/app/leave";
         else if (link.includes("customer")) link = "/app/customers";
         else if (link.startsWith("/admin") || !link.startsWith("/app")) link = "/app/notifications";
@@ -286,6 +290,9 @@ function useNotifTapHandler() {
         if (link.includes("expense")) link = "/app/expense";
         else if (link.includes("enquiry")) link = "/app/m/enquiry";
         else if (link.includes("followup")) link = "/app/followup";
+        /* the approval screen before the plain list — see the note in the
+           notifications screen; the short match used to win */
+        else if (link.includes("leave-approval")) link = "/app/leave-approval";
         else if (link.includes("leave")) link = "/app/leave";
         else if (link.includes("customer")) link = "/app/customers";
         else if (link.startsWith("/admin") || !link.startsWith("/app")) link = "/app/notifications";
@@ -806,6 +813,9 @@ async function registerPush() {
         if (link.includes("expense")) link = "/app/expense";
         else if (link.includes("enquiry")) link = "/app/m/enquiry";
         else if (link.includes("followup")) link = "/app/followup";
+        /* the approval screen before the plain list — see the note in the
+           notifications screen; the short match used to win */
+        else if (link.includes("leave-approval")) link = "/app/leave-approval";
         else if (link.includes("leave")) link = "/app/leave";
         else if (link.startsWith("/admin") || !link.startsWith("/app")) link = "/app/notifications";
         window.location.href = link;
@@ -4278,6 +4288,29 @@ function AddSaleEntry({ isSpec, onClose, onSaved }) {
 }
 
 /* ---- HOD: Team Tracking (live location of team, today only, map + points) ---- */
+/* Local, Outstation or ExStation, written the way it reads on a report.
+
+   The line under a person's name used to be their home city and the area they
+   were working — the city never changes and told nobody anything useful, while
+   the one thing a manager wants to know at a glance, whether this is a local
+   day or a tour, was not there at all. */
+function visitLabel(t) {
+  const v = String(t || "").replace(/[\s_-]/g, "").toLowerCase();
+  if (v === "outstation") return { text: "Outstation", bg: "#fff1e6", fg: "#b2560d" };
+  if (v === "exstation") return { text: "ExStation", bg: "#efe7fd", fg: "#5b3bb3" };
+  if (v === "local") return { text: "Local", bg: "#e8f7ee", fg: "#1f7a44" };
+  return v ? { text: String(t), bg: "#eef2ff", fg: "#3949ab" } : null;
+}
+function VisitTag({ type }) {
+  const k = visitLabel(type);
+  if (!k) return null;
+  return (
+    <span style={{ background: k.bg, color: k.fg, borderRadius: 6, padding: "1px 6px", fontSize: 10.5, fontWeight: 800, marginLeft: 6, whiteSpace: "nowrap" }}>
+      {k.text}
+    </span>
+  );
+}
+
 function FieldTeamTracking() {
   const [sessions, setSessions] = useState(null);
   const [sel, setSel] = useState(null);        // selected session for map
@@ -4368,7 +4401,9 @@ function FieldTeamTracking() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px" }}>
             <div>
               <div style={{ fontWeight: 800 }}>{sel.name}</div>
-              <div style={{ fontSize: 12, color: "var(--muted)" }}>{sel.visit_name || sel.visit_type || "Field"} · {sel.city || ""}</div>
+              <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                {sel.visit_name || "Field"}<VisitTag type={sel.visit_type || "Local"} />
+              </div>
             </div>
             <span style={{ fontWeight: 800, fontSize: 12.5, color: statusColor(sel.app_status) }}>● {gpsLabel(sel.app_status)}</span>
           </div>
@@ -4413,7 +4448,9 @@ function FieldTeamTracking() {
           <div key={s.id} onClick={() => openTrack(s)} style={{ background: "#fff", borderRadius: 12, padding: "13px 15px", marginBottom: 9, boxShadow: "var(--shadow)", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <div style={{ fontWeight: 800, fontSize: 14 }}>{s.name}</div>
-              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{s.city || s.zone || "Field"} · {s.visit_name || s.visit_type || "—"}</div>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
+                {s.visit_name || "Field"}<VisitTag type={s.visit_type || "Local"} />
+              </div>
             </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontWeight: 800, fontSize: 12, color: statusColor(s.app_status) }}>● {gpsLabel(s.app_status)}</div>
@@ -5536,11 +5573,16 @@ function FieldModuleNew({ mod }) {
    logo it has always had. The two are told apart by where the notice points,
    not by its wording: an announcement that happens to mention a task is still
    an announcement. */
-const PERSON_NOTIF = /^\/app\/(m\/(task|projectProjection|salesToSpec|specToSales)|thread\/)/i;
+const PERSON_NOTIF = /^\/app\/(m\/(task|projectProjection|salesToSpec|specToSales|quotation)|thread\/|leave-approval|leave$)/i;
+/* A birthday wish is person to person as well, and it points at this screen —
+   which is where the holidays and announcements point too — so it cannot be
+   told apart by its address. Its title is what names it. */
+const WISH_TITLE = /birthday wishes/i;
 function notifSender(n) {
   if (!n || n._bday) return "";
   const from = String(n.from || "").trim();
   if (!from) return "";
+  if (WISH_TITLE.test(String(n.title || ""))) return from;
   return PERSON_NOTIF.test(String(n.link || "")) ? from : "";
 }
 
@@ -5601,6 +5643,11 @@ function FieldNotifications() {
     if (link.includes("expense")) link = "/app/expense";
     else if (link.includes("enquiry")) link = "/app/m/enquiry";
     else if (link.includes("followup")) link = "/app/followup";
+    /* The approval screen is matched before the plain leave list.
+       "/app/leave-approval" contains the word "leave", so a HOD tapping a
+       leave request was sent to their own leave list instead of the screen
+       where the request is approved. */
+    else if (link.includes("leave-approval")) link = "/app/leave-approval";
     else if (link.includes("leave")) link = "/app/leave";
     else if (link.includes("customer")) link = "/app/customers";
     /* a quotation notice carries the quotation with it, so it opens as a card
@@ -5823,8 +5870,10 @@ function SwipeNotif({ n, unread, onOpen, onInfo, onDismiss, sender = "", senderP
               the company mark, exactly as before */}
           {sender
             ? <Avatar name={sender} photo={senderPhoto} size={38} />
-            : <div style={{ width: 38, height: 38, minWidth: 38, borderRadius: "50%", overflow: "hidden", background: "#fff", border: "1px solid #e6eaf4", display: "grid", placeItems: "center", flexShrink: 0 }}>
-                <img src={logoImg} alt="Eurobond" style={{ width: "76%", height: "76%", objectFit: "contain" }} />
+            : /* everything the company sends keeps the small hex mark it always
+                 had — the full logo was too big and read as a different brand */
+              <div style={{ width: 38, height: 38, minWidth: 38, borderRadius: "50%", overflow: "hidden", background: "#fff", border: "1px solid #e6eaf4", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                <img src={hexLogo} alt="Eurobond" style={{ width: "66%", height: "66%", objectFit: "contain" }} />
               </div>}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 7 }}>

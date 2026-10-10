@@ -36,16 +36,27 @@ export default function CheckinPage() {
   const inScope = allUsers.filter((u) => (!zone || u.zone === zone) && (!stateF || u.state === stateF) && (!city || u.city === city));
   const checkedIds = new Set(sessions.map((s) => String(s.user_id)));
   const loginUsers = inScope.filter((u) => checkedIds.has(String(u.id)));
-  const pendingUsers = inScope.filter((u) => !checkedIds.has(String(u.id)));
   const onLeave = leaves.filter((l) => (l.status || "").toLowerCase() === "approved"
     && String(l.from || "").slice(0, 10) <= date && date <= String(l.to || l.from || "").slice(0, 10));
+  /* Somebody on approved leave has not failed to check in — they were not due
+     to. Pending counted everybody without a session for the day, so an
+     approved leave showed the same person under both Leave and Pending, and
+     Pending read as a list of people to chase. */
+  const leaveNames = new Set(
+    onLeave
+      .map((l) => String(l.createdBy || l.appliedBy || l.user || "").trim().toLowerCase())
+      .filter(Boolean)
+  );
+  const pendingUsers = inScope.filter((u) =>
+    !checkedIds.has(String(u.id)) && !leaveNames.has(String(u.name || "").trim().toLowerCase())
+  );
 
   const sel = { padding: "9px 12px", borderRadius: 10, border: "1px solid var(--line)", fontSize: 13, background: "#fff" };
 
   const cards = [
     { key: "total", label: "Total Users", value: inScope.length, color: "#4a7bff" },
     { key: "login", label: "Login", value: loginUsers.length, color: "#10b981" },
-    { key: "pending", label: "Pending", value: pendingUsers.length, color: "#ef4444" },
+    { key: "pending", label: "Pending", value: pendingUsers.length, color: "#ef4444", note: leaveNames.size ? "leave excluded" : "" },
     { key: "leave", label: "Leave", value: onLeave.length, color: "#f59e0b" },
   ];
 
@@ -99,6 +110,7 @@ export default function CheckinPage() {
             }}>
             <div style={{ fontSize: 11.5, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--muted)", fontWeight: 800 }}>{c.label}</div>
             <div style={{ fontFamily: "var(--font-display)", fontSize: 30, fontWeight: 800, color: c.color, marginTop: 4 }}>{c.value}</div>
+            {c.note ? <div style={{ fontSize: 10.5, color: "var(--muted)", fontWeight: 700, marginTop: 1 }}>{c.note}</div> : null}
           </button>
         ))}
       </div>

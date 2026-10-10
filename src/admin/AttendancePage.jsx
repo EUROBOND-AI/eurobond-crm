@@ -170,7 +170,13 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(false);
   const [zone, setZone] = useState("");
   const [hodF, setHodF] = useState("");
-  const [city, setCity] = useState("");
+  /* State in place of City on this screen: a city filter on a national report
+     means scrolling two hundred options to narrow to one town, while the
+     question being asked is almost always "how is this state doing". The City
+     column is still there to read. */
+  const [stateF, setStateF] = useState("");
+  const [gpsF, setGpsF] = useState("");
+  const [statusF, setStatusF] = useState("");
   const [user, setUser] = useState("");
   const [viewSess, setViewSess] = useState(null);   // session being viewed on map
   const [photoView, setPhotoView] = useState(null); // {url, label} same-page photo popup
@@ -211,18 +217,29 @@ export default function AttendancePage() {
 
   const zones = useMemo(() => [...new Set(sessions.map((s) => s.zone).filter(Boolean))], [sessions]);
   const hods = useMemo(() => [...new Set(sessions.map((s) => s.manager).filter(Boolean))].sort(), [sessions]);
-  const cities = useMemo(() => [...new Set(sessions.map((s) => s.city).filter(Boolean))], [sessions]);
+  const states = useMemo(() => [...new Set(sessions.map((s) => s.state).filter(Boolean))].sort(), [sessions]);
   const users = useMemo(() => [...new Set(sessions.map((s) => s.name).filter(Boolean))], [sessions]);
 
   const [page, setPage] = useState(1);
   const PAGE = 10;
+  /* The same two readings the table prints, worked out in one place so a
+     filter can never select rows that look different on screen. */
+  const gpsOf = (s) => {
+    const running = String(s.status || "").toUpperCase() === "RUNNING" || !s.end_time;
+    if (!running) return "Completed";
+    if (s.gps_on != null && s.gps_on !== "") return Number(s.gps_on) === 1 ? "Live" : "GPS Off";
+    return s.app_status === "Live" ? "Live" : "GPS Off";
+  };
+  const statusOf = (s) => (s.marked_absent ? "Absent" : s.status === "DONE" ? "Completed" : "In Progress");
   const filtered = sessions.filter((s) =>
-    (!zone || s.zone === zone) && (!hodF || s.manager === hodF) && (!city || s.city === city) && (!user || s.name === user)
+    (!zone || s.zone === zone) && (!hodF || s.manager === hodF)
+    && (!stateF || s.state === stateF) && (!user || s.name === user)
+    && (!gpsF || gpsOf(s) === gpsF) && (!statusF || statusOf(s) === statusF)
   );
   /* the ten rows currently on screen */
   const visibleRows = useMemo(() => filtered.slice((page - 1) * PAGE, page * PAGE),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sessions, page, zone, hodF, city, user]);
+    [sessions, page, zone, hodF, stateF, user, gpsF, statusF]);
   useEffect(() => {
     let stop = false;
     (async () => {
@@ -633,13 +650,21 @@ export default function AttendancePage() {
           <option value="">All Zones</option>
           {zones.map((z) => <option key={z}>{z}</option>)}
         </select>
-        <select value={city} onChange={(e) => setCity(e.target.value)} style={sel}>
-          <option value="">All Cities</option>
-          {cities.map((c) => <option key={c}>{c}</option>)}
+        <select value={stateF} onChange={(e) => setStateF(e.target.value)} style={sel}>
+          <option value="">All States</option>
+          {states.map((c) => <option key={c}>{c}</option>)}
         </select>
         <select value={user} onChange={(e) => setUser(e.target.value)} style={sel}>
           <option value="">All Users</option>
           {users.map((u) => <option key={u}>{u}</option>)}
+        </select>
+        <select value={gpsF} onChange={(e) => setGpsF(e.target.value)} style={sel}>
+          <option value="">All GPS Status</option>
+          <option>Live</option><option>GPS Off</option><option>Completed</option>
+        </select>
+        <select value={statusF} onChange={(e) => setStatusF(e.target.value)} style={sel}>
+          <option value="">All Status</option>
+          <option>In Progress</option><option>Completed</option><option>Absent</option>
         </select>
       </div>
 
