@@ -19,7 +19,6 @@ const NAV = [
     items: [
       {
         label: "Analytics Hub", icon: <LayoutDashboard size={17} />, children: [
-          { label: "Dashboard", to: "/admin/dashboards/home" },
           { label: "Enquiry Dashboard", to: "/admin/dashboards/enquiry" },
           { label: "Customers Dashboard", to: "/admin/dashboards/customers" },
           { label: "Target Dashboard", to: "/admin/dashboards/target" },
@@ -135,7 +134,6 @@ function ModuleSearch({ nav }) {
     { title: "Biltrax", path: "sfa/biltrax" },
     { title: "Biltrax Dashboard", path: "dashboards/biltrax" },
     { title: "Tour Report", path: "sfa/tour-report" },
-    { title: "Dashboard", path: "dashboards/home" },
     { title: "Enquiry Dashboard", path: "dashboards/enquiry" },
     { title: "Customers Dashboard", path: "dashboards/customers" },
     { title: "Target Dashboard", path: "dashboards/target" },

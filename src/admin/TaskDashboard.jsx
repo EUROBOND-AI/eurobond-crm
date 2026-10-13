@@ -19,7 +19,7 @@ import {
 import { useVisiblePoll } from "../lib/poll.js";
 import { Avatar } from "../lib/avatar.jsx";
 import {
-  KpiCard, Panel, StatusPill, WeekBars, HalfDonut, LiveClock, useNow, useWeek, fmtInt,
+  KpiCard, Panel, StatusPill, WeekBars, HalfDonut, LiveClock, useNow, useWeek, fmtInt, ShowGate,
 } from "../components/dash.jsx";
 
 const DONE = /^(completed|close|closed)$/i;
@@ -52,8 +52,11 @@ export default function TaskDashboard() {
   const [rows, setRows] = useState(null);
   const [users, setUsers] = useState([]);
   const [busy, setBusy] = useState(false);
+  /* nothing is fetched until Show is pressed, like every other dashboard */
+  const [shown, setShown] = useState(false);
 
   const load = () => {
+    setShown(true);
     setBusy(true);
     return Promise.all([
       api.list("task", false, { slim: true }).catch(() => ({ records: [] })),
@@ -65,14 +68,14 @@ export default function TaskDashboard() {
       })
       .finally(() => setBusy(false));
   };
-  useEffect(() => { load(); }, []);
-  /* fresh rows every minute while the tab is being looked at */
-  useVisiblePoll(() => { load(); }, 60000);
+  useEffect(() => { api.listUsers().then((uu) => setUsers(uu.users || [])).catch(() => {}); }, []);
+  /* once shown: fresh rows every minute while the tab is being looked at */
+  useVisiblePoll(() => { if (shown) load(); }, 60000);
 
-  return <TaskDashboardView rows={rows} users={users} busy={busy} onRefresh={load} />;
+  return <TaskDashboardView rows={shown ? rows : null} users={users} busy={busy} onRefresh={load} shown={shown} />;
 }
 
-export function TaskDashboardView({ rows, users, busy = false, onRefresh }) {
+export function TaskDashboardView({ rows, users, busy = false, onRefresh, shown = true }) {
   const nav = useNavigate();
   const now = useNow(1000);
   const week = useWeek(new Date(now));
@@ -193,9 +196,9 @@ export function TaskDashboardView({ rows, users, busy = false, onRefresh }) {
           <div className="dx-sub">Every task your team is running, live — {new Date(now).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", second: "2-digit" })}</div>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
-          <button className="dx-btn" onClick={onRefresh} disabled={busy}>
+          {shown && <button className="dx-btn" onClick={onRefresh} disabled={busy}>
             <RefreshCw size={15} style={busy ? { animation: "ebspin .8s linear infinite" } : undefined} /> Refresh
-          </button>
+          </button>}
           <button className="dx-btn dx-btn-p" onClick={goList}><Plus size={15} /> Add Task</button>
         </div>
       </div>
@@ -224,7 +227,7 @@ export function TaskDashboardView({ rows, users, busy = false, onRefresh }) {
       </div>
 
       {rows === null ? (
-        <div className="dx-card dx-empty">Loading tasks…</div>
+        <ShowGate onShow={onRefresh} busy={busy} what="tasks" />
       ) : (
         <>
           {/* ---- KPI row ---- */}

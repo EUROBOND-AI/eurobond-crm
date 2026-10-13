@@ -7,7 +7,6 @@ import AdminLogin from "./admin/AdminLogin.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import SavingOverlay from "./components/SavingOverlay.jsx";
 import AdminLayout from "./admin/AdminLayout.jsx";
-const HomeDashboard = lazy(() => import("./admin/HomeDashboard.jsx"));
 const DealPipeline = lazy(() => import("./admin/DealPipeline.jsx"));
 const AreasPage = lazy(() => import("./admin/AreasPage.jsx"));
 const ExpenseDashboard = lazy(() => import("./admin/ExpenseDashboard.jsx"));
@@ -96,8 +95,8 @@ export default function App() {
       <Route path="/" element={isNative ? <Navigate to="/app" replace /> : <Portal />} />
       <Route path="/admin/login" element={<AdminLogin />} />
       <Route path="/admin" element={<AdminLayout />}>
-        <Route index element={<Navigate to="dashboards/home" replace />} />
-        <Route path="dashboards/home" element={<HomeDashboard />} />
+        <Route index element={<Navigate to="dashboards/enquiry" replace />} />
+        <Route path="dashboards/home" element={<Navigate to="/admin/dashboards/enquiry" replace />} />
         <Route path="sfa/pipeline" element={<DealPipeline />} />
         <Route path="master/areas" element={<AreasPage />} />
         <Route path="dashboards/expense" element={<ExpenseDashboard />} />
@@ -131,7 +130,7 @@ export default function App() {
         {Object.entries(MODULES).filter(([key]) => key !== "users" && key !== "quotation" && key !== "products" && key !== "enquiry" && key !== "expense").map(([key, cfg]) => (
           <Route key={key} path={cfg.path} element={<ModulePage cfgKey={key} />} />
         ))}
-        <Route path="*" element={<Navigate to="dashboards/home" replace />} />
+        <Route path="*" element={<Navigate to="dashboards/enquiry" replace />} />
       </Route>
       <Route path="/app/*" element={<FieldApp />} />
       <Route path="*" element={<Navigate to="/" replace />} />
