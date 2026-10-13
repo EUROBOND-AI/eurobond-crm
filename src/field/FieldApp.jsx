@@ -4387,6 +4387,23 @@ function FieldTeamTracking() {
     try { const d = await api.attTrack(sel.id); setPts((d.points || []).map((p) => ({ lat: +p.lat, lng: +p.lng, accuracy: +p.accuracy || null, recorded_at: p.recorded_at, battery: p.battery, online: p.online, address: p.address }))); } catch {}
   }, 30000);
 
+  /* Kilometres, measured the same way the admin panel measures them.
+
+     trackDistanceKm drops the vague fixes a phone produces while somebody is
+     standing still, so a morning in one office does not quietly add up to a
+     few kilometres of travel. cumKm[i] is how far they had come by the time
+     of point i, so each stop on the timeline can say it. */
+  const cumKm = useMemo(() => {
+    const out = {};
+    /* only the stops the timeline actually draws — a day is six hundred odd
+       fixes but a hundred-odd stops, and measuring from the start for every
+       single fix would be six hundred passes over the whole track for rows
+       nobody sees */
+    keepIdx.forEach((i) => { out[i] = trackDistanceKm(pts.slice(0, i + 1)); });
+    return out;
+  }, [pts, keepIdx]);
+  const totalKm = pts.length ? trackDistanceKm(pts) : 0;
+
   const statusColor = (s) => s === "Live" ? "#12a150" : (s === "GPS Off" || s === "App Closed") ? "#e08600" : "#8894a8";
   const gpsLabel = (s) => s === "Live" ? "GPS On" : s === "Completed" ? "Completed" : "GPS Off";
 
@@ -4403,6 +4420,7 @@ function FieldTeamTracking() {
               <div style={{ fontWeight: 800 }}>{sel.name}</div>
               <div style={{ fontSize: 12, color: "var(--muted)" }}>
                 {sel.visit_name || "Field"}<VisitTag type={sel.visit_type || "Local"} />
+                <span style={{ marginLeft: 6, fontWeight: 800, color: "#1f3a68" }}>{totalKm.toFixed(2)} km</span>
               </div>
             </div>
             <span style={{ fontWeight: 800, fontSize: 12.5, color: statusColor(sel.app_status) }}>● {gpsLabel(sel.app_status)}</span>
@@ -4410,7 +4428,7 @@ function FieldTeamTracking() {
           <div style={{ padding: "4px 16px 12px" }}>
             {/* points arrive every ~30 s now; the old "newest 100" cut the Start off */}
             <div style={{ fontWeight: 800, fontSize: 12.5, color: "var(--muted)", margin: "6px 0 8px" }}>
-              Timeline ({keepIdx.length} stops · {pts.length} points)
+              Timeline ({keepIdx.length} stops · {pts.length} points · {totalKm.toFixed(2)} km)
             </div>
             {pts.length === 0 ? (
               <div style={{ textAlign: "center", color: "var(--muted)", padding: 20, fontSize: 13 }}>No location points yet today.</div>
@@ -4425,7 +4443,11 @@ function FieldTeamTracking() {
                     <span style={{ fontSize: 10, color: "var(--muted)" }}>🔋 {p.battery != null ? p.battery + "%" : "NA"} {p.online === 1 || p.online === true ? "🟢" : ""}</span>
                   </div>
                   <div style={{ fontSize: 11.5, color: "var(--ink)", marginTop: 2, fontWeight: 500 }}>{p.address || hodAddr[`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`] || ebCachedPlace(p.lat, p.lng) || "Finding address…"}</div>
-                  <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 1 }}>{p.recorded_at ? String(p.recorded_at).slice(11, 16) : ""}</div>
+                  <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 1, display: "flex", justifyContent: "space-between" }}>
+                    <span>{p.recorded_at ? String(p.recorded_at).slice(11, 16) : ""}</span>
+                    {/* how far they had come by this stop */}
+                    <span style={{ fontWeight: 800, color: "#1f3a68" }}>{(cumKm[i] || 0).toFixed(2)} km</span>
+                  </div>
                 </div>
               );
             })}
@@ -4450,6 +4472,11 @@ function FieldTeamTracking() {
               <div style={{ fontWeight: 800, fontSize: 14 }}>{s.name}</div>
               <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
                 {s.visit_name || "Field"}<VisitTag type={s.visit_type || "Local"} />
+                {/* how far they have travelled — the one number a manager
+                    looks for on this screen, and it was not on it */}
+                <span style={{ marginLeft: 6, fontWeight: 800, color: "#1f3a68" }}>
+                  {Number(s.distance_km || 0).toFixed(2)} km
+                </span>
               </div>
             </div>
             <div style={{ textAlign: "right" }}>

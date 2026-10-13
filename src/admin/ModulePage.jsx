@@ -642,7 +642,12 @@ export default function ModulePage({ cfgKey }) {
           tabs={cfg.tabs.map((t) => ({
             ...t,
             label: (cfgKey === "projectProjection" && projSide === "Specs" && t.key === "Win") ? "Approved" : t.label,
-            count: (cfg.tabField && !cfg.noTabFilter && !["projectProjection", "salesToSpec", "specToSales", "target"].includes(cfgKey)) ? rows.filter((r) => String(r[cfg.tabField]) === t.key).length : null,
+            /* counted from the rows this login may actually see, and after the
+               filters, so the number on a tab matches the rows behind it.
+               Counting the raw fetch meant a manager whose team had no tasks
+               still read "Pending 13" over an empty table — the whole
+               company's tasks, which they are not allowed to open. */
+            count: (cfg.tabField && !cfg.noTabFilter && !["projectProjection", "salesToSpec", "specToSales", "target"].includes(cfgKey)) ? statShown.filter((r) => String(r[cfg.tabField]) === t.key).length : null,
           }))}
           active={tab}
           onChange={setTab}

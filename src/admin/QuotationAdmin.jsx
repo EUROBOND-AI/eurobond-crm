@@ -154,7 +154,7 @@ export default function QuotationAdmin() {
   useEffect(() => { load(); api.listUsers().then((d) => setQUsers((d.users || []).filter((u) => u.status == 1))).catch(() => {}); }, []);
 
   const list = useMemo(() => {
-    let l = scopeRows(rows || [], qUsers, ["createdBy", "by", "salesPerson"]);
+    let l = scoped;
     const anyColSearch = Object.values(colSearch).some((v) => String(v || "").trim());
     if (!applied && !anyColSearch) return [];   // nothing until Show is clicked
     if (applied) {
@@ -168,7 +168,7 @@ export default function QuotationAdmin() {
       if (vv) l = l.filter((r) => String(r[k] ?? "").toLowerCase().includes(vv));
     });
     return l;
-  }, [rows, colSearch, applied, qUsers]);
+  }, [scoped, colSearch, applied]);
   const pager = usePager(list, 10, "");
 
   const approve = async (q) => {
@@ -182,7 +182,14 @@ export default function QuotationAdmin() {
     setBusy(false);
   };
 
-  const pending = (rows || []).filter((r) => (r.status || "Pending") === "Pending").length;
+  /* The boxes count what this login may see, which is what the table shows.
+
+     They were counted from the raw fetch instead, so a manager whose team had
+     written no quotations still read "Total 13 · Approved 13" over a table
+     saying none were found — thirteen quotations belonging to other teams,
+     which is both confusing and more than they are allowed to know. */
+  const scoped = useMemo(() => scopeRows(rows || [], qUsers, ["createdBy", "by", "salesPerson"]), [rows, qUsers]);
+  const pending = scoped.filter((r) => (r.status || "Pending") === "Pending").length;
 
   const importCsv = async (file) => {
     if (!file) return;
@@ -215,8 +222,8 @@ export default function QuotationAdmin() {
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     a.download = "quotations.csv"; a.click();
   };
-  const approved = (rows || []).filter((r) => r.status === "Approved").length;
-  const won = (rows || []).filter((r) => r.status === "Win").length;
+  const approved = scoped.filter((r) => r.status === "Approved").length;
+  const won = scoped.filter((r) => r.status === "Win").length;
 
   return (
     <div>
@@ -237,7 +244,7 @@ export default function QuotationAdmin() {
       {/* zero until Show has been pressed, the same as everywhere else — the
           boxes are part of the page, the figures are the answer */}
       <div className="stat-row">
-        <StatCard label="Total" value={applied && rows ? rows.length : 0} sub="All quotations" />
+        <StatCard label="Total" value={applied ? scoped.length : 0} sub="All quotations" />
         <StatCard label="Pending" value={applied ? pending : 0} sub="Awaiting approval" color="#f59e0b" />
         <StatCard label="Approved" value={applied ? approved : 0} sub="Approved" color="#2563eb" />
         <StatCard label="Won" value={applied ? won : 0} sub="Win" color="#059669" />
