@@ -626,6 +626,8 @@ table.grid td:has(> span[data-longtext]) { white-space: normal; vertical-align: 
   --dx-bad-bg: #fdecec;
   --dx-info-bg: #e8f1fd;
   --dx-accent-ink: #184f95;
+  --dx-o1: #104281; --dx-o2: #256abf; --dx-o3: #5598e7; --dx-o4: #86b6ef;
+  --dx-on-deep: #ffffff; --dx-on-light: #0b2a55;
 }
 body.dark {
   --dx-plane: #0b1426;
@@ -645,6 +647,8 @@ body.dark {
   --dx-bad-bg: #331618;
   --dx-info-bg: #13294b;
   --dx-accent-ink: #86b6ef;
+  --dx-o1: #c3dbf8; --dx-o2: #86b6ef; --dx-o3: #4f8fe0; --dx-o4: #2468bf;
+  --dx-on-deep: #07142b; --dx-on-light: #ffffff;
 }
 
 .dx { color: var(--dx-ink); font-family: var(--font-body); }
@@ -780,3 +784,22 @@ body.dark {
 .dx-grid > .dx-card:nth-child(3) { animation-delay: .10s; }
 .dx-grid > .dx-card:nth-child(4) { animation-delay: .15s; }
 @media (prefers-reduced-motion: reduce) { .dx-card, .dx-clock .sep { animation: none; } }
+
+/* pipeline tiles */
+.dx-pipe { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; border-radius: 16px; overflow: hidden; }
+.dx-pipe-step { padding: 18px 16px; min-height: 112px; display: flex; flex-direction: column; justify-content: flex-end; }
+.dx-pipe-v { font-size: 30px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.dx-pipe-l { font-size: 12.5px; font-weight: 700; margin-top: 6px; }
+.dx-pipe-p { font-size: 11px; font-weight: 600; opacity: .8; margin-top: 2px; }
+@media (max-width: 700px) { .dx-pipe { grid-auto-flow: row; } }
+.dx-row-even { grid-template-columns: repeat(3, minmax(0,1fr)); }
+.dx-row-half { grid-template-columns: repeat(2, minmax(0,1fr)); }
+@media (max-width: 1100px) { .dx-row-even { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 860px) { .dx-row-even, .dx-row-half { grid-template-columns: 1fr; } }
+.dx-seg { display: inline-flex; background: var(--dx-card); border-radius: 12px; padding: 3px; box-shadow: 0 0 0 1px var(--dx-ring-strong); }
+.dx-seg button { border: 0; background: transparent; padding: 7px 16px; border-radius: 9px; font-weight: 700; font-size: 12.5px; color: var(--dx-ink-2); cursor: pointer; }
+.dx-seg button.on { background: var(--dx-600); color: #fff; }
+.dx-stat-mini { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; margin-top: 14px; border-radius: 12px; overflow: hidden; }
+.dx-stat-mini > div { background: rgba(233,240,255,.07); padding: 10px 12px; }
+.dx-stat-mini b { display: block; color: #fff; font-size: 18px; font-variant-numeric: tabular-nums; }
+.dx-stat-mini span { font-size: 11px; color: rgba(233,240,255,.65); }

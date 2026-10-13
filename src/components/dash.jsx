@@ -11,7 +11,9 @@
    Figures — the big numbers — stay in the body sans like all the other text.
    The display face is for page titles only. */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, RefreshCw } from "lucide-react";
+import { Avatar } from "../lib/avatar.jsx";
+import { visibleUsers, hodNamesOf, taskMatchesPlace } from "../lib/scope.js";
 
 /* ---------------------------------------------------------------- numbers */
 export const fmtInt = (n) => {
@@ -93,7 +95,8 @@ function useTip() {
    one series, so no legend; the panel title says what it is. Exactly one
    value is labelled on the chart (the best day), the rest live in the hover.
 */
-export function WeekBars({ days, height = 190, unit = "" }) {
+export function WeekBars({ days, height = 190, unit = "", fmt }) {
+  const f = fmt || ((v) => String(v));
   const { tip, host, show, hide } = useTip();
   const max = Math.max(1, ...days.map((d) => Number(d.value) || 0));
   const best = days.reduce((bi, d, i) => ((Number(d.value) || 0) > (Number(days[bi].value) || 0) ? i : bi), 0);
@@ -106,13 +109,13 @@ export function WeekBars({ days, height = 190, unit = "" }) {
           const h = Math.round((v / max) * (height - 28));
           return (
             <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", height: "100%", justifyContent: "flex-end", position: "relative" }}
-              onMouseMove={(e) => show(e, <>{d.full || d.label}<small>{v}{unit ? " " + unit : ""}{d.note ? " · " + d.note : ""}</small></>)}>
+              onMouseMove={(e) => show(e, <>{d.full || d.label}<small>{f(v)}{unit ? " " + unit : ""}{d.note ? " · " + d.note : ""}</small></>)}>
               {/* the single direct label, above the best day */}
               {hasAny && i === best && v > 0 && (
                 <div style={{ position: "absolute", bottom: h + 10, background: "var(--dx-card)", color: "var(--dx-ink)",
                   boxShadow: "0 0 0 1px var(--dx-ring-strong), 0 4px 10px rgba(15,27,51,.08)", borderRadius: 7,
                   padding: "2px 7px", fontSize: 11, fontWeight: 800, whiteSpace: "nowrap", zIndex: 2 }}>
-                  {v}{unit ? " " + unit : ""}
+                  {f(v)}{unit ? " " + unit : ""}
                 </div>
               )}
               {/* track */}
@@ -128,8 +131,8 @@ export function WeekBars({ days, height = 190, unit = "" }) {
       </div>
       <div style={{ display: "grid", gridTemplateColumns: `repeat(${days.length}, 1fr)`, gap: 10, marginTop: 8 }}>
         {days.map((d, i) => (
-          <div key={i} style={{ textAlign: "center", fontSize: 11.5, fontWeight: d.isToday ? 800 : 600,
-            color: d.isToday ? "var(--dx-ink)" : "var(--dx-mute)" }}>{d.label}</div>
+          <div key={i} title={d.full || d.label} style={{ textAlign: "center", fontSize: 11.5, fontWeight: d.isToday ? 800 : 600,
+            color: d.isToday ? "var(--dx-ink)" : "var(--dx-mute)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.label}</div>
         ))}
       </div>
       {tip && <div className="dx-tip" style={{ left: tip.x, top: tip.y }}>{tip.content}</div>}
@@ -142,7 +145,8 @@ export function WeekBars({ days, height = 190, unit = "" }) {
    the surface colour rather than outlined. Two or more parts, so there is a
    legend underneath — a dot beside each word, the word itself in ink.
 */
-export function HalfDonut({ segments, center, centerLabel, size = 240 }) {
+export function HalfDonut({ segments, center, centerLabel, size = 240, fmt }) {
+  const ff = fmt || ((v) => (Number(v) || 0).toLocaleString("en-IN"));
   const { tip, host, show, hide } = useTip();
   const total = segments.reduce((s, x) => s + (Number(x.value) || 0), 0);
   const R = size / 2 - 16;
@@ -171,13 +175,13 @@ export function HalfDonut({ segments, center, centerLabel, size = 240 }) {
       <svg viewBox={`0 0 ${size} ${size / 2 + 10}`} style={{ width: "100%", maxWidth: size, display: "block", margin: "0 auto" }} role="img"
         aria-label={segments.map((s) => `${s.label} ${s.value}`).join(", ")}>
         {/* the empty track, so a zero reads as zero and not as missing */}
-        <path d={arc(Math.PI, 0)} fill="none" stroke="var(--dx-grid)" strokeWidth={W} />
+        <path d={arc(Math.PI, 0)} fill="none" strokeWidth={W} style={{ stroke: "var(--dx-grid)" }} />
         {parts.filter((p) => p.span > 0).map((p, i) => {
           const g = p.span > GAP * 3 ? GAP : 0;
           return (
-            <path key={i} d={arc(p.from - g / 2, p.to + g / 2)} fill="none" stroke={p.color} strokeWidth={W}
-              style={{ cursor: "default", transition: "opacity .15s" }}
-              onMouseMove={(e) => show(e, <>{p.label}<small>{p.value} · {total ? Math.round((p.value / total) * 100) : 0}%</small></>)} />
+            <path key={i} d={arc(p.from - g / 2, p.to + g / 2)} fill="none" strokeWidth={W}
+              style={{ stroke: p.color, cursor: "default", transition: "opacity .15s" }}
+              onMouseMove={(e) => show(e, <>{p.label}<small>{ff(p.value)} · {total ? Math.round((p.value / total) * 100) : 0}%</small></>)} />
           );
         })}
         <text x={cx} y={cy - 14} textAnchor="middle" style={{ fontSize: 34, fontWeight: 800, fill: "var(--dx-ink)", fontFamily: "var(--font-body)" }}>{center}</text>
@@ -187,7 +191,7 @@ export function HalfDonut({ segments, center, centerLabel, size = 240 }) {
         {segments.map((s) => (
           <span key={s.label} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--dx-ink-2)", fontWeight: 600 }}>
             <span style={{ width: 9, height: 9, borderRadius: "50%", background: s.color, flexShrink: 0 }} />
-            {s.label} <b style={{ color: "var(--dx-ink)" }}>{s.value}</b>
+            {s.label} <b style={{ color: "var(--dx-ink)" }}>{ff(s.value)}</b>
           </span>
         ))}
       </div>
@@ -248,4 +252,261 @@ export function useWeek(now = new Date()) {
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [new Date(now).toDateString()]);
+}
+
+
+/* ================================================================ shared page
+   Every dashboard is the same frame: a title with a live time under it, the
+   actions on the right, one row of filters, then the cards. */
+export const ORD = ["var(--dx-o1)", "var(--dx-o2)", "var(--dx-o3)", "var(--dx-o4)"];
+
+export const money = (n) => {
+  const v = Number(n) || 0;
+  if (Math.abs(v) >= 10000000) return "₹" + (v / 10000000).toFixed(2).replace(/\.?0+$/, "") + " Cr";
+  if (Math.abs(v) >= 100000) return "₹" + (v / 100000).toFixed(2).replace(/\.?0+$/, "") + " L";
+  return "₹" + Math.round(v).toLocaleString("en-IN");
+};
+export const num = (n) => (Number(n) || 0).toLocaleString("en-IN");
+export const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+
+export function DxPage({ title, sub, actions, children }) {
+  const now = useNow(1000);
+  return (
+    <div className="dx dx-plane">
+      <div className="dx-head">
+        <div>
+          <div className="dx-title">{title}</div>
+          <div className="dx-sub">{sub}{sub ? " — " : ""}{new Date(now).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", second: "2-digit" })}</div>
+        </div>
+        {actions && <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>{actions}</div>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+export function Field({ label, children }) {
+  return <div><label>{label}</label>{children}</div>;
+}
+
+export function RefreshBtn({ onClick, busy }) {
+  return (
+    <button className="dx-btn" onClick={onClick} disabled={busy}>
+      <RefreshCw size={15} style={busy ? { animation: "ebspin .8s linear infinite" } : undefined} /> Refresh
+    </button>
+  );
+}
+
+/* Before anything is fetched: one card that says what pressing Show will do. */
+export function ShowGate({ onShow, busy, what = "the dashboard" }) {
+  return (
+    <div className="dx-card" style={{ textAlign: "center", padding: "56px 20px" }}>
+      <div style={{ width: 64, height: 64, margin: "0 auto 16px", borderRadius: 18, display: "grid", placeItems: "center",
+        background: "var(--dx-info-bg)", color: "var(--dx-accent-ink)", fontSize: 28 }} aria-hidden="true">◔</div>
+      <div style={{ fontWeight: 800, fontSize: 16, color: "var(--dx-ink)" }}>{busy ? "Loading " + what + "…" : "Choose your filters, then press Show"}</div>
+      <div style={{ fontSize: 12.5, color: "var(--dx-mute)", marginTop: 6 }}>
+        {busy ? "Reading the latest figures from the server" : "Nothing is downloaded until you ask — the panel stays quick for everyone."}
+      </div>
+      {!busy && <button className="dx-btn dx-btn-p" style={{ marginTop: 18, padding: "10px 34px" }} onClick={onShow}>Show</button>}
+      {busy && <div className="eb-spin" style={{ margin: "18px auto 0" }} />}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- rank bars
+   Who leads, as horizontal meters: a name, a light track, a deep fill and the
+   figure in ink at the end. One series, so no legend — the title names it. */
+export function RankBars({ items, fmt = num, limit = 8, photoOf, sub, empty = "Nothing to show." }) {
+  const list = (items || []).slice(0, limit);
+  const max = Math.max(1, ...list.map((x) => Number(x.value) || 0));
+  if (!list.length) return <div className="dx-empty">{empty}</div>;
+  return (
+    <div style={{ display: "grid", gap: 12 }}>
+      {list.map((x, i) => (
+        <div key={x.label + i} style={{ display: "grid", gridTemplateColumns: photoOf ? "30px minmax(0,1fr) auto" : "minmax(0,1fr) auto", gap: 10, alignItems: "center" }}
+          title={`${x.label}: ${fmt(x.value)}${x.note ? " · " + x.note : ""}`}>
+          {photoOf && <Avatar name={x.label} photo={photoOf(x.label)} size={30} />}
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 5 }}>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--dx-ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{x.label}</span>
+              {(x.note || sub) && <span style={{ fontSize: 11, color: "var(--dx-mute)", whiteSpace: "nowrap" }}>{x.note || sub}</span>}
+            </div>
+            <div style={{ height: 8, borderRadius: 99, background: "var(--dx-100)", overflow: "hidden" }}>
+              <div style={{ height: "100%", width: Math.max(2, ((Number(x.value) || 0) / max) * 100) + "%", borderRadius: 99,
+                background: i === 0 ? "var(--dx-600)" : "#86b6ef", transition: "width .6s cubic-bezier(.2,.7,.2,1)" }} />
+            </div>
+          </div>
+          <b style={{ fontSize: 13, color: "var(--dx-ink)", fontVariantNumeric: "tabular-nums", minWidth: 44, textAlign: "right" }}>{fmt(x.value)}</b>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- pipeline
+   Stages in the order work moves through them. Each tile is a step of the
+   one blue ramp, deepest at the end, and between tiles sits the share that
+   made it that far — so the drop-off reads without any arithmetic. */
+export function Pipeline({ steps }) {
+  const first = Number(steps[0] && steps[0].value) || 0;
+  return (
+    <div className="dx-pipe">
+      {steps.map((s, i) => {
+        const dark = i >= steps.length - 2;
+        return (
+          <div key={s.label} className="dx-pipe-step" style={{ background: s.color || ORD[steps.length - 1 - i] || ORD[3],
+            color: dark ? "var(--dx-on-deep)" : "var(--dx-on-light)" }} title={s.note || ""}>
+            <div className="dx-pipe-v">{num(s.value)}</div>
+            <div className="dx-pipe-l">{s.label}</div>
+            {i > 0 && first > 0 && <div className="dx-pipe-p">{pct(s.value, first)}% of all</div>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- recent list */
+export function RowList({ rows, empty = "Nothing yet." }) {
+  if (!rows || !rows.length) return <div className="dx-empty">{empty}</div>;
+  return rows.map((r, i) => (
+    <div key={r.key || i} className="dx-list-row">
+      <Avatar name={r.avatar || r.title} photo={r.photo} size={30} />
+      <div className="dx-list-main">
+        <div className="dx-list-name">{r.title}</div>
+        <div className="dx-list-meta">{r.meta}</div>
+      </div>
+      {r.right}
+    </div>
+  ));
+}
+
+/* a pill for any free-text status: the word always shows, the colour only helps */
+export function WordPill({ text, tone = "info" }) {
+  const icon = { good: "✓", bad: "×", warn: "!", info: "◷", mute: "–" }[tone] || "•";
+  return <span className={"dx-pill " + tone}><span aria-hidden="true">{icon}</span>{text}</span>;
+}
+
+/* dd/mm/yyyy, yyyy-mm-dd, or anything Date can read */
+export function readDate(v) {
+  const raw = String(v || "").trim();
+  if (!raw) return null;
+  let m = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2}):(\d{2}))?/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0));
+  m = raw.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})/);
+  if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
+  const d = new Date(raw);
+  return isNaN(d) ? null : d;
+}
+const MS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/* the last n months ending this one, each with how many rows fell in it */
+export function monthBars(rows, dateOf, n = 12, valueOf = () => 1) {
+  const now = new Date();
+  const out = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    out.push({ y: d.getFullYear(), m: d.getMonth(), label: MS[d.getMonth()], full: MS[d.getMonth()] + " " + d.getFullYear(), value: 0, isToday: i === 0 });
+  }
+  (rows || []).forEach((r) => {
+    const d = dateOf(r);
+    if (!d) return;
+    const b = out.find((x) => x.y === d.getFullYear() && x.m === d.getMonth());
+    if (b) b.value += Number(valueOf(r)) || 0;
+  });
+  return out;
+}
+export function countBy(rows, keyOf, valueOf = () => 1) {
+  const m = new Map();
+  (rows || []).forEach((r) => {
+    const k = String(keyOf(r) || "").trim() || "—";
+    m.set(k, (m.get(k) || 0) + (Number(valueOf(r)) || 0));
+  });
+  return [...m.entries()].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
+}
+
+/* ---------------------------------------------------------------- place filters
+   Zone, State, HOD and Person, worked out from the people — a record only
+   names who it belongs to, so the filters look that person up. The lists on
+   offer are limited to the people this login can see. */
+export function usePlaceFilter(users) {
+  const [zone, setZone] = useState("");
+  const [state, setState] = useState("");
+  const [hod, setHod] = useState("");
+  const [person, setPerson] = useState("");
+  const vis = useMemo(() => visibleUsers(users || []).filter((u) => u.status == null || u.status == 1 || u.status === "1"), [users]);
+  const zones = useMemo(() => [...new Set(vis.map((u) => String(u.zone || "").trim()).filter(Boolean))].sort(), [vis]);
+  const states = useMemo(() => [...new Set(vis.flatMap((u) => [u.state, ...String(u.states || "").split(",")]).map((x) => String(x || "").trim()).filter(Boolean))].sort(), [vis]);
+  const hods = useMemo(() => hodNamesOf(vis.length ? vis : users || []), [vis, users]);
+  const any = !!(zone || state || hod || person);
+  const match = (name) => {
+    if (!any) return true;
+    if (person && String(name || "").trim().toLowerCase() !== person.toLowerCase()) return false;
+    return taskMatchesPlace({ assignee: String(name || "") }, users || [], { zone, state, hod });
+  };
+  /* a record that names several people matches when any of them does */
+  const matchAny = (names) => !any || names.filter(Boolean).some((n) => match(n));
+  const clear = () => { setZone(""); setState(""); setHod(""); setPerson(""); };
+  const fields = (
+    <>
+      <Field label="Zone"><select value={zone} onChange={(e) => setZone(e.target.value)}><option value="">All zones</option>{zones.map((z) => <option key={z}>{z}</option>)}</select></Field>
+      <Field label="State"><select value={state} onChange={(e) => setState(e.target.value)}><option value="">All states</option>{states.map((z) => <option key={z}>{z}</option>)}</select></Field>
+      <Field label="HOD"><select value={hod} onChange={(e) => setHod(e.target.value)}><option value="">All HODs</option>{hods.map((z) => <option key={z}>{z}</option>)}</select></Field>
+      <Field label="Person"><select value={person} onChange={(e) => setPerson(e.target.value)}><option value="">Everyone</option>{vis.map((u) => <option key={u.id || u.name} value={u.name}>{u.name}</option>)}</select></Field>
+    </>
+  );
+  return { zone, state, hod, person, any, match, matchAny, clear, fields, vis };
+}
+
+export function useDateRange() {
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const inRange = (d) => {
+    if (!from && !to) return true;
+    if (!d) return false;
+    const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    if (from && k < from) return false;
+    if (to && k > to) return false;
+    return true;
+  };
+  const fields = (
+    <>
+      <Field label="From"><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
+      <Field label="To"><input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></Field>
+    </>
+  );
+  return { from, to, any: !!(from || to), inRange, clear: () => { setFrom(""); setTo(""); }, fields };
+}
+
+/* the time of day, ticking — the night card's headline */
+export function TodayClock({ label }) {
+  const now = useNow(1000);
+  const d = new Date(now);
+  let h = d.getHours();
+  const ap = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  const two = (n) => String(n).padStart(2, "0");
+  return (
+    <div>
+      <div className="dx-clock">{two(h)}<span className="sep">:</span>{two(d.getMinutes())}<span className="sep">:</span>{two(d.getSeconds())}
+        <span style={{ fontSize: 16, marginLeft: 8, opacity: .7 }}>{ap}</span></div>
+      <div style={{ fontSize: 12, color: "rgba(233,240,255,.65)", marginTop: 4 }}>
+        {label || d.toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
+      </div>
+    </div>
+  );
+}
+
+/* names in a night card — who is out right now, with one figure each */
+export function NightList({ title, rows, empty }) {
+  return (
+    <div className="dx-also">
+      <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: ".06em", textTransform: "uppercase", color: "rgba(233,240,255,.5)", marginBottom: 2 }}>{title}</div>
+      {rows.length === 0 ? <div className="dx-also-row">{empty}</div> : rows.map((r, i) => (
+        <div key={r.label + i} className="dx-also-row">
+          <span style={{ minWidth: 0, display: "flex", flexDirection: "column" }}><b>{r.label}</b>{r.sub && <span style={{ fontSize: 11 }}>{r.sub}</span>}</span>
+          <span className="t">{r.value}</span>
+        </div>
+      ))}
+    </div>
+  );
 }

@@ -1,230 +1,193 @@
-import { useEffect, useMemo, useState } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, CartesianGrid } from "recharts";
-import { PageHead, StatCard } from "../components/ui.jsx";
-import { api } from "../lib/api.js";
-import { scopeRows, visibleUsers } from "../lib/scope.js";
+/* Biltrax Dashboard.
 
-const sel = { padding: "8px 11px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 12.5, background: "#fff" };
-const th = { padding: "10px 12px", textAlign: "left", fontSize: 11.5, fontWeight: 800, color: "var(--muted)", whiteSpace: "nowrap" };
-const td = { padding: "9px 12px", fontSize: 12.5, borderTop: "1px solid #f0f2f8" };
+   Stages match the Biltrax list: Draft (nobody on it), Assigned (given to
+   someone, nothing heard), Processing (they have added a remark) and Win.
+   Draft is the office team's queue, so only they see it here as well. */
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { ExternalLink } from "lucide-react";
+import { api } from "../lib/api.js";
+import { scopeRows, userByName, isPanelAdmin } from "../lib/scope.js";
+import {
+  DxPage, KpiCard, Panel, HalfDonut, Pipeline, RankBars, RowList, WordPill, ShowGate, RefreshBtn, TodayClock, NightList,
+  usePlaceFilter, readDate, countBy, money, num, pct, fmtInt, ORD,
+} from "../components/dash.jsx";
+
+const low = (x) => String(x || "").trim().toLowerCase();
+export function biltraxStage(r) {
+  if (r.status === "Win") return "win";
+  const worked = (r.followupsCount ?? (Array.isArray(r.followups) ? r.followups.length : 0)) || r.lastRemark;
+  if (worked) return "processing";
+  return r.assignPerson ? "assigned" : "draft";
+}
+const BS = { draft: ["Draft", "mute"], assigned: ["Assigned", "warn"], processing: ["Processing", "info"], win: ["Win", "good"] };
 
 export default function BiltraxDashboard() {
-  const [rows, setRows] = useState([]);
+  const [rows, setRows] = useState(null);
   const [users, setUsers] = useState([]);
-  const [fState, setFState] = useState("");
-  const [fHod, setFHod] = useState("");
-  const [fPerson, setFPerson] = useState("");
-  const [fType, setFType] = useState("");
-  const [shown, setShown] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [shown, setShown] = useState(false);
 
-  useEffect(() => {
-    api.listUsers().then((d) => setUsers(d.users || [])).catch(() => {});
-  }, []);
+  useEffect(() => { api.listUsers().then((d) => setUsers(d.users || [])).catch(() => {}); }, []);
 
-  const show = async () => {
-    setBusy(true); setShown(true);
-    try {
-      const [d, uu] = await Promise.all([api.list("biltrax", false), api.listUsers().catch(() => ({ users: [] }))]);
-      setRows(scopeRows((d.records || []).map((r) => ({ _id: r.id, ...r.data })), uu.users || [],
-        ["createdBy", "assignPerson", "hod"]));
-    } catch (e) { alert(e.message); }
-    setBusy(false);
+  const load = () => {
+    setShown(true); setBusy(true);
+    Promise.all([api.list("biltrax", false), api.listUsers().catch(() => ({ users: [] }))])
+      .then(([d, uu]) => {
+        setUsers(uu.users || []);
+        setRows(scopeRows((d.records || []).map((r) => ({ _id: r.id, ...r.data })), uu.users || [], ["createdBy", "assignPerson", "hod"]));
+      })
+      .catch(() => setRows([]))
+      .finally(() => setBusy(false));
   };
+  return <BiltraxDashboardView rows={rows} users={users} busy={busy} shown={shown} onShow={load} />;
+}
 
-  const list = useMemo(() => rows.filter((r) =>
-    (!fState || r.state === fState) && (!fHod || r.hod === fHod) &&
-    (!fPerson || r.assignPerson === fPerson) && (!fType || (r.biltraxType || "Requested") === fType)
-  ), [rows, fState, fHod, fPerson, fType]);
+export function BiltraxDashboardView({ rows, users, busy, shown, onShow, admin = isPanelAdmin() }) {
+  const nav = useNavigate();
+  const pf = usePlaceFilter(users);
+  const [type, setType] = useState("");
 
-  const stage = (r) => (r.status === "Win" ? "Win" : (r.assignPerson ? "Processing" : "Draft"));
+  const list = useMemo(() => (rows || []).filter((r) => {
+    if (!admin && biltraxStage(r) === "draft") return false;
+    if (type && (r.biltraxType || "Requested") !== type) return false;
+    if (pf.any) {
+      const own = pf.matchAny([r.assignPerson, r.hod]);
+      const onlyState = pf.state && !pf.zone && !pf.hod && !pf.person;
+      if (!own && !(onlyState && low(r.state) === low(pf.state))) return false;
+    }
+    return true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [rows, admin, type, pf.zone, pf.state, pf.hod, pf.person, users]);
 
-  const stats = useMemo(() => {
-    const won = list.filter((r) => r.status === "Win");
+  const S = useMemo(() => {
+    const by = { draft: 0, assigned: 0, processing: 0, win: 0 };
+    list.forEach((r) => { by[biltraxStage(r)]++; });
+    const won = list.filter((r) => biltraxStage(r) === "win");
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const in7 = new Date(today); in7.setDate(today.getDate() + 7);
+    const appts = list.filter((r) => r.biltraxType === "Appointment");
+    const upcoming = appts.filter((r) => { const d = readDate(r.appointmentDate); return d && d >= today && d < in7; });
+    const follows = list.filter((r) => { const d = readDate(r.nextFollowDate); return d && d >= today && d < new Date(today.getTime() + 86400000); });
     return {
-      total: list.length,
-      draft: list.filter((r) => stage(r) === "Draft").length,
-      processing: list.filter((r) => stage(r) === "Processing").length,
-      won: won.length,
+      by, total: list.length, appts: appts.length, upcoming, followsToday: follows.length,
       sqm: won.reduce((s, r) => s + (Number(r.winSqm) || 0), 0),
       amount: won.reduce((s, r) => s + (Number(r.winAmount) || 0), 0),
-      appointment: list.filter((r) => r.biltraxType === "Appointment").length,
     };
   }, [list]);
 
-  /* per-person split — who is holding how many, and what has been won */
-  const byPerson = useMemo(() => {
-    const m = {};
+  const people = useMemo(() => {
+    const m = new Map();
     list.forEach((r) => {
-      const k = r.assignPerson || "— Unassigned —";
-      if (!m[k]) m[k] = { name: k, hod: r.hod || "", total: 0, draft: 0, processing: 0, won: 0, sqm: 0, amount: 0 };
-      m[k].total++;
-      m[k][stage(r).toLowerCase()]++;
-      if (r.status === "Win") { m[k].sqm += Number(r.winSqm) || 0; m[k].amount += Number(r.winAmount) || 0; }
+      const n = r.assignPerson || "— Unassigned —";
+      const x = m.get(n) || { name: n, hod: r.hod || "", total: 0, draft: 0, assigned: 0, processing: 0, win: 0, sqm: 0, amount: 0 };
+      const st = biltraxStage(r);
+      x.total++; x[st]++;
+      if (st === "win") { x.sqm += Number(r.winSqm) || 0; x.amount += Number(r.winAmount) || 0; }
+      m.set(n, x);
     });
-    return Object.values(m).sort((a, b) => b.total - a.total);
+    return [...m.values()].sort((a, b) => b.total - a.total);
   }, [list]);
-
-  /* chart data */
-  const stageData = useMemo(() => ([
-    { name: "Draft", value: stats.draft },
-    { name: "Processing", value: stats.processing },
-    { name: "Win", value: stats.won },
-  ]), [stats]);
-  const typeData = useMemo(() => ([
-    { name: "Requested", value: list.filter((r) => (r.biltraxType || "Requested") === "Requested").length },
-    { name: "Appointment", value: list.filter((r) => r.biltraxType === "Appointment").length },
-  ]), [list]);
-  const stateData = useMemo(() => {
-    const m = {};
-    list.forEach((r) => { const k = r.state || "—"; m[k] = (m[k] || 0) + 1; });
-    return Object.entries(m).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 8);
-  }, [list]);
-  const personChart = useMemo(() => byPerson.slice(0, 8).map((p) => ({
-    name: p.name.length > 14 ? p.name.slice(0, 13) + "…" : p.name,
-    Draft: p.draft, Processing: p.processing, Won: p.won,
-  })), [byPerson]);
-  const STAGE_COLORS = ["#8a93a8", "#2b6fb8", "#1f9d55"];
-  const TYPE_COLORS = ["#4f46e5", "#e08600"];
-
-  const states = [...new Set(rows.map((r) => r.state).filter(Boolean))].sort();
-  const hods = [...new Set(rows.map((r) => r.hod).filter(Boolean))].sort();
-  const persons = [...new Set(rows.map((r) => r.assignPerson).filter(Boolean))].sort();
+  const photoOf = (n) => (userByName(users || [], n) || {}).photo || "";
+  const goList = () => nav("/admin/sfa/biltrax");
+  const short = (d) => (d ? d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" }) : "—");
+  const steps = [
+    ...(admin ? [{ label: "All leads", value: S.total }] : []),
+    { label: "Given to someone", value: S.total - S.by.draft },
+    { label: "Being worked or won", value: S.by.processing + S.by.win },
+    { label: "Win", value: S.by.win },
+  ];
 
   return (
-    <div>
-      <PageHead crumb="Dashboards" title="Biltrax Dashboard" />
-
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 16, background: "#fff", padding: 12, borderRadius: 12, boxShadow: "var(--shadow)" }}>
-        <select value={fType} onChange={(e) => setFType(e.target.value)} style={sel}>
-          <option value="">All Types</option><option>Requested</option><option>Appointment</option>
-        </select>
-        <select value={fState} onChange={(e) => setFState(e.target.value)} style={sel}>
-          <option value="">All States</option>{states.map((x) => <option key={x}>{x}</option>)}
-        </select>
-        <select value={fHod} onChange={(e) => setFHod(e.target.value)} style={sel}>
-          <option value="">All HOD</option>{hods.map((x) => <option key={x}>{x}</option>)}
-        </select>
-        <select value={fPerson} onChange={(e) => setFPerson(e.target.value)} style={sel}>
-          <option value="">All Persons</option>{persons.map((x) => <option key={x}>{x}</option>)}
-        </select>
-        <button className="btn btn-primary" style={{ padding: "8px 22px", fontWeight: 700 }} onClick={show} disabled={busy}>
-          {busy ? "Loading…" : "Show"}
-        </button>
+    <DxPage title="Biltrax Dashboard" sub="Biltrax leads, from first look to win"
+      actions={<>
+        <div className="dx-seg">{[["", "All"], ["Requested", "Requested"], ["Appointment", "Appointment"]].map(([k, l]) => <button key={l} className={type === k ? "on" : ""} onClick={() => setType(k)}>{l}</button>)}</div>
+        {shown && <RefreshBtn onClick={onShow} busy={busy} />}
+        <button className="dx-btn dx-btn-p" onClick={goList}><ExternalLink size={15} /> Open Biltrax</button>
+      </>}>
+      <div className="dx-filters">
+        {pf.fields}
+        {pf.any && <button className="dx-btn" style={{ alignSelf: "flex-end" }} onClick={pf.clear}>Clear</button>}
       </div>
 
-      {!shown ? (
-        <div style={{ padding: 50, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>
-          Choose your filters and click <b>Show</b>.
-        </div>
-      ) : (
+      {!shown || (busy && !rows) ? <ShowGate onShow={onShow} busy={busy} what="Biltrax leads" /> : (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(165px,1fr))", gap: 12, marginBottom: 18 }}>
-            <StatCard label="Total Projects" value={stats.total} />
-            <StatCard label="Draft" value={stats.draft} />
-            <StatCard label="Processing" value={stats.processing} />
-            <StatCard label="Won" value={stats.won} />
-            <StatCard label="Appointments" value={stats.appointment} />
-            <StatCard label="Won Sq. Meter" value={stats.sqm.toLocaleString("en-IN")} />
-            <StatCard label="Won Amount" value={"₹" + stats.amount.toLocaleString("en-IN")} />
+          <div className="dx-grid dx-kpis" style={{ marginBottom: 16 }}>
+            <KpiCard hero label="Biltrax Projects" value={fmtInt(S.total)} chip={admin ? S.by.draft : S.by.assigned}
+              sub={admin ? "still in draft" : "not yet started"} onClick={goList} />
+            <KpiCard label="Processing" value={fmtInt(S.by.processing)} chip={S.followsToday} sub="follow-ups due today" onClick={goList} />
+            <KpiCard label="Won" value={fmtInt(S.by.win)} chip={pct(S.by.win, S.total) + "%"} sub="of all leads" onClick={goList} />
+            <KpiCard label="Won Value" value={money(S.amount)} chip={fmtInt(S.sqm)} sub="Sq.Mtr won" onClick={goList} />
           </div>
 
-          {/* pipeline flow */}
-          <div style={{ background: "#fff", borderRadius: 12, boxShadow: "var(--shadow)", padding: 16, marginBottom: 16 }}>
-            <div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 12 }}>Pipeline Flow</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              {stageData.map((st, i) => (
-                <div key={st.name} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <div style={{ minWidth: 130, textAlign: "center", padding: "14px 16px", borderRadius: 12,
-                    background: `linear-gradient(135deg, ${STAGE_COLORS[i]}, ${STAGE_COLORS[i]}cc)`, color: "#fff" }}>
-                    <div style={{ fontSize: 22, fontWeight: 800 }}>{st.value}</div>
-                    <div style={{ fontSize: 11.5, fontWeight: 700, opacity: .9 }}>{st.name}</div>
-                  </div>
-                  {i < stageData.length - 1 && <div style={{ fontSize: 22, color: "#ccd2e6" }}>→</div>}
-                </div>
-              ))}
+          <Panel title="Pipeline" sub="How far leads get — the share under each stage is out of the first" style={{ marginBottom: 16 }}>
+            <Pipeline steps={steps} />
+          </Panel>
+
+          <div className="dx-grid dx-row" style={{ marginBottom: 16 }}>
+            <Panel title="Appointments this week" sub={`${num(S.appts)} appointment leads in all`}>
+              <RowList empty="No appointments in the next 7 days."
+                rows={[...S.upcoming].sort((a, b) => readDate(a.appointmentDate) - readDate(b.appointmentDate)).slice(0, 6).map((r) => ({
+                  key: r._id, title: r.projectName || "Project", avatar: r.assignPerson || r.projectName, photo: photoOf(r.assignPerson),
+                  meta: <>{r.assignPerson || "Unassigned"} · {r.state || "—"}</>,
+                  right: <WordPill text={short(readDate(r.appointmentDate))} tone="info" />,
+                }))} />
+            </Panel>
+            <Panel title="By stage" sub="Every lead, where it stands">
+              <HalfDonut size={260} center={pct(S.by.win, S.total) + "%"} centerLabel="won"
+                segments={[
+                  { label: "Win", value: S.by.win, color: ORD[0] },
+                  { label: "Processing", value: S.by.processing, color: ORD[1] },
+                  { label: "Assigned", value: S.by.assigned, color: ORD[2] },
+                  ...(admin ? [{ label: "Draft", value: S.by.draft, color: ORD[3] }] : []),
+                ]} />
+            </Panel>
+            <Panel night title="Today" sub="Live">
+              <TodayClock />
+              <div className="dx-stat-mini">
+                <div><b>{num(S.followsToday)}</b><span>Follow-ups today</span></div>
+                <div><b>{num(S.upcoming.length)}</b><span>Appts. this week</span></div>
+                <div><b>{num(S.by.win)}</b><span>Won</span></div>
+              </div>
+              <NightList title="Follow-ups due today" empty="No follow-ups due today."
+                rows={list.filter((r) => { const d = readDate(r.nextFollowDate); const t = new Date(); return d && d.toDateString() === t.toDateString(); }).slice(0, 4)
+                  .map((r) => ({ label: r.projectName || "Project", sub: r.assignPerson || "—", value: r.nextFollowTime || "Today" }))} />
+            </Panel>
+          </div>
+
+          <div className="dx-grid dx-row-even" style={{ marginBottom: 16 }}>
+            <Panel title="Most leads" sub="Per person">
+              <RankBars items={people.filter((p) => !p.name.startsWith("—")).map((p) => ({ label: p.name, value: p.total, note: p.win ? `${p.win} won` : "" }))} photoOf={photoOf} />
+            </Panel>
+            <Panel title="Top states" sub="Where the projects are">
+              <RankBars items={countBy(list, (r) => r.state)} />
+            </Panel>
+            <Panel title="Building use" sub="What is being built">
+              <RankBars items={countBy(list, (r) => r.buildingUse)} />
+            </Panel>
+          </div>
+
+          <Panel title="Person-wise split" sub="Who is holding how many, and what has been won">
+            <div style={{ overflowX: "auto" }}>
+              <table className="dx-table">
+                <thead><tr>{["Person", "HOD", "Total", ...(admin ? ["Draft"] : []), "Assigned", "Processing", "Won", "Won Sq.Mtr", "Won Amount"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {people.length === 0 ? <tr><td colSpan={9} className="dx-empty">No projects match these filters.</td></tr>
+                  : people.map((p) => (
+                    <tr key={p.name}>
+                      <td><b>{p.name}</b></td>
+                      <td>{p.hod || "—"}</td><td><b>{p.total}</b></td>
+                      {admin && <td>{p.draft || "—"}</td>}
+                      <td>{p.assigned || "—"}</td><td>{p.processing || "—"}</td><td>{p.win || "—"}</td>
+                      <td>{p.sqm ? num(p.sqm) : "—"}</td><td>{p.amount ? money(p.amount) : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 14, marginBottom: 16 }}>
-            <div style={{ background: "#fff", borderRadius: 12, boxShadow: "var(--shadow)", padding: 16 }}>
-              <div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 10 }}>By Stage</div>
-              <ResponsiveContainer width="100%" height={230}>
-                <PieChart>
-                  <Pie data={stageData} dataKey="value" nameKey="name" innerRadius={52} outerRadius={82} paddingAngle={3}>
-                    {stageData.map((e, i) => <Cell key={i} fill={STAGE_COLORS[i]} />)}
-                  </Pie>
-                  <Tooltip /><Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div style={{ background: "#fff", borderRadius: 12, boxShadow: "var(--shadow)", padding: 16 }}>
-              <div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 10 }}>Requested vs Appointment</div>
-              <ResponsiveContainer width="100%" height={230}>
-                <PieChart>
-                  <Pie data={typeData} dataKey="value" nameKey="name" outerRadius={82}>
-                    {typeData.map((e, i) => <Cell key={i} fill={TYPE_COLORS[i]} />)}
-                  </Pie>
-                  <Tooltip /><Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div style={{ background: "#fff", borderRadius: 12, boxShadow: "var(--shadow)", padding: 16 }}>
-              <div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 10 }}>Top States</div>
-              <ResponsiveContainer width="100%" height={230}>
-                <BarChart data={stateData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-20} textAnchor="end" height={55} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                  <Tooltip />
-                  <Bar dataKey="value" name="Projects" fill="#2b6fb8" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          <div style={{ background: "#fff", borderRadius: 12, boxShadow: "var(--shadow)", padding: 16, marginBottom: 16 }}>
-            <div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 10 }}>Person-wise Split</div>
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={personChart}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-20} textAnchor="end" height={60} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                <Tooltip /><Legend />
-                <Bar dataKey="Draft" stackId="a" fill="#8a93a8" />
-                <Bar dataKey="Processing" stackId="a" fill="#2b6fb8" />
-                <Bar dataKey="Won" stackId="a" fill="#1f9d55" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div style={{ background: "#fff", borderRadius: 12, boxShadow: "var(--shadow)", overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead style={{ background: "#f7f9ff" }}>
-                <tr>{["Person", "HOD", "Total", "Draft", "Processing", "Won", "Won Sq.Mtr", "Won Amount"].map((h) => <th key={h} style={th}>{h}</th>)}</tr>
-              </thead>
-              <tbody>
-                {byPerson.length === 0 ? (
-                  <tr><td colSpan={8} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>No projects match these filters.</td></tr>
-                ) : byPerson.map((p) => (
-                  <tr key={p.name}>
-                    <td style={{ ...td, fontWeight: 700 }}>{p.name}</td>
-                    <td style={td}>{p.hod || "—"}</td>
-                    <td style={{ ...td, fontWeight: 800 }}>{p.total}</td>
-                    <td style={td}>{p.draft}</td>
-                    <td style={td}>{p.processing}</td>
-                    <td style={{ ...td, color: "#0f7a44", fontWeight: 700 }}>{p.won}</td>
-                    <td style={td}>{p.sqm.toLocaleString("en-IN")}</td>
-                    <td style={td}>₹{p.amount.toLocaleString("en-IN")}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          </Panel>
         </>
       )}
-    </div>
+    </DxPage>
   );
 }

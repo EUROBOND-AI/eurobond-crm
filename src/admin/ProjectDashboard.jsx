@@ -1,156 +1,226 @@
+/* Project Dashboard — Project Projection, Sales or Specs side, plus the two
+   hand-overs between the teams (Sales → Spec and Spec → Sales).
+
+   Statuses are the four the Project Projection list uses: Running, Hold,
+   Win and Loss. The old screen looked for "open" and "lost", so Running and
+   Loss were never counted where they should have been. */
 import { useEffect, useMemo, useState } from "react";
-import { PageHead } from "../components/ui.jsx";
+import { useNavigate } from "react-router-dom";
+import { ExternalLink } from "lucide-react";
 import { api } from "../lib/api.js";
-import { CARD, selS, StatBox, BarChart, Donut, MONTHS_SHORT, parseDate } from "./DashKit.jsx";
-import { visibleUsers, scopeRows } from "../lib/scope.js";
+import { scopeRows, userByName } from "../lib/scope.js";
+import {
+  DxPage, KpiCard, Panel, WeekBars, HalfDonut, Pipeline, RankBars, RowList, WordPill, ShowGate, RefreshBtn, TodayClock, NightList,
+  usePlaceFilter, useDateRange, readDate, monthBars, countBy, money, num, pct, fmtInt, ORD,
+} from "../components/dash.jsx";
+
+const low = (x) => String(x || "").trim().toLowerCase();
+export function projStatus(r) {
+  const s = low(r.status || "running");
+  if (s === "win" || s === "won") return "win";
+  if (s === "loss" || s === "lost") return "loss";
+  if (s === "hold") return "hold";
+  return "running";
+}
+const PS = { running: ["Running", "info"], hold: ["Hold", "warn"], win: ["Win", "good"], loss: ["Loss", "bad"] };
+const handStage = (r) => {
+  const s = low(r.status || "pending");
+  if (s === "pending" || s === "") return "pending";
+  if (s.includes("process")) return "process";
+  return "done";
+};
 
 export default function ProjectDashboard() {
-  const [proj, setProj] = useState(null);
-  const [s2s, setS2s] = useState([]);
-  const [sp2s, setSp2s] = useState([]);
+  const [data, setData] = useState(null);
   const [users, setUsers] = useState([]);
-  const [side, setSide] = useState("Sales");     // Sales vs Specs projections
-  const [fUser, setFUser] = useState("");
-  const [fHod, setFHod] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const [busy, setBusy] = useState(false);
   const [shown, setShown] = useState(false);
 
-  /* the full list resolves who reports to whom; the trimmed one fills the
-     dropdowns */
-  const [allUsers, setAllUsers] = useState([]);
-  useEffect(() => {
-    api.listUsers().then((d) => {
-      const all = d.users || [];
-      setAllUsers(all);
-      setUsers(visibleUsers(all).filter((u) => u.status == 1));
-    }).catch(() => {});
-  }, []);
+  useEffect(() => { api.listUsers().then((d) => setUsers(d.users || [])).catch(() => {}); }, []);
 
-  const show = () => {
-    setShown(true); setProj(null);
+  const load = () => {
+    setShown(true); setBusy(true);
     Promise.all([
       api.list("projectProjection", false).catch(() => ({ records: [] })),
       api.list("salesToSpec", false).catch(() => ({ records: [] })),
       api.list("specToSales", false).catch(() => ({ records: [] })),
-    ]).then(([p, a, b]) => {
-      setProj((p.records || []).map((r) => ({ _id: r.id, ...r.data })));
-      setS2s((a.records || []).map((r) => ({ _id: r.id, ...r.data })));
-      setSp2s((b.records || []).map((r) => ({ _id: r.id, ...r.data })));
-    });
+      api.listUsers().catch(() => ({ users: [] })),
+    ]).then(([p, a, b, uu]) => {
+      const all = uu.users || [];
+      const rd = (x) => (x.records || []).map((r) => ({ _id: r.id, ...r.data }));
+      setUsers(all);
+      setData({
+        proj: scopeRows(rd(p), all),
+        s2s: scopeRows(rd(a), all, ["createdBy", "salesPerson", "specPerson", "by"]),
+        sp2s: scopeRows(rd(b), all, ["createdBy", "specPerson", "salesPerson", "by"]),
+      });
+    }).finally(() => setBusy(false));
   };
+  return <ProjectDashboardView data={data} users={users} busy={busy} shown={shown} onShow={load} />;
+}
 
-  const inRange = (r) => {
-    const d = parseDate(r.visitDate || r.createdAt);
-    if (from && (!d || d < new Date(from))) return false;
-    if (to && (!d || d > new Date(to + "T23:59:59"))) return false;
-    return true;
-  };
+export function ProjectDashboardView({ data, users, busy, shown, onShow }) {
+  const nav = useNavigate();
+  const pf = usePlaceFilter(users);
+  const dr = useDateRange();
+  const [side, setSide] = useState("Sales");
+  const dateOf = (r) => readDate(r.visitDate) || readDate(r.createdAt);
+  const keep = (r, names) => dr.inRange(dateOf(r)) && (!pf.any || pf.matchAny(names));
 
-  const list = useMemo(() => {
-    if (!proj) return [];
-    /* Only what this login is allowed to see. The dropdowns were limited to
-       this person's team but the figures above them counted every project in
-       the company, so the two disagreed. */
-    return scopeRows(proj, allUsers).filter((r) => {
-      if (side === "Specs" ? !r.isSpec : !!r.isSpec) return false;
-      if (fUser && (r.createdBy || "") !== fUser) return false;
-      if (fHod && (r.hod || "") !== fHod) return false;
-      return inRange(r);
-    });
-  }, [proj, allUsers, side, fUser, fHod, from, to]);
+  const list = useMemo(() => (data ? data.proj : []).filter((r) =>
+    (side === "Specs" ? !!r.isSpec : !r.isSpec) && keep(r, [r.createdBy, r.salesPerson, r.specPerson]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  , [data, side, dr.from, dr.to, pf.zone, pf.state, pf.hod, pf.person, users]);
+  const s2s = useMemo(() => (data ? data.s2s : []).filter((r) => keep(r, [r.createdBy, r.salesPerson, r.specPerson]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  , [data, dr.from, dr.to, pf.zone, pf.state, pf.hod, pf.person, users]);
+  const sp2s = useMemo(() => (data ? data.sp2s : []).filter((r) => keep(r, [r.createdBy, r.specPerson, r.salesPerson]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  , [data, dr.from, dr.to, pf.zone, pf.state, pf.hod, pf.person, users]);
 
-  const cnt = (st) => list.filter((r) => String(r.status || "Open").toLowerCase() === st).length;
-  const win = cnt("win"), lost = cnt("lost"), hold = cnt("hold");
-  const open = list.length - win - lost - hold;
-  const sqm = list.reduce((s, r) => s + (Number(r.sqmApproved || r.winSqm) || 0), 0);
-  const sales = list.reduce((s, r) => s + (Number(r.winSales) || 0), 0);
-
-  const byMonth = useMemo(() => {
-    const m = {};
-    list.forEach((r) => { const d = parseDate(r.visitDate || r.createdAt); if (d) { const k = MONTHS_SHORT[d.getMonth()] + " " + String(d.getFullYear()).slice(2); m[k] = (m[k] || 0) + 1; } });
-    return Object.entries(m).slice(-12).map(([label, value]) => ({ label, value }));
+  const S = useMemo(() => {
+    const by = { running: 0, hold: 0, win: 0, loss: 0 };
+    list.forEach((r) => { by[projStatus(r)]++; });
+    const won = list.filter((r) => projStatus(r) === "win");
+    const month = new Date(); month.setDate(1); month.setHours(0, 0, 0, 0);
+    const thisMonth = list.filter((r) => { const d = dateOf(r); return d && d >= month; });
+    return {
+      by, total: list.length,
+      sqm: won.reduce((s, r) => s + (Number(r.winSqm || r.sqmApproved) || 0), 0),
+      sales: won.reduce((s, r) => s + (Number(r.winSales) || 0), 0),
+      newMonth: thisMonth.length,
+      winMonth: thisMonth.filter((r) => projStatus(r) === "win").length,
+      decided: by.win + by.loss,
+    };
   }, [list]);
 
-  const byType = useMemo(() => {
-    const m = {};
-    list.forEach((r) => { const k = r.projectType || "—"; m[k] = (m[k] || 0) + 1; });
-    return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([label, value]) => ({ label, value }));
+  const months = useMemo(() => monthBars(list, dateOf, 12), [list]);
+  const people = useMemo(() => {
+    const m = new Map();
+    list.forEach((r) => {
+      const n = r.createdBy || "—";
+      const x = m.get(n) || { name: n, total: 0, running: 0, hold: 0, win: 0, loss: 0, sqm: 0, sales: 0 };
+      const st = projStatus(r);
+      x.total++; x[st]++;
+      if (st === "win") { x.sqm += Number(r.winSqm || r.sqmApproved) || 0; x.sales += Number(r.winSales) || 0; }
+      m.set(n, x);
+    });
+    return [...m.values()].sort((a, b) => b.total - a.total);
   }, [list]);
-
-  const s2sList = s2s.filter(inRange), sp2sList = sp2s.filter(inRange);
-  const st = (arr, s) => arr.filter((r) => String(r.status || "Pending").toLowerCase() === s).length;
-  const hods = [...new Set(users.map((u) => u.manager).filter(Boolean))];
+  const recent = useMemo(() => [...list].sort((a, b) => (dateOf(b) || 0) - (dateOf(a) || 0)).slice(0, 7), [list]);
+  const hs = (arr) => { const o = { pending: 0, process: 0, done: 0 }; arr.forEach((r) => { o[handStage(r)]++; }); return o; };
+  const A = hs(s2s), B = hs(sp2s);
+  const photoOf = (n) => (userByName(users || [], n) || {}).photo || "";
+  const goList = () => nav("/admin/sfa/project-projection");
+  const short = (d) => (d ? d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) : "—");
 
   return (
-    <div>
-      <PageHead title="Project Dashboard" crumb="Project Dashboard" />
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 16 }}>
-        <div style={{ display: "inline-flex", background: "#eef1ff", borderRadius: 10, padding: 3 }}>
-          {["Sales", "Specs"].map((t) => (
-            <button key={t} onClick={() => setSide(t)} style={{ padding: "7px 18px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 13, background: side === t ? "var(--navy)" : "transparent", color: side === t ? "#fff" : "var(--navy)" }}>{t}</button>
-          ))}
-        </div>
-        <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={selS} />
-        <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={selS} />
-        <select value={fHod} onChange={(e) => setFHod(e.target.value)} style={selS}><option value="">All HOD</option>{hods.map((h) => <option key={h}>{h}</option>)}</select>
-        <select value={fUser} onChange={(e) => setFUser(e.target.value)} style={selS}><option value="">All Users</option>{users.map((u) => <option key={u.name}>{u.name}</option>)}</select>
-        <button className="btn btn-primary" style={{ padding: "9px 22px", fontWeight: 700 }} onClick={show}>Show</button>
+    <DxPage title="Project Dashboard" sub={`${side} project projections`}
+      actions={<>
+        <div className="dx-seg">{["Sales", "Specs"].map((t) => <button key={t} className={side === t ? "on" : ""} onClick={() => setSide(t)}>{t}</button>)}</div>
+        {shown && <RefreshBtn onClick={onShow} busy={busy} />}
+        <button className="dx-btn dx-btn-p" onClick={goList}><ExternalLink size={15} /> Open Projects</button>
+      </>}>
+      <div className="dx-filters">
+        {pf.fields}
+        {dr.fields}
+        {(pf.any || dr.any) && <button className="dx-btn" style={{ alignSelf: "flex-end" }} onClick={() => { pf.clear(); dr.clear(); }}>Clear</button>}
       </div>
 
-      {!shown ? <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Set filters and click <b>Show</b>.</div>
-      : proj === null ? <div style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>Loading…</div>
-      : (
+      {!shown || (busy && !data) ? <ShowGate onShow={onShow} busy={busy} what="projects" /> : (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 14, marginBottom: 20 }}>
-            <StatBox label={`${side} Projects`} value={list.length} tone="#3949ab" />
-            <StatBox label="Win" value={win} tone="#1f9d55" />
-            <StatBox label="Open / Hold" value={`${open} / ${hold}`} tone="#e08600" />
-            <StatBox label="Lost" value={lost} tone="#c0392b" />
-            <StatBox label="Sq.Mtr Approved" value={sqm.toLocaleString("en-IN")} tone="#8854d0" />
-            <StatBox label="Sales Value" value={"₹" + sales.toLocaleString("en-IN")} tone="#0b3c8c" />
+          <div className="dx-grid dx-kpis" style={{ marginBottom: 16 }}>
+            <KpiCard hero label={`${side} Projects`} value={fmtInt(S.total)} chip={S.by.running} sub="running right now" onClick={goList} />
+            <KpiCard label="Win" value={fmtInt(S.by.win)} chip={pct(S.by.win, S.decided) + "%"} sub="of decided projects won" onClick={goList} />
+            <KpiCard label="Sq.Mtr Won" value={fmtInt(S.sqm)} sub="on won projects" onClick={goList} />
+            <KpiCard label="Sales Value" value={money(S.sales)} chip={S.by.hold} sub="projects on hold" onClick={goList} />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(340px,1fr))", gap: 16, marginBottom: 18 }}>
-            <div style={CARD}>
-              <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>Projects — Month wise</h3>
-              <BarChart data={byMonth} color="#3949ab" />
-            </div>
-            <div style={CARD}>
-              <h3 style={{ margin: "0 0 12px", fontSize: 15 }}>Status Split</h3>
-              <Donut data={[
-                { label: "Win", value: win, color: "#1f9d55" },
-                { label: "Open", value: open, color: "#3949ab" },
-                { label: "Hold", value: hold, color: "#e08600" },
-                { label: "Lost", value: lost, color: "#c0392b" },
-              ]} />
-            </div>
-            <div style={{ ...CARD, gridColumn: "1 / -1" }}>
-              <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>Project Type</h3>
-              <BarChart data={byType} color="#8854d0" />
-            </div>
+          <div className="dx-grid dx-row" style={{ marginBottom: 16 }}>
+            <Panel title="Projects by month" sub="By visit date · this month in deep blue">
+              <WeekBars days={months} unit="projects" height={250} />
+            </Panel>
+            <Panel title="Status" sub="Every project, where it stands">
+              <HalfDonut size={260} center={pct(S.by.win, S.total) + "%"} centerLabel="won"
+                segments={[
+                  { label: "Win", value: S.by.win, color: ORD[0] },
+                  { label: "Running", value: S.by.running, color: ORD[1] },
+                  { label: "Hold", value: S.by.hold, color: ORD[2] },
+                  { label: "Loss", value: S.by.loss, color: ORD[3] },
+                ]} />
+            </Panel>
+            <Panel night title="This month" sub="Live">
+              <TodayClock />
+              <div className="dx-stat-mini">
+                <div><b>{num(S.newMonth)}</b><span>New projects</span></div>
+                <div><b>{num(S.winMonth)}</b><span>Won</span></div>
+                <div><b>{num(S.by.running)}</b><span>Running</span></div>
+              </div>
+              <NightList title="Latest wins" empty="No wins yet."
+                rows={list.filter((r) => projStatus(r) === "win").sort((a, b) => (dateOf(b) || 0) - (dateOf(a) || 0)).slice(0, 4)
+                  .map((r) => ({ label: r.projectName || "Project", sub: r.createdBy || "—", value: r.winSales ? money(r.winSales) : num(r.winSqm) + " sqm" }))} />
+            </Panel>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(340px,1fr))", gap: 16 }}>
-            <div style={CARD}>
-              <h3 style={{ margin: "0 0 12px", fontSize: 15 }}>Sales → Specs ({s2sList.length})</h3>
-              <Donut data={[
-                { label: "Pending", value: st(s2sList, "pending"), color: "#e08600" },
-                { label: "In Process", value: st(s2sList, "in process"), color: "#3949ab" },
-                { label: "Approved", value: st(s2sList, "approved"), color: "#1f9d55" },
+          <div className="dx-grid dx-row-half" style={{ marginBottom: 16 }}>
+            <Panel title="Sales → Spec" sub={`${num(s2s.length)} handed to the specs team`}>
+              <Pipeline steps={[
+                { label: "Sent", value: s2s.length },
+                { label: "In process or approved", value: A.process + A.done },
+                { label: "Approved", value: A.done },
               ]} />
-            </div>
-            <div style={CARD}>
-              <h3 style={{ margin: "0 0 12px", fontSize: 15 }}>Specs → Sales ({sp2sList.length})</h3>
-              <Donut data={[
-                { label: "Pending", value: st(sp2sList, "pending"), color: "#e08600" },
-                { label: "In Process", value: st(sp2sList, "in process"), color: "#3949ab" },
-                { label: "Win", value: st(sp2sList, "win"), color: "#1f9d55" },
+            </Panel>
+            <Panel title="Spec → Sales" sub={`${num(sp2s.length)} handed to the sales team`}>
+              <Pipeline steps={[
+                { label: "Sent", value: sp2s.length },
+                { label: "In process or won", value: B.process + B.done },
+                { label: "Win", value: B.done },
               ]} />
-            </div>
+            </Panel>
+          </div>
+
+          <div className="dx-grid dx-row-even" style={{ marginBottom: 16 }}>
+            <Panel title="Most projects" sub="Per person">
+              <RankBars items={people.map((p) => ({ label: p.name, value: p.total, note: p.win ? `${p.win} won` : "" }))} photoOf={photoOf} />
+            </Panel>
+            <Panel title="Project type" sub="What is being built">
+              <RankBars items={countBy(list, (r) => r.projectType)} />
+            </Panel>
+            <Panel title="Category" sub="Who the project is with">
+              <RankBars items={countBy(list, (r) => r.category)} />
+            </Panel>
+          </div>
+
+          <div className="dx-grid dx-row-4">
+            <Panel title="Latest projects" sub="Newest visit first">
+              <RowList rows={recent.map((r) => {
+                const [w, tone] = PS[projStatus(r)];
+                return {
+                  key: r._id, title: r.projectName || "Project", avatar: r.createdBy || r.projectName, photo: photoOf(r.createdBy),
+                  meta: <>{r.createdBy || "—"} · {r.city || "—"} · {short(dateOf(r))}</>,
+                  right: <WordPill text={w} tone={tone} />,
+                };
+              })} />
+            </Panel>
+            <Panel title="By person" sub="Projects each person is carrying">
+              <div style={{ overflowX: "auto" }}>
+                <table className="dx-table">
+                  <thead><tr>{["Person", "Projects", "Running", "Hold", "Win", "Loss", "Sq.Mtr", "Sales"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+                  <tbody>
+                    {people.length === 0 ? <tr><td colSpan={8} className="dx-empty">No projects for these filters.</td></tr>
+                    : people.slice(0, 25).map((p) => (
+                      <tr key={p.name}>
+                        <td><b>{p.name}</b></td><td>{p.total}</td><td>{p.running || "—"}</td><td>{p.hold || "—"}</td>
+                        <td>{p.win || "—"}</td><td>{p.loss || "—"}</td><td>{p.sqm ? num(p.sqm) : "—"}</td><td>{p.sales ? money(p.sales) : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Panel>
           </div>
         </>
       )}
-    </div>
+    </DxPage>
   );
 }
