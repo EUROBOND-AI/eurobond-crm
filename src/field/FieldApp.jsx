@@ -1926,6 +1926,8 @@ function FieldExpense({ list, add, reload }) {
     if (tab === "Rejected") return e.status === "Rejected" || e.status === "Reject";
     return false;
   });
+  /* ten at a time — see usePhonePager */
+  const pager = usePhonePager(rows, 10, tab);
 
   const delDraft = async (e) => {
     if (!window.confirm("Delete this draft?")) return;
@@ -1980,7 +1982,7 @@ function FieldExpense({ list, add, reload }) {
 
       <div className="f-list-pad">
         {rows.length === 0 && <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, padding: 26 }}>No {tab.toLowerCase()} expenses</div>}
-        {rows.map((e, i) => (
+        {pager.slice.map((e, i) => (
           <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "var(--shadow)" }}>
             {e.isFormat ? (
               /* format document card */
@@ -2017,6 +2019,7 @@ function FieldExpense({ list, add, reload }) {
             )}
           </div>
         ))}
+        <PhonePager pager={pager} />
       </div>
     </>
   );
@@ -3029,6 +3032,8 @@ function FieldProjectList() {
 
   const STATUSES = ["All", "Open", "Win", "Lost", "Hold"];
   const filtered = (rows || []).filter((r) => filter === "All" || (r.status || "Open") === filter);
+  /* ten at a time — see usePhonePager */
+  const pager = usePhonePager(filtered, 10, filter);
   const sColor = (s) => s === "Win" ? "#1f9d55" : s === "Lost" ? "#c03636" : s === "Hold" ? "#e08600" : "#3949ab";
 
   return (
@@ -3044,7 +3049,7 @@ function FieldProjectList() {
           <div className="eb-loading"><div className="eb-spin" /></div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>No projects yet. Tap + Add.</div>
-        ) : filtered.map((r, i) => (
+        ) : pager.slice.map((r, i) => (
           <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "var(--shadow)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontWeight: 800, fontSize: 14 }}>{r.projectName || r.name || "Project"}</span>
@@ -3065,6 +3070,7 @@ function FieldProjectList() {
             </div>
           </div>
         ))}
+        <PhonePager pager={pager} />
       </div>
       {viewRec && <ProjectView rec={viewRec} onClose={() => setViewRec(null)} />}
       {fupRec && <ProjectFollowup rec={fupRec} onClose={() => setFupRec(null)} onSaved={() => { setFupRec(null); load(); }} />}
@@ -5015,6 +5021,50 @@ function FieldProfile({ onLogout }) {
   );
 }
 
+/* Ten rows at a time, on the phone.
+
+   These lists grew to hundreds of rows and every one of them was drawn at
+   once. On a mid-range phone that is a second or two of nothing happening
+   when the screen opens, and it gets worse every month as more is added. The
+   rows that are not on screen are simply not drawn.
+
+   usePhonePager returns the slice to draw; PhonePager is the strip of
+   buttons that goes under it. The page resets whenever the filter or the
+   search text changes, so narrowing a list never leaves you on page 7 of a
+   list that now has two rows. */
+export function usePhonePager(rows, size = 10, resetKey = "") {
+  const list = rows || [];
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [resetKey, list.length]);
+  const pages = Math.max(1, Math.ceil(list.length / size));
+  const current = Math.min(page, pages);
+  return {
+    page: current, setPage, pages, size, total: list.length,
+    slice: list.slice((current - 1) * size, current * size),
+  };
+}
+
+export function PhonePager({ pager }) {
+  const { page, setPage, pages, size, total } = pager;
+  if (total <= size) return null;
+  const up = () => { try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch { window.scrollTo(0, 0); } };
+  const go = (n) => { setPage(n); up(); };
+  const btn = (on) => ({
+    padding: "8px 14px", borderRadius: 9, fontSize: 12.5, fontWeight: 800, cursor: "pointer",
+    border: "1px solid " + (on ? "#d7dcef" : "#e8ebf6"),
+    background: on ? "#fff" : "#f2f4fa", color: on ? "#1f3a68" : "#aab2c5",
+  });
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "10px 2px 4px" }}>
+      <button style={btn(page > 1)} disabled={page === 1} onClick={() => go(page - 1)}>‹ Prev</button>
+      <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)", textAlign: "center" }}>
+        {(page - 1) * size + 1}–{Math.min(page * size, total)} of {total}
+      </span>
+      <button style={btn(page < pages)} disabled={page === pages} onClick={() => go(page + 1)}>Next ›</button>
+    </div>
+  );
+}
+
 /* ------------------------------------------------ MENU DRAWER ------------------------------------------------ */
 function MenuDrawer({ open, close }) {
   const nav = useNavigate();
@@ -5132,6 +5182,8 @@ function FieldSpecThreadList({ mod }) {
 
   const STATUSES = isS2S ? ["All", "Pending", "Process", "Approved"] : ["All", "Pending", "Process", "Win"];
   const filtered = (rows || []).filter((r) => filter === "All" || (r.status || "Pending") === filter);
+  /* ten at a time — see usePhonePager */
+  const pager = usePhonePager(filtered, 10, filter);
   const sColor = (s) => s === "Approved" || s === "Win" ? "#1f9d55" : s === "Process" ? "#e08600" : "#3949ab";
 
   return (
@@ -5145,7 +5197,7 @@ function FieldSpecThreadList({ mod }) {
         </div>
         {rows === null ? <div className="eb-loading"><div className="eb-spin" /></div>
         : filtered.length === 0 ? <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>Nothing here yet.</div>
-        : filtered.map((r, i) => {
+        : pager.slice.map((r, i) => {
           const iAmReceiver = isS2S ? (r.specPerson === me) : (r.salesPerson === me);
           return (
           <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "var(--shadow)" }}>
@@ -5165,6 +5217,7 @@ function FieldSpecThreadList({ mod }) {
           </div>
           );
         })}
+        <PhonePager pager={pager} />
       </div>
       {viewRec && <ProjectView rec={viewRec} mod={mod} onClose={() => setViewRec(null)} />}
       {replyRec && <SpecReply rec={replyRec} mod={mod} isS2S={isS2S} onClose={() => setReplyRec(null)} onSaved={() => { setReplyRec(null); load(); }} />}
@@ -5338,6 +5391,8 @@ function FieldModule({ mod }) {
   const cfg = APP_MODS[mod];
   const nav = useNavigate();
   const [rows, setRows] = useState(null);
+  /* ten at a time — see usePhonePager */
+  const pager = usePhonePager(rows || [], 10, mod);
   /* the whole load, kept in one place so Refresh can run it again */
   const loadModule = () => {
     setRows(null);
@@ -5374,7 +5429,7 @@ function FieldModule({ mod }) {
           <div className="eb-loading"><div className="eb-spin" /></div>
         ) : rows.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>No records yet. Tap + Add to create one.</div>
-        ) : rows.map((r, i) => (
+        ) : pager.slice.map((r, i) => (
           <div key={i} onClick={() => {
             if (mod === "task" || mod === "projectProjection" || cfg.isSpecThread) nav(`/app/thread/${mod}/${r._id}`);
           }} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "var(--shadow)", cursor: (cfg.isSpecThread || mod === "task" || mod === "projectProjection") ? "pointer" : "default" }}>
@@ -5395,6 +5450,7 @@ function FieldModule({ mod }) {
             )}
           </div>
         ))}
+        <PhonePager pager={pager} />
       </div>
     </>
   );
@@ -6221,6 +6277,8 @@ function FieldEnquiry() {
     (!src || (r.leadFrom || r.leadSource) === src) &&
     (!q || (r.company || r.customer || "").toLowerCase().includes(q.toLowerCase()) || (r.contact || r.phone || "").includes(q))
   );
+  /* ten at a time — see usePhonePager */
+  const pager = usePhonePager(filtered, 10, src + "|" + q);
 
   const markSpam = async (r) => {
     if (!window.confirm("Mark this enquiry as Spam? It will be removed from your list and sent to admin.")) return;
@@ -6244,7 +6302,7 @@ function FieldEnquiry() {
       <div className="f-list-pad" style={{ paddingTop: 8 }}>
         {rows === null ? <div className="eb-loading"><div className="eb-spin" /></div>
         : filtered.length === 0 ? <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>No enquiries assigned yet.</div>
-        : filtered.map((r, i) => (
+        : pager.slice.map((r, i) => (
           <div key={i} style={{ background: "#fff", borderRadius: 10, padding: "10px 12px", marginBottom: 7, boxShadow: "var(--shadow)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 13 }}>
               <span>{r.company || r.customer || "Enquiry"}</span>
@@ -6279,6 +6337,7 @@ function FieldEnquiry() {
             </div>
           </div>
         ))}
+        <PhonePager pager={pager} />
       </div>
 
       {view && <EnquiryDetailView r={view} onClose={() => setView(null)} onDone={load} />}
@@ -7406,6 +7465,8 @@ function FieldCustomers({ nearbyOnly = false }) {
       .filter((r) => r.dist != null && r.dist * 1000 <= rangeM)
       .sort((a, b) => a.dist - b.dist);
   }, [rows, myLoc, nearbyOnly, rangeM, scope]);
+  /* ten at a time — see usePhonePager */
+  const pager = usePhonePager(list, 10, scope + "|" + q);
 
 
   return (
@@ -7471,7 +7532,7 @@ function FieldCustomers({ nearbyOnly = false }) {
             <div style={{ fontWeight: 700 }}>{nearbyOnly ? "No customers in your range" : "No customers yet"}</div>
             <div style={{ fontSize: 12, marginTop: 4 }}>Customer entries you save will appear here automatically.</div>
           </div>
-        ) : list.map((r, i) => (
+        ) : pager.slice.map((r, i) => (
           <div key={i} style={{ background: "#fff", borderRadius: 10, padding: "10px 12px", marginBottom: 7, boxShadow: "var(--shadow)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontWeight: 700, fontSize: 13 }}>
               <span>{r.name}</span>
@@ -7505,6 +7566,7 @@ function FieldCustomers({ nearbyOnly = false }) {
             </div>
           </div>
         ))}
+        <PhonePager pager={pager} />
 
       </div>
       {viewCust && (

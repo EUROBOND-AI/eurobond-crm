@@ -153,6 +153,19 @@ export default function QuotationAdmin() {
     .catch(() => setRows([]));
   useEffect(() => { load(); api.listUsers().then((d) => setQUsers((d.users || []).filter((u) => u.status == 1))).catch(() => {}); }, []);
 
+  /* The boxes count what this login may see, which is what the table shows.
+
+     They were counted from the raw fetch instead, so a manager whose team had
+     written no quotations still read "Total 13 · Approved 13" over a table
+     saying none were found — thirteen quotations belonging to other teams,
+     which is both confusing and more than they are allowed to know.
+
+     Declared ABOVE the list that reads it. A useMemo factory runs while the
+     screen is being drawn, so a const declared further down the file does not
+     exist yet at that moment and the screen dies with "Cannot access ... before
+     initialization" — which is exactly what it did. */
+  const scoped = useMemo(() => scopeRows(rows || [], qUsers, ["createdBy", "by", "salesPerson"]), [rows, qUsers]);
+
   const list = useMemo(() => {
     let l = scoped;
     const anyColSearch = Object.values(colSearch).some((v) => String(v || "").trim());
@@ -182,13 +195,6 @@ export default function QuotationAdmin() {
     setBusy(false);
   };
 
-  /* The boxes count what this login may see, which is what the table shows.
-
-     They were counted from the raw fetch instead, so a manager whose team had
-     written no quotations still read "Total 13 · Approved 13" over a table
-     saying none were found — thirteen quotations belonging to other teams,
-     which is both confusing and more than they are allowed to know. */
-  const scoped = useMemo(() => scopeRows(rows || [], qUsers, ["createdBy", "by", "salesPerson"]), [rows, qUsers]);
   const pending = scoped.filter((r) => (r.status || "Pending") === "Pending").length;
 
   const importCsv = async (file) => {

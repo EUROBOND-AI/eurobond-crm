@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, auth } from "../lib/api.js";
 import ScreenHead from "../components/ScreenHead.jsx";
+import { usePhonePager, PhonePager } from "./FieldApp.jsx";
 
 const inp = { width: "100%", marginBottom: 10, padding: "9px 11px", borderRadius: 9, border: "1px solid #d7dcef", fontSize: 13 };
 const lbl = { fontSize: 12, fontWeight: 700 };
@@ -72,6 +73,8 @@ export default function BiltraxList() {
     if (tab === "All") return rows;
     return rows.filter((r) => (r.biltraxType || "Requested") === tab);
   }, [rows, tab]);
+  /* ten at a time — see usePhonePager */
+  const pager = usePhonePager(list || [], 10, tab);
 
   return (
     <>
@@ -89,7 +92,7 @@ export default function BiltraxList() {
           <div style={{ ...card, textAlign: "center", color: "var(--muted)", fontSize: 13 }}>
             No Biltrax projects assigned to you.
           </div>
-        ) : list.map((r) => (
+        ) : pager.slice.map((r) => (
           <div key={r._id} style={card} onClick={() => setView(r)}>
             <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 13 }}>
               <span>{r.projectName || "Project"}</span>
@@ -112,6 +115,7 @@ export default function BiltraxList() {
             </div>
           </div>
         ))}
+        <PhonePager pager={pager} />
       </div>
 
       {winFor && <BiltraxWin r={winFor} onClose={() => setWinFor(null)} onDone={reload} />}

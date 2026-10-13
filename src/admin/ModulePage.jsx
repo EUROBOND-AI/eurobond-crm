@@ -137,14 +137,56 @@ export default function ModulePage({ cfgKey }) {
      modules were still loading, and the fetch happened whether or not anyone
      wanted the rows. Now the filters are there at once and the read follows
      the button. */
+  /* The first page arrives on its own, and the rest follows behind it.
+
+     Every row was read in one request before anything could be drawn, so a
+     module with hundreds of heavy records left the screen on "Loading…" for
+     however long the whole table took — and Project Projection, the heaviest,
+     was the worst of them. The first short page is asked for by itself, which
+     comes back quickly and fills the table; the remaining pages are then read
+     one after another and added as they arrive.
+
+     The rows are still all held in the end, because the tabs, the totals and
+     the filters count across the whole module and would otherwise report on
+     whatever happened to have loaded. What changes is that there is something
+     to read within a second instead of after a minute, and the line under the
+     table says plainly that more is still coming. */
+  const FIRST_PAGE = 25;
+  const NEXT_PAGE = 200;
+  const [loadingMore, setLoadingMore] = useState(0);   // rows loaded so far, 0 = not streaming
   useEffect(() => {
-    if (gated && !shown) { setRows([]); setLoading(false); setErr(""); return; }
+    if (gated && !shown) { setRows([]); setLoading(false); setErr(""); setLoadingMore(0); return; }
     let alive = true;
-    setLoading(true); setErr("");
-    api.list(cfgKey, false, { slim: true })
-      .then((d) => { if (alive) setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: r.data.followupsCount ?? (r.data.followups || []).length, productsText: r.data.productsText ?? projProductsText(r.data.items), ...(r.data.catCols || projCategoryCols(r.data.contacts)), achievementPct: targetPct(r.data), planSummary: beatSummary(r.data), planRemarks: beatRemarks(r.data), ...beatDayCols(r.data) }))); })
-      .catch((e) => { if (alive) setErr(e.message); })
-      .finally(() => { if (alive) setLoading(false); });
+    setLoading(true); setErr(""); setLoadingMore(0);
+    const shape = (d) => (d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: r.data.followupsCount ?? (r.data.followups || []).length, productsText: r.data.productsText ?? projProductsText(r.data.items), ...(r.data.catCols || projCategoryCols(r.data.contacts)), achievementPct: targetPct(r.data), planSummary: beatSummary(r.data), planRemarks: beatRemarks(r.data), ...beatDayCols(r.data) }));
+    (async () => {
+      try {
+        const first = await api.list(cfgKey, false, { slim: true, limit: FIRST_PAGE, offset: 0 });
+        if (!alive) return;
+        const got = shape(first);
+        setRows(got);
+        setLoading(false);
+        const total = Number(first.total || got.length);
+        if (!first.hasMore || got.length >= total) { setLoadingMore(0); return; }
+        setLoadingMore(got.length);
+        let offset = got.length;
+        /* a hard stop, so a miscounted total can never spin for ever */
+        for (let round = 0; round < 60; round++) {
+          if (!alive) return;
+          const more = await api.list(cfgKey, false, { slim: true, limit: NEXT_PAGE, offset });
+          if (!alive) return;
+          const part = shape(more);
+          if (!part.length) break;
+          offset += part.length;
+          setRows((prev) => prev.concat(part));
+          setLoadingMore(offset);
+          if (!more.hasMore) break;
+        }
+        if (alive) setLoadingMore(0);
+      } catch (e) {
+        if (alive) { setErr(e.message); setLoading(false); setLoadingMore(0); }
+      }
+    })();
     return () => { alive = false; };
   }, [cfgKey, gated, shown]);
 
@@ -697,6 +739,14 @@ export default function ModulePage({ cfgKey }) {
         />
       )}
       {/* the page numbers belong with the rows, so they wait for Show as well */}
+      {/* the rest of the module is still arriving — said plainly, because the
+          totals and the tab counts are not final until it has */}
+      {loadingMore > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "10px 2px 0", fontSize: 12.5, fontWeight: 700, color: "var(--muted)" }}>
+          <span style={{ width: 12, height: 12, borderRadius: "50%", border: "2px solid #c7d2e8", borderTopColor: "#2b6fb8", display: "inline-block", animation: "ebspin .8s linear infinite" }} />
+          Loaded {loadingMore} so far — still loading the rest…
+        </div>
+      )}
       {!(gated && !shown) && <Pager pager={pager} />}
 
       {chatRow && <AdminChatModal row={chatRow} cfgKey={cfgKey} onClose={() => setChatRow(null)} onSent={(updated) => { setRows(rows.map((x) => (x._id === updated._id ? updated : x))); setChatRow(updated); }} />}
