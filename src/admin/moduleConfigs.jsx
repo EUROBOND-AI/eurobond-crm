@@ -41,6 +41,37 @@ const filesCell = (v, r) => {
   );
 };
 
+/* How a deadline reads once it is on screen.
+
+   A task now carries the number of hours it was given and the moment that
+   runs out. A date on its own does not say whether somebody is about to miss
+   it, so the cell says how long is left — and, once it is finished, how long
+   it actually took and whether that was inside the time. */
+const dueCell = (v, r) => {
+  const row = r || {};
+  const done = /^(completed|close|closed)$/i.test(String(row.status || ""));
+  if (done) {
+    const took = Number(row.tookHours || 0);
+    const ok = row.onTime;
+    if (!row.completedAt) return "—";
+    return (
+      <span style={{ fontWeight: 700, fontSize: 12, color: ok === false ? "#c03636" : "#1f7a44" }}>
+        {took ? `${took} h` : "done"}{ok === false ? " · late" : ok === true ? " · on time" : ""}
+      </span>
+    );
+  }
+  if (!row.dueAt) return row.hours ? `${row.hours} h` : "—";
+  const left = new Date(row.dueAt).getTime() - Date.now();
+  const h = Math.floor(Math.abs(left) / 3600000);
+  const m = Math.floor((Math.abs(left) % 3600000) / 60000);
+  const txt = h >= 24 ? `${Math.floor(h / 24)}d ${h % 24}h` : `${h}h ${m}m`;
+  return (
+    <span style={{ fontWeight: 700, fontSize: 12, color: left < 0 ? "#c03636" : left < 3600000 ? "#b0640a" : "#1f3a68" }}>
+      {left < 0 ? `overdue ${txt}` : `${txt} left`}
+    </span>
+  );
+};
+
 const shotStrip = (v) => {
   const list = Array.isArray(v) ? v.filter(Boolean) : (v ? [v] : []);
   if (!list.length) return "—";
@@ -214,7 +245,9 @@ export const MODULES = {
       { key: "id", label: "Task Id", render: link }, { key: "createdAt", label: "Created At" },
       { key: "createdBy", label: "Created By" }, { key: "title", label: "Task Title" },
       { key: "assignee", label: "Assigned To", render: link }, { key: "due", label: "Due Date" },
-      { key: "priority", label: "Priority", render: pill }, { key: "status", label: "Status", render: pill },
+      { key: "priority", label: "Priority", render: pill },
+      { key: "dueAt", label: "Time", render: dueCell },
+      { key: "status", label: "Status", render: pill },
       { key: "attachments", label: "Attachments", render: filesCell },
     ],
     form: [
@@ -227,6 +260,9 @@ export const MODULES = {
          match against */
       { name: "assignee", label: "Assign To", type: "multiuser", optionsSource: "users", required: true },
       { name: "due", label: "Due Date", type: "date", required: true },
+      /* how long they have from the moment it is given to them; the deadline
+         itself is worked out on the server, from the server's clock */
+      { name: "hours", label: "Complete Within (hours)", type: "number", required: true },
       { name: "priority", label: "Priority", type: "select", options: ["Low", "Medium", "High"], required: true },
       { name: "desc", label: "Description", type: "textarea", full: true },
       { name: "attachments", label: "Attachments", type: "files", full: true },

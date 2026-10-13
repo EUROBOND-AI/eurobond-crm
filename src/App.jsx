@@ -26,6 +26,7 @@ const LoginHistory = lazy(() => import("./admin/LoginHistory.jsx"));
 const CustomersDashboard = lazy(() => import("./admin/CustomersDashboard.jsx"));
 const TargetDashboard = lazy(() => import("./admin/TargetDashboard.jsx"));
 const ProjectDashboard = lazy(() => import("./admin/ProjectDashboard.jsx"));
+const TaskDashboard = lazy(() => import("./admin/TaskDashboard.jsx"));
 const RolePermission = lazy(() => import("./admin/RolePermission.jsx"));
 const TeamAccess = lazy(() => import("./admin/TeamAccess.jsx"));
 const AppSettings = lazy(() => import("./admin/AppSettings.jsx"));
@@ -105,6 +106,7 @@ export default function App() {
         <Route path="dashboards/customers" element={<CustomersDashboard />} />
         <Route path="dashboards/target" element={<TargetDashboard />} />
         <Route path="dashboards/project" element={<ProjectDashboard />} />
+        <Route path="dashboards/task" element={<TaskDashboard />} />
         <Route path="sfa/biltrax" element={<BiltraxPage />} />
         <Route path="dashboards/biltrax" element={<BiltraxDashboard />} />
         <Route path="master/logs" element={<ActivityLogs />} />

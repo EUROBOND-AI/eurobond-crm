@@ -25,6 +25,7 @@ const NAV = [
           { label: "Target Dashboard", to: "/admin/dashboards/target" },
           { label: "Project Dashboard", to: "/admin/dashboards/project" },
           { label: "Biltrax Dashboard", to: "/admin/dashboards/biltrax" },
+          { label: "Task Dashboard", to: "/admin/dashboards/task" },
         ],
       },
       { label: "Task", icon: <Megaphone size={17} />, to: "/admin/sfa/task" },
@@ -139,6 +140,7 @@ function ModuleSearch({ nav }) {
     { title: "Customers Dashboard", path: "dashboards/customers" },
     { title: "Target Dashboard", path: "dashboards/target" },
     { title: "Project Dashboard", path: "dashboards/project" },
+    { title: "Task Dashboard", path: "dashboards/task" },
   ];
   const all = [...Object.values(MODULES).map((m) => ({ title: m.title, path: m.path })), ...extra];
   const ql = q.trim().toLowerCase();

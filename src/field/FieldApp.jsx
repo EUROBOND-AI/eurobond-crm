@@ -5021,6 +5021,101 @@ function FieldProfile({ onLogout }) {
   );
 }
 
+/* How long is left on a task, in words.
+
+   A task is now given a number of hours when it is handed over, and the
+   moment that runs out is stored on it. A due date alone does not tell
+   somebody they have forty minutes, so the strip says it plainly and turns
+   amber inside the last hour, red once it is past. */
+function taskLeft(r) {
+  const row = r || {};
+  if (/^(completed|close|closed)$/i.test(String(row.status || ""))) {
+    if (!row.completedAt) return null;
+    const took = Number(row.tookHours || 0);
+    return {
+      text: (took ? `Done in ${took} h` : "Done") + (row.onTime === false ? " · late" : row.onTime === true ? " · on time" : ""),
+      bg: row.onTime === false ? "#fdecec" : "#e8f7ee",
+      fg: row.onTime === false ? "#c03636" : "#1f7a44",
+    };
+  }
+  if (!row.dueAt) return null;
+  const left = new Date(row.dueAt).getTime() - Date.now();
+  const abs = Math.abs(left);
+  const d = Math.floor(abs / 86400000);
+  const h = Math.floor((abs % 86400000) / 3600000);
+  const m = Math.floor((abs % 3600000) / 60000);
+  const txt = d > 0 ? `${d}d ${h}h` : `${h}h ${m}m`;
+  if (left < 0) return { text: `Overdue by ${txt}`, bg: "#fdecec", fg: "#c03636" };
+  if (left < 3600000) return { text: `${txt} left`, bg: "#fff4e5", fg: "#b0640a" };
+  return { text: `${txt} left`, bg: "#eef2ff", fg: "#3949ab" };
+}
+
+function TaskClock({ row }) {
+  /* re-drawn every half minute, so the figure on screen is not one from
+     whenever the screen happened to open */
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 30000);
+    return () => clearInterval(t);
+  }, []);
+  const k = taskLeft(row);
+  if (!k) return null;
+  return (
+    <span style={{ background: k.bg, color: k.fg, borderRadius: 7, padding: "2px 8px", fontSize: 11, fontWeight: 800, whiteSpace: "nowrap" }}>
+      ⏱ {k.text}
+    </span>
+  );
+}
+
+/* Two reminders per task, set on the phone itself.
+
+   They are scheduled against the phone's own alarm clock rather than pushed
+   from the server, so they still arrive with no signal, and they are keyed
+   by the task's id so opening the list ten times does not set ten alarms. */
+const TASK_ALARM_KEY = "eb_task_alarms";
+async function ebScheduleTaskAlarms(tasks) {
+  try {
+    const Cap = typeof window !== "undefined" ? window.Capacitor : null;
+    const LN = Cap && Cap.Plugins && Cap.Plugins.LocalNotifications;
+    if (!LN || !LN.schedule) return;
+    let done = {};
+    try { done = JSON.parse(localStorage.getItem(TASK_ALARM_KEY) || "{}") || {}; } catch {}
+    const list = [];
+    const now = Date.now();
+    for (const t of tasks || []) {
+      if (!t || !t.dueAt) continue;
+      if (/^(completed|close|closed|rejected)$/i.test(String(t.status || ""))) continue;
+      const due = new Date(t.dueAt).getTime();
+      if (!due || due <= now) continue;
+      const key = String(t._id || t.id || t.dueAt);
+      if (done[key] === t.dueAt) continue;          // already set for this deadline
+      const title = String(t.title || t.task || "Task");
+      /* a nudge with a quarter of the time left, and one when it runs out */
+      const warnAt = due - Math.max(5 * 60000, Math.round((due - new Date(t.startedAt || t.dueAt).getTime()) * 0.25));
+      const idOf = (n) => Math.abs(hashId(key + n)) % 1000000 + 3000000;
+      if (warnAt > now + 60000) {
+        list.push({ id: idOf("w"), title: "Task due soon", body: `${title} — time is nearly up.`,
+          channelId: "eurobond_crm", smallIcon: "ic_stat_notify", schedule: { at: new Date(warnAt) },
+          extra: { link: "/app/m/task" } });
+      }
+      list.push({ id: idOf("d"), title: "Task time is up", body: `${title} — the time given has run out.`,
+        channelId: "eurobond_crm", smallIcon: "ic_stat_notify", schedule: { at: new Date(due) },
+        extra: { link: "/app/m/task" } });
+      done[key] = t.dueAt;
+    }
+    if (!list.length) return;
+    await LN.schedule({ notifications: list });
+    try { localStorage.setItem(TASK_ALARM_KEY, JSON.stringify(done)); } catch {}
+  } catch {}
+}
+/* a small stable number from a string, so the same task always reuses the
+   same notification id instead of piling up new ones */
+function hashId(s) {
+  let h = 0;
+  for (let i = 0; i < String(s).length; i++) h = (h * 31 + String(s).charCodeAt(i)) | 0;
+  return h;
+}
+
 /* Ten rows at a time, on the phone.
 
    These lists grew to hundreds of rows and every one of them was drawn at
@@ -5393,6 +5488,11 @@ function FieldModule({ mod }) {
   const [rows, setRows] = useState(null);
   /* ten at a time — see usePhonePager */
   const pager = usePhonePager(rows || [], 10, mod);
+  /* the phone's own reminders for anything with time still running */
+  useEffect(() => {
+    if (mod !== "task" || !rows || !rows.length) return;
+    ebScheduleTaskAlarms(rows);
+  }, [mod, rows]);
   /* the whole load, kept in one place so Refresh can run it again */
   const loadModule = () => {
     setRows(null);
@@ -5434,10 +5534,11 @@ function FieldModule({ mod }) {
             if (mod === "task" || mod === "projectProjection" || cfg.isSpecThread) nav(`/app/thread/${mod}/${r._id}`);
           }} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "var(--shadow)", cursor: (cfg.isSpecThread || mod === "task" || mod === "projectProjection") ? "pointer" : "default" }}>
             {r.photo && <img src={r.photo} alt="" style={{ width: "100%", borderRadius: 10, marginBottom: 8, maxHeight: 180, objectFit: "cover" }} />}
-            <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 13.5 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 13.5, gap: 8 }}>
               <span>{r[primary] || cfg.appLabel}</span>
-              <span style={{ color: "#c99400", fontSize: 12 }}>{r.status || ""}</span>
+              <span style={{ color: "#c99400", fontSize: 12, whiteSpace: "nowrap" }}>{r.status || ""}</span>
             </div>
+            {mod === "task" && <div style={{ marginTop: 6 }}><TaskClock row={r} /></div>}
             <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 4 }}>
               {r.id ? r.id + " · " : ""}{subCols.map((c) => r[c.key]).filter(Boolean).join(" · ") || r.createdAt || ""}
             </div>
