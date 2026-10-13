@@ -3,7 +3,8 @@ import { Edit3, UserPlus, Trash2, Share2, X, Search, Ban, RefreshCw, MessageSqua
 import { PageHead } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
 import { scopeRows, visibleUsers } from "../lib/scope.js";
-import { canDelete, canModify } from "../lib/perms.js";
+import { canAdd, canDelete, canModify } from "../lib/perms.js";
+import { isPanelAdmin } from "../lib/scope.js";
 
 const LEAD_SOURCES = [
   "IndiaMart", "Social Media", "Direct Call", "Exhibition", "DCCHAT",
@@ -390,7 +391,9 @@ export default function EnquiryPage() {
       <PageHead crumb="SFA" title="Enquiry List" actions={
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button className="btn btn-soft" onClick={load} title="Reload from the server">↻ Refresh</button>
-          <button className="btn" style={{ background: "#22a45d", color: "#fff", borderColor: "transparent" }} onClick={() => setShowAdd(true)}>Add New</button>
+          {/* Raising an enquiry by hand is office work — a field manager reads
+              this list and assigns from it, they do not create leads here. */}
+          {isPanelAdmin() && canAdd("Enquiry") && <button className="btn" style={{ background: "#22a45d", color: "#fff", borderColor: "transparent" }} onClick={() => setShowAdd(true)}>Add New</button>}
           {canModify("Enquiry") && <button className="btn" style={{ background: "#3fb6d3", color: "#fff", borderColor: "transparent" }} disabled={selected.size === 0} onClick={() => setAssignFor("bulk")}>Bulk Assign</button>}
           {canModify("Enquiry") && <button className="btn btn-primary" disabled={selected.size === 0} onClick={() => { setReassign(true); setAssignFor("bulk"); }}>Bulk Re-Assign</button>}
           <button className="btn" style={{ background: "#2b6fb8", color: "#fff", borderColor: "transparent" }} onClick={downloadFormat}>Download Format</button>

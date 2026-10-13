@@ -358,6 +358,10 @@ export default function QuotationAdmin() {
               ))}
             </tbody>
           </table>
+          {/* The rows were already being sliced ten at a time, but the page
+              buttons were never drawn — so a list of a hundred quotations
+              showed its first ten and looked as though that was all of them. */}
+          <div style={{ padding: "0 14px 14px" }}><Pager pager={pager} /></div>
         </div>
       </div>
 
@@ -670,7 +674,9 @@ function quotePageHtml(q) {
   </tr>`).join("");
   return `<div class="page" style="position:relative;width:794px;min-height:1123px;padding:158px 68px 128px;font-family:Arial;font-size:13px;color:#1a1a1a;box-sizing:border-box;background-image:url('${LETTERHEAD}');background-size:794px 1123px;background-repeat:no-repeat">
     <div style="display:flex;justify-content:space-between"><b>DATE: ${q.createdAt || new Date().toLocaleDateString("en-GB")}</b><b>${q.quoteNo || q.id}</b></div>
-    <div style="margin-top:14px"><b>To,</b><br>${q.contactName || q.partyName || ""}<br>${(q.address || "").replace(/,/g, ",<br>")}</div>
+    <!-- the firm, not the person: "To," addresses the company, and the person
+         is named on the Kind Attn line just below -->
+    <div style="margin-top:14px"><b>To,</b><br>${q.partyName || q.customer || ""}<br>${(q.address || "").replace(/,/g, ",<br>")}</div>
     <div style="margin-top:10px">Project Name : ${q.projectName || ""}</div>
     ${attnBlock(q)}
     <div style="margin-top:6px"><b>Sub :-Quotation For Eurobond</b></div>
@@ -707,7 +713,9 @@ function quoteHtml(q) {
   <body style="font-family:Arial;color:#1a1a1a;font-size:13px;max-width:800px;margin:auto;padding:20px">
     <div style="text-align:center;margin-bottom:16px"><img src="https://crm.eurobond.co.in/eurobond-logo.png" style="height:44px" alt="EUROBOND"/></div>
     <div style="display:flex;justify-content:space-between"><b>DATE: ${q.createdAt || new Date().toLocaleDateString("en-GB")}</b><b>${q.quoteNo || q.id}</b></div>
-    <div style="margin-top:14px"><b>To,</b><br>${q.contactName || q.partyName || ""}<br>${(q.address || "").replace(/,/g, ",<br>")}</div>
+    <!-- the firm, not the person: "To," addresses the company, and the person
+         is named on the Kind Attn line just below -->
+    <div style="margin-top:14px"><b>To,</b><br>${q.partyName || q.customer || ""}<br>${(q.address || "").replace(/,/g, ",<br>")}</div>
     <div style="margin-top:10px">Project Name : ${q.projectName || ""}</div>
     ${attnBlock(q)}
     <div style="margin-top:6px"><b>Sub :-Quotation For Eurobond</b></div>
@@ -784,7 +792,7 @@ function downloadQuotePdf(q) {
         <div class="qno">${q.quoteNo || q.id}</div>
       </div>
       <div style="margin-top:14px">
-        <b>To,</b><br>${tidyName(q.contactName || q.partyName || "")}<br>${tidyAddress(q.address)}
+        <b>To,</b><br>${tidyName(q.partyName || q.customer || "")}<br>${tidyAddress(q.address)}
       </div>
       <div style="margin-top:10px">Project Name : ${q.projectName || ""}</div>
       ${attnBlock({ ...q, contactName: tidyName(q.contactName || "") })}

@@ -4,6 +4,7 @@ import { PageHead, StatCard, ToolButtons } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
 import { scopeRows, visibleUsers } from "../lib/scope.js";
 import { canAdd, canDelete, canExport, canImport, canModify } from "../lib/perms.js";
+import { isPanelAdmin } from "../lib/scope.js";
 import { usePager, Pager } from "../components/Pager.jsx";
 
 const BILTRAX_TYPES = ["Requested", "Appointment"];
@@ -36,7 +37,12 @@ export default function BiltraxPage() {
   const [fPerson, setFPerson] = useState("");
   const [fAppt, setFAppt] = useState("");
   const [shown, setShown] = useState(false);
-  const [tab, setTab] = useState("Draft");
+  /* Draft is a lead nobody has been put on yet — deciding who takes it is the
+     office team's job, so a field manager has no use for that tab and should
+     not be looking at unassigned leads from other regions. They start on
+     Assigned. */
+  const fullAccess = isPanelAdmin();
+  const [tab, setTab] = useState(() => (isPanelAdmin() ? "Draft" : "Assigned"));
   const [selected, setSelected] = useState(new Set());
   const [q, setQ] = useState("");
 
@@ -191,7 +197,7 @@ export default function BiltraxPage() {
     <div>
       <PageHead crumb="SFA" title="Biltrax" actions={
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {canAdd("Biltrax") && <button className="btn" style={{ background: "#22a45d", color: "#fff", borderColor: "transparent" }} onClick={() => setForm({ ...EMPTY })}>Add New</button>}
+          {fullAccess && canAdd("Biltrax") && <button className="btn" style={{ background: "#22a45d", color: "#fff", borderColor: "transparent" }} onClick={() => setForm({ ...EMPTY })}>Add New</button>}
           <button className="btn" style={{ background: "#3fb6d3", color: "#fff", borderColor: "transparent" }} disabled={selected.size === 0} onClick={() => { setReassign(false); setAssignFor("bulk"); }}>Bulk Assign</button>
           <button className="btn" style={{ background: "#0f7a44", color: "#fff", borderColor: "transparent" }} disabled={selected.size === 0} onClick={() => setFwdOpen(true)}>Forward</button>
           {canDelete("Biltrax") && <button className="btn btn-danger" disabled={selected.size === 0} onClick={async () => {
@@ -241,7 +247,7 @@ export default function BiltraxPage() {
 
       {/* status tabs */}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
-        {["Draft", "Assigned", "Processing", "Win"].map((t) => {
+        {(fullAccess ? ["Draft", "Assigned", "Processing", "Win"] : ["Assigned", "Processing", "Win"]).map((t) => {
           const on = tab === t;
           return <button key={t} onClick={() => { setTab(t); setSelected(new Set()); }}
             style={{ padding: "8px 14px", borderRadius: 10, fontSize: 12.5, fontWeight: 700, cursor: "pointer", border: "1px solid " + (on ? "#2b6fb8" : "#ccd2e6"), background: on ? "linear-gradient(135deg,#1f3a68,#2b6fb8)" : "#fff", color: on ? "#fff" : "#5a6484" }}>

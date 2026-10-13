@@ -9,6 +9,7 @@ import { FooterNote } from "../components/ui.jsx";
 import { auth, api, API_BASE } from "../lib/api.js";
 import { MODULES } from "./moduleConfigs.jsx";
 import { loadPerms, canView } from "../lib/perms.js";
+import { isPanelAdmin, visibleNameSet } from "../lib/scope.js";
 import { subscribeTask } from "../lib/bgTask.js";
 import { useVisiblePoll } from "../lib/poll.js";
 
@@ -458,11 +459,35 @@ function AdminBell({ nav }) {
   const getSet = (k) => { try { return new Set(JSON.parse(localStorage.getItem(k) || "[]")); } catch { return new Set(); } };
   const getRead = () => getSet(readKey);
 
+  /* Who raised a notice.
+
+     Every reply from anywhere in the company is addressed to "ADMIN", which is
+     right for the office team but meant a HOD signing in through Individual
+     read the whole company's replies in their bell. The sender's name is
+     stamped on new notices; older ones only carry it inside the title, which
+     reads "<name> replied — <ref>", so that is read as a fallback. */
+  const senderOf = (n) => {
+    const from = String(n.from || "").trim();
+    if (from) return from.toLowerCase();
+    const m = String(n.title || "").match(/^(.+?)\s+(?:replied|applied|assigned|forwarded|marked|wished|sent)\b/i);
+    return m ? m[1].trim().toLowerCase() : "";
+  };
+
   const load = () => {
-    api.list("notification", false).then((d) => {
+    const wantUsers = isPanelAdmin() ? Promise.resolve({ users: [] }) : api.listUsers().catch(() => ({ users: [] }));
+    Promise.all([api.list("notification", false), wantUsers]).then(([d, uu]) => {
       const gone = getSet(clearKey);
+      const seeable = isPanelAdmin() ? null : visibleNameSet(uu.users || []);
       const list = (d.records || []).map((r) => ({ _id: String(r.id), ...r.data }))
-        .filter((n) => n.to === "ADMIN" && !gone.has(n._id)).slice(0, 30);
+        .filter((n) => n.to === "ADMIN" && !gone.has(n._id))
+        /* a notice whose sender cannot be placed is left in rather than hidden:
+           losing a notice is worse than showing one too many */
+        .filter((n) => {
+          if (!seeable) return true;
+          const who = senderOf(n);
+          return !who || seeable.has(who);
+        })
+        .slice(0, 30);
       setRows(list);
     }).catch(() => {});
   };

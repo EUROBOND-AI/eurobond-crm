@@ -55,6 +55,33 @@ export function visibleUsers(users) {
   return all.filter((x) => x.name === me);
 }
 
+/* Is this login one of the office backend team, or a field manager who has
+   been given the panel as well?
+
+   The two are not the same thing and several screens treated them as one. A
+   HOD signs in through Individual to read their team's numbers; they are not
+   the person who approves an expense, clears a Biltrax draft or hands out a
+   target. Those controls, and the tabs behind them, belong to Admin and
+   System alone — the permission grid is for narrowing further, not for
+   deciding this, because a grid that has never been filled in allows
+   everything. */
+export function isPanelAdmin() {
+  const u = auth.user || {};
+  if (u.bootstrap || u.owner) return true;
+  const role = String(u.role || "").trim().toUpperCase();
+  return role === "ADMIN" || role === "SYSTEM";
+}
+
+/* The names this login may see, as a lower-cased Set — for the screens that
+   filter by a person's name rather than by a record's owner field. */
+export function visibleNameSet(users) {
+  return new Set(
+    visibleUsers(users)
+      .map((x) => String(x.name || "").trim().toLowerCase())
+      .filter(Boolean)
+  );
+}
+
 /* Quick check for a single person's name */
 export function canSeeUser(users, name) {
   if (!name) return false;

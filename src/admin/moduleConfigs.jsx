@@ -14,6 +14,33 @@ const attach = (v) => v
 
 /* Several screenshots on one row, side by side. A support ticket raised from
    the phone can carry up to three. */
+/* Everything attached to a row, side by side.
+
+   A task's files are the point of it — "see the drawing attached" — and the
+   list showed none of them, so the only way to find out what had been sent
+   was to open each task in turn. They arrive under more than one name
+   depending on where the task was raised from, so all of them are gathered. */
+const filesCell = (v, r) => {
+  const row = r || {};
+  const list = [
+    ...(Array.isArray(row.attachments) ? row.attachments : []),
+    ...(Array.isArray(row.photos) ? row.photos : []),
+    row.photo, row.doc,
+  ].filter(Boolean);
+  if (!list.length) return "—";
+  const pdf = (u) => /\.pdf(\?|$)/i.test(String(u)) || /^data:application\/pdf/i.test(String(u));
+  return (
+    <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
+      {list.slice(0, 4).map((u, i) => (pdf(u)
+        ? <span key={i} onClick={() => openLightbox(u)} title={`Attachment ${i + 1}`}
+            style={{ cursor: "pointer", color: "var(--accent)", fontWeight: 700, fontSize: 12 }}>📄</span>
+        : <img key={i} src={u} alt={`Attachment ${i + 1}`} onClick={() => openLightbox(u)}
+            style={{ width: 30, height: 30, objectFit: "cover", borderRadius: 6, border: "1px solid #dfe4f0", cursor: "pointer" }} />))}
+      {list.length > 4 && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", alignSelf: "center" }}>+{list.length - 4}</span>}
+    </span>
+  );
+};
+
 const shotStrip = (v) => {
   const list = Array.isArray(v) ? v.filter(Boolean) : (v ? [v] : []);
   if (!list.length) return "—";
@@ -131,6 +158,8 @@ export const MODULES = {
   leave: {
     path: "sfa/leave", title: "Leave List", crumb: "Leave", addLabel: "Apply Leave",
     idPrefix: "LV", app: true, appLabel: "Leave", approveFlow: ["Approved", "Rejected"],
+    /* From/To filter the day the leave is for, not the moment it was applied */
+    dateKey: "from",
     columns: [
       { key: "createdBy", label: "Applied By" }, { key: "type", label: "Leave Type" },
       { key: "mode", label: "Mode" }, { key: "from", label: "From" }, { key: "to", label: "To" },
@@ -186,6 +215,7 @@ export const MODULES = {
       { key: "createdBy", label: "Created By" }, { key: "title", label: "Task Title" },
       { key: "assignee", label: "Assigned To", render: link }, { key: "due", label: "Due Date" },
       { key: "priority", label: "Priority", render: pill }, { key: "status", label: "Status", render: pill },
+      { key: "attachments", label: "Attachments", render: filesCell },
     ],
     form: [
       { name: "title", label: "Task Title", required: true },

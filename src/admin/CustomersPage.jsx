@@ -42,6 +42,7 @@ export default function CustomersPage() {
   const [fPerson, setFPerson] = useState("");
   const [fFrom, setFFrom] = useState("");
   const [fTo, setFTo] = useState("");
+  const [fDup, setFDup] = useState("");
   const [applied, setApplied] = useState(null);   // Show clicked -> filters applied
 
   const load = () => {
@@ -54,7 +55,7 @@ export default function CustomersPage() {
   useEffect(load, []);
   useEffect(() => { api.listUsers().then((d) => setUsers((d.users || []).filter((u) => u.role !== "Admin"))).catch(() => {}); }, []);
 
-  const applyShow = () => setApplied({ state: fState, hod: fHod, person: fPerson, from: fFrom, to: fTo });
+  const applyShow = () => setApplied({ state: fState, hod: fHod, person: fPerson, from: fFrom, to: fTo, dup: fDup });
 
   /* What this login may see. The rows went through this, but the State and HOD
      lists were built from the raw fetch, so they offered every state and every
@@ -81,6 +82,26 @@ export default function CustomersPage() {
       if (applied.person) l = l.filter((r) => (r.by || "").toLowerCase().includes(applied.person.toLowerCase()));
       if (applied.from) l = l.filter((r) => { const d = (r.last_followup || "").slice(0, 10); return d && d >= applied.from; });
       if (applied.to) l = l.filter((r) => { const d = (r.last_followup || "").slice(0, 10); return d && d <= applied.to; });
+      /* The same customer entered twice.
+
+         Two people covering one area both add the firm, or the same person
+         adds it again months later, and nothing on this screen showed it. The
+         phone number is what makes two rows the same customer — a name is
+         spelled a dozen ways, a number is not — so rows are grouped by the
+         digits of the number and a group of more than one is a duplicate.
+         Only the rows on screen are compared, so narrowing by state or person
+         first asks the question within that group. */
+      if (applied.dup) {
+        const digits = (x) => String(x || "").replace(/\D/g, "").slice(-10);
+        const seen = new Map();
+        l.forEach((r) => {
+          const k = digits(r.mobile);
+          if (k.length < 10) return;      // nothing to compare on
+          seen.set(k, (seen.get(k) || 0) + 1);
+        });
+        const isDup = (r) => { const k = digits(r.mobile); return k.length === 10 && (seen.get(k) || 0) > 1; };
+        l = applied.dup === "only" ? l.filter(isDup) : l.filter((r) => !isDup(r));
+      }
     }
     Object.entries(colSearch).forEach(([k, v]) => {
       if (!v) return;
@@ -319,8 +340,14 @@ export default function CustomersPage() {
           <input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5 }} /></div>
         <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>To Date</label>
           <input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5 }} /></div>
+        <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>Duplicates</label>
+          <select value={fDup} onChange={(e) => setFDup(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5, minWidth: 150 }}>
+            <option value="">All customers</option>
+            <option value="only">Duplicates only</option>
+            <option value="unique">Hide duplicates</option>
+          </select></div>
         <button className="btn" style={{ background: "#22a45d", color: "#fff", borderColor: "transparent" }} onClick={applyShow}>Show</button>
-        {applied && <button className="btn btn-soft" onClick={() => { setApplied(null); setFState(""); setFHod(""); setFPerson(""); setFFrom(""); setFTo(""); }}>Clear</button>}
+        {applied && <button className="btn btn-soft" onClick={() => { setApplied(null); setFState(""); setFHod(""); setFPerson(""); setFFrom(""); setFTo(""); setFDup(""); }}>Clear</button>}
       </div>
 
       <div style={{ position: "relative", margin: "14px 0" }}>

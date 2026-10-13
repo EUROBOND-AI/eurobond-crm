@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
-import { visibleUsers } from "../lib/scope.js";
+import { visibleUsers, visibleNameSet } from "../lib/scope.js";
 
 /* Live check-in overview — 4 cards (Total Users, Login, Pending, Leave).
    Click a card → that list below. No map, no per-row view. */
@@ -36,17 +36,20 @@ export default function CheckinPage() {
   const inScope = allUsers.filter((u) => (!zone || u.zone === zone) && (!stateF || u.state === stateF) && (!city || u.city === city));
   const checkedIds = new Set(sessions.map((s) => String(s.user_id)));
   const loginUsers = inScope.filter((u) => checkedIds.has(String(u.id)));
+  /* A HOD reading this screen sees their own team everywhere else on it —
+     Total, Login and Pending all come from the scoped user list — but the
+     leave rows came straight from the module, unscoped, so the Leave card
+     counted the whole company. */
+  const seeable = visibleNameSet(allUsers.length ? allUsers : []);
+  const leaveOwner = (l) => String(l.createdBy || l.appliedBy || l.user || "").trim().toLowerCase();
   const onLeave = leaves.filter((l) => (l.status || "").toLowerCase() === "approved"
-    && String(l.from || "").slice(0, 10) <= date && date <= String(l.to || l.from || "").slice(0, 10));
+    && String(l.from || "").slice(0, 10) <= date && date <= String(l.to || l.from || "").slice(0, 10)
+    && (!seeable.size || seeable.has(leaveOwner(l))));
   /* Somebody on approved leave has not failed to check in — they were not due
      to. Pending counted everybody without a session for the day, so an
      approved leave showed the same person under both Leave and Pending, and
      Pending read as a list of people to chase. */
-  const leaveNames = new Set(
-    onLeave
-      .map((l) => String(l.createdBy || l.appliedBy || l.user || "").trim().toLowerCase())
-      .filter(Boolean)
-  );
+  const leaveNames = new Set(onLeave.map(leaveOwner).filter(Boolean));
   const pendingUsers = inScope.filter((u) =>
     !checkedIds.has(String(u.id)) && !leaveNames.has(String(u.name || "").trim().toLowerCase())
   );

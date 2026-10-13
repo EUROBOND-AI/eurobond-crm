@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { visibleUsers } from "../lib/scope.js";
+import { usePager, Pager } from "../components/Pager.jsx";
 
 const sel = { padding: "8px 11px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 12.5, background: "#fff" };
 const th = { padding: "10px 12px", textAlign: "left", fontSize: 11.5, fontWeight: 800, color: "var(--muted)", whiteSpace: "nowrap" };
@@ -62,6 +63,11 @@ export default function ActivityLogs() {
   const hods = useMemo(() => [...new Set(users.map((u) => u.manager).filter(Boolean))].sort(), [users]);
   const roles = useMemo(() => [...new Set(users.map((u) => u.role).filter(Boolean))].sort(), [users]);
 
+  /* ten at a time — every admin screen anyone opens lands in this table, so it
+     is the fastest growing list in the panel */
+  const pager = usePager(rows, 10, from + to + user);
+  const sumPager = usePager(sum, 10, from + to + user);
+
   const exportCsv = () => {
     const head = ["Date & Time", "User", "Role", "HOD", "State", "Module", "Screen", "Source"];
     const body = rows.map((r) => [r.opened_at, r.user_name, r.user_role, r.hod, r.state, r.module, r.screen, r.source]);
@@ -114,7 +120,7 @@ export default function ActivityLogs() {
           </div>
 
           <div style={{ background: "#fff", borderRadius: 12, boxShadow: "var(--shadow)", overflowX: "auto" }}>
-            {tab === "detail" ? (
+            {tab === "detail" ? (<>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead style={{ background: "#f7f9ff" }}>
                   <tr>
@@ -132,7 +138,7 @@ export default function ActivityLogs() {
                       No activity yet for these filters.<br />
                       <span style={{ fontSize: 12 }}>Logging starts once <b>activity.php</b> is uploaded and someone opens an admin screen.</span>
                     </td></tr>
-                  ) : rows.map((r, i) => (
+                  ) : pager.slice.map((r, i) => (
                     <tr key={i} style={{ background: sel.has(r.id) ? "#f2f6ff" : "transparent" }}>
                       <td style={td}>
                         <input type="checkbox" checked={sel.has(r.id)}
@@ -162,7 +168,9 @@ export default function ActivityLogs() {
                   ))}
                 </tbody>
               </table>
-            ) : (
+              <Pager pager={pager} />
+              </>
+            ) : (<>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead style={{ background: "#f7f9ff" }}>
                   <tr>{["User", "Role", "HOD", "Screens Opened", "Modules Used", "Last Seen"].map((h) => <th key={h} style={th}>{h}</th>)}</tr>
@@ -170,7 +178,7 @@ export default function ActivityLogs() {
                 <tbody>
                   {sum.length === 0 ? (
                     <tr><td colSpan={6} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>No activity for this period.</td></tr>
-                  ) : sum.map((r, i) => (
+                  ) : sumPager.slice.map((r, i) => (
                     <tr key={i}>
                       <td style={{ ...td, fontWeight: 700 }}>{r.user_name || "—"}</td>
                       <td style={td}>{r.user_role || "—"}</td>
@@ -182,6 +190,8 @@ export default function ActivityLogs() {
                   ))}
                 </tbody>
               </table>
+              <Pager pager={sumPager} />
+              </>
             )}
           </div>
         </>

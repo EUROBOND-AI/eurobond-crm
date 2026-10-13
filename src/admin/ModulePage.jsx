@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { MODULES } from "./moduleConfigs.jsx";
 import { PageHead, Tabs, DataTable, ToolButtons, FormModal, StatCard } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
-import { scopeRows, visibleUsers } from "../lib/scope.js";
+import { scopeRows, visibleUsers, isPanelAdmin } from "../lib/scope.js";
 import { AdminSearchSelect } from "./QuotationAdmin.jsx";
 import { canAdd, canDelete, canModify, canExport, canImport } from "../lib/perms.js";
 import { usePager, Pager } from "../components/Pager.jsx";
@@ -211,14 +211,36 @@ export default function ModulePage({ cfgKey }) {
     if (cfgKey === "projectProjection") {
       list = list.filter((r) => projSide === "Specs" ? r.isSpec : !r.isSpec);
     }
-    /* date range (From/To) — r.date leda r.createdAt meeda */
+    /* date range (From/To)
+
+       new Date() was handed the string as it stood, and most rows carry a
+       created stamp written the Indian way — "12/10/2026, 3:00:32 pm", the
+       twelfth of October. new Date() reads a slashed date month first, so it
+       took that as the tenth of December: day and month were quietly swapped
+       on every row. Asking for the twelfth of October then matched nothing,
+       which is why the From/To boxes looked as though they did nothing at all.
+       The three shapes actually stored are read here by hand.
+
+       Which field is the row's date is a property of the module. A leave is
+       filtered by the day it is for, not the moment it was typed in, so the
+       config names the field and the created stamp is only the fallback. */
     const parseD = (r) => {
-      const raw = r.date || r.createdAt || "";
+      const raw = String((cfg.dateKey && r[cfg.dateKey]) || r.date || r.createdAt || "").trim();
+      if (!raw) return null;
+      /* 2026-10-12, with or without a time after it */
+      let m = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+      /* 12/10/2026 or 12-10-2026 — day first, the way the app writes them */
+      m = raw.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})/);
+      if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
       const d = new Date(raw);
       return isNaN(d) ? null : d;
     };
-    if (fFrom) { const a = new Date(fFrom); list = list.filter((r) => { const d = parseD(r); return d && d >= a; }); }
-    if (fTo) { const b = new Date(fTo); b.setHours(23, 59, 59); list = list.filter((r) => { const d = parseD(r); return d && d <= b; }); }
+    /* the picker gives "2026-10-12"; read as local midnight so a row dated that
+       day is inside the range rather than a few hours before it */
+    const pickD = (v) => { const m = String(v).match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(v); };
+    if (fFrom) { const a = pickD(fFrom); list = list.filter((r) => { const d = parseD(r); return d && d >= a; }); }
+    if (fTo) { const b = pickD(fTo); b.setHours(23, 59, 59, 999); list = list.filter((r) => { const d = parseD(r); return d && d <= b; }); }
     if (fCity) list = list.filter((r) => (r.city || "") === fCity);
     if (fZone) list = list.filter((r) => (r.zone || "") === fZone);
     if (fLead) list = list.filter((r) => (r.leadSource || "") === fLead);
@@ -505,7 +527,11 @@ export default function ModulePage({ cfgKey }) {
         note={cfg.note}
         actions={
           <ToolButtons
-            onAdd={cfg.form && cfg.addLabel ? () => { setEditing(null); setShowForm(true); } : null}
+            /* Add is both the grid's Add tick AND being the office team: a
+               field manager reads these lists in the panel and adds from the
+               phone, so an Add form here only invites a row nobody expects. */
+            onAdd={cfg.form && cfg.addLabel && isPanelAdmin() && canAdd(permName(cfg))
+              ? () => { setEditing(null); setShowForm(true); } : null}
             addLabel={cfg.addLabel || "Add"}
             onRefresh={reload}
             refreshing={refreshing}

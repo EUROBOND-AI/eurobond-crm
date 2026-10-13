@@ -6,6 +6,7 @@ import { scopeRows, visibleUsers } from "../lib/scope.js";
 import { HEADER_COLS, LINE_COLS, NUMATCARD_START, depoKey, headerRow, lineRows, downloadSheet, LOCATION, FIXED } from "../lib/sapExport.js";
 import { usePager, Pager } from "../components/Pager.jsx";
 import { canDelete } from "../lib/perms.js";
+import { isPanelAdmin } from "../lib/scope.js";
 
 /* Admin Expense — submitted statements with full format + bills, approve / reject.
    Photos/PDF open in the shared CRM lightbox (crm-lightbox event), not external links. */
@@ -193,7 +194,17 @@ export default function ExpenseApprovals() {
   useEffect(() => { api.listUsers().then((d) => setUsers((d.users || []).filter((u) => u.status == 1))).catch(() => {}); }, []);
 
   const statements = scopeRows(rows.filter((r) => r.isFormat), users, ["user", "createdBy", "createdByName"]);
-  const tabs = ["Submitted", "Approved", "Coordination To Accounts", "Uploaders", "Rejected"];
+  /* Approving an expense, moving it to accounts, pushing it to SAP — that is
+     the office team's work. A field manager reading this screen needs to see
+     what has been sent in and what has been cleared, and nothing else: the
+     later stages were visible to them, which reads as an invitation to act on
+     a statement that is not theirs to act on. */
+  const fullAccess = isPanelAdmin();
+  const tabs = fullAccess
+    ? ["Submitted", "Approved", "Coordination To Accounts", "Uploaders", "Rejected"]
+    : ["Submitted", "Approved"];
+  /* a tab that is no longer offered must not stay selected */
+  useEffect(() => { if (!tabs.includes(tab)) setTab(tabs[0]); /* eslint-disable-next-line */ }, [fullAccess]);
   /* data appears only after the user clicks Show */
   const list = !applied ? [] : statements.filter((r) => {
     let ok = false;
@@ -464,6 +475,9 @@ function ExpenseReview({ r, onClose, onDone }) {
   const [busy, setBusy] = useState(false);
   const [remark, setRemark] = useState("");
   const [attach, setAttach] = useState("");
+  /* read-only for anyone who is not the office team: the statement opens, the
+     entries and the bills are all there to look at, but nothing can be decided */
+  const canDecide = isPanelAdmin();
   const [itemApproved, setItemApproved] = useState({});
   const [approvedAmt, setApprovedAmt] = useState(total);
   const [rejectedIdx, setRejectedIdx] = useState(new Set());   // per-entry reject
@@ -558,7 +572,7 @@ function ExpenseReview({ r, onClose, onDone }) {
             <thead><tr style={{ background: "#f4f6fc", position: "sticky", top: 0 }}>
               {["SI No", "Date", "Ex/Out-station", "Origin to Destination", "Description", "KM", "Category", "Amount", "Approved Amount", "Bill"]
                 .map((h) => <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontWeight: 800, fontSize: 11.5, whiteSpace: "nowrap" }}>{h}</th>)}
-              {r.status === "Submitted" && <th style={{ padding: "8px 10px", textAlign: "center", fontWeight: 800, fontSize: 11.5, color: "#c03636" }}>Action</th>}
+              {r.status === "Submitted" && canDecide && <th style={{ padding: "8px 10px", textAlign: "center", fontWeight: 800, fontSize: 11.5, color: "#c03636" }}>Action</th>}
             </tr></thead>
             <tbody>
               {items.map((it, i) => (
@@ -578,7 +592,7 @@ function ExpenseReview({ r, onClose, onDone }) {
                       style={{ width: 92, padding: "5px 7px", borderRadius: 7, border: "1px solid var(--line)", fontSize: 12 }} />
                   </td>
                   <td style={{ padding: "8px 10px" }}>{it.photo ? <span onClick={() => openLightbox(it.photo)} style={{ color: "var(--accent)", cursor: "pointer", fontWeight: 700 }}>View</span> : "—"}</td>
-                  {r.status === "Submitted" && (
+                  {r.status === "Submitted" && canDecide && (
                     <td style={{ padding: "8px 10px", textAlign: "center" }}>
                       <button onClick={() => toggleReject(i)} style={{ padding: "4px 10px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 700, background: rejectedIdx.has(i) ? "#c03636" : "#fdecec", color: rejectedIdx.has(i) ? "#fff" : "#c03636" }}>
                         {rejectedIdx.has(i) ? "✓ Rejected" : "Reject"}
@@ -595,7 +609,7 @@ function ExpenseReview({ r, onClose, onDone }) {
           <span>TOTAL</span><span>₹{total.toLocaleString("en-IN")}</span>
         </div>
 
-        {r.status === "Submitted" ? (
+        {r.status === "Submitted" && canDecide ? (
           rejectedIdx.size > 0 ? (
             <div style={{ marginTop: 10, background: "#fdf1f1", borderRadius: 10, padding: 12 }}>
               <div style={{ fontSize: 12.5, color: "#7a2323", marginBottom: 8, fontWeight: 700 }}>

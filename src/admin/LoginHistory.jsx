@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { visibleUsers } from "../lib/scope.js";
+import { usePager, Pager } from "../components/Pager.jsx";
 
 const sel = { padding: "8px 11px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 12.5, background: "#fff" };
 const th = { padding: "10px 12px", textAlign: "left", fontSize: 11.5, fontWeight: 800, color: "var(--muted)", whiteSpace: "nowrap" };
@@ -63,6 +64,10 @@ export default function LoginHistory() {
     } catch (e) { alert(e.message); }
     setBusy(false);
   };
+
+  /* ten at a time: a month of sign-ins for four hundred people is thousands
+     of rows, and drawing them all at once is what made this screen crawl */
+  const pager = usePager(rows, 10, user + from + to);
 
   const exportCsv = () => {
     const head = ["Date & Time", "User", "Phone / Device", "OS", "IP Address"];
@@ -127,13 +132,14 @@ export default function LoginHistory() {
             <tbody>
               {rows.length === 0 ? (
                 <tr><td colSpan={8} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>No logins in this period.</td></tr>
-              ) : rows.map((r, i) => (
+              ) : pager.slice.map((r, i) => (
                 <tr key={r.id || i} style={{ background: sel2.has(r.id) ? "#f2f6ff" : "transparent" }}>
                   <td style={td}>
                     <input type="checkbox" checked={sel2.has(r.id)}
                       onChange={(e) => setSel2((s3) => { const n = new Set(s3); e.target.checked ? n.add(r.id) : n.delete(r.id); return n; })} />
                   </td>
-                  <td style={{ ...td, color: "var(--muted)", fontWeight: 700 }}>{i + 1}</td>
+                  {/* the running number, not the number within the page */}
+                  <td style={{ ...td, color: "var(--muted)", fontWeight: 700 }}>{(pager.page - 1) * pager.size + i + 1}</td>
                   <td style={{ ...td, whiteSpace: "nowrap" }}>{String(r.at || "").replace("T", " ")}</td>
                   <td style={{ ...td, fontWeight: 700 }}>{r.user_name || "—"}</td>
                   <td style={td}>{phoneOf(r.device)}</td>
@@ -151,6 +157,7 @@ export default function LoginHistory() {
               ))}
             </tbody>
           </table>
+          <Pager pager={pager} />
         </div>
       )}
     </div>
