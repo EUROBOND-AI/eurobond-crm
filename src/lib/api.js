@@ -351,6 +351,9 @@ export const api = {
   sapPush: (id) => req("/sap_push.php?action=push", { method: "POST", body: { id } }),
   sapPushBulk: (ids) => req("/sap_push.php?action=push_bulk", { method: "POST", body: { ids } }),
   visitWhatsApp: (mobile, id) => req("/records.php?module=followup&action=visit_whatsapp", { method: "POST", body: { mobile, id } }),
+  /* the enquiry introduction — sent by the server, from the company's own
+     WhatsApp number, and refused there if it has already gone once */
+  enquiryIntro: (id) => req("/records.php?action=enquiry_intro", { method: "POST", body: { id } }),
   customersImport: (rows) => req("/customers.php?action=import", { method: "POST", body: { rows } }),
   customers: (q = "", mine = false, team = false) => req(`/customers.php?action=list${q ? "&q=" + encodeURIComponent(q) : ""}${mine ? "&mine=1" : ""}${team ? "&team=1" : ""}`),
 

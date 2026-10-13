@@ -306,53 +306,34 @@ export default function EnquiryPage() {
     return m;
   }, [scoped]);
 
-  /* The introduction message, and the one-time mark that stops it twice.
+  /* The introduction, sent from the server.
 
-     The number is opened in WhatsApp rather than sent from the server: it goes
-     from the office's own WhatsApp, which is what the customer expects to see,
-     and nothing has to be wired up to send on our behalf. The record is marked
-     first, so a slow WhatsApp window cannot be clicked again in the meantime. */
+     It used to open WhatsApp Web with the message typed out, which meant it
+     left from whichever account the person at the keyboard was signed in to
+     rather than from the company's number — and the "only once" rule was a
+     hidden button, which is not a rule. The server sends it on the approved
+     template and refuses a second one, so two people clicking at the same
+     moment cannot send it twice. */
+  const [introBusy, setIntroBusy] = useState(null);
   const sendIntro = async (r) => {
     const person = String(r.assignedTo || r.passto || "").trim();
     if (!person) { alert("Assign this enquiry to a sales person first."); return; }
-    const num = String(r.contact || r.phone || "").replace(/\D/g, "").slice(-10);
-    if (num.length !== 10) { alert("This enquiry has no valid 10-digit mobile number."); return; }
+    const num = String(r.contact || r.phone || "").replace(/\D/g, "");
+    if (num.length < 10) { alert("This enquiry has no valid mobile number."); return; }
+    if (!window.confirm(`Send ${person}'s contact details to ${r.company || r.customer || "this customer"} on WhatsApp?\n\nIt goes from the company WhatsApp number, and can only be sent once.`)) return;
 
-    const u = (users || [])
-      .map((x) => (x.data ? { id: x.id, ...x.data } : x))
-      .find((x) => String(x.name || "").trim().toLowerCase() === person.toLowerCase()) || {};
-    const who = u.name || person;
-    const mob = String(u.mobile || "").replace(/\D/g, "");
-    const mail = String(u.email || "").trim();
-
-    const lines = [
-      `Dear ${r.customer || r.company || "Sir/Madam"},`,
-      "",
-      "Thank you for your enquiry with Euro Panel Products Limited (Eurobond ACP).",
-      "",
-      `Your dedicated sales contact for your area is ${who}${u.designation ? ", " + u.designation : ""}.`,
-      mob ? `Mobile : +91 ${mob}` : "",
-      mail ? `Email  : ${mail}` : "",
-      "",
-      "Please feel free to contact them directly for product details, samples and pricing.",
-      "",
-      "Website: https://www.eurobondacp.com",
-      "",
-      "Regards,",
-      "Euro Panel Products Limited",
-    ].filter((x) => x !== "");
-
-    if (!window.confirm(`Send ${who}'s contact details to ${r.customer || r.company || "this customer"} on WhatsApp?\n\nThis can only be sent once.`)) return;
-
-    const stamp = new Date().toLocaleString("en-IN");
+    setIntroBusy(r._id);
     try {
-      await api.update("enquiry", r._id, { ...r, introSentAt: stamp, introSentBy: (auth.user || {}).name || "", introPerson: who });
-      setRows((list) => (list || []).map((x) => (x._id === r._id ? { ...x, introSentAt: stamp, introPerson: who } : x)));
+      const d = await api.enquiryIntro(r._id);
+      const at = d.at ? new Date(d.at).toLocaleString("en-IN") : new Date().toLocaleString("en-IN");
+      setRows((list) => (list || []).map((x) => (x._id === r._id ? { ...x, introSentAt: at, introPerson: d.person || person } : x)));
+      alert(d.already
+        ? `Already sent on ${at}${d.person ? " — " + d.person + "'s details" : ""}.`
+        : `Sent. ${d.person || person}'s details have gone to the customer.`);
     } catch (e) {
-      alert("Could not mark this as sent: " + (e && e.message ? e.message : e));
-      return;
+      alert("Could not send: " + (e && e.message ? e.message : e));
     }
-    window.open(`https://wa.me/91${num}?text=${encodeURIComponent(lines.join("\n"))}`, "_blank");
+    setIntroBusy(null);
   };
 
   const applyShow = () => { setApplied({ from: fromDate, to: toDate, sources: [...sourceSel], subs: [...subSel], shown: true }); setPage(1); };
@@ -612,8 +593,8 @@ export default function EnquiryPage() {
                           the customer got the same introduction four times. */}
                       {(r.assignedTo || r.passto) && !r.introSentAt && (
                         <button title="Send the customer their sales contact on WhatsApp"
-                          style={iconBtn("#25d366")} onClick={() => sendIntro(r)}>
-                          <Send size={14} />
+                          style={iconBtn("#25d366")} disabled={introBusy === r._id} onClick={() => sendIntro(r)}>
+                          {introBusy === r._id ? "…" : <Send size={14} />}
                         </button>
                       )}
                       {r.introSentAt && (
