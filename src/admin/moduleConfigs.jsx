@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Pill, LongText } from "../components/ui.jsx";
 
 const pill = (v) => <Pill status={v} />;
@@ -47,7 +48,22 @@ const filesCell = (v, r) => {
    runs out. A date on its own does not say whether somebody is about to miss
    it, so the cell says how long is left — and, once it is finished, how long
    it actually took and whether that was inside the time. */
-const dueCell = (v, r) => {
+const dueCell = (v, r) => <DueClock row={r} />;
+
+/* Re-drawn every half minute.
+
+   The figure was worked out once while the table was being built, so a screen
+   left open all morning still said "3h left" at lunchtime. */
+function DueClock({ row: r }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 30000);
+    return () => clearInterval(t);
+  }, []);
+  return dueText(r);
+}
+
+const dueText = (r) => {
   const row = r || {};
   const done = /^(completed|close|closed)$/i.test(String(row.status || ""));
   if (done) {
@@ -244,7 +260,14 @@ export const MODULES = {
     columns: [
       { key: "id", label: "Task Id", render: link }, { key: "createdAt", label: "Created At" },
       { key: "createdBy", label: "Created By" }, { key: "title", label: "Task Title" },
-      { key: "assignee", label: "Assigned To", render: link }, { key: "due", label: "Due Date" },
+      { key: "assignee", label: "Assigned To", render: link },
+      /* the deadline's own date; older tasks that only had a plain due date
+         still show theirs */
+      { key: "due", label: "Due Date", render: (v, r) => {
+        const at = (r || {}).dueAt;
+        if (at) { const d = new Date(at); if (!isNaN(d)) return d.toLocaleDateString("en-GB"); }
+        return v || "—";
+      } },
       { key: "priority", label: "Priority", render: pill },
       { key: "dueAt", label: "Time", render: dueCell },
       { key: "status", label: "Status", render: pill },
@@ -259,11 +282,13 @@ export const MODULES = {
          readable line and also as a list, which is what the "mine" lookups
          match against */
       { name: "assignee", label: "Assign To", type: "multiuser", optionsSource: "users", required: true },
-      { name: "due", label: "Due Date", type: "date", required: true },
-      /* The moment it has to be finished by, picked on a calendar — "tomorrow
-         8:00 AM" is how the deadline is actually described, and a number of
-         hours made whoever set it do the arithmetic in their head. The
-         server reads this as India time. */
+      /* One deadline, not two.
+
+         There was a Due Date as well as this, and the two said the same thing
+         in two places — whoever was filling the form had to put the date in
+         twice and nothing decided which of them counted. The date and the time
+         are one answer: "tomorrow, 8:00 AM". The server reads it as India
+         time. The old Due Date is still shown on records that have one. */
       { name: "dueAt", label: "Complete By (date & time)", type: "datetime-local", required: true },
       { name: "priority", label: "Priority", type: "select", options: ["Low", "Medium", "High"], required: true },
       { name: "desc", label: "Description", type: "textarea", full: true },

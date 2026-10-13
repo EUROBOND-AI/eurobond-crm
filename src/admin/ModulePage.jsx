@@ -909,13 +909,38 @@ function AdminChatModal({ row, cfgKey, onClose, onSent }) {
           {rec.from && <div><b>From:</b> {rec.from}</div>}
           {rec.to && <div><b>To:</b> {rec.to}</div>}
           {rec.mode && <div><b>Mode:</b> {rec.mode}</div>}
-          {rec.reason && <div><b>Reason:</b> {rec.reason}</div>}
-          {rec.desc && rec.desc !== "--" && <div><b>Description:</b> {rec.desc}</div>}
           {rec.firm && <div><b>Firm:</b> {rec.firm}</div>}
           {rec.city && <div><b>City:</b> {rec.city}</div>}
           {rec.approvedBy && <div><b>Approved By:</b> {rec.approvedBy}</div>}
           {rec.status && <div><b>Status:</b> {rec.status}</div>}
         </div>
+        {/* The description, and a leave's reason, in a block of their own.
+
+            They used to sit on one line inside the small grey panel above,
+            squeezed in beside their bold label at twelve pixels with the rest
+            of the fields — so anything longer than a sentence was crushed into
+            a corner of a box built for one-word values, and the colours came
+            from whatever the panel happened to be using rather than being set
+            here. They are the part of a task somebody actually opens it to
+            read, so they get the full width, wrap properly, keep the line
+            breaks that were typed, and are given their own colours so nothing
+            can make the text dark on dark. Something enormous scrolls inside
+            its own box rather than pushing the modal off the screen. */}
+        {[["Description", rec.desc], ["Reason", rec.reason]]
+          .filter(([, v]) => v && String(v).trim() && String(v).trim() !== "--")
+          .map(([label, v]) => (
+            <div key={label} style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 800, color: "#64748b", marginBottom: 5, letterSpacing: ".02em", textTransform: "uppercase" }}>{label}</div>
+              <div style={{
+                background: "#ffffff", color: "#1f2937",
+                border: "1px solid #e3e8f5", borderLeft: "3px solid #2b6fb8",
+                borderRadius: 10, padding: "11px 13px",
+                fontSize: 13.5, lineHeight: 1.65,
+                whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word",
+                maxHeight: 320, overflowY: "auto",
+              }}>{String(v)}</div>
+            </div>
+          ))}
         {(rec.photo || (Array.isArray(rec.photos) && rec.photos.length)) && (
           <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
             {[rec.photo, ...(Array.isArray(rec.photos) ? rec.photos : [])].filter(Boolean).map((u, i) => (

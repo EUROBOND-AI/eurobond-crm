@@ -37,8 +37,9 @@ export default function MeetingCalendar() {
       api.customers("", true).catch(() => ({ customers: [] })),
       api.list("biltrax", false).catch(() => ({ records: [] })),
       api.list("enquiry", false).catch(() => ({ records: [] })),
+      api.list("task", false, { slim: true }).catch(() => ({ records: [] })),
     ])
-      .then(([c, b, e]) => {
+      .then(([c, b, e, t]) => {
         const me = (auth.user || {}).name;
         /* Biltrax appointments show here too, alongside customer meetings */
         const appts = (b.records || [])
@@ -70,7 +71,42 @@ export default function MeetingCalendar() {
             nextMeetingRemark: `${r.nextFollowType || "Call"} · ${r.lastRemark || ""}`,
             isEnquiry: true,
           }));
-        setRows([...(c.customers || []), ...appts, ...enq]);
+        /* Tasks with a deadline belong on the calendar too.
+
+           A task given to somebody for "tomorrow 8:00 AM" is an appointment
+           with a piece of work, and it was the one thing with a time on it
+           that this screen did not know about — so a day could look empty
+           while three tasks were due on it. Anything already finished drops
+           out; the day it lands on is the deadline's own day and time. */
+        const tasks = (t.records || [])
+          .map((r) => ({ _id: r.id, ...r.data }))
+          .filter((r) => r.dueAt)
+          .filter((r) => !/^(completed|close|closed|rejected)$/i.test(String(r.status || "")))
+          .filter((r) => {
+            if (!me) return true;
+            const names = Array.isArray(r.assigneeList) && r.assigneeList.length
+              ? r.assigneeList
+              : String(r.assignee || r.assignedTo || "").split(",");
+            return names.map((x) => String(x).trim().toLowerCase()).includes(String(me).toLowerCase())
+              || r.createdBy === me;
+          })
+          .map((r) => {
+            const d = new Date(r.dueAt);
+            const two = (n) => String(n).padStart(2, "0");
+            return {
+              name: r.title || r.task || "Task",
+              contactName: r.assignee || r.assignedTo || "",
+              mobile: "",
+              place: r.priority ? `${r.priority} priority` : "",
+              nextMeetingDate: isNaN(d) ? "" : `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`,
+              nextMeetingTime: isNaN(d) ? "" : `${two(d.getHours())}:${two(d.getMinutes())}`,
+              nextMeetingRemark: `Task due · ${r.createdBy ? "from " + r.createdBy : ""}`.trim(),
+              isTask: true,
+              taskId: r._id,
+            };
+          })
+          .filter((x) => x.nextMeetingDate);
+        setRows([...(c.customers || []), ...appts, ...enq, ...tasks]);
       })
       .finally(() => setLoading(false));
   };
@@ -184,6 +220,7 @@ export default function MeetingCalendar() {
               {c.name}
               {c.isBiltrax && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 800, background: "#fff4e5", color: "#ad6800", padding: "2px 7px", borderRadius: 999 }}>Biltrax</span>}
               {c.isEnquiry && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 800, background: "#f3efff", color: "#6c5ce7", padding: "2px 7px", borderRadius: 999 }}>Enquiry</span>}
+              {c.isTask && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 800, background: "#e8f1ff", color: "#1f5fa9", padding: "2px 7px", borderRadius: 999 }}>Task</span>}
             </div>
             <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>
               {[c.contactName, c.mobile, c.place].filter(Boolean).join(" · ")}

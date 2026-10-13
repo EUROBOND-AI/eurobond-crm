@@ -6825,11 +6825,14 @@ function EnquiryReassign({ r, onClose, onDone }) {
       const me = CU();
       const all = (d.users || d.records || []).map((u) => (u.data ? { id: u.id, ...u.data } : u));
       const isAdmin = (u) => /admin/i.test(String(u.role || ""));
-      /* only people from MY state, plus the admin users */
-      /* anyone in any state this person covers, not just their main one */
-      const mine = new Set(myStates(me).map((x) => x.toLowerCase()));
+      /* Only people from MY state, plus the admin users.
+
+         The extra states an admin can give a HOD deliberately do NOT widen
+         this list: handing an enquiry straight to somebody is a decision about
+         one area, and the extra states are only meant to open up the areas on
+         the beat plan and in the area picker. */
       setTeam(all.filter((u) => u.name !== me.name && !isAdmin(u)
-        && mine.has(String(u.state || "").trim().toLowerCase())));
+        && String(u.state || "").toLowerCase() === String(me.state || "").toLowerCase()));
       setAdmins(all.filter((u) => u.name !== me.name && isAdmin(u)));
     }).catch(() => {});
   }, []);
