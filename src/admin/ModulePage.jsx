@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { MODULES } from "./moduleConfigs.jsx";
 import { PageHead, Tabs, DataTable, ToolButtons, FormModal, StatCard } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
-import { scopeRows, visibleUsers, isPanelAdmin } from "../lib/scope.js";
+import { scopeRows, visibleUsers, isPanelAdmin, taskMatchesPlace, hodNamesOf } from "../lib/scope.js";
 import { AdminSearchSelect } from "./QuotationAdmin.jsx";
 import { canAdd, canDelete, canModify, canExport, canImport } from "../lib/perms.js";
 import { usePager, Pager } from "../components/Pager.jsx";
@@ -207,6 +207,11 @@ export default function ModulePage({ cfgKey }) {
   const [fStatus, setFStatus] = useState("");
   const [projSide, setProjSide] = useState("Sales");   // projectProjection: Sales vs Specs view
   const [fStateM, setFStateM] = useState("");
+  /* Task list only: a task carries names, not places, so these look the
+     assignees up — zone, state (incl. extra states) and the HOD above them */
+  const [tZone, setTZone] = useState("");
+  const [tState, setTState] = useState("");
+  const [tHod, setTHod] = useState("");
 
   const knownTabs = (cfg.tabs || []).map((t) => t.key);
   const firstTab = cfg.tabs?.[0]?.key;
@@ -287,8 +292,9 @@ export default function ModulePage({ cfgKey }) {
     if (fZone) list = list.filter((r) => (r.zone || "") === fZone);
     if (fLead) list = list.filter((r) => (r.leadSource || "") === fLead);
     if (fAssign) list = list.filter((r) => (r.assignedTo || "") === fAssign || (r.specPerson || "") === fAssign || (r.salesPerson || "") === fAssign);
+    if (cfgKey === "task" && (tZone || tState || tHod)) list = list.filter((r) => taskMatchesPlace(r, allUsers, { zone: tZone, state: tState, hod: tHod }));
     return list;
-  }, [visibleRows, cfg, fUser, fHod, fSpec, fSales, fStatus, fStateM, projSide, fCity, fZone, fLead, fAssign, fFrom, fTo, cfgKey]);
+  }, [visibleRows, cfg, fUser, fHod, fSpec, fSales, fStatus, fStateM, projSide, fCity, fZone, fLead, fAssign, fFrom, fTo, cfgKey, tZone, tState, tHod, allUsers]);
 
   /* the rows the tab is then chosen from — the totals count these, so filtering
      to twenty rows no longer still reads the full table */
@@ -606,6 +612,21 @@ export default function ModulePage({ cfgKey }) {
         <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
           <input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} title="From date" style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }} />
           <input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} title="To date" style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }} />
+          {cfgKey === "task" && (() => {
+            const vu = visibleUsers(allUsers || []);
+            const uniq = (a) => [...new Set(a.map((x) => String(x || "").trim()).filter(Boolean))].sort();
+            const zones = uniq(vu.map((u) => u.zone));
+            const states = uniq(vu.flatMap((u) => [u.state, ...String(u.states || "").split(",")]));
+            const hods = hodNamesOf(vu.length ? vu : allUsers);
+            const sel = { padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" };
+            return (
+              <>
+                <select value={tZone} onChange={(e) => setTZone(e.target.value)} style={sel} title="Zone"><option value="">All Zones</option>{zones.map((z) => <option key={z}>{z}</option>)}</select>
+                <select value={tState} onChange={(e) => setTState(e.target.value)} style={sel} title="State"><option value="">All States</option>{states.map((z) => <option key={z}>{z}</option>)}</select>
+                {hods.length > 0 && <select value={tHod} onChange={(e) => setTHod(e.target.value)} style={sel} title="HOD"><option value="">All HODs</option>{hods.map((z) => <option key={z}>{z}</option>)}</select>}
+              </>
+            );
+          })()}
           {distinct("createdBy").length > 0 && (
             <select value={fUser} onChange={(e) => setFUser(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
               <option value="">All Users</option>

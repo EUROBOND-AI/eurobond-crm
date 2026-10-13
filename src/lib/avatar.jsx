@@ -30,9 +30,12 @@ export function initialsOf(name) {
   );
 }
 
+/* One family of blues, so a row of faces sits inside the brand instead of
+   on top of it. Each pair is distinct enough that two neighbours read as two
+   people; the initials carry the identity, the colour only separates. */
 const TINTS = [
-  ["#4b5cf0", "#7b5cf0"], ["#0f9d58", "#34c38f"], ["#e8710a", "#f5a623"],
-  ["#c2185b", "#e8578a"], ["#00838f", "#26c6da"], ["#5e35b1", "#9575cd"],
+  ["#184f95", "#3987e5"], ["#0d366b", "#256abf"], ["#1c5cab", "#6da7ec"],
+  ["#0e5e7a", "#2a9bc4"], ["#3b4fb8", "#6f83e8"], ["#1f3f73", "#4f7fc4"],
 ];
 export function tintFor(name) {
   const s = String(name || "");
@@ -69,7 +72,9 @@ export function Avatar({ name, photo, size = 40, ring = "" }) {
       background: `linear-gradient(135deg,${a},${b})`,
       color: "#fff",
       fontWeight: 800,
-      fontFamily: "Bricolage Grotesque",
+      /* the fallback matters: without one, a moment before the web font
+         arrives the initials were drawn in the browser's serif */
+      fontFamily: "var(--font-body), system-ui, sans-serif",
       fontSize: Math.max(10, Math.round(size * 0.38)),
       letterSpacing: 0.3,
     }}>

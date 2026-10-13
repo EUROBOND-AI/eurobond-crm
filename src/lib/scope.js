@@ -82,6 +82,72 @@ export function visibleNameSet(users) {
   );
 }
 
+/* ---- Where a person sits: zone, state, HOD ----
+
+   A task carries the names of the people it was given to and nothing else —
+   no zone, no state, no HOD. Those belong to the people, so filtering tasks by
+   any of them means looking the assignees up. A task with several people
+   matches if any one of them does.
+
+   "Under a HOD" follows the reporting line upward, so somebody who reports to
+   a Sub HOD who reports to the HOD counts as that HOD's. Four levels is far
+   more than the company has; it is there so a loop in the data cannot hang. */
+const low = (x) => String(x || "").trim().toLowerCase();
+
+export function userByName(users, name) {
+  const n = low(name);
+  if (!n) return null;
+  return (users || []).find((u) => low(u.name) === n) || null;
+}
+
+export function isUnderHod(users, name, hodName) {
+  const h = low(hodName);
+  if (!h) return true;
+  let cur = userByName(users, name);
+  for (let i = 0; cur && i < 5; i++) {
+    if (low(cur.name) === h) return true;
+    if (low(cur.manager) === h) return true;
+    cur = userByName(users, cur.manager);
+  }
+  return false;
+}
+
+/* the people a task was given to, as names */
+export function taskPeople(t) {
+  const row = t || {};
+  const list = Array.isArray(row.assigneeList) && row.assigneeList.length
+    ? row.assigneeList
+    : String(row.assignee || row.assignedTo || "").split(",");
+  return list.map((x) => String(x).trim()).filter(Boolean);
+}
+
+/* does any of this task's people match the zone / state / HOD asked for */
+export function taskMatchesPlace(t, users, { zone = "", state = "", hod = "" } = {}) {
+  if (!zone && !state && !hod) return true;
+  const people = taskPeople(t);
+  if (!people.length) return false;
+  return people.some((n) => {
+    const u = userByName(users, n);
+    if (!u) return false;
+    if (zone && low(u.zone) !== low(zone)) return false;
+    if (state) {
+      /* a person's own state, or any of the extra ones they cover */
+      const theirs = [u.state, ...String(u.states || "").split(",")].map(low).filter(Boolean);
+      if (!theirs.includes(low(state))) return false;
+    }
+    if (hod && !isUnderHod(users, u.name, hod)) return false;
+    return true;
+  });
+}
+
+/* the HODs on offer in a filter — people whose role says HOD, within reach */
+export function hodNamesOf(users) {
+  return [...new Set((users || [])
+    .filter((u) => /^hod\b/i.test(String(u.role || "").trim()))
+    .map((u) => u.name)
+    .filter(Boolean))].sort();
+}
+
 /* Quick check for a single person's name */
 export function canSeeUser(users, name) {
   if (!name) return false;
