@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import RefreshBtn, { startRefresh } from "../components/RefreshBtn.jsx";
 import { ebFlushQueue, ebQueueSize, watchLocation, startTracker, stopTracker, setTrackerHandler, setTrackerSession, isTrackerActive, showTrackingNotification, hideTrackingNotification, totalDistanceKm, haversineKm, fmtKm, fmtDuration } from "../lib/geo.js";
-import { api, auth, API_BASE, clearApiCache } from "../lib/api.js";
+import { api, auth, API_BASE, clearApiCache, myStates, areasForMyStates } from "../lib/api.js";
 import { Avatar, fileUrl } from "../lib/avatar.jsx";
 import BeatPlan, { BeatPlanConfirm } from "./BeatPlan.jsx";
 import ErrorBoundary from "../components/ErrorBoundary.jsx";
@@ -382,6 +382,51 @@ async function placeName(lat, lng) {
   return name;
 }
 
+
+/* Resolve a whole screenful of positions at once.
+
+   The app used to walk the list one point at a time and sleep most of a
+   second after each, so a timeline of a hundred stops filled in slowly from
+   the top and said "Finding address…" on everything below for a minute or
+   more. The admin panel has always done it in small parallel batches, and
+   this is the same thing: what is already known is answered from the store
+   with no wait at all, and only what is genuinely missing is looked up — six
+   at a time, with one short pause between batches so the lookup service is
+   not hammered.
+
+   onBatch is called after each batch with everything found so far, so the
+   rows appear in groups rather than one by one. */
+async function ebResolvePlaces(points, onBatch, limit = 150) {
+  const out = {};
+  const need = [];
+  const seen = new Set();
+  for (const p of (points || []).slice(0, limit)) {
+    if (!p || p.lat == null || p.lng == null) continue;
+    const key = Number(p.lat).toFixed(4) + "," + Number(p.lng).toFixed(4);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (p.address) continue;                 // the point carries its own
+    if (geoCache[key]) { out[key] = geoCache[key]; continue; }
+    need.push(p);
+  }
+  /* whatever was already known goes up immediately */
+  if (Object.keys(out).length) { try { onBatch({ ...out }); } catch {} }
+  if (!need.length) return out;
+
+  const BATCH = 6;
+  for (let i = 0; i < need.length; i += BATCH) {
+    const part = need.slice(i, i + BATCH);
+    await Promise.all(part.map(async (p) => {
+      try {
+        const nm = await placeName(p.lat, p.lng);
+        if (nm) out[Number(p.lat).toFixed(4) + "," + Number(p.lng).toFixed(4)] = nm;
+      } catch {}
+    }));
+    try { onBatch({ ...out }); } catch {}
+    if (i + BATCH < need.length) await new Promise((r) => setTimeout(r, 350));
+  }
+  return out;
+}
 
 /* ---------------------------------------------------------------------------
    Faces and birthdays
@@ -1591,23 +1636,29 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
     let stop = false;
     const pts = timelinePoints.filter((x) => !x.appClosed).slice(0, 30);
     (async () => {
-      for (const p of pts) {
-        if (stop) return;
-        const key = p.lat.toFixed(4) + "," + p.lng.toFixed(4);
-        if (p.address || names[key]) continue;   // already have it (stored or on screen)
-        /* found on an earlier visit — taken straight from the phone's store,
-           with none of the waiting a lookup needs */
-        if (geoCache[key]) { setNames((n) => ({ ...n, [key]: geoCache[key] })); continue; }
-        const nm = await placeName(p.lat, p.lng);
-        if (stop) return;
-        setNames((n) => ({ ...n, [key]: nm }));
-        await new Promise((r) => setTimeout(r, 900));   // only after a real lookup
-      }
+      await ebResolvePlaces(pts, (found) => { if (!stop) setNames((n) => ({ ...n, ...found })); }, 60);
     })();
     return () => { stop = true; };
   }, [tab, tracking.points.length]);
 
   const km = tracking.km;
+  /* The day's distance, after the day has been closed.
+
+     tracking.km is the live figure, built up by the phone while it is
+     recording. Once attendance is stopped the phone stops adding to it, and
+     the server works the day's real total out from every point it received —
+     which is the figure the admin panel and the reports use. Reading the live
+     one after the stop showed whatever the counter happened to be holding,
+     which on a phone left open overnight was the day before's, and the only
+     way to see today's was to pick today's date by hand.
+
+     While recording, the live figure is the right one: it is ahead of the
+     server by whatever has not been uploaded yet. */
+  const sessionKm = Number(todaySession && todaySession.distance_km) || 0;
+  const dayKm = attendanceOn ? km : (sessionKm > 0 ? sessionKm : km);
+  const dayPoints = (!attendanceOn && Number(todaySession && todaySession.points_count) > 0)
+    ? Number(todaySession.points_count)
+    : tracking.points.length;
 
   /* timeline: EVERY recorded point is shown (login address, battery, online) +
      "App Closed" gaps in between. Points already come at ~90s interval. */
@@ -1812,8 +1863,8 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
             ["Status", attendanceOn ? "Present · Tracking live" : (tracking.points.length || todaySession?.end_time) ? "Stopped" : "Not started"],
             ["Start time", tracking.startedAt ? new Date(tracking.startedAt).toLocaleTimeString("en-IN") : (todaySession?.start_time ? rawTimeApp(todaySession.start_time) : "--")],
             ["Stop time", tracking.stoppedAt ? new Date(tracking.stoppedAt).toLocaleTimeString("en-IN") : (todaySession?.end_time ? rawTimeApp(todaySession.end_time) : attendanceOn ? "Running…" : "--")],
-            ["Distance travelled", fmtKm(km)],
-            ["Location points", String(tracking.points.length)],
+            ["Distance travelled", fmtKm(dayKm)],
+            ["Location points", String(dayPoints)],
           ].map(([k, v]) => (
             <div key={k} style={{ display: "flex", justifyContent: "space-between", background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "var(--shadow)", fontSize: 13 }}>
               <span style={{ color: "var(--muted)", fontWeight: 700 }}>{k}</span>
@@ -2795,7 +2846,7 @@ function FieldFollowUpNew({ add, editData }) {
   const removeContact = (i) => setContacts((cs) => cs.filter((_, idx) => idx !== i));
 
   const inp = { width: "100%", marginBottom: 12 };
-  const CATS = ["Distributor", "End User", "Architect", "Fabricator", "Consultant", "Dealer", "Builder", "Corporate", "Government", "Contractor", "Petroleum"];
+  const CATS = ["Distributor", "End User", "Architect", "Fabricator", "Consultant", "Dealer", "Builder", "Corporate", "Government", "Contractor", "Petroleum", "Institution"];
 
   /* Visiting card scan — Gemini OCR auto-fill */
   const scanCard = async (file) => {
@@ -4333,25 +4384,18 @@ function FieldTeamTracking() {
     });
     return keep;
   }, [pts]);
-  /* reverse-geocode HOD timeline points that don't already have a stored address */
+  /* The whole timeline's addresses, in parallel batches rather than one at a
+     time — the same way the admin panel has always done it. Keyed to four
+     decimal places so it matches the phone's own store of answers. */
   useEffect(() => {
     let stop = false;
     (async () => {
-      for (const p of (pts || []).slice(0, 100)) {
-        if (stop) break;
-        const key = `${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`;
-        if (p.address || hodAddr[key]) continue;
-        const cached = ebCachedPlace(p.lat, p.lng);
-        if (cached) { setHodAddr((m) => ({ ...m, [key]: cached })); continue; }
-        try {
-          const nm = await placeName(p.lat, p.lng);
-          if (nm && !stop) setHodAddr((m) => ({ ...m, [key]: nm }));
-          await new Promise((r) => setTimeout(r, 300));   // only after a real lookup
-        } catch {}
-      }
+      /* only the stops actually drawn; the dense track underneath is not listed */
+      const shown = (keepIdx || []).map((i) => pts[i]).filter(Boolean);
+      await ebResolvePlaces(shown, (found) => { if (!stop) setHodAddr((m) => ({ ...m, ...found })); }, 150);
     })();
     return () => { stop = true; };
-  }, [pts]);
+  }, [pts, keepIdx]);
   const mapRef = useRef(null);
   const mapObj = useRef(null);
   const today = new Date().toISOString().slice(0, 10);
@@ -4448,7 +4492,7 @@ function FieldTeamTracking() {
                     <span style={{ fontSize: 10.5, fontWeight: 800, color: "var(--muted)" }}>{label}</span>
                     <span style={{ fontSize: 10, color: "var(--muted)" }}>🔋 {p.battery != null ? p.battery + "%" : "NA"} {p.online === 1 || p.online === true ? "🟢" : ""}</span>
                   </div>
-                  <div style={{ fontSize: 11.5, color: "var(--ink)", marginTop: 2, fontWeight: 500 }}>{p.address || hodAddr[`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`] || ebCachedPlace(p.lat, p.lng) || "Finding address…"}</div>
+                  <div style={{ fontSize: 11.5, color: "var(--ink)", marginTop: 2, fontWeight: 500 }}>{p.address || hodAddr[`${Number(p.lat).toFixed(4)},${Number(p.lng).toFixed(4)}`] || ebCachedPlace(p.lat, p.lng) || "Finding address…"}</div>
                   <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 1, display: "flex", justifyContent: "space-between" }}>
                     <span>{p.recorded_at ? String(p.recorded_at).slice(11, 16) : ""}</span>
                     {/* how far they had come by this stop */}
@@ -6782,8 +6826,10 @@ function EnquiryReassign({ r, onClose, onDone }) {
       const all = (d.users || d.records || []).map((u) => (u.data ? { id: u.id, ...u.data } : u));
       const isAdmin = (u) => /admin/i.test(String(u.role || ""));
       /* only people from MY state, plus the admin users */
+      /* anyone in any state this person covers, not just their main one */
+      const mine = new Set(myStates(me).map((x) => x.toLowerCase()));
       setTeam(all.filter((u) => u.name !== me.name && !isAdmin(u)
-        && String(u.state || "").toLowerCase() === String(me.state || "").toLowerCase()));
+        && mine.has(String(u.state || "").trim().toLowerCase())));
       setAdmins(all.filter((u) => u.name !== me.name && isAdmin(u)));
     }).catch(() => {});
   }, []);
@@ -8109,7 +8155,8 @@ function LocationPicker({ value, onPick, addMode }) {
   useEffect(() => {
     if (!userState) return;
     setLoading(true);
-    api.areasByState(userState).then((d) => setAreas(d.areas || [])).catch(() => setAreas([])).finally(() => setLoading(false));
+    /* every state this person covers, not only the one on their profile */
+    areasForMyStates().then(setAreas).catch(() => setAreas([])).finally(() => setLoading(false));
   }, [userState]);
 
   const filtered = q.trim()
@@ -8244,7 +8291,14 @@ function AttendanceWizard({ mode = "start", visitInfo = null, beatPlan = null, o
   }, []);
 
   const isStop = mode === "stop";
-  const effType = isStop ? (["ExStation", "Outstation"].includes(visitInfo?.visit_type) ? "Tour" : visitInfo?.visit_type || "Local") : type;
+  /* "Tour" is the one word the photo rules are written against, while a day's
+     own type is recorded more precisely as ExStation or Outstation. The stop
+     flow already collapsed the two; the start flow did not, so a start whose
+     type came through as "ExStation" was never seen as a tour — and choosing
+     Personal transport showed no reading photo at all, which is exactly the
+     case where the odometer is needed. Both sides are collapsed now. */
+  const asTour = (t) => (["ExStation", "Outstation", "Tour"].includes(String(t)) ? "Tour" : (t || "Local"));
+  const effType = isStop ? asTour(visitInfo?.visit_type) : asTour(type);
   const effTransport = isStop ? (visitInfo?.transport || "Public") : transport;
 
   /* which photos does THIS flow need? (meeru cheppina rules exact ga)

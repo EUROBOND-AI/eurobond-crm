@@ -252,7 +252,17 @@ export function FormModal({ title, fields, onClose, onSave, initial }) {
               <label style={{ color: missing.includes(f.name) ? "#c0392b" : undefined }}>
                 {f.label} {f.required && <b style={{ color: "#c0392b" }}>*</b>}
               </label>
-              {f.type === "select" || f.optionsSource === "users" || f.optionsSource === "userStates" ? (
+              {/* A multi-person field is asked for by its type, and that is
+                  checked first. It also names "users" as where its names come
+                  from, and the plain-select branch below matched on that and
+                  won — so the panel drew a one-person dropdown where the phone
+                  drew the chips, and a task could only ever be given to one
+                  person from here. */}
+              {f.type === "multiuser" ? (
+                <MultiPeople value={values[f.name]} listValue={values[f.name + "List"]}
+                  options={userOpts}
+                  onChange={(line, list) => setValues({ ...values, [f.name]: line, [f.name + "List"]: list })} />
+              ) : f.type === "select" || f.optionsSource === "users" || f.optionsSource === "userStates" ? (
                 <select value={values[f.name] || ""}
                   onChange={(e) => {
                     const v = e.target.value;
@@ -268,10 +278,6 @@ export function FormModal({ title, fields, onClose, onSave, initial }) {
                     : f.optionsSource === "userStates" ? userStates
                     : (f.options || [])).map((o) => <option key={o}>{o}</option>)}
                 </select>
-              ) : f.type === "multiuser" ? (
-                <MultiPeople value={values[f.name]} listValue={values[f.name + "List"]}
-                  options={userOpts}
-                  onChange={(line, list) => setValues({ ...values, [f.name]: line, [f.name + "List"]: list })} />
               ) : f.type === "files" ? (
                 <MultiFiles value={values[f.name]} onChange={(list) => setValues({ ...values, [f.name]: list })} />
               ) : f.type === "textarea" ? (

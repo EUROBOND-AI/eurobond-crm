@@ -7,7 +7,7 @@ import { visibleUsers } from "../lib/scope.js";
 
 const ROLES = ["Admin", "HOD (Sales)", "HOD (Specs)", "Sub HOD (Sales)", "Sub HOD (Specs)", "Sales Person", "Specs Person", "Sales Collection"];
 const GRADES = ["S1", "S2", "S3", "S4", "S5", "M1", "M2", "M3"];
-const empty = { name: "", mobile: "", code: "", email: "", role: "Sales Person", grade: "", designation: "", doj: "", dob: "", state: "", zone: "", city: "", manager: "", password: "", photo: "", nearby_range_m: 500 };
+const empty = { name: "", mobile: "", code: "", email: "", role: "Sales Person", grade: "", designation: "", doj: "", dob: "", state: "", zone: "", city: "", manager: "", password: "", photo: "", states: "", nearby_range_m: 500 };
 
 const selStyle = { background: "#fff", border: "1px solid var(--line)", borderRadius: 10, padding: "9px 11px", fontSize: 13 };
 
@@ -331,6 +331,7 @@ export default function UsersPage() {
               <Field label="Date of Birth" type="date" val={form.dob || ""} on={(v) => setForm({ ...form, dob: v })} />
               <PickOne label="State" val={form.state} on={(v) => setForm({ ...form, state: v, city: "" })} options={stateOpts}
                 empty="No states in Area Master yet" />
+              <ExtraStates form={form} setForm={setForm} options={stateOpts} />
               <PickOne label="Zone" val={form.zone} on={(v) => setForm({ ...form, zone: v })} options={zoneOpts} />
               <PickOne label="Depo" val={form.depo} on={(v) => setForm({ ...form, depo: v })} options={depoOpts} />
               {form.state
@@ -353,6 +354,46 @@ export default function UsersPage() {
         </div>
       )}
     </>
+  );
+}
+
+/* The other states this person covers.
+
+   One HOD often looks after two or three states, and the single State field
+   could only hold one of them — so their beat plan, their areas and the
+   people they could pick from all came from that one state and the rest of
+   their patch did not exist as far as the app was concerned. Their main state
+   stays as it is; these are added to it, and every area under them becomes
+   available in the same places.
+
+   Kept as a plain comma-separated line, because that is what the column
+   holds and what every screen that reads it already splits on. */
+function ExtraStates({ form, setForm, options }) {
+  const chosen = String(form.states || "").split(",").map((x) => x.trim()).filter(Boolean);
+  const set = (list) => setForm((f) => ({ ...f, states: list.join(", ") }));
+  /* the main state is already covered, so it is not offered again here */
+  const left = (options || []).filter((o) => o && o !== form.state && !chosen.includes(o));
+  return (
+    <div className="field" style={{ gridColumn: "1 / -1" }}>
+      <label>Extra States (for a HOD covering more than one)</label>
+      <select value="" onChange={(e) => { const v = e.target.value; if (v) set([...chosen, v]); }}>
+        <option value="">{left.length ? "Add a state…" : "No other states in Area Master"}</option>
+        {left.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+      {chosen.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 7 }}>
+          {chosen.map((n) => (
+            <span key={n} style={{ background: "#eef2ff", color: "#3949ab", borderRadius: 999, padding: "5px 10px", fontSize: 12, fontWeight: 700 }}>
+              {n}
+              <span onClick={() => set(chosen.filter((x) => x !== n))} style={{ cursor: "pointer", marginLeft: 6 }}>×</span>
+            </span>
+          ))}
+        </div>
+      )}
+      <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>
+        Areas under these states become available to them as well as their main state.
+      </div>
+    </div>
   );
 }
 

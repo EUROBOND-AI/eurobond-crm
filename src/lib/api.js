@@ -376,6 +376,34 @@ export const api = {
 };
 
 
+/* Every state this person covers: their own, plus any extra ones an admin
+   gave them. A HOD over two or three states had only the single "state"
+   field, so the areas and the people on offer came from one of them and the
+   rest of their patch was invisible. */
+export function myStates(user) {
+  const u = user || (auth && auth.user) || {};
+  const main = String(u.state || "").trim();
+  const extra = String(u.states || "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+  const all = [main, ...extra].filter(Boolean);
+  /* the same state typed twice, or in a different case, is one state */
+  const seen = new Set();
+  return all.filter((x) => { const k = x.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+}
+
+/* The areas under all of them, in one list, asked for together. */
+export async function areasForMyStates(user) {
+  const states = myStates(user);
+  if (!states.length) return [];
+  const parts = await Promise.all(states.map((st) => api.areasByState(st).then((d) => d.areas || []).catch(() => [])));
+  const out = [];
+  const seen = new Set();
+  parts.flat().forEach((a) => { const k = String(a).trim().toLowerCase(); if (a && !seen.has(k)) { seen.add(k); out.push(a); } });
+  return out.sort();
+}
+
 /* Who sent a notification.
 
    Every screen that raises one wrote the sender's name into the message text

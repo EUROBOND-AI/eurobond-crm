@@ -260,9 +260,11 @@ export const MODULES = {
          match against */
       { name: "assignee", label: "Assign To", type: "multiuser", optionsSource: "users", required: true },
       { name: "due", label: "Due Date", type: "date", required: true },
-      /* how long they have from the moment it is given to them; the deadline
-         itself is worked out on the server, from the server's clock */
-      { name: "hours", label: "Complete Within (hours)", type: "number", required: true },
+      /* The moment it has to be finished by, picked on a calendar — "tomorrow
+         8:00 AM" is how the deadline is actually described, and a number of
+         hours made whoever set it do the arithmetic in their head. The
+         server reads this as India time. */
+      { name: "dueAt", label: "Complete By (date & time)", type: "datetime-local", required: true },
       { name: "priority", label: "Priority", type: "select", options: ["Low", "Medium", "High"], required: true },
       { name: "desc", label: "Description", type: "textarea", full: true },
       { name: "attachments", label: "Attachments", type: "files", full: true },

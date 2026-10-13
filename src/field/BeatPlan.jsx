@@ -2,7 +2,7 @@
    Each day: visit type (Local / Ex-station / Out-station) + areas + remark. */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, auth } from "../lib/api.js";
+import { api, auth, areasForMyStates } from "../lib/api.js";
 import ScreenHead from "../components/ScreenHead.jsx";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -41,7 +41,8 @@ export default function BeatPlan() {
 
   useEffect(() => {
     if (!state) { setAreaOpts([]); return; }
-    api.areasByState(state).then((d) => setAreaOpts(d.areas || [])).catch(() => setAreaOpts([]));
+    /* every state this person covers, not only the one on their profile */
+    areasForMyStates().then(setAreaOpts).catch(() => setAreaOpts([]));
   }, [state]);
 
   /* load my plan for this week if it already exists */

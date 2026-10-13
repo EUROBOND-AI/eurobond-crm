@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Edit3, UserPlus, Trash2, Share2, X, Search, Ban, RefreshCw, MessageSquare, Copy } from "lucide-react";
+import { Edit3, UserPlus, Trash2, Share2, X, Search, Ban, RefreshCw, MessageSquare, Copy, Send } from "lucide-react";
 import { PageHead } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
 import { scopeRows, visibleUsers } from "../lib/scope.js";
@@ -9,8 +9,14 @@ import { isPanelAdmin } from "../lib/scope.js";
 const LEAD_SOURCES = [
   "IndiaMart", "Social Media", "Direct Call", "Exhibition", "DCCHAT",
   "IndiaMart (ARCHER)", "Google AD (Eurobond)", "Google AD (Archer)",
-  "Website Archer", "Website Eurobond", "Display Centers", "Other",
+  "Website Archer", "Website Eurobond", "Display Centers", "Export", "Other",
 ];
+/* An export enquiry still came in through one of the ordinary channels — an
+   IndiaMart listing, a stand at an exhibition, a direct call — so "Export"
+   alone loses where it actually came from. Choosing it asks for that second
+   answer, which is kept as subFrom and filtered on its own. */
+const EXPORT_SOURCE = "Export";
+const SUB_SOURCES = LEAD_SOURCES.filter((x) => x !== EXPORT_SOURCE);
 const UOMS = ["Sq.Mtr", "Sq.Ft", "Nos", "Kg", "Ton", "Sheet"];
 
 /* enquiry date (yyyy-mm-dd) for range filter */
@@ -121,6 +127,9 @@ export default function EnquiryPage() {
   const [colSearch, setColSearch] = useState({});
   const [search, setSearch] = useState("");
   const [sourceSel, setSourceSel] = useState([...LEAD_SOURCES]);   // Enquiry From dropdown
+  const [subSel, setSubSel] = useState([...SUB_SOURCES]);          // Sub From, for exports
+  const [subOpen, setSubOpen] = useState(false);
+  const subRef = useRef(null);
   const [srcOpen, setSrcOpen] = useState(false);
   const srcRef = useRef(null);
   /* close the "Enquiry From" dropdown when clicking anywhere outside it */
@@ -130,6 +139,12 @@ export default function EnquiryPage() {
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [srcOpen]);
+  useEffect(() => {
+    if (!subOpen) return;
+    const onDoc = (e) => { if (subRef.current && !subRef.current.contains(e.target)) setSubOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [subOpen]);
   const [fromDate, setFromDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
   /* Several states at once: one person covers more than one, and picking them
@@ -252,6 +267,11 @@ export default function EnquiryPage() {
     l = scopeRows(l, users, ["assignedTo", "assigned_to", "createdBy", "by"]);   // role visibility
     /* Enquiry From (applied via Show) */
     if (applied.sources.length < LEAD_SOURCES.length) l = l.filter((r) => applied.sources.includes(r.leadFrom || r.leadSource));
+    /* narrowing an export by where it actually came from; leads that are not
+       exports are untouched by it */
+    if (applied.subs && applied.subs.length && applied.subs.length < SUB_SOURCES.length) {
+      l = l.filter((r) => (r.leadFrom || r.leadSource) !== EXPORT_SOURCE || applied.subs.includes(r.subFrom || ""));
+    }
     /* date range (applied via Show) */
     if (applied.from) l = l.filter((r) => { const d = enqDate(r); return d && d >= applied.from; });
     if (applied.to) l = l.filter((r) => { const d = enqDate(r); return d && d <= applied.to; });
@@ -286,7 +306,56 @@ export default function EnquiryPage() {
     return m;
   }, [scoped]);
 
-  const applyShow = () => { setApplied({ from: fromDate, to: toDate, sources: [...sourceSel], shown: true }); setPage(1); };
+  /* The introduction message, and the one-time mark that stops it twice.
+
+     The number is opened in WhatsApp rather than sent from the server: it goes
+     from the office's own WhatsApp, which is what the customer expects to see,
+     and nothing has to be wired up to send on our behalf. The record is marked
+     first, so a slow WhatsApp window cannot be clicked again in the meantime. */
+  const sendIntro = async (r) => {
+    const person = String(r.assignedTo || r.passto || "").trim();
+    if (!person) { alert("Assign this enquiry to a sales person first."); return; }
+    const num = String(r.contact || r.phone || "").replace(/\D/g, "").slice(-10);
+    if (num.length !== 10) { alert("This enquiry has no valid 10-digit mobile number."); return; }
+
+    const u = (users || [])
+      .map((x) => (x.data ? { id: x.id, ...x.data } : x))
+      .find((x) => String(x.name || "").trim().toLowerCase() === person.toLowerCase()) || {};
+    const who = u.name || person;
+    const mob = String(u.mobile || "").replace(/\D/g, "");
+    const mail = String(u.email || "").trim();
+
+    const lines = [
+      `Dear ${r.customer || r.company || "Sir/Madam"},`,
+      "",
+      "Thank you for your enquiry with Euro Panel Products Limited (Eurobond ACP).",
+      "",
+      `Your dedicated sales contact for your area is ${who}${u.designation ? ", " + u.designation : ""}.`,
+      mob ? `Mobile : +91 ${mob}` : "",
+      mail ? `Email  : ${mail}` : "",
+      "",
+      "Please feel free to contact them directly for product details, samples and pricing.",
+      "",
+      "Website: https://www.eurobondacp.com",
+      "",
+      "Regards,",
+      "Euro Panel Products Limited",
+    ].filter((x) => x !== "");
+
+    if (!window.confirm(`Send ${who}'s contact details to ${r.customer || r.company || "this customer"} on WhatsApp?\n\nThis can only be sent once.`)) return;
+
+    const stamp = new Date().toLocaleString("en-IN");
+    try {
+      await api.update("enquiry", r._id, { ...r, introSentAt: stamp, introSentBy: (auth.user || {}).name || "", introPerson: who });
+      setRows((list) => (list || []).map((x) => (x._id === r._id ? { ...x, introSentAt: stamp, introPerson: who } : x)));
+    } catch (e) {
+      alert("Could not mark this as sent: " + (e && e.message ? e.message : e));
+      return;
+    }
+    window.open(`https://wa.me/91${num}?text=${encodeURIComponent(lines.join("\n"))}`, "_blank");
+  };
+
+  const applyShow = () => { setApplied({ from: fromDate, to: toDate, sources: [...sourceSel], subs: [...subSel], shown: true }); setPage(1); };
 
   const pages = Math.max(1, Math.ceil(list.length / pageSize));
   const pageRows = list.slice((page - 1) * pageSize, page * pageSize);
@@ -323,8 +392,8 @@ export default function EnquiryPage() {
   };
 
   const exportCsv = () => {
-    const head = ["Sl#", "Lead From", "Year", "Month", "Date", "Time", "Company", "Contact", "Email", "State", "Area", "Full Address", "HOD", "Passto", "Product", "Enquiry Details", "Status", "Assign Date", "Assign Time", "Assigned By"];
-    const body = list.map((r, i) => [i + 1, r.leadFrom || r.leadSource, r.year, monthLabel(r), r.date, enqTime(r), r.company || r.customer, r.contact || r.phone, r.email, r.state, r.area || r.city, r.address || r.fullAddress || "", r.hod, r.passto || r.assignedTo, r.product, r.enquiryDetails, r.status || "Pending", r.assignDate, r.assignTime || "", r.assignedBy || ""]);
+    const head = ["Sl#", "Lead From", "Sub From", "Year", "Month", "Date", "Time", "Company", "Contact", "Email", "State", "Area", "Full Address", "HOD", "Passto", "Product", "Enquiry Details", "Status", "Assign Date", "Assign Time", "Assigned By"];
+    const body = list.map((r, i) => [i + 1, r.leadFrom || r.leadSource, r.subFrom || "", r.year, monthLabel(r), r.date, enqTime(r), r.company || r.customer, r.contact || r.phone, r.email, r.state, r.area || r.city, r.address || r.fullAddress || "", r.hod, r.passto || r.assignedTo, r.product, r.enquiryDetails, r.status || "Pending", r.assignDate, r.assignTime || "", r.assignedBy || ""]);
     const csv = [head, ...body].map((row) => row.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
@@ -334,12 +403,12 @@ export default function EnquiryPage() {
   const downloadFormat = () => {
     /* all enquiry fields + a sample row */
     const head = ["Date", "Customer Name", "Contact Person", "Phone No", "Email",
-      "State", "Area", "Location", "Full Address", "Lead From", "Product Required", "Quantity", "UOM",
+      "State", "Area", "Location", "Full Address", "Lead From", "Sub From", "Product Required", "Quantity", "UOM",
       "Order Value", "Enquiry Details", "HOD", "Passto", "Status"];
     const sample = [new Date().toISOString().slice(0, 10), "ABC Constructions", "Ramesh Kumar",
       "9876543210", "ramesh@example.com", "Telangana", "Hyderabad", "Banjara Hills",
       "Plot 14, Road No 2, Banjara Hills, Hyderabad, Telangana - 500034",
-      "IndiaMart", "4MM ACP", "500", "Sq.Mtr", "250000", "Needs quotation for facade",
+      "IndiaMart", "", "4MM ACP", "500", "Sq.Mtr", "250000", "Needs quotation for facade",
       "HOD Name", "Sales Person Name", "Pending"];
     const csv = [head, sample].map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(",")).join("\n") + "\n";
     const a = document.createElement("a");
@@ -371,6 +440,7 @@ export default function EnquiryPage() {
           /* the full address as the enquiry gave it, pincode included */
           address: g("full address") || g("address"),
           leadFrom: g("lead from") || "Other",
+          subFrom: g("sub from") || "",
           product: g("product"), quantity: g("quantity"), uom: g("uom"), orderValue: g("order value"),
           enquiryDetails: g("enquiry details"), status: "Pending",
         });
@@ -436,6 +506,31 @@ export default function EnquiryPage() {
             </div>
           )}
         </div>
+        {/* only worth showing when exports are part of what is being asked for */}
+        {sourceSel.includes(EXPORT_SOURCE) && (
+          <div ref={subRef} style={{ position: "relative", minWidth: 220 }}>
+            <label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>Sub From (Export)</label>
+            <div onClick={() => setSubOpen((v) => !v)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fff" }}>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 180 }}>
+                {subSel.length === SUB_SOURCES.length ? "All" : subSel.length === 0 ? "None" : subSel.join(", ")}
+              </span>
+              <span style={{ marginLeft: 8 }}>▾</span>
+            </div>
+            {subOpen && (
+              <div style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, background: "#fff", borderRadius: 10, boxShadow: "0 12px 30px rgba(20,25,60,.25)", zIndex: 50, padding: 8, maxHeight: 280, overflowY: "auto" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                  <input type="checkbox" checked={subSel.length === SUB_SOURCES.length} onChange={(e) => setSubSel(e.target.checked ? [...SUB_SOURCES] : [])} /> All
+                </label>
+                <div style={{ borderTop: "1px solid #eef1f8", margin: "4px 0" }} />
+                {SUB_SOURCES.map((x) => (
+                  <label key={x} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", fontSize: 12.5, cursor: "pointer" }}>
+                    <input type="checkbox" checked={subSel.includes(x)} onChange={(e) => setSubSel((f) => e.target.checked ? [...f, x] : f.filter((y) => y !== x))} /> {x}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <div>
           <label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>From Date</label>
           <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5 }} />
@@ -508,6 +603,23 @@ export default function EnquiryPage() {
                       {canModify("Enquiry") && <button title="Edit" style={iconBtn("#22a45d")} onClick={() => setEditRow(r)}><Edit3 size={14} /></button>}
                       {canModify("Enquiry") && <button title="Assign" style={iconBtn("#e8833a")} onClick={() => { setReassign(false); setAssignFor(r); }}><UserPlus size={14} /></button>}
                       <button title="Message" style={iconBtn("#0b6cb0")} onClick={() => setMsgFor(r)}><MessageSquare size={14} /></button>
+                      {/* Tell the customer who will be calling them.
+
+                          Only once the lead has actually been given to
+                          somebody — there is nobody to introduce before that —
+                          and only once, because the button goes as soon as it
+                          has been used. Two people clicking twice used to mean
+                          the customer got the same introduction four times. */}
+                      {(r.assignedTo || r.passto) && !r.introSentAt && (
+                        <button title="Send the customer their sales contact on WhatsApp"
+                          style={iconBtn("#25d366")} onClick={() => sendIntro(r)}>
+                          <Send size={14} />
+                        </button>
+                      )}
+                      {r.introSentAt && (
+                        <span title={`Contact details sent ${r.introSentAt}`}
+                          style={{ ...iconBtn("#8a8f9e"), cursor: "default", display: "inline-grid", placeItems: "center" }}>✓</span>
+                      )}
                       {canDelete("Enquiry") && <button title="Delete" style={iconBtn("#e5484d")} onClick={() => del(r)}><Trash2 size={14} /></button>}
                       {(r.assignedTo || r.passto) && canModify("Enquiry") && <button title="Re-Assign" style={iconBtn("#6c5ce7")} onClick={() => { setReassign(true); setAssignFor(r); }}><RefreshCw size={14} /></button>}
                       {canModify("Enquiry") && <button title={r.isDuplicate ? "Move out of Duplicate" : "Move to Duplicate"}
@@ -533,7 +645,10 @@ export default function EnquiryPage() {
                     </div>
                   </td>
                   <td style={td}>{(page - 1) * pageSize + i + 1}</td>
-                  <td style={td}>{r.leadFrom || r.leadSource || "—"}</td>
+                  <td style={td}>
+                    {r.leadFrom || r.leadSource || "—"}
+                    {r.subFrom ? <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700 }}>↳ {r.subFrom}</div> : null}
+                  </td>
                   <td style={td}>{r.year || (r._created ? r._created.slice(0, 4) : "—")}</td>
                   <td style={td}>{monthLabel(r) || "—"}</td>
                   <td style={td}>{r.date || (r._created ? r._created.slice(8, 10) : "—")}</td>
@@ -596,7 +711,7 @@ function EnquiryForm({ row, onClose, onSaved }) {
   const [mAreas, setMAreas] = useState([]);
   const [f, setF] = useState(row || {
     date: new Date().toISOString().slice(0, 10), customer: "", contactPerson: "", phone: "", email: "",
-    area: "", state: "", address: "", leadFrom: "IndiaMart", product: "", quantity: "", uom: "Sq.Mtr", orderValue: "", enquiryDetails: "",
+    area: "", state: "", address: "", leadFrom: "IndiaMart", subFrom: "", product: "", quantity: "", uom: "Sq.Mtr", orderValue: "", enquiryDetails: "",
   });
   const [busy, setBusy] = useState(false);
   const inp = { width: "100%", marginBottom: 10, padding: "9px 11px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13 };
@@ -611,6 +726,7 @@ function EnquiryForm({ row, onClose, onSaved }) {
   const save = async () => {
     if (!f.customer) { alert("Customer Name required"); return; }
     if (!f.leadFrom) { alert("Lead From required"); return; }
+    if (f.leadFrom === EXPORT_SOURCE && !f.subFrom) { alert("Sub From is required for an Export enquiry."); return; }
     setBusy(true);
     try {
       const now = new Date();
@@ -635,11 +751,25 @@ function EnquiryForm({ row, onClose, onSaved }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <div><label style={{ fontSize: 11.5, fontWeight: 700 }}>Date *</label><input type="date" value={f.date} onChange={(e) => set("date", e.target.value)} style={inp} /></div>
           <div><label style={{ fontSize: 11.5, fontWeight: 700 }}>Lead From *</label>
-            <select value={f.leadFrom} onChange={(e) => set("leadFrom", e.target.value)} style={inp}>
+            <select value={f.leadFrom} onChange={(e) => {
+              set("leadFrom", e.target.value);
+              /* leaving Export clears the second answer, so an old one cannot
+                 stay attached to a lead that is no longer an export */
+              if (e.target.value !== EXPORT_SOURCE) set("subFrom", "");
+            }} style={inp}>
               {LEAD_SOURCES.map((s) => <option key={s}>{s}</option>)}
             </select>
           </div>
         </div>
+        {f.leadFrom === EXPORT_SOURCE && (
+          <div style={{ marginBottom: 2 }}>
+            <label style={{ fontSize: 11.5, fontWeight: 700 }}>Sub From *</label>
+            <select value={f.subFrom || ""} onChange={(e) => set("subFrom", e.target.value)} style={inp}>
+              <option value="">Where did this export lead come from?</option>
+              {SUB_SOURCES.map((s) => <option key={s}>{s}</option>)}
+            </select>
+          </div>
+        )}
         <label style={{ fontSize: 11.5, fontWeight: 700 }}>Customer Name *</label>
         <input value={f.customer} onChange={(e) => set("customer", e.target.value)} style={inp} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -736,6 +866,7 @@ function AdminEnquiryView({ r, onClose }) {
           <button className="btn btn-ghost" style={{ padding: 4 }} onClick={onClose}><X size={16} /></button>
         </div>
         {row("Lead From", r.leadFrom || r.leadSource)}
+        {r.subFrom ? row("Sub From", r.subFrom) : null}
         {row("Date", r.date)}
         {row("Contact Person", r.contactPerson)}
         {row("Contact Number", r.contact || r.phone)}
