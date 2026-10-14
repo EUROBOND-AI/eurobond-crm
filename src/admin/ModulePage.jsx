@@ -753,8 +753,10 @@ export default function ModulePage({ cfgKey }) {
               open the conversation, which is how a task assigned from here gets
               talked about — the admin assigns it, the person replies on their
               phone, and both see the one thread. */
-          onRowClick={["projectProjection", "salesToSpec", "specToSales"].includes(cfgKey) ? (r) => openFull(r, setProjView) : (cfg.approveFlow || cfg.isSpecThread || cfg.chat) ? (r) => openFull(r, setChatRow) : null}
-          onChat={(cfg.approveFlow || cfg.isSpecThread || cfg.chat) ? (r) => openFull(r, setChatRow) : null}
+          /* the chat modal fetches the full record itself, so it is handed the
+             row as it stands and nothing races it */
+          onRowClick={["projectProjection", "salesToSpec", "specToSales"].includes(cfgKey) ? (r) => openFull(r, setProjView) : (cfg.approveFlow || cfg.isSpecThread || cfg.chat) ? (r) => setChatRow(r) : null}
+          onChat={(cfg.approveFlow || cfg.isSpecThread || cfg.chat) ? (r) => setChatRow(r) : null}
           onDelete={canDelete(permName(cfg)) ? handleDelete : null}
           onEdit={(cfg.form && cfgKey !== "projectProjection" && canModify(permName(cfg))) ? (r) => { setEditing(r); setShowForm(true); } : null}
         />
@@ -870,18 +872,19 @@ function AdminChatModal({ row, cfgKey, onClose, onSent }) {
      full record fetched a moment later never reached the screen. So the
      messages people had sent from the phone were there on the server, there on
      the phone, and blank here. It is fetched once per record, on open. */
-  const fetchedFor = useRef(null);
+  const rowId = row && row._id;
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
   useEffect(() => {
-    const id = row && row._id;
-    if (!id || fetchedFor.current === id) return;
-    fetchedFor.current = id;
-    setRec(row);
-    let gone = false;
-    api.get(cfgKey, id)
-      .then((d) => { if (!gone && d && d.record) setRec({ _id: d.record.id, ...d.record.data, _by: d.record.created_by_name, _at: d.record.created_at }); })
+    if (!rowId) return;
+    api.get(cfgKey, rowId)
+      .then((d) => { if (alive.current && d && d.record) setRec({ _id: d.record.id, ...d.record.data, _by: d.record.created_by_name, _at: d.record.created_at }); })
       .catch(() => {});
-    return () => { gone = true; };
-  }, [row, cfgKey]);
+    /* keyed on the id alone. Keyed on the row object it re-ran whenever the
+       parent handed down a new one, and its cleanup then cancelled the fetch
+       that was about to deliver the messages — which is why they appeared one
+       time and not the next. */
+  }, [rowId, cfgKey]);
   const [text, setText] = useState("");
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
