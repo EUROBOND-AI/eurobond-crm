@@ -897,6 +897,25 @@ async function scheduleAttendanceReminders() {
       await LN.cancel({ notifications: old });
     } catch {}
 
+    /* Has today already been marked?
+
+       These reminders are cancelled the moment attendance starts, but this
+       routine runs again every time the app is opened — and it used to arm the
+       whole week from scratch, today included. So somebody who logged in at
+       9:05 and opened the app again at 9:15 had 9:20, 9:30 and the rest put
+       back, and was told to mark an attendance they had already marked. Today
+       is now skipped once a session exists for it, whether it is still running
+       or already closed. */
+    let doneToday = false;
+    try {
+      const d = await api.attToday();
+      doneToday = !!(d && d.session);
+    } catch {
+      /* no answer from the server - fall back on what this phone last knew, so
+         a weak signal cannot bring the reminders back either */
+      try { doneToday = localStorage.getItem("eb_att_marked") === ebToday(); } catch {}
+    }
+
     /* Days off must stay quiet, so instead of a blind daily repeat we schedule
        the next 7 working days one by one, skipping Sundays, company holidays and
        the person's approved leave. Re-runs whenever the app opens. */
@@ -925,6 +944,7 @@ async function scheduleAttendanceReminders() {
     for (let day = 0; day < 7; day++) {
       const base = new Date();
       base.setDate(base.getDate() + day);
+      if (day === 0 && doneToday) continue;                    // already marked today
       if (base.getDay() === 0) continue;                       // Sunday
       if (off.has(base.toISOString().slice(0, 10))) continue;  // holiday / leave
       times.forEach(([h, m], i) => {
@@ -946,6 +966,8 @@ async function scheduleAttendanceReminders() {
 }
 /* stop today's reminders once the person has logged attendance */
 async function cancelAttendanceReminders() {
+  /* remember the day, so a later app-open cannot put today's back */
+  try { localStorage.setItem("eb_att_marked", ebToday()); } catch {}
   try {
     const Cap = typeof window !== "undefined" ? window.Capacitor : null;
     const LN = Cap && Cap.Plugins && Cap.Plugins.LocalNotifications;
@@ -8037,6 +8059,11 @@ function PlanEditor({ session, sessionId }) {
     const vn = session?.visit_name;
     return vn && typeof vn === "string" ? vn.split(",").map((x) => x.trim()).filter(Boolean) : [];
   });
+  /* A tour is made either by public transport or on your own vehicle, and the
+     two are not the same thing to anyone reading the day later: the personal
+     one is the day whose KM get claimed. The start screen asked for it; this
+     editor did not, so changing Local to Tour here left that answer blank. */
+  const [transport, setTransport] = useState(session?.transport || "Public");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -8046,10 +8073,11 @@ function PlanEditor({ session, sessionId }) {
   useEffect(() => {
     if (dirty) return;
     if (session?.visit_type) setType(session.visit_type);
+    if (session?.transport) setTransport(session.transport);
     const vn = session?.visit_name;
     if (vn && typeof vn === "string") setAreas(vn.split(",").map((x) => x.trim()).filter(Boolean));
     // eslint-disable-next-line
-  }, [session?.visit_type, session?.visit_name]);
+  }, [session?.visit_type, session?.visit_name, session?.transport]);
 
   const isTour = type === "ExStation" || type === "Outstation";
 
@@ -8057,7 +8085,7 @@ function PlanEditor({ session, sessionId }) {
     if (!sessionId) { alert("Attendance not started yet."); return; }
     setSaving(true); setSaved(false);
     try {
-      await api.attUpdateVisit(sessionId, type, areas.join(", "));
+      await api.attUpdateVisit(sessionId, type, areas.join(", "), isTour ? transport : "");
       setSaved(true); setDirty(false); setEditing(false); setTimeout(() => setSaved(false), 2000);
     } catch (e) { alert("Could not update: " + e.message); }
     setSaving(false);
@@ -8084,6 +8112,7 @@ function PlanEditor({ session, sessionId }) {
         /* read-only summary */
         <div>
           <div style={{ fontSize: 12.5, marginBottom: 8 }}><b style={{ color: "var(--muted)" }}>Type:</b> {isTour ? (type === "Outstation" ? "Outstation (Tour)" : "ExStation (Tour)") : "Local"}</div>
+          {isTour && <div style={{ fontSize: 12.5, marginBottom: 8 }}><b style={{ color: "var(--muted)" }}>Transport:</b> {transport} Transport</div>}
           <div style={{ fontSize: 12.5 }}><b style={{ color: "var(--muted)" }}>Areas:</b></div>
           {areas.length ? (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
@@ -8109,14 +8138,25 @@ function PlanEditor({ session, sessionId }) {
 
       {/* Tour sub-type: ExStation / Outstation */}
       {isTour && (
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          {["ExStation", "Outstation"].map((t) => (
-            <button key={t} onClick={() => pickType(t)}
-              style={{ flex: 1, padding: "8px", borderRadius: 10, border: type === t ? "2px solid #8b5cf6" : "1.5px solid #d7dcef", background: type === t ? "#f1ebff" : "#fff", fontWeight: 700, fontSize: 12, color: type === t ? "#7c3aed" : "var(--muted)" }}>
-              {t}
-            </button>
-          ))}
-        </div>
+        <>
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            {["ExStation", "Outstation"].map((t) => (
+              <button key={t} onClick={() => pickType(t)}
+                style={{ flex: 1, padding: "8px", borderRadius: 10, border: type === t ? "2px solid #8b5cf6" : "1.5px solid #d7dcef", background: type === t ? "#f1ebff" : "#fff", fontWeight: 700, fontSize: 12, color: type === t ? "#7c3aed" : "var(--muted)" }}>
+                {t}
+              </button>
+            ))}
+          </div>
+          <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", display: "block", marginBottom: 6 }}>Transport</label>
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            {["Public", "Personal"].map((t) => (
+              <button key={t} onClick={() => { setTransport(t); setDirty(true); }}
+                style={{ flex: 1, padding: "8px", borderRadius: 10, border: transport === t ? "2px solid var(--navy)" : "1.5px solid #d7dcef", background: transport === t ? "#eef1ff" : "#fff", fontWeight: 700, fontSize: 12, color: transport === t ? "var(--navy)" : "var(--muted)" }}>
+                {t} Transport
+              </button>
+            ))}
+          </div>
+        </>
       )}
 
       {/* area chips */}

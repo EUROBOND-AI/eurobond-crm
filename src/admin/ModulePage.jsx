@@ -845,12 +845,69 @@ export default function ModulePage({ cfgKey }) {
   );
 }
 
+/* The statuses a record can be moved between from the panel.
+
+   On the phone a task opens with a status dropdown, so the person doing the
+   work can move it along; in the panel the same status was printed as plain
+   text with no way to change it. These are the same words the phone offers,
+   taken from each module's own tabs so the two can never drift apart. */
+const STATUS_PICK = {
+  task: ["Pending", "In Progress", "Completed", "Close", "Rejected"],
+  enquiry: ["Review Pending", "Inprocess", "Completed", "Win", "Close"],
+  projectProjection: ["Running", "Hold", "Win", "Loss"],
+  salesToSpec: ["Pending", "Process", "Work Done", "Approved", "Rejected"],
+  specToSales: ["Pending", "Process", "Work Done", "Approved", "Rejected"],
+};
+
 function AdminChatModal({ row, cfgKey, onClose, onSent }) {
   const [rec, setRec] = useState(row);
   const [text, setText] = useState("");
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [stBusy, setStBusy] = useState(false);
   const thread = rec.thread || [];
+  const statusOpts = STATUS_PICK[cfgKey] || [];
+
+  /* Changing the status here does exactly what the phone does: it saves the
+     record, which is what makes the server stamp a task as finished and work
+     out whether it was on time. The people on the record are then told. */
+  const changeStatus = async (next) => {
+    if (!next || next === rec.status || stBusy) return;
+    setStBusy(true);
+    try {
+      const me = (auth.user && auth.user.name) || "Admin";
+      const newThread = [...thread, { by: me, text: `Status changed to ${next}`, doc: "", at: new Date().toLocaleString("en-IN") }];
+      const data = { ...rec, status: next, thread: newThread };
+      delete data._id;
+      await api.update(cfgKey, rec._id, data);
+      /* read it back so the server's own stamps — finished at, time taken,
+         on time or not — are on screen straight away */
+      let fresh = { ...rec, status: next, thread: newThread };
+      try {
+        const d = await api.get(cfgKey, rec._id);
+        if (d && d.record) fresh = { _id: d.record.id, ...d.record.data };
+      } catch {}
+      setRec(fresh); onSent(fresh);
+      const assignees = Array.isArray(rec.assigneeList) && rec.assigneeList.length
+        ? rec.assigneeList
+        : String(rec.assignee || "").split(",").map((x) => x.trim()).filter(Boolean);
+      const seen = new Set();
+      for (const who of [...assignees, rec.specPerson, rec.salesPerson, rec.createdBy]) {
+        const name = String(who || "").trim();
+        if (!name || name === me || seen.has(name.toLowerCase())) continue;
+        seen.add(name.toLowerCase());
+        try {
+          await api.notify({
+            to: name, title: `${rec.id || cfgKey} — ${next}`,
+            message: `${me} changed the status to ${next}.`,
+            link: `/app/thread/${cfgKey}/${rec._id}`,
+            createdAt: new Date().toLocaleString("en-IN"),
+          });
+        } catch {}
+      }
+    } catch (e) { alert("Could not change the status: " + e.message); }
+    setStBusy(false);
+  };
 
   const send = async () => {
     if (!text.trim() && !file) return;
@@ -933,8 +990,23 @@ function AdminChatModal({ row, cfgKey, onClose, onSent }) {
           {rec.firm && <div><b>Firm:</b> {rec.firm}</div>}
           {rec.city && <div><b>City:</b> {rec.city}</div>}
           {rec.approvedBy && <div><b>Approved By:</b> {rec.approvedBy}</div>}
-          {rec.status && <div><b>Status:</b> {rec.status}</div>}
+          {rec.status && !statusOpts.length && <div><b>Status:</b> {rec.status}</div>}
         </div>
+        {statusOpts.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 10, flexWrap: "wrap" }}>
+            <b style={{ fontSize: 12, color: "#64748b" }}>Status</b>
+            <select value={rec.status || statusOpts[0]} disabled={stBusy}
+              onChange={(e) => changeStatus(e.target.value)}
+              style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff", fontWeight: 700, minWidth: 150 }}>
+              {[...new Set([...(rec.status ? [rec.status] : []), ...statusOpts])].map((o) => <option key={o}>{o}</option>)}
+            </select>
+            {stBusy && <span style={{ fontSize: 12, color: "var(--muted)" }}>Saving…</span>}
+            {rec.completedAt && <span style={{ fontSize: 11.5, color: "var(--muted)" }}>
+              Finished {new Date(rec.completedAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "numeric", minute: "2-digit" })}
+              {rec.onTime === true ? " · on time" : rec.onTime === false ? " · late" : ""}
+            </span>}
+          </div>
+        )}
         {/* The description, and a leave's reason, in a block of their own.
 
             They used to sit on one line inside the small grey panel above,

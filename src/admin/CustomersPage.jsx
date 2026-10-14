@@ -26,6 +26,9 @@ export default function CustomersPage() {
   const [q, setQ] = useState("");
   const [colSearch, setColSearch] = useState({});
   const [busy, setBusy] = useState(false);
+  /* how far a large import has got — a lakh rows take a while and a frozen
+     screen with no number on it looks like a crash */
+  const [progress, setProgress] = useState(null);
   const [view, setView] = useState(null);
   const [sel, setSel] = useState(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -140,7 +143,10 @@ export default function CustomersPage() {
         email3: idx(["email 3"]),
         enquiryFrom: idx(["enquiry from", "lead from", "source"]),
         remark: idx(["remark", "note"]),
-        createdBy: idx(["sales person", "created by", "owner", "employee"]),
+        /* the employee code identifies the person now; an older sheet that
+           still has a typed name keeps working, so both are looked for */
+        empCode: idx(["employee code", "emp code", "employee id", "emp id", "code"]),
+        createdBy: idx(["sales person", "created by", "owner"]),
         date: idx(["date"]),
       };
       const get = (c, k) => (ci[k] >= 0 ? (c[ci[k]] || "").trim() : "");
@@ -166,22 +172,46 @@ export default function CustomersPage() {
           /* "Tower A | Tower B | Mall" -> four separate projects */
           projects: get(c, "projects").split(/[|;]/).map((x) => x.trim()).filter(Boolean),
           enquiryFrom: get(c, "enquiryFrom"), remark: get(c, "remark"),
-          createdBy: get(c, "createdBy"), date: get(c, "date"),
+          empCode: get(c, "empCode"), createdBy: get(c, "createdBy"), date: get(c, "date"),
         });
       }
       if (!rows.length) { alert("No usable rows found."); setBusy(false); return; }
-      /* the server files each row under the named sales person, so the customer
-         appears in THAT person's app rather than under the admin */
-      const r = await api.customersImport(rows);
-      let msg = `${r.saved} customer(s) imported.`;
-      if (r.skipped) msg += `\n${r.skipped} skipped.`;
-      if (r.unknownOwners && r.unknownOwners.length) {
-        msg += `\n\nThese sales person names did not match any App User:\n` +
-               r.unknownOwners.slice(0, 15).join(", ");
+      /* Sent in batches.
+
+         A sheet of a few hundred went up in one request, which was fine. A
+         sheet of a lakh is tens of megabytes and tens of thousands of inserts:
+         the request runs past the server's time limit and the whole load is
+         lost with nothing to show for it. The rows go up a batch at a time
+         instead, so what has gone in stays in, and the count on screen moves
+         while it works. */
+      const CHUNK = 400;
+      let saved = 0, skipped = 0;
+      const unknown = new Set();
+      for (let i = 0; i < rows.length; i += CHUNK) {
+        const part = rows.slice(i, i + CHUNK);
+        setProgress({ done: i, total: rows.length });
+        /* one retry, because a single dropped batch should not end the load */
+        let r = null;
+        for (let t = 0; t < 2 && !r; t++) {
+          try { r = await api.customersImport(part); }
+          catch (e) { if (t) throw new Error(`Stopped after ${saved} row(s): ${e.message}`); }
+        }
+        saved += r.saved || 0;
+        skipped += r.skipped || 0;
+        (r.unknownOwners || []).forEach((x) => unknown.add(x));
+      }
+      setProgress(null);
+      let msg = `${saved} customer(s) imported.`;
+      if (skipped) msg += `\n${skipped} skipped.`;
+      if (unknown.size) {
+        msg += `\n\nThese employee codes did not match any App User:\n` +
+               [...unknown].slice(0, 15).join(", ") +
+               (unknown.size > 15 ? ` …and ${unknown.size - 15} more` : "");
       }
       alert(msg);
       load();
     } catch (e) { alert("Import failed: " + e.message); }
+    setProgress(null);
     setBusy(false);
   };
 
@@ -190,7 +220,7 @@ export default function CustomersPage() {
       "Contact Person", "Mobile", "Email",
       "Contact Person 2", "Mobile 2", "Email 2",
       "Contact Person 3", "Mobile 3", "Email 3",
-      "State", "City", "Address", "Projects", "Enquiry From", "Remark", "Sales Person", "Date"];
+      "State", "City", "Address", "Projects", "Enquiry From", "Remark", "Employee Code", "Date"];
     /* two rows for the same customer = two follow-up entries */
     const s1 = ["ABC Constructions", "Distributor",
       "Ramesh Kumar", "9876543210", "ramesh@example.com",
@@ -198,12 +228,12 @@ export default function CustomersPage() {
       "Anita Rao", "9876500022", "anita@example.com",
       "Maharashtra", "Mumbai", "Andheri East",
       "Tower A | Tower B | Mall Project | Villa Site",
-      "IndiaMart", "First visit - shared price list", "Badal Ramnath Shukla", "10 Sep 2026"];
+      "IndiaMart", "First visit - shared price list", "EPP1042", "10 Sep 2026"];
     const s2 = ["ABC Constructions", "Distributor",
       "Ramesh Kumar", "9876543210", "ramesh@example.com",
       "", "", "", "", "", "",
       "Maharashtra", "Mumbai", "Andheri East",
-      "Tower A", "IndiaMart", "Second visit - sample given", "Badal Ramnath Shukla", "14 Sep 2026"];
+      "Tower A", "IndiaMart", "Second visit - sample given", "EPP1042", "14 Sep 2026"];
     const csv = [head, s1, s2].map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
@@ -220,7 +250,7 @@ export default function CustomersPage() {
       "Contact Person 3", "Mobile 3", "Email 3",
       "State", "City", "Address", "Projects", "Enquiry From", "Remark",
       "New Entry", "Follow-up Entry",
-      "Sales Person", "HOD", "Date"];
+      "Employee Code", "Sales Person", "HOD", "Date"];
     const con = (r, i) => (Array.isArray(r.contacts) && r.contacts[i]) ? r.contacts[i] : {};
     const body = list.map((r) => {
       const c1 = con(r, 0), c2 = con(r, 1), c3 = con(r, 2);
@@ -233,7 +263,7 @@ export default function CustomersPage() {
         r.state || "", r.place || "", r.address || "",
         projects, r.enquiryFrom || "", r.notes || r.remark || "",
         r.newEntries ?? "", r.followupEntries ?? "",
-        r.by || "", r.hod || "", (r.last_followup || r.createdAt || "").slice(0, 16),
+        r.empCode || "", r.by || "", r.hod || "", (r.last_followup || r.createdAt || "").slice(0, 16),
       ];
     });
     const csv = [head, ...body].map((row) => row.map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -270,7 +300,19 @@ export default function CustomersPage() {
           />
         }
       />
-      <input id="cust-import-file" type="file" accept=".csv" hidden onChange={(e) => importCsv(e.target.files[0])} />
+      <input id="cust-import-file" type="file" accept=".csv" hidden onChange={(e) => { importCsv(e.target.files[0]); e.target.value = ""; }} />
+
+      {progress && (
+        <div style={{ background: "#fff", border: "1px solid #dfe5f3", borderRadius: 12, padding: "12px 15px", marginBottom: 14, boxShadow: "var(--shadow)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 700, marginBottom: 7 }}>
+            <span>Importing customers… please keep this tab open</span>
+            <span>{progress.done.toLocaleString("en-IN")} / {progress.total.toLocaleString("en-IN")}</span>
+          </div>
+          <div style={{ height: 8, borderRadius: 99, background: "#e8edf9", overflow: "hidden" }}>
+            <div style={{ height: "100%", borderRadius: 99, background: "#2b6fb8", width: Math.round((progress.done / Math.max(1, progress.total)) * 100) + "%", transition: "width .3s" }} />
+          </div>
+        </div>
+      )}
 
       {sel.size > 0 && (
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", background: "linear-gradient(135deg,#eef1ff,#f4ecff)", borderRadius: 12, marginBottom: 14 }}>
