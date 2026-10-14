@@ -290,7 +290,7 @@ export const api = {
   areaAdd: (state, name, tier) => req("/areas.php?action=add", { method: "POST", body: { state, name, tier } }),
   areaImport: (rows) => req("/areas.php?action=import", { method: "POST", body: { rows } }),
   attMine: (from, to) => req("/attendance.php?action=mine&from=" + from + "&to=" + to),
-  attUpdateVisit: (session_id, type, name, transport) => req("/attendance.php?action=updateVisit", { method: "POST", body: { session_id, type, name, transport } }),
+  attUpdateVisit: (session_id, type, name, transport, reading) => req("/attendance.php?action=updateVisit", { method: "POST", body: { session_id, type, name, transport, reading } }),
   attMarkAbsent: (session_id, remark) => req("/attendance.php?action=markAbsent", { method: "POST", body: { session_id, remark } }),
   attUnmarkAbsent: (session_id) => req("/attendance.php?action=unmarkAbsent", { method: "POST", body: { session_id } }),
   attTrack: (session_id) => req("/attendance.php?action=track&session_id=" + session_id),

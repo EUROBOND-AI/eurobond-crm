@@ -4544,11 +4544,14 @@ function FieldTeamTracking() {
               <div style={{ fontWeight: 800, fontSize: 14 }}>{s.name}</div>
               <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
                 {s.visit_name || "Field"}<VisitTag type={s.visit_type || "Local"} />
-                {/* how far they have travelled — the one number a manager
-                    looks for on this screen, and it was not on it */}
-                <span style={{ marginLeft: 6, fontWeight: 800, color: "#1f3a68" }}>
-                  {Number(s.distance_km || 0).toFixed(2)} km
-                </span>
+                {/* No KM here any more.
+
+                    distance_km is only written when the day is closed, so a
+                    running day read 0.00 on this card while the timeline
+                    inside worked the real figure out from the points and said
+                    3.48. Two numbers for the same day, and the wrong one first.
+                    The timeline is where the distance is counted, so that is
+                    the only place it is shown. */}
               </div>
             </div>
             <div style={{ textAlign: "right" }}>
@@ -8064,6 +8067,10 @@ function PlanEditor({ session, sessionId }) {
      one is the day whose KM get claimed. The start screen asked for it; this
      editor did not, so changing Local to Tour here left that answer blank. */
   const [transport, setTransport] = useState(session?.transport || "Public");
+  /* Personal transport means the day's KM get claimed, so the odometer has to
+     be photographed — the start screen asks for it and this editor did not, so
+     a Local day switched to a personal tour here had no reading against it. */
+  const [reading, setReading] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -8081,12 +8088,19 @@ function PlanEditor({ session, sessionId }) {
 
   const isTour = type === "ExStation" || type === "Outstation";
 
+  /* the reading already on the day, if the start screen took one */
+  const haveReading = !!(session && session.start_reading);
+  const needReading = isTour && transport === "Personal" && !haveReading && !reading;
+
   const save = async () => {
     if (!sessionId) { alert("Attendance not started yet."); return; }
+    if (needReading) { alert("Personal transport needs the odometer reading photo."); return; }
     setSaving(true); setSaved(false);
     try {
-      await api.attUpdateVisit(sessionId, type, areas.join(", "), isTour ? transport : "");
-      setSaved(true); setDirty(false); setEditing(false); setTimeout(() => setSaved(false), 2000);
+      let readingUrl = "";
+      if (reading) readingUrl = (await api.uploadPhoto(reading.file, "attendance")).url;
+      await api.attUpdateVisit(sessionId, type, areas.join(", "), isTour ? transport : "", readingUrl);
+      setSaved(true); setDirty(false); setEditing(false); setReading(null); setTimeout(() => setSaved(false), 2000);
     } catch (e) { alert("Could not update: " + e.message); }
     setSaving(false);
   };
@@ -8156,6 +8170,15 @@ function PlanEditor({ session, sessionId }) {
               </button>
             ))}
           </div>
+          {transport === "Personal" && (haveReading ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 9, background: "#f3fbf6", border: "1px solid #bfe6cf", borderRadius: 11, padding: "8px 10px", marginBottom: 12 }}>
+              <img src={session.start_reading} alt="Reading" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8 }} />
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#1f7a44" }}>Reading photo already taken</span>
+            </div>
+          ) : (
+            <PhotoCapture label="Reading Photo (Bike/Car)" photo={reading}
+              onPhoto={(p) => { setReading(p); setDirty(true); }} capture="environment" />
+          ))}
         </>
       )}
 
@@ -8173,9 +8196,9 @@ function PlanEditor({ session, sessionId }) {
       )}
       <LocationPicker value="" onPick={addArea} addMode />
 
-      <button onClick={save} disabled={saving || !dirty}
-        style={{ width: "100%", marginTop: 12, padding: "12px", borderRadius: 11, border: "none", background: dirty ? "var(--navy)" : "#c5cbd8", color: "#fff", fontWeight: 800, fontSize: 14, cursor: dirty ? "pointer" : "default" }}>
-        {saving ? "Saving…" : dirty ? "Save Plan" : "Saved"}
+      <button onClick={save} disabled={saving || !dirty || needReading}
+        style={{ width: "100%", marginTop: 12, padding: "12px", borderRadius: 11, border: "none", background: (dirty && !needReading) ? "var(--navy)" : "#c5cbd8", color: "#fff", fontWeight: 800, fontSize: 14, cursor: (dirty && !needReading) ? "pointer" : "default" }}>
+        {saving ? "Saving…" : needReading ? "Take the reading photo" : dirty ? "Save Plan" : "Saved"}
       </button>
       <button onClick={() => setEditing(false)} style={{ width: "100%", marginTop: 8, padding: "10px", borderRadius: 11, border: "1.5px solid #d7dcef", background: "#fff", color: "var(--muted)", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
         Cancel

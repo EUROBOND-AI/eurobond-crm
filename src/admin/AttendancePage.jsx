@@ -729,7 +729,7 @@ export default function AttendancePage() {
                 <td>{s.marked_absent ? <Pill status="Absent" /> : <Pill status={s.status === "DONE" ? "Completed" : "In Progress"} />}</td>
                 <td>
                   <div style={{ display: "flex", gap: 6 }}>
-                    <button className="btn btn-primary" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setViewSess(s)}>View</button>
+                    <button className="btn btn-primary" style={{ padding: "5px 10px", fontSize: 12, whiteSpace: "nowrap" }} onClick={() => setViewSess(s)}>View Timeline</button>
                     {s.marked_absent
                       ? <button className="btn" style={{ padding: "5px 10px", fontSize: 12, background: "#e2f8f1", color: "#00b894" }} onClick={() => unmarkAbsent(s)}>Un-absent</button>
                       : <button className="btn btn-danger" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setAbsentFor(s)}>Absent</button>}

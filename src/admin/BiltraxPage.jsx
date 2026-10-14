@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Eye, Share2, Trash2, MessageSquare, Pencil, UserPlus } from "lucide-react";
+import { Eye, Share2, Trash2, MessageSquare, Pencil, UserPlus, RefreshCw } from "lucide-react";
 import { PageHead, StatCard, ToolButtons } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
 import { scopeRows, visibleUsers } from "../lib/scope.js";
@@ -288,7 +288,12 @@ export default function BiltraxPage() {
                 <td style={{ ...td, whiteSpace: "nowrap" }}>
                   <button title="View" style={iconBtn("#2b6fb8")} onClick={() => setView(r)}><Eye size={15} /></button>
                   {canModify("Biltrax") && <button title="Edit" style={iconBtn("#f59e0b")} onClick={() => setForm(r)}><Pencil size={15} /></button>}
-                  <button title="Assign" style={iconBtn("#3fb6d3")} onClick={() => { setReassign(false); setAssignFor(r); }}><UserPlus size={15} /></button>
+                  {/* one button, and it says which of the two jobs it is doing:
+                      Assign while the project is still unclaimed, Re-Assign
+                      once somebody has it */}
+                  {r.assignPerson
+                    ? <button title={`Re-Assign (now with ${r.assignPerson})`} style={iconBtn("#6c5ce7")} onClick={() => { setReassign(true); setAssignFor(r); }}><RefreshCw size={15} /></button>
+                    : <button title="Assign" style={iconBtn("#3fb6d3")} onClick={() => { setReassign(false); setAssignFor(r); }}><UserPlus size={15} /></button>}
                   <button title="Message" style={iconBtn("#0b6cb0")} onClick={() => setChatFor(r)}>
                     <MessageSquare size={15} />
                     {Array.isArray(r.chat) && r.chat.length > 0 && (

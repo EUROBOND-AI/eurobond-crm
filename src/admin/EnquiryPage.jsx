@@ -582,7 +582,11 @@ export default function EnquiryPage() {
                           one of these showed for everyone, so a role with only
                           View ticked could still edit, reassign and delete. */}
                       {canModify("Enquiry") && <button title="Edit" style={iconBtn("#22a45d")} onClick={() => setEditRow(r)}><Edit3 size={14} /></button>}
-                      {canModify("Enquiry") && <button title="Assign" style={iconBtn("#e8833a")} onClick={() => { setReassign(false); setAssignFor(r); }}><UserPlus size={14} /></button>}
+                      {/* Assign is for a lead nobody is on yet. Once somebody
+                          has it, the button beside this one is Re-Assign, and
+                          two buttons for the same job only invited the wrong
+                          one to be pressed. */}
+                      {!(r.assignedTo || r.passto) && canModify("Enquiry") && <button title="Assign" style={iconBtn("#e8833a")} onClick={() => { setReassign(false); setAssignFor(r); }}><UserPlus size={14} /></button>}
                       <button title="Message" style={iconBtn("#0b6cb0")} onClick={() => setMsgFor(r)}><MessageSquare size={14} /></button>
                       {/* Tell the customer who will be calling them.
 
