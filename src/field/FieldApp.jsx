@@ -4609,6 +4609,9 @@ function FieldTeamCustomers() {
      this morning's slice of it */
   const [when, setWhen] = useState("all");
   const [viewOne, setViewOne] = useState(null);
+  /* a person's customer list runs to hundreds once the old data is in, so it
+     is searched and read a page at a time like every other list in the app */
+  const [cq, setCq] = useState("");
   const [copying, setCopying] = useState("");
   /* a note from the HOD to the person who owns this customer */
   const [msgTo, setMsgTo] = useState(null);
@@ -4697,16 +4700,38 @@ function FieldTeamCustomers() {
               </button>
             ))}
           </div>
+          <div style={{ position: "relative", marginBottom: 10 }}>
+            <input value={cq} onChange={(e) => setCq(e.target.value)}
+              placeholder="Search name, mobile, place, project…"
+              style={{ width: "100%", padding: "10px 34px 10px 12px", borderRadius: 10, border: "1px solid #d7dcef", fontSize: 13, boxSizing: "border-box", background: "#fff" }} />
+            {cq ? (
+              <span onClick={() => setCq("")} style={{ position: "absolute", right: 11, top: "50%", transform: "translateY(-50%)", cursor: "pointer", color: "#94a3b8", fontWeight: 800 }}>✕</span>
+            ) : (
+              <span style={{ position: "absolute", right: 11, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", pointerEvents: "none" }}>🔍</span>
+            )}
+          </div>
           {(() => {
-            const shown = when === "today"
+            const byDay = when === "today"
               ? openMember.customers.filter((c) => dayKey(c.last_followup || c.createdAt || c.date) === todayKey)
               : openMember.customers;
+            /* name, number, place or any of their projects */
+            const ql = cq.trim().toLowerCase();
+            const shown = !ql ? byDay : byDay.filter((c) => {
+              const projects = Array.isArray(c.projects) ? c.projects.join(" ") : (c.projectName || "");
+              return [c.name, c.mobile, c.place, c.address, c.category, c.contactName, projects]
+                .some((v) => String(v || "").toLowerCase().includes(ql));
+            });
             return (<>
-          <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 10 }}>{shown.length} customer{shown.length !== 1 ? "s" : ""} {when === "today" ? "today" : "added"}</div>
+          <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 10 }}>
+            {shown.length} customer{shown.length !== 1 ? "s" : ""} {ql ? "found" : when === "today" ? "today" : "added"}
+            {ql && byDay.length !== shown.length ? ` of ${byDay.length}` : ""}
+          </div>
           {shown.length === 0 ? (
-            <div style={{ textAlign: "center", color: "var(--muted)", padding: 30 }}>No customers {when === "today" ? "today" : "added yet"}.</div>
-          ) : shown.map((c, i) => (
-            <div key={i} style={{ background: "#fff", borderRadius: 11, padding: "11px 13px", marginBottom: 8, boxShadow: "var(--shadow)" }}>
+            <div style={{ textAlign: "center", color: "var(--muted)", padding: 30 }}>
+              {ql ? `No customer matches "${cq.trim()}".` : `No customers ${when === "today" ? "today" : "added yet"}.`}
+            </div>
+          ) : <CustPage rows={shown} resetKey={when + "|" + ql}>{(c, i) => (
+            <div key={(c.mobile || "") + "|" + (c.name || "") + "|" + i} style={{ background: "#fff", borderRadius: 11, padding: "11px 13px", marginBottom: 8, boxShadow: "var(--shadow)" }}>
               <div style={{ fontWeight: 700, fontSize: 13.5 }}>{c.name}</div>
               <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3, display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {c.category && <span style={{ background: "var(--accent-soft)", color: "var(--accent)", fontWeight: 700, padding: "1px 7px", borderRadius: 6, fontSize: 10.5 }}>{c.category}</span>}
@@ -4726,7 +4751,7 @@ function FieldTeamCustomers() {
                 </button>
               </div>
             </div>
-          ))}
+          )}</CustPage>}
             </>);
           })()}
         </div>
@@ -5230,6 +5255,19 @@ function hashId(s) {
    buttons that goes under it. The page resets whenever the filter or the
    search text changes, so narrowing a list never leaves you on page 7 of a
    list that now has two rows. */
+/* Ten customers, then the pager — the hook cannot be called from inside the
+   branch that draws this list, so the paging lives in a component of its own
+   and the caller just hands it the rows and how to draw one. */
+function CustPage({ rows, resetKey, children }) {
+  const pager = usePhonePager(rows, 10, resetKey);
+  return (
+    <>
+      {pager.slice.map((c, i) => children(c, i))}
+      <PhonePager pager={pager} />
+    </>
+  );
+}
+
 export function usePhonePager(rows, size = 10, resetKey = "") {
   const list = rows || [];
   const [page, setPage] = useState(1);
