@@ -48,11 +48,15 @@ export default function CustomersPage() {
   const [fDup, setFDup] = useState("");
   const [applied, setApplied] = useState(null);   // Show clicked -> filters applied
 
+  /* how many follow-up entries the list was built from — proof on screen that
+     nothing was left behind, now that there is no row cap */
+  const [entries, setEntries] = useState(null);
+  const [loadErr, setLoadErr] = useState("");
   const load = () => {
-    setBusy(true);
+    setBusy(true); setLoadErr("");
     api.customers("")
-      .then((d) => setRows(d.customers || []))
-      .catch(() => setRows([]))
+      .then((d) => { setRows(d.customers || []); setEntries(d.entries ?? null); })
+      .catch((e) => { setRows([]); setLoadErr(e && e.message ? e.message : "Could not load customers"); })
       .finally(() => setBusy(false));
   };
   useEffect(load, []);
@@ -187,9 +191,13 @@ export default function CustomersPage() {
       const CHUNK = 400;
       let saved = 0, skipped = 0;
       const unknown = new Set();
+      const startedAt = Date.now();
       for (let i = 0; i < rows.length; i += CHUNK) {
         const part = rows.slice(i, i + CHUNK);
-        setProgress({ done: i, total: rows.length });
+        /* the clock as well as the count: a lakh of rows is several minutes,
+           and a bar that only creeps tells nobody whether to wait or to go
+           and do something else */
+        setProgress({ done: i, total: rows.length, saved, startedAt, now: Date.now() });
         /* one retry, because a single dropped batch should not end the load */
         let r = null;
         for (let t = 0; t < 2 && !r; t++) {
@@ -199,6 +207,7 @@ export default function CustomersPage() {
         saved += r.saved || 0;
         skipped += r.skipped || 0;
         (r.unknownOwners || []).forEach((x) => unknown.add(x));
+        setProgress({ done: Math.min(i + CHUNK, rows.length), total: rows.length, saved, startedAt, now: Date.now() });
       }
       setProgress(null);
       let msg = `${saved} customer(s) imported.`;
@@ -302,17 +311,44 @@ export default function CustomersPage() {
       />
       <input id="cust-import-file" type="file" accept=".csv" hidden onChange={(e) => { importCsv(e.target.files[0]); e.target.value = ""; }} />
 
-      {progress && (
-        <div style={{ background: "#fff", border: "1px solid #dfe5f3", borderRadius: 12, padding: "12px 15px", marginBottom: 14, boxShadow: "var(--shadow)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 700, marginBottom: 7 }}>
-            <span>Importing customers… please keep this tab open</span>
-            <span>{progress.done.toLocaleString("en-IN")} / {progress.total.toLocaleString("en-IN")}</span>
-          </div>
-          <div style={{ height: 8, borderRadius: 99, background: "#e8edf9", overflow: "hidden" }}>
-            <div style={{ height: "100%", borderRadius: 99, background: "#2b6fb8", width: Math.round((progress.done / Math.max(1, progress.total)) * 100) + "%", transition: "width .3s" }} />
-          </div>
+      {loadErr && (
+        <div style={{ background: "#fdecec", color: "#c03636", border: "1px solid #f3c6c6", borderRadius: 10, padding: "10px 13px", marginBottom: 12, fontSize: 13, fontWeight: 600 }}>
+          {loadErr}
         </div>
       )}
+      {entries != null && rows && rows.length > 0 && (
+        <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600, marginBottom: 10 }}>
+          {rows.length.toLocaleString("en-IN")} customers, built from {entries.toLocaleString("en-IN")} follow-up entries.
+        </div>
+      )}
+      {progress && (() => {
+        const pct = Math.round((progress.done / Math.max(1, progress.total)) * 100);
+        const secs = Math.max(1, Math.round(((progress.now || Date.now()) - progress.startedAt) / 1000));
+        const rate = progress.done / secs;                       // rows a second
+        const leftS = rate > 0 ? Math.round((progress.total - progress.done) / rate) : 0;
+        const clock = (t) => (t >= 3600
+          ? `${Math.floor(t / 3600)} h ${Math.floor((t % 3600) / 60)} min`
+          : t >= 60 ? `${Math.floor(t / 60)} min ${t % 60} sec` : `${t} sec`);
+        return (
+          <div style={{ background: "#fff", border: "1px solid #dfe5f3", borderRadius: 12, padding: "13px 16px", marginBottom: 14, boxShadow: "var(--shadow)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, fontSize: 13, fontWeight: 700, marginBottom: 8, flexWrap: "wrap" }}>
+              <span>Importing customers… keep this tab open</span>
+              <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                {progress.done.toLocaleString("en-IN")} / {progress.total.toLocaleString("en-IN")}
+                <span style={{ color: "var(--muted)", fontWeight: 800, marginLeft: 8 }}>{pct}%</span>
+              </span>
+            </div>
+            <div style={{ height: 9, borderRadius: 99, background: "#e8edf9", overflow: "hidden" }}>
+              <div style={{ height: "100%", borderRadius: 99, background: "#2b6fb8", width: pct + "%", transition: "width .3s" }} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 8, fontSize: 11.5, color: "var(--muted)", fontWeight: 600, flexWrap: "wrap", fontVariantNumeric: "tabular-nums" }}>
+              <span>⏱ {clock(secs)} elapsed · {Math.round(rate).toLocaleString("en-IN")} rows/sec</span>
+              <span>{progress.saved.toLocaleString("en-IN")} saved</span>
+              <span>{progress.done >= progress.total ? "finishing…" : `about ${clock(leftS)} left`}</span>
+            </div>
+          </div>
+        );
+      })()}
 
       {sel.size > 0 && (
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", background: "linear-gradient(135deg,#eef1ff,#f4ecff)", borderRadius: 12, marginBottom: 14 }}>
