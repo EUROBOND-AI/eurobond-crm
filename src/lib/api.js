@@ -347,6 +347,8 @@ export const api = {
   leaveReminders: () => req("/leave_reminder.php"),
   forwardCustomers: (mobiles, names, toUserId) => req("/customers.php?action=forward", { method: "POST", body: { mobiles, names, toUserId } }),
   deleteCustomer: (mobile, name) => req("/customers.php?action=delete", { method: "POST", body: { mobile, name } }),
+  /* a whole selection in one request — see the note in customers.php */
+  deleteCustomers: (customers) => req("/customers.php?action=delete", { method: "POST", body: { customers } }),
   sapStatus: () => req("/sap_push.php?action=status"),
   sapPush: (id) => req("/sap_push.php?action=push", { method: "POST", body: { id } }),
   sapPushBulk: (ids) => req("/sap_push.php?action=push_bulk", { method: "POST", body: { ids } }),

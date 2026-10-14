@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { MODULES } from "./moduleConfigs.jsx";
 import { PageHead, Tabs, DataTable, ToolButtons, FormModal, StatCard } from "../components/ui.jsx";
@@ -861,6 +861,27 @@ const STATUS_PICK = {
 
 function AdminChatModal({ row, cfgKey, onClose, onSent }) {
   const [rec, setRec] = useState(row);
+  /* Fetch the real record when this opens.
+
+     The list is loaded "slim": the thread, the attachments and the other long
+     arrays are left out of it, because sending them for every row made the
+     table crawl. The row handed to this modal is therefore a record with an
+     empty thread — and since useState only ever reads its argument once, the
+     full record fetched a moment later never reached the screen. So the
+     messages people had sent from the phone were there on the server, there on
+     the phone, and blank here. It is fetched once per record, on open. */
+  const fetchedFor = useRef(null);
+  useEffect(() => {
+    const id = row && row._id;
+    if (!id || fetchedFor.current === id) return;
+    fetchedFor.current = id;
+    setRec(row);
+    let gone = false;
+    api.get(cfgKey, id)
+      .then((d) => { if (!gone && d && d.record) setRec({ _id: d.record.id, ...d.record.data, _by: d.record.created_by_name, _at: d.record.created_at }); })
+      .catch(() => {});
+    return () => { gone = true; };
+  }, [row, cfgKey]);
   const [text, setText] = useState("");
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);

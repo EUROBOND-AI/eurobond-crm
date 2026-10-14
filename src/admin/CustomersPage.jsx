@@ -370,14 +370,19 @@ export default function CustomersPage() {
               if (!selRows.length) return;
               if (!window.confirm(`Delete ${selRows.length} customer(s)? This removes their entries and cannot be undone.`)) return;
               setBulkBusy(true);
-              let failed = 0;
-              for (const r of selRows) {
-                try { await api.deleteCustomer(r.mobile, r.name); } catch { failed++; }
+              /* the whole selection goes up in one request: one request per
+                 customer meant the server read the entire table once for each
+                 of them, and a large selection simply ran out of time with
+                 part of it still undeleted */
+              try {
+                const r = await api.deleteCustomers(selRows.map((x) => ({ mobile: x.mobile, name: x.name })));
+                alert(`${(r.deleted || 0).toLocaleString("en-IN")} entr${(r.deleted || 0) === 1 ? "y" : "ies"} deleted for ${selRows.length} customer(s).`);
+              } catch (e) {
+                alert("Could not delete: " + (e && e.message ? e.message : e));
               }
               setBulkBusy(false);
               setSel(new Set());
               load();
-              if (failed) alert(`${selRows.length - failed} deleted. ${failed} could not be deleted.`);
             }}>🗑 {bulkBusy ? "Deleting…" : `Delete ${sel.size}`}</button>
           )}
           <button className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 12.5 }} onClick={() => setSel(new Set())}>Clear</button>
