@@ -445,13 +445,14 @@ export default function AttendancePage() {
   }, [routePoints]);
   const totalKm = roadKm != null ? roadKm : (routePoints.length ? cumKmAt(routePoints, routePoints.length - 1) : 0);
   const [ptAddr, setPtAddr] = useState({});
-  /* The timeline is drawn straight away.
+  /* The timeline waits until its addresses are in, then appears complete.
 
-     It used to be held back until every address had been fetched, so opening
-     a day meant staring at a spinner for however long the lookups took — on
-     the phone the same screen opens at once and the places appear as they
-     come back. The rows are on screen immediately now, each saying "Finding
-     address…" only until its own answer arrives. */
+     Rows that fill in one at a time make a report hard to read — this is the
+     panel, not a phone, and it is read as a whole. What was slow about it was
+     never the waiting itself but how much was being looked up: see the note on
+     the key above. With answers found once per place rather than once per
+     reading, the wait is short and what lands is the finished timeline. */
+  const [addrReady, setAddrReady] = useState(true);
   /* reverse-geocode each timeline point to a full address (cached by lat,lng) */
   useEffect(() => {
     let stop = false;
@@ -487,7 +488,8 @@ export default function AttendancePage() {
       return !(stored && !looksCoarse);
     };
     const queue = shown.filter(wanted);
-    if (!queue.length) return () => { stop = true; };
+    if (!queue.length) { setAddrReady(true); return () => { stop = true; }; }
+    setAddrReady(false);
     (async () => {
       const BATCH = 6;
       for (let bi = 0; bi < queue.length; bi += BATCH) {
@@ -549,6 +551,7 @@ export default function AttendancePage() {
         }));
         await new Promise((res) => setTimeout(res, 400));   // be polite to Nominatim between batches
       }
+      if (!stop) setAddrReady(true);
       if (resolved.length) { try { await api.attSaveAddress(resolved); } catch {} }
     })();
     return () => { stop = true; };
@@ -829,7 +832,9 @@ export default function AttendancePage() {
                   </div>
                 ))}
                 <div style={{ fontWeight: 800, fontSize: 12.5, color: "var(--muted)", margin: "14px 0 8px" }}>Timeline ({timelinePoints.length} stops · {allPoints.length} points recorded)</div>
-                {(() => {
+                {!addrReady ? (
+                  <div className="eb-loading"><div className="eb-spin" />Loading timeline and addresses…</div>
+                ) : (() => {
                   return timelinePoints.slice(0, 150).map((p, i) => {
                   const cum = cumKmUpTo(routePoints, p);
                   const running = String(viewSess.status || "").toUpperCase() === "RUNNING" || !viewSess.end_time;
