@@ -31,11 +31,27 @@ function kmFromPoints(points) {
    straight line. Falls back to the point-to-point figure if the service is
    unreachable. */
 
+/* Where an answer is filed.
+
+   This used to be five decimal places — about a metre. A phone standing still
+   in one shop reports readings a couple of metres apart all morning, so every
+   one of them became a key of its own and the cache almost never answered:
+   the panel looked the same doorway up thirty times and the timeline sat on
+   "Loading…" while it did. The phone has always filed answers at four places,
+   roughly eleven metres, which is one answer per place rather than one per
+   reading. The panel now files them the same way, so the two also share what
+   the server has already stored. */
+const ebAddrKey = (lat, lng) => `${Number(lat).toFixed(4)},${Number(lng).toFixed(4)}`;
+
 /* Look up one position's full address, the same way the timeline does.
    Answers are remembered for the session so a week of exports asks once per
    place rather than once per point. */
+/* A new name for the store, because everything in the old one is filed under
+   the old metre-level key and would never be found again — it would only sit
+   there taking up the four thousand places this is allowed to keep. */
 const EB_ADDR_CACHE = (() => {
-  try { return new Map(Object.entries(JSON.parse(localStorage.getItem("eb_addr_cache") || "{}"))); }
+  try { localStorage.removeItem("eb_addr_cache"); } catch {}
+  try { return new Map(Object.entries(JSON.parse(localStorage.getItem("eb_addr_cache4") || "{}"))); }
   catch { return new Map(); }
 })();
 let ebAddrSaveTimer = 0;
@@ -46,12 +62,12 @@ function ebAddrPersist() {
       const o = {};
       let n = 0;
       for (const [k, v] of EB_ADDR_CACHE) { if (v && n++ < 4000) o[k] = v; }
-      localStorage.setItem("eb_addr_cache", JSON.stringify(o));
+      localStorage.setItem("eb_addr_cache4", JSON.stringify(o));
     } catch {}
   }, 1500);
 }
 async function addressFor(lat, lng) {
-  const key = `${Number(lat).toFixed(5)},${Number(lng).toFixed(5)}`;
+  const key = ebAddrKey(lat, lng);
   if (EB_ADDR_CACHE.has(key)) return EB_ADDR_CACHE.get(key);
   let full = "";
   try {
@@ -299,7 +315,7 @@ export default function AttendancePage() {
     const sessions = filtered.slice();
     taskStart("Week Export");
     try {
-      const key5 = (p) => `${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`;
+      const key5 = (p) => ebAddrKey(p.lat, p.lng);
       const tOf = (x) => (x && x.recorded_at ? Date.parse(String(x.recorded_at).replace(" ", "T")) : 0);
 
       /* One line per stop: the time, where they were, and how far they had
@@ -429,9 +445,13 @@ export default function AttendancePage() {
   }, [routePoints]);
   const totalKm = roadKm != null ? roadKm : (routePoints.length ? cumKmAt(routePoints, routePoints.length - 1) : 0);
   const [ptAddr, setPtAddr] = useState({});
-  /* the timeline is held back until its addresses are ready, so it appears
-     complete instead of filling in one row at a time */
-  const [addrReady, setAddrReady] = useState(true);
+  /* The timeline is drawn straight away.
+
+     It used to be held back until every address had been fetched, so opening
+     a day meant staring at a spinner for however long the lookups took — on
+     the phone the same screen opens at once and the places appear as they
+     come back. The rows are on screen immediately now, each saying "Finding
+     address…" only until its own answer arrives. */
   /* reverse-geocode each timeline point to a full address (cached by lat,lng) */
   useEffect(() => {
     let stop = false;
@@ -447,7 +467,7 @@ export default function AttendancePage() {
        Answers found earlier in this browser are reused as well: they were held
        in screen state alone, so closing the day and opening it again looked up
        the same places from scratch. */
-    const needKey = (p) => `${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`;
+    const needKey = (p) => ebAddrKey(p.lat, p.lng);
     const shown = timelinePoints.slice(0, 150);
     const seed = {};
     shown.forEach((p) => {
@@ -467,8 +487,7 @@ export default function AttendancePage() {
       return !(stored && !looksCoarse);
     };
     const queue = shown.filter(wanted);
-    if (!queue.length) { setAddrReady(true); return () => { stop = true; }; }
-    setAddrReady(false);
+    if (!queue.length) return () => { stop = true; };
     (async () => {
       const BATCH = 6;
       for (let bi = 0; bi < queue.length; bi += BATCH) {
@@ -530,7 +549,6 @@ export default function AttendancePage() {
         }));
         await new Promise((res) => setTimeout(res, 400));   // be polite to Nominatim between batches
       }
-      if (!stop) setAddrReady(true);
       if (resolved.length) { try { await api.attSaveAddress(resolved); } catch {} }
     })();
     return () => { stop = true; };
@@ -540,7 +558,7 @@ export default function AttendancePage() {
   const exportStops = useMemo(
     () => timelinePoints.map((p) => ({
       ...p,
-      address: p.address || ptAddr[`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`] || EB_ADDR_CACHE.get(`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`) || "",
+      address: p.address || ptAddr[ebAddrKey(p.lat, p.lng)] || EB_ADDR_CACHE.get(ebAddrKey(p.lat, p.lng)) || "",
     })),
     [timelinePoints, ptAddr]
   );
@@ -811,9 +829,7 @@ export default function AttendancePage() {
                   </div>
                 ))}
                 <div style={{ fontWeight: 800, fontSize: 12.5, color: "var(--muted)", margin: "14px 0 8px" }}>Timeline ({timelinePoints.length} stops · {allPoints.length} points recorded)</div>
-                {!addrReady ? (
-                  <div className="eb-loading"><div className="eb-spin" />Loading timeline and addresses…</div>
-                ) : (() => {
+                {(() => {
                   return timelinePoints.slice(0, 150).map((p, i) => {
                   const cum = cumKmUpTo(routePoints, p);
                   const running = String(viewSess.status || "").toUpperCase() === "RUNNING" || !viewSess.end_time;
@@ -826,7 +842,7 @@ export default function AttendancePage() {
                   const prev = i > 0 ? timelinePoints[i - 1] : null;
                   const tOf = (x) => (x && x.recorded_at ? Date.parse(String(x.recorded_at).replace(" ", "T")) : 0);
                   const gapMin = prev ? Math.round((tOf(p) - tOf(prev)) / 60000) : 0;
-                  const geoAddr = ptAddr[`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`] || EB_ADDR_CACHE.get(`${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`);
+                  const geoAddr = ptAddr[ebAddrKey(p.lat, p.lng)] || EB_ADDR_CACHE.get(ebAddrKey(p.lat, p.lng));
                   const addr = geoAddr || p.address;
                   return (
                   <div key={i}>
