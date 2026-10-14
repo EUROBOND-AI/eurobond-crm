@@ -184,6 +184,11 @@ function useUnreadCount() {
           const id = ebBdayId(p.name);
           if (!dis.has(id) && !read.has(id)) n++;
         });
+        /* work anniversaries are worked out the same way and count the same */
+        ebAnnivsForMe(EB_PEOPLE, me.name).forEach((p) => {
+          const id = ebAnnivId(p.name);
+          if (!dis.has(id) && !read.has(id)) n++;
+        });
       } catch {}
       setCount(n);
     }).catch(() => {});
@@ -542,6 +547,34 @@ const ebToday = () => new Date().toLocaleDateString("en-CA");
    bell exactly like a notice that came from the server. */
 const ebBdayId = (name, stamp = ebToday()) => `bday|${stamp}|${String(name || "").toLowerCase()}`;
 
+/* ---- Work anniversaries ----
+
+   The same idea as a birthday, read off the joining date instead: the day and
+   the month have to match, and a whole year has to have gone by, so the day
+   somebody joined is not itself an anniversary. What is announced is the
+   number of years, which is why the year stored matters here and does not for
+   a birthday. It goes to the same small group — the person, their manager,
+   their reports and the colleagues under the same manager. */
+function ebAnnivYears(doj, now = new Date()) {
+  const s = String(doj || "").slice(0, 10);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return 0;
+  if (m[1] === "0000") return 0;
+  if (Number(m[2]) !== now.getMonth() + 1 || Number(m[3]) !== now.getDate()) return 0;
+  const years = now.getFullYear() - Number(m[1]);
+  return years >= 1 ? years : 0;
+}
+function ebAnnivsForMe(people, meName, now = new Date()) {
+  return (people || [])
+    .map((p) => ({ p, years: ebAnnivYears(p.doj, now) }))
+    .filter((x) => x.years > 0)
+    .filter((x) => ebSameTeam(people, meName, x.p.name))
+    .map((x) => ({ ...x.p, years: x.years, isMe: String(x.p.name || "").trim().toLowerCase() === String(meName || "").trim().toLowerCase() }));
+}
+const ebAnnivId = (name, stamp = ebToday()) => `anniv|${stamp}|${String(name || "").toLowerCase()}`;
+/* "1 Year", "5 Years" */
+const ebYearsText = (n) => `${n} ${Number(n) === 1 ? "Year" : "Years"}`;
+
 /* A stamp is the day AND the build it was written by.
 
    Writing only the day meant a build installed later the same day found the
@@ -558,17 +591,18 @@ function ebStampSet(key) {
 
 /* Wishes already sent today, so the button cannot send twice. */
 const WISH_KEY = "eb_bday_wished";
-function ebWishedSet() {
+const ANNIV_WISH_KEY = "eb_anniv_wished";
+function ebWishedSet(key = WISH_KEY) {
   try {
-    const o = JSON.parse(localStorage.getItem(WISH_KEY) || "{}") || {};
+    const o = JSON.parse(localStorage.getItem(key) || "{}") || {};
     return new Set(o.on === ebToday() && Array.isArray(o.names) ? o.names : []);
   } catch { return new Set(); }
 }
-function ebMarkWished(name) {
+function ebMarkWished(name, key = WISH_KEY) {
   try {
-    const set = ebWishedSet();
+    const set = ebWishedSet(key);
     set.add(String(name || "").toLowerCase());
-    localStorage.setItem(WISH_KEY, JSON.stringify({ on: ebToday(), names: [...set] }));
+    localStorage.setItem(key, JSON.stringify({ on: ebToday(), names: [...set] }));
   } catch {}
 }
 
@@ -5830,9 +5864,9 @@ const PERSON_NOTIF = /^\/app\/(m\/(task|projectProjection|salesToSpec|specToSale
 /* A birthday wish is person to person as well, and it points at this screen —
    which is where the holidays and announcements point too — so it cannot be
    told apart by its address. Its title is what names it. */
-const WISH_TITLE = /birthday wishes/i;
+const WISH_TITLE = /(birthday|anniversary) wishes/i;
 function notifSender(n) {
-  if (!n || n._bday) return "";
+  if (!n || n._bday || n._anniv) return "";
   const from = String(n.from || "").trim();
   if (!from) return "";
   if (WISH_TITLE.test(String(n.title || ""))) return from;
@@ -5843,6 +5877,7 @@ function FieldNotifications() {
   const nav = useNavigate();
   const people = useDirectory();
   const [bday, setBday] = useState(null);
+  const [anniv, setAnniv] = useState(null);
   const [rows, setRows] = useState(null);
   const [read, setRead] = useState(() => getReadIds());
   const [dismissed, setDismissed] = useState(() => {
@@ -5866,8 +5901,8 @@ function FieldNotifications() {
   const open = (n) => {
     /* a birthday opens the full-screen greeting, and is left in the list so it
        can be opened again for the rest of the day */
-    if (n._bday) {
-      setBday(n._bday);
+    if (n._bday || n._anniv) {
+      if (n._bday) setBday(n._bday); else setAnniv(n._anniv);
       /* read, so the bell stops counting it — but left in the list, so the
          greeting can be opened again for the rest of the day */
       markRead(n._id);
@@ -5967,7 +6002,22 @@ function FieldNotifications() {
     }));
   }, [people]);
 
-  const visible = [...bdayRows, ...(rows || [])].filter((n) => !dismissed.has(String(n._id)));
+  /* and work anniversaries, read off the joining date the same way */
+  const annivRows = useMemo(() => {
+    const today = new Date();
+    return ebAnnivsForMe(people, (CU() || {}).name, today).map((p) => ({
+      _id: ebAnnivId(p.name),
+      _anniv: p,
+      title: p.isMe ? `Happy Work Anniversary! 🎊` : `🎊 ${p.name} — ${ebYearsText(p.years)} Today`,
+      message: p.isMe
+        ? `You complete ${ebYearsText(p.years)} at Eurobond today. Thank you for everything.`
+        : `${p.name}${p.designation ? ` · ${p.designation}` : ""} completes ${ebYearsText(p.years)} — tap to send your wishes.`,
+      link: "/app/notifications",
+      createdAt: today.toLocaleDateString("en-GB"),
+    }));
+  }, [people]);
+
+  const visible = [...bdayRows, ...annivRows, ...(rows || [])].filter((n) => !dismissed.has(String(n._id)));
 
   const clearAll = () => {
     if (!visible.length) return;
@@ -5978,7 +6028,7 @@ function FieldNotifications() {
        back (uninstall wipes local storage, the server records stay). */
     (async () => {
       for (const n of visible) {
-        if (n._bday) continue;
+        if (n._bday || n._anniv) continue;
         try {
           const by = new Set([...(n.dismissedBy || []), CU().name]);
           await api.update("notification", n._id, { ...n, dismissedBy: [...by] });
@@ -6021,19 +6071,20 @@ function FieldNotifications() {
           </div>
         ) : visible.map((n, i) => {
           const unread = !read.has(String(n._id));
-          const sender = n._bday ? n._bday.name : notifSender(n);
+          const sender = n._bday ? n._bday.name : n._anniv ? n._anniv.name : notifSender(n);
           return (
             <SwipeNotif key={n._id || i} n={n} unread={unread}
               sender={sender}
               senderPhoto={sender ? ebPhotoOf(people, sender) : ""}
               onOpen={() => open(n)}
-              onInfo={() => (n._bday ? setBday(n._bday) : setDetail(n))}
+              onInfo={() => (n._bday ? setBday(n._bday) : n._anniv ? setAnniv(n._anniv) : setDetail(n))}
               onDismiss={() => dismiss(n._id)} />
           );
         })}
       </div>
 
       {bday && <BirthdayCard person={bday} onClose={() => setBday(null)} />}
+      {anniv && <AnniversaryCard person={anniv} onClose={() => setAnniv(null)} />}
 
       {/* full-detail popup — used for Holiday / Announcement / Resource notices */}
       {detail && (
@@ -6238,6 +6289,94 @@ function BirthdayCard({ person, onClose }) {
   );
 }
 
+/* The work anniversary card.
+
+   Built like the birthday one and deliberately not the same colour, so a
+   glance tells the two apart: a birthday is the warm violet, a year completed
+   at the company is the house blue with the number of years on it. */
+function AnniversaryCard({ person, onClose }) {
+  const p = person || {};
+  const first = String(p.name || "").trim().split(/\s+/)[0] || "";
+  const years = Number(p.years) || 1;
+  const [wished, setWished] = useState(() => ebWishedSet(ANNIV_WISH_KEY).has(String(p.name || "").toLowerCase()));
+  const [sending, setSending] = useState(false);
+  const sendWish = async () => {
+    if (p.isMe || wished || sending) { onClose && onClose(); return; }
+    setSending(true);
+    try {
+      await api.notify({
+        to: p.name,
+        title: "🎊 Work Anniversary Wishes",
+        message: `${CU().name || "A colleague"} congratulated you on completing ${ebYearsText(years)} at Eurobond!`,
+        link: "/app/notifications",
+        at: new Date().toISOString(),
+        createdAt: new Date().toLocaleString("en-IN"),
+      });
+      ebMarkWished(p.name, ANNIV_WISH_KEY);
+      setWished(true);
+    } catch (e) {
+      alert("Could not send wishes: " + (e && e.message ? e.message : e));
+    }
+    setSending(false);
+  };
+  return (
+    <div onClick={onClose}
+      style={{ position: "fixed", inset: 0, zIndex: 11000, background: "rgba(12,18,45,.72)", display: "grid", placeItems: "center", padding: 18 }}>
+      <div onClick={(e) => e.stopPropagation()}
+        style={{ background: "#fff", borderRadius: 22, width: "100%", maxWidth: 360, overflow: "hidden", boxShadow: "0 30px 70px rgba(0,0,0,.4)", textAlign: "center" }}>
+        <div style={{ background: "linear-gradient(140deg,#0d366b,#2b6fb8)", padding: "26px 20px 20px", color: "#fff", position: "relative" }}>
+          <div style={{ position: "absolute", inset: 0, opacity: 0.22, fontSize: 28, letterSpacing: 10, lineHeight: "40px", overflow: "hidden", userSelect: "none" }}>
+            🎊🏆✨🎉🎊🏆✨🎉🎊🏆✨🎉🎊🏆✨🎉
+          </div>
+          <div style={{ position: "relative" }}>
+            <div style={{ width: 118, margin: "0 auto 12px" }}>
+              <Avatar name={p.name} photo={p.photo} size={118} ring="rgba(255,255,255,.85)" />
+            </div>
+            {/* the number is the point of this card, so it is the biggest thing on it */}
+            <div style={{ display: "inline-block", background: "rgba(255,255,255,.16)", border: "1.5px solid rgba(255,255,255,.5)",
+              borderRadius: 999, padding: "4px 16px", fontSize: 15, fontWeight: 800, letterSpacing: ".02em" }}>
+              🎊 {ebYearsText(years)}
+            </div>
+            <h2 style={{ margin: "10px 0 2px", fontSize: 21, fontFamily: "Bricolage Grotesque", fontWeight: 800 }}>
+              {p.isMe ? `Congratulations${first ? `, ${first}!` : "!"}` : `${ebYearsText(years)} with us!`}
+            </h2>
+            <div style={{ fontSize: 13, opacity: 0.92, fontWeight: 600 }}>
+              {p.isMe ? (p.designation || p.role || "") : p.name}{!p.isMe && p.designation ? ` · ${p.designation}` : ""}
+            </div>
+          </div>
+        </div>
+        <div style={{ padding: "18px 22px 20px" }}>
+          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.65, color: "#334155" }}>
+            {p.isMe
+              ? `Today you complete ${ebYearsText(years)} at Euro Panel Products. Thank you for everything you have built with us — here's to the years ahead.`
+              : `Today ${p.name} completes ${ebYearsText(years)} at Eurobond. Do send your congratulations!`}
+          </p>
+          {p.isMe ? (
+            <button className="f-submit" style={{ width: "100%", marginTop: 16 }} onClick={onClose}>Thank you 🎊</button>
+          ) : wished ? (
+            <>
+              <div style={{ marginTop: 14, background: "#e8f1fd", color: "#184f95", borderRadius: 10, padding: "10px 12px", fontSize: 13, fontWeight: 700, textAlign: "center" }}>
+                ✓ Your wishes have been sent
+              </div>
+              <button className="f-submit" style={{ width: "100%", marginTop: 10, background: "#64748b" }} onClick={onClose}>Close</button>
+            </>
+          ) : (
+            <>
+              <button className="f-submit" style={{ width: "100%", marginTop: 16 }} disabled={sending} onClick={sendWish}>
+                {sending ? "Sending…" : "Send Wishes 🎊"}
+              </button>
+              <button onClick={onClose}
+                style={{ width: "100%", marginTop: 8, padding: 11, borderRadius: 10, border: "1.5px solid #d7dcef", background: "#fff", fontWeight: 700, cursor: "pointer" }}>
+                Later
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* Shown by the app shell. Holds the queue of today's birthdays and the stamp
    that keeps it to one appearance a day. */
 const BDAY_SHOWN_KEY = "eb_bday_shown_on";
@@ -6254,7 +6393,13 @@ function BirthdayGreeter() {
     const stamp = today.toLocaleDateString("en-CA");
     if (firedFor.current === stamp) return;
     if (ebStampDone(BDAY_SHOWN_KEY)) { firedFor.current = stamp; return; }
-    const mine = ebBirthdaysForMe(people, (CU() || {}).name, today);
+    /* both kinds share one queue and one stamp, so a day that is somebody's
+       birthday and somebody else's anniversary shows the two cards one after
+       the other rather than fighting over which gets the screen */
+    const mine = [
+      ...ebBirthdaysForMe(people, (CU() || {}).name, today),
+      ...ebAnnivsForMe(people, (CU() || {}).name, today).map((p) => ({ ...p, _kind: "anniv" })),
+    ];
     if (!mine.length) return;        // nothing today — the stamp is left for a day there is
     firedFor.current = stamp;
     /* The stamp is NOT written here.
@@ -6269,8 +6414,10 @@ function BirthdayGreeter() {
        the app is not being looked at */
     if (!ebStampDone(BDAY_NOTIF_KEY)) {
       ebStampSet(BDAY_NOTIF_KEY);
-      const me = mine.find((x) => x.isMe);
-      const others = mine.filter((x) => !x.isMe);
+      const bdays = mine.filter((x) => x._kind !== "anniv");
+      const annivs = mine.filter((x) => x._kind === "anniv");
+      const me = bdays.find((x) => x.isMe);
+      const others = bdays.filter((x) => !x.isMe);
       if (me) {
         phoneNotify("🎉 Happy Birthday!", "Wishing you a wonderful year ahead — Euro Panel Products.",
           { notifId: ebBdayId(me.name), link: "/app/notifications" });
@@ -6279,6 +6426,17 @@ function BirthdayGreeter() {
         const names = others.map((x) => x.name).join(", ");
         phoneNotify("🎂 Birthday today", `${names} — tap to send your wishes.`,
           { notifId: ebBdayId(others[0].name), link: "/app/notifications" });
+      }
+      const meA = annivs.find((x) => x.isMe);
+      const otherA = annivs.filter((x) => !x.isMe);
+      if (meA) {
+        phoneNotify("🎊 Happy Work Anniversary!", `You complete ${ebYearsText(meA.years)} at Eurobond today.`,
+          { notifId: ebAnnivId(meA.name), link: "/app/notifications" });
+      }
+      if (otherA.length) {
+        const names = otherA.map((x) => `${x.name} (${ebYearsText(x.years)})`).join(", ");
+        phoneNotify("🎊 Work anniversary today", `${names} — tap to send your wishes.`,
+          { notifId: ebAnnivId(otherA[0].name), link: "/app/notifications" });
       }
     }
   }, [people]);
@@ -6290,7 +6448,9 @@ function BirthdayGreeter() {
     });
   };
   if (!queue.length) return null;
-  return <BirthdayCard person={queue[0]} onClose={close} />;
+  return queue[0]._kind === "anniv"
+    ? <AnniversaryCard person={queue[0]} onClose={close} />
+    : <BirthdayCard person={queue[0]} onClose={close} />;
 }
 
 
