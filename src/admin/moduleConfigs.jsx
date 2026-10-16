@@ -406,8 +406,9 @@ export const MODULES = {
       { name: "date", label: "Date", type: "date", required: true },
       { name: "name", label: "Holiday Name", required: true },
       { name: "type", label: "Type", type: "select", options: ["National", "Regional", "Company"] },
-      { name: "audienceType", label: "Send To (All / Zone / City / Users)", type: "select", options: ["All", "Zone", "City", "Users"], required: true },
-      { name: "audienceValue", label: "Zone/City name or User names (comma separated)", placeholder: "e.g. North  |  Mumbai  |  Ramesh, Suresh" },
+      { name: "audienceType", label: "Send To", type: "select", options: ["All", "Zone", "State", "City", "Users"], required: true },
+      /* the list itself is read from App Users — see AudiencePick */
+      { name: "audienceValue", label: "Who exactly", type: "audience", full: true },
     ],
     /* a holiday has no screen of its own, so it is filed against the
        notifications list and read there in full. It used to be filed against
@@ -443,8 +444,9 @@ export const MODULES = {
     form: [
       { name: "title", label: "Title", required: true },
       { name: "desc", label: "Description", type: "textarea", full: true, required: true },
-      { name: "audienceType", label: "Send To (All / Zone / City / Users)", type: "select", options: ["All", "Zone", "City", "Users"], required: true },
-      { name: "audienceValue", label: "Zone/City name or User names (comma separated)", placeholder: "e.g. North  |  Mumbai  |  Ramesh, Suresh" },
+      { name: "audienceType", label: "Send To", type: "select", options: ["All", "Zone", "State", "City", "Users"], required: true },
+      /* the list itself is read from App Users — see AudiencePick */
+      { name: "audienceValue", label: "Who exactly", type: "audience", full: true },
     ],
     notifyOnCreate: (d) => ({ title: "📢 " + d.title, message: d.desc || "", link: "/app/notifications" }),
   },

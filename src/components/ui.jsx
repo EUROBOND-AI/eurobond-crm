@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, CloudOff, RefreshCw, Plus, Upload, FileText, Trash2, Pencil, Eye, MessageSquare } from "lucide-react";
 import { api } from "../lib/api.js";
 import { visibleUsers } from "../lib/scope.js";
-import { MultiPeople, MultiFiles } from "./FormBits.jsx";
+import { MultiPeople, MultiFiles, AudiencePick } from "./FormBits.jsx";
 import { can } from "../lib/perms.js";
 
 export function PageHead({ crumb, title, actions, note }) {
@@ -226,7 +226,7 @@ export function FormModal({ title, fields, onClose, onSave, initial }) {
   const [missing, setMissing] = useState([]);
 
   useEffect(() => {
-    if (fields.some((f) => f.optionsSource === "users")) {
+    if (fields.some((f) => f.optionsSource === "users" || f.type === "audience")) {
       /* the whole person is kept, not just the name, so a field can be narrowed
          by their state (see byState below) */
       api.listUsers().then((d) => setUserPeople(visibleUsers((d.users || []).filter((u) => u.status == 1)))).catch(() => {});
@@ -258,7 +258,11 @@ export function FormModal({ title, fields, onClose, onSave, initial }) {
                   won — so the panel drew a one-person dropdown where the phone
                   drew the chips, and a task could only ever be given to one
                   person from here. */}
-              {f.type === "multiuser" ? (
+              {f.type === "audience" ? (
+                <AudiencePick type={values[f.dependsOn || "audienceType"]} people={userPeople}
+                  value={values[f.name]}
+                  onChange={(line) => setValues({ ...values, [f.name]: line })} />
+              ) : f.type === "multiuser" ? (
                 <MultiPeople value={values[f.name]} listValue={values[f.name + "List"]}
                   options={userOpts}
                   onChange={(line, list) => setValues({ ...values, [f.name]: line, [f.name + "List"]: list })} />
@@ -266,6 +270,10 @@ export function FormModal({ title, fields, onClose, onSave, initial }) {
                 <select value={values[f.name] || ""}
                   onChange={(e) => {
                     const v = e.target.value;
+                    /* the picked zones mean nothing once the kind changes to
+                       states, so they go with it rather than being sent on */
+                    const clears = fields.find((x) => x.type === "audience" && (x.dependsOn || "audienceType") === f.name);
+                    if (clears) { setValues({ ...values, [f.name]: v, [clears.name]: "" }); return; }
                     /* The state only decides which names are offered; whoever
                        has already been picked stays. It used to clear them,
                        which made it impossible to put people from two states on

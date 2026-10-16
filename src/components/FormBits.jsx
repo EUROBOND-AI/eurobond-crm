@@ -120,3 +120,70 @@ export function MultiFiles({ value, onChange, max = MAX_FILES }) {
     </div>
   );
 }
+
+
+/* Who an announcement goes to.
+
+   The audience used to be typed in by hand — "North, Mumbai" or a list of
+   names — against a label that had to explain which of those the box wanted.
+   Nothing checked the spelling, so one wrong letter sent the notice to nobody
+   and there was no way to tell from the screen. The choices are now read from
+   the people themselves: pick Zone and the zones on record are offered, pick
+   State and the states are, pick Users and the names are. More than one can be
+   picked, and what is stored is still the same comma-separated line, so
+   everything that already reads it carries on unchanged. */
+export function AudiencePick({ type, people, value, onChange }) {
+  const uniq = (xs) => [...new Set(xs.map((x) => String(x || "").trim()).filter(Boolean))].sort();
+  const options =
+      type === "Zone"  ? uniq(people.map((u) => u.zone))
+    : type === "State" ? uniq(people.flatMap((u) => [u.state, ...String(u.states || "").split(",")]))
+    : type === "City"  ? uniq(people.map((u) => u.city))
+    : type === "Users" ? uniq(people.map((u) => u.name))
+    : [];
+
+  if (!type || type === "All") {
+    return <div style={{ fontSize: 12.5, color: "var(--muted)", padding: "9px 2px" }}>
+      {type === "All" ? "Goes to everyone — nothing to choose." : "Choose Send To first."}
+    </div>;
+  }
+
+  const chosen = String(value || "").split(",").map((x) => x.trim()).filter(Boolean);
+  const set = (list) => onChange(list.join(", "));
+  const left = options.filter((o) => !chosen.some((c) => c.toLowerCase() === o.toLowerCase()));
+  const label = type === "Users" ? "person" : type.toLowerCase();
+
+  /* how many people this reaches, so nobody sends to an empty audience */
+  const reach = chosen.length === 0 ? 0 : people.filter((u) => {
+    const has = (v) => chosen.some((c) => c.toLowerCase() === String(v || "").trim().toLowerCase());
+    if (type === "Zone") return has(u.zone);
+    if (type === "City") return has(u.city);
+    if (type === "Users") return has(u.name);
+    if (type === "State") return [u.state, ...String(u.states || "").split(",")].some(has);
+    return false;
+  }).length;
+
+  return (
+    <div>
+      <select value="" onChange={(e) => { const v = e.target.value; if (v) set([...chosen, v]); }} style={{ width: "100%" }}>
+        <option value="">{options.length ? `Add ${label}…` : `No ${label} found in App Users`}</option>
+        {left.map((o) => <option key={o}>{o}</option>)}
+      </select>
+      {chosen.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 7 }}>
+          {chosen.map((n) => (
+            <span key={n} style={{ background: "#eef2ff", color: "#3949ab", borderRadius: 999, padding: "5px 10px", fontSize: 12, fontWeight: 700 }}>
+              {n}
+              <span onClick={() => set(chosen.filter((x) => x !== n))} style={{ cursor: "pointer", marginLeft: 6 }}>×</span>
+            </span>
+          ))}
+        </div>
+      )}
+      <div style={{ fontSize: 11.5, color: reach === 0 && chosen.length ? "#c0392b" : "var(--muted)", marginTop: 6, fontWeight: 600 }}>
+        {chosen.length === 0
+          ? `Pick one or more — ${options.length} available`
+          : reach === 0 ? "No one matches this — nobody would receive it"
+          : `${reach} person${reach === 1 ? "" : "s"} will receive this`}
+      </div>
+    </div>
+  );
+}

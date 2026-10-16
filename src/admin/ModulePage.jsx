@@ -456,12 +456,34 @@ export default function ModulePage({ cfgKey }) {
         if (cfg.notifyOnCreate) {
           try {
             const n = cfg.notifyOnCreate(data);
-            await api.notify({
-              ...n,
-              audienceType: data.audienceType || "All",
-              audienceValue: data.audienceValue || "",
-              createdAt: new Date().toLocaleString("en-IN"),
-            });
+            /* "State" is new, and the phones already in people's hands only
+               know All, Zone, City and Users. So a state is turned into the
+               people who are in it before the notice goes out — the record
+               still says "Maharashtra", which is what anyone reading the list
+               wants to see, while what travels is a list of names every
+               version of the app understands. A person's extra states count
+               as theirs, the same as everywhere else. */
+            let aType = data.audienceType || "All";
+            let aValue = data.audienceValue || "";
+            if (aType === "State") {
+              const want = aValue.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+              const names = (allUsers || [])
+                .filter((u) => (u.status == null || u.status == 1)
+                  && [u.state, ...String(u.states || "").split(",")]
+                      .some((v) => want.includes(String(v || "").trim().toLowerCase())))
+                .map((u) => u.name).filter(Boolean);
+              aType = "Users";
+              aValue = [...new Set(names)].join(", ");
+              if (!aValue) { alert("Nobody is in that state, so no one was notified. The record was still saved."); }
+            }
+            if (aValue || aType === "All") {
+              await api.notify({
+                ...n,
+                audienceType: aType,
+                audienceValue: aValue,
+                createdAt: new Date().toLocaleString("en-IN"),
+              });
+            }
           } catch {}
         }
         /* GK - Developer Support ticket → email whoever looks after the CRM */

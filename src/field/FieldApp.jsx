@@ -72,6 +72,12 @@ const isMine = (n, me) => {
     const t = n.audienceType, v = String(n.audienceValue || "").toLowerCase();
     if (t === "All") return true;
     if (t === "Zone") return v.split(",").map((x) => x.trim()).includes((me.zone || "").toLowerCase());
+    /* a person's own state, or any of the extra ones they cover */
+    if (t === "State") {
+      const want = v.split(",").map((x) => x.trim()).filter(Boolean);
+      return [me.state, ...String(me.states || "").split(",")]
+        .some((x) => want.includes(String(x || "").trim().toLowerCase()));
+    }
     if (t === "City") return v.split(",").map((x) => x.trim()).includes((me.city || "").toLowerCase());
     if (t === "Users") return v.split(",").map((x) => x.trim()).includes((me.name || "").toLowerCase());
     return false;
