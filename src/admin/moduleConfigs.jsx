@@ -414,7 +414,6 @@ export const MODULES = {
        notifications list and read there in full. It used to be filed against
        the home screen, which opened Home and said nothing about the holiday;
        the app still treats that older address the same way. */
-    notifyOnCreate: (d) => ({ title: "🎉 Holiday: " + d.name, message: `${d.date} — ${d.name} (${d.type || "Holiday"})`, link: "/app/notifications" }),
   },
 
   products: {
@@ -448,7 +447,6 @@ export const MODULES = {
       /* the list itself is read from App Users — see AudiencePick */
       { name: "audienceValue", label: "Who exactly", type: "audience", full: true },
     ],
-    notifyOnCreate: (d) => ({ title: "📢 " + d.title, message: d.desc || "", link: "/app/notifications" }),
   },
 
   tickets: {
