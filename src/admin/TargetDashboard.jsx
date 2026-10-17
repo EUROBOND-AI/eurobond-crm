@@ -34,7 +34,7 @@ export default function TargetDashboard() {
 
   const load = () => {
     setShown(true); setBusy(true);
-    Promise.all([api.list("target", false), api.listUsers().catch(() => ({ users: [] }))])
+    Promise.all([api.list("target", false, { slim: true }), api.listUsers().catch(() => ({ users: [] }))])
       .then(([d, uu]) => {
         setUsers(uu.users || []);
         setRows(scopeRows((d.records || []).map((r) => ({ _id: r.id, ...r.data })), uu.users || []));

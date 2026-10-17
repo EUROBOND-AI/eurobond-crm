@@ -59,7 +59,7 @@ export default function EnquiryDashboard() {
 
   const load = () => {
     setShown(true); setBusy(true); setErr("");
-    Promise.all([api.list("enquiry"), api.listUsers().catch(() => ({ users: [] }))])
+    Promise.all([api.list("enquiry", false, { slim: true }), api.listUsers().catch(() => ({ users: [] }))])
       .then(([d, uu]) => {
         setUsers(uu.users || []);
         setAll(scopeRows(

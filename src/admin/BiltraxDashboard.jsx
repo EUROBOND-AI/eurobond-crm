@@ -32,7 +32,7 @@ export default function BiltraxDashboard() {
 
   const load = () => {
     setShown(true); setBusy(true);
-    Promise.all([api.list("biltrax", false), api.listUsers().catch(() => ({ users: [] }))])
+    Promise.all([api.list("biltrax", false, { slim: true }), api.listUsers().catch(() => ({ users: [] }))])
       .then(([d, uu]) => {
         setUsers(uu.users || []);
         setRows(scopeRows((d.records || []).map((r) => ({ _id: r.id, ...r.data })), uu.users || [], ["createdBy", "assignPerson", "hod"]));

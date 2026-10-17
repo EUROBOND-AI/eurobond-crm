@@ -41,9 +41,9 @@ export default function ProjectDashboard() {
   const load = () => {
     setShown(true); setBusy(true);
     Promise.all([
-      api.list("projectProjection", false).catch(() => ({ records: [] })),
-      api.list("salesToSpec", false).catch(() => ({ records: [] })),
-      api.list("specToSales", false).catch(() => ({ records: [] })),
+      api.list("projectProjection", false, { slim: true }).catch(() => ({ records: [] })),
+      api.list("salesToSpec", false, { slim: true }).catch(() => ({ records: [] })),
+      api.list("specToSales", false, { slim: true }).catch(() => ({ records: [] })),
       api.listUsers().catch(() => ({ users: [] })),
     ]).then(([p, a, b, uu]) => {
       const all = uu.users || [];

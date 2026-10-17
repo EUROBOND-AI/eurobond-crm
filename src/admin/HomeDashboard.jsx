@@ -36,8 +36,8 @@ export default function HomeDashboard() {
     const uu = await safe(api.listUsers()).then((r) => r.users || []).catch(() => []);
     const today = ymd(new Date());
     const [enq, cust, exp, leave, target, proj, att] = await Promise.all([
-      safe(api.list("enquiry")), safe(api.list("followup")), safe(api.list("expense")),
-      safe(api.list("leave")), safe(api.list("target")), safe(api.list("projectProjection")),
+      safe(api.list("enquiry", false, { slim: true })), safe(api.list("followup", false, { slim: true })), safe(api.list("expense", false, { slim: true })),
+      safe(api.list("leave", false, { slim: true })), safe(api.list("target", false, { slim: true })), safe(api.list("projectProjection", false, { slim: true })),
       safe(api.attList ? api.attList(today, today) : Promise.resolve({ sessions: [] })),
     ]);
     const rd = (x) => (x.records || []).map((r) => ({ _id: r.id, _at: r.created_at, ...(r.data || r) }));
