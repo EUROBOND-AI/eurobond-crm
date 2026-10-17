@@ -565,7 +565,7 @@ export default function ModulePage({ cfgKey }) {
         for (const l of linked) { try { await api.remove(cfgKey, l._id); } catch {} }
       }
       /* confirm with the server rather than trusting the screen */
-      const after = await api.list(cfgKey, false).catch(() => null);
+      const after = await api.list(cfgKey, false, { slim: true, limit: 1000 }).catch(() => null);
       if (after) {
         const still = (after.records || []).some((x) => String(x.id) === String(r._id));
         if (still) { alert("The server still has this record — please tell Karthik the id: " + r._id); }
@@ -911,6 +911,14 @@ function AdminChatModal({ row, cfgKey, onClose, onSent }) {
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
   const [stBusy, setStBusy] = useState(false);
+  /* Attachments are not shown until asked for.
+
+     A record's photos are stored inside it as base64, so opening one that
+     carries five of them meant the browser drawing several megabytes of image
+     the moment the window appeared — the modal hung before anything could be
+     read. They sit behind a View button now: the window opens at once, and the
+     photos load only when they are actually wanted. */
+  const [showAtt, setShowAtt] = useState(false);
   const thread = rec.thread || [];
   const statusOpts = STATUS_PICK[cfgKey] || [];
 
@@ -1007,20 +1015,31 @@ function AdminChatModal({ row, cfgKey, onClose, onSent }) {
         <h3 style={{ marginBottom: 4 }}>{rec.id} · {rec.project || rec.name || rec.category || rec.type || ""}</h3>
         <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 8 }}>{rec.createdBy} {rec.specPerson || rec.salesPerson ? "↔ " + (rec.specPerson || rec.salesPerson) : ""} {rec.help ? "· " + rec.help : ""}</div>
         {(() => {
-          /* whatever was attached to this record, opened in a new tab from the
-             panel — a task can carry up to five photos or PDFs */
+          /* every attachment on this record, however it was stored, with
+             duplicates removed. A placeholder (a stripped base64 the list sent)
+             is never offered — only the real thing, which the full record that
+             the modal fetched carries. */
           const atts = [rec.photo, rec.doc, ...(Array.isArray(rec.photos) ? rec.photos : []), ...(Array.isArray(rec.attachments) ? rec.attachments : [])]
-            .filter(Boolean).filter((u, i, a) => a.indexOf(u) === i);
+            .filter(Boolean).filter((u) => String(u) !== "__heavy__")
+            .filter((u, i, a) => a.indexOf(u) === i);
           if (!atts.length) return null;
           const open = (u) => { try { const w = window.open(); if (w) { w.document.write(`<iframe src="${u}" style="position:fixed;inset:0;width:100%;height:100%;border:0"></iframe>`); } } catch {} };
           return (
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-              {atts.map((u, i) => (
-                /^data:application\/pdf/i.test(String(u)) || /\.pdf($|\?)/i.test(String(u))
-                  ? <button key={i} className="btn btn-soft" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => open(u)}>📄 PDF {i + 1}</button>
-                  : <img key={i} src={u} alt={`Attachment ${i + 1}`} onClick={() => open(u)}
-                      style={{ width: 54, height: 54, objectFit: "cover", borderRadius: 7, border: "1px solid #dfe4f0", cursor: "pointer" }} />
-              ))}
+            <div style={{ marginBottom: 10 }}>
+              {!showAtt ? (
+                <button className="btn btn-soft" style={{ padding: "7px 14px", fontSize: 12.5, fontWeight: 700 }} onClick={() => setShowAtt(true)}>
+                  📎 View Attachment{atts.length > 1 ? `s (${atts.length})` : ""}
+                </button>
+              ) : (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {atts.map((u, i) => (
+                    /^data:application\/pdf/i.test(String(u)) || /\.pdf($|\?)/i.test(String(u))
+                      ? <button key={i} className="btn btn-soft" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => open(u)}>📄 PDF {i + 1}</button>
+                      : <img key={i} src={u} alt={`Attachment ${i + 1}`} loading="lazy" onClick={() => open(u)}
+                          style={{ width: 54, height: 54, objectFit: "cover", borderRadius: 7, border: "1px solid #dfe4f0", cursor: "pointer" }} />
+                  ))}
+                </div>
+              )}
             </div>
           );
         })()}
@@ -1080,15 +1099,6 @@ function AdminChatModal({ row, cfgKey, onClose, onSent }) {
               }}>{String(v)}</div>
             </div>
           ))}
-        {(rec.photo || (Array.isArray(rec.photos) && rec.photos.length)) && (
-          <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
-            {[rec.photo, ...(Array.isArray(rec.photos) ? rec.photos : [])].filter(Boolean).map((u, i) => (
-              String(u).match(/\.pdf$/i)
-                ? <a key={i} href={u} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "var(--accent)", fontWeight: 700 }}>📄 Attachment</a>
-                : <a key={i} href={u} target="_blank" rel="noreferrer"><img src={u} alt="" style={{ width: 54, height: 54, objectFit: "cover", borderRadius: 8, border: "1px solid #dfe4f0" }} /></a>
-            ))}
-          </div>
-        )}
         <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, padding: "6px 0", minHeight: 160 }}>
           {thread.length === 0 && <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, padding: 16 }}>No messages yet.</div>}
           {thread.map((m, i) => {
@@ -1120,6 +1130,11 @@ function AdminChatModal({ row, cfgKey, onClose, onSent }) {
 function AdminProjectView({ rec, onClose }) {
   const d = rec || {};
   const Row = ({ l, v }) => v ? <div style={{ marginBottom: 4 }}><b style={{ color: "#64708a" }}>{l}:</b> {v}</div> : null;
+  /* photos load on a View click, not the moment the window opens — see the
+     note in the chat modal; a real photo only, never a stripped placeholder */
+  const [showPics, setShowPics] = useState(false);
+  const real = (u) => u && String(u) !== "__heavy__";
+  const picCount = (real(d.photo) ? 1 : 0) + (d.followups || []).filter((f) => real(f.photo)).length;
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.5)", zIndex: 9999, display: "grid", placeItems: "center", padding: 18 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 14, maxWidth: 560, width: "100%", maxHeight: "90vh", overflowY: "auto", padding: 22 }}>
@@ -1147,6 +1162,12 @@ function AdminProjectView({ rec, onClose }) {
           <Row l="Status Remark" v={d.statusRemark} />
         </div>
 
+        {picCount > 0 && !showPics && (
+          <button className="btn btn-soft" style={{ padding: "7px 14px", fontSize: 12.5, fontWeight: 700, marginTop: 10 }} onClick={() => setShowPics(true)}>
+            📎 View Photo{picCount > 1 ? `s (${picCount})` : ""}
+          </button>
+        )}
+
         {(d.contacts || []).length > 0 && <h4 style={{ margin: "14px 0 6px" }}>Contacts</h4>}
         {(d.contacts || []).map((c, i) => (
           <div key={i} style={{ background: "#f4f6fc", borderRadius: 8, padding: 10, marginBottom: 6, fontSize: 12.5 }}>
@@ -1163,11 +1184,11 @@ function AdminProjectView({ rec, onClose }) {
           <div key={i} style={{ borderLeft: "3px solid #3949ab", background: "#f7f9ff", borderRadius: 7, padding: "7px 10px", marginBottom: 5 }}>
             <div style={{ fontSize: 11.5, fontWeight: 700 }}>{fu.date}</div>
             <div style={{ fontSize: 12.5 }}>{fu.remark}</div>
-            {fu.photo && <img src={fu.photo} alt="" style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 7, marginTop: 4 }} />}
+            {showPics && real(fu.photo) && <img src={fu.photo} alt="" loading="lazy" style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 7, marginTop: 4 }} />}
           </div>
         ))}
 
-        {d.photo && <><h4 style={{ margin: "14px 0 6px" }}>Photo</h4><img src={d.photo} alt="" style={{ maxWidth: "100%", borderRadius: 10 }} /></>}
+        {showPics && real(d.photo) && <><h4 style={{ margin: "14px 0 6px" }}>Photo</h4><img src={d.photo} alt="" loading="lazy" style={{ maxWidth: "100%", borderRadius: 10 }} /></>}
       </div>
     </div>
   );
