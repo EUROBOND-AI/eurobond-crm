@@ -42,25 +42,52 @@ export default function AttendanceSheet() {
   const load = () => {
     setShown(true);
     setBusy(true);
-    Promise.all([api.listUsers(), api.attList(from, to), api.list("leave", false), api.list("holidays", false)])
+    /* Holidays live in their own state-wise table (the Master Holiday screen
+       writes there through holidays.php), NOT in the records module this sheet
+       used to read — which is empty, so no holiday ever showed. They are read
+       from the same place the Master screen does, and matched to each person
+       by their state below. */
+    Promise.all([api.listUsers(), api.attList(from, to), api.list("leave", false), api.holidaysAll().catch(() => ({ holidays: [] }))])
       .then(([u, a, l, h]) => {
         setUsers(visibleUsers(u.users || [])
           .filter((x) => Number(x.status) !== 0)
           .filter((x) => !/^admin$/i.test(String(x.role || "").trim())));
         setSessions(a.sessions || []);
         setLeaves((l.records || []).map((r) => r.data));
-        setHolidays((h.records || []).map((r) => r.data));
+        setHolidays(h.holidays || []);
       })
       .catch(() => { setUsers([]); })
       .finally(() => setBusy(false));
   };
 
-  /* date -> holiday? */
-  const holidaySet = useMemo(() => {
-    const s = new Set();
-    holidays.forEach((h) => { const d = h.date || h.from; if (d && d.startsWith(month)) s.add(d.slice(0, 10)); });
-    return s;
+  /* date -> the holidays on it this month, each with the state (and city, if
+     the holiday is for one city only) it applies to. A holiday counts for a
+     person when its state is one of theirs and — if it names a city — that
+     city is theirs too. A row with no state at all is treated as company-wide. */
+  const holidaysByDate = useMemo(() => {
+    const low = (x) => String(x || "").trim().toLowerCase();
+    const m = {};
+    holidays.forEach((h) => {
+      const d = String(h.date || h.from || "").slice(0, 10);
+      if (!d || !d.startsWith(month)) return;
+      (m[d] = m[d] || []).push({ state: low(h.state), city: low(h.city) });
+    });
+    return m;
   }, [holidays, month]);
+
+  /* does any holiday on this date reach this person */
+  const isHolidayFor = (u, dateStr) => {
+    const list = holidaysByDate[dateStr];
+    if (!list || !list.length) return false;
+    const low = (x) => String(x || "").trim().toLowerCase();
+    const mine = [u.state, ...String(u.states || "").split(",")].map(low).filter(Boolean);
+    const myCity = low(u.city);
+    return list.some((h) => {
+      if (!h.state) return true;                       // company-wide holiday
+      if (!mine.includes(h.state)) return false;       // not my state
+      return !h.city || h.city === myCity;             // city-specific must match
+    });
+  };
 
   /* user_id + date -> session */
   const sessMap = useMemo(() => {
@@ -94,7 +121,7 @@ export default function AttendanceSheet() {
       return "P";
     }
     if (leaveMap[`${u.name}|${dateStr}`] || leaveMap[`${u.code}|${dateStr}`]) return "L";
-    if (holidaySet.has(dateStr)) return "HO";
+    if (isHolidayFor(u, dateStr)) return "HO";
     const off = (u.weekly_off || "Sunday").slice(0, 3).toLowerCase();
     const dayName = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][dow];
     if (dayName === off) return "S";
@@ -132,7 +159,7 @@ export default function AttendanceSheet() {
       }
       return { u, cells, totals: { p, t, wfh, l, ho, s, a, present: p + t + wfh, total: p + t + wfh + l + ho + s } };
     });
-  }, [users, sessMap, leaveMap, holidaySet, month, zoneF, hodF, userF]);
+  }, [users, sessMap, leaveMap, holidaysByDate, month, zoneF, hodF, userF]);
 
   const exportCsv = () => {
     if (!grid) return;
