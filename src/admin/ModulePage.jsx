@@ -200,7 +200,16 @@ export default function ModulePage({ cfgKey }) {
   /* app lo updates admin lo auto ga reflect avvadaniki — 60s refresh, but only
      while this tab is the one in front. A panel left open in a background tab
      was re-reading every module every minute for nothing. */
-  useVisiblePoll(() => { try { reload(); } catch {} }, 60000);
+  const mountedAt = useRef(Date.now());
+  useVisiblePoll(() => {
+    /* leave the opening load alone: the progressive loader is still filling the
+       table in the first seconds, and a poll on top of it is what made the data
+       appear and vanish. Nothing until a minute in, and silently after that. */
+    if (Date.now() - mountedAt.current < 60000) return;
+    if (loading || loadingMore) return;
+    if (gated && !shown) return;
+    try { reload(true); } catch {}
+  }, 60000);
   const [fTo, setFTo] = useState("");
   const [fSpec, setFSpec] = useState("");
   const [fSales, setFSales] = useState("");
@@ -346,12 +355,19 @@ export default function ModulePage({ cfgKey }) {
   const [showColCfg, setShowColCfg] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
 
-  const reload = () => {
-    setRefreshing(true); setErr("");
-    api.list(cfgKey, false, { slim: true })
+  const reloadBusy = useRef(false);
+  const reload = (silent = false) => {
+    /* never two at once — the 60s poll and a click used to race, each
+       replacing the table with its own result, which is the flicker */
+    if (reloadBusy.current) return;
+    reloadBusy.current = true;
+    if (!silent) { setRefreshing(true); setErr(""); }
+    api.list(cfgKey, false, { slim: true, limit: 1000 })
       .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: r.data.followupsCount ?? (r.data.followups || []).length, productsText: r.data.productsText ?? projProductsText(r.data.items), ...(r.data.catCols || projCategoryCols(r.data.contacts)), achievementPct: targetPct(r.data), planSummary: beatSummary(r.data), planRemarks: beatRemarks(r.data), ...beatDayCols(r.data) }))))
-      .catch((e) => setErr(e.message))
-      .finally(() => setRefreshing(false));
+      /* a background refresh that fails leaves what is on screen alone and says
+         nothing — only a refresh the person asked for reports an error */
+      .catch((e) => { if (!silent) setErr(e.message); })
+      .finally(() => { reloadBusy.current = false; if (!silent) setRefreshing(false); });
   };
 
   const shownColumns = useMemo(() => {
