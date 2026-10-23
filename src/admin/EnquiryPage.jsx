@@ -154,7 +154,7 @@ export default function EnquiryPage() {
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [subOpen]);
-  const [fromDate, setFromDate] = useState(() => daysAgo(45));   // default view: last 1½ months
+  const [fromDate, setFromDate] = useState(() => new Date().toISOString().slice(0, 10));   // default: today; admin widens it by hand
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
   /* Several states at once: one person covers more than one, and picking them
      one at a time meant running the same report over and over. Empty means all. */
