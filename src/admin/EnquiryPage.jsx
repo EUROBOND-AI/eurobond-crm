@@ -68,6 +68,15 @@ function enqDate(r) {
   return null;
 }
 
+/* How far back the admin Enquiry list keeps IndiaMart leads loaded.  The list
+   used to pull only the newest 500 rows with no date cut, so as fresh leads
+   arrived the oldest fell out of view and the start date kept creeping forward.
+   Now it loads a fixed date window (every page of it) so the same ~2 months of
+   backup is always there, and nothing already assigned ever drops off. */
+const ENQ_WINDOW_DAYS = 75;                 // a little over the 1½ months we must always show
+const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+const minusDays = (ymd, n) => { const d = new Date(ymd); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+
 /* Split one CSV line into its fields.
 
    A pattern asking for at least one character between commas drops an empty
@@ -145,7 +154,7 @@ export default function EnquiryPage() {
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [subOpen]);
-  const [fromDate, setFromDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [fromDate, setFromDate] = useState(() => daysAgo(45));   // default view: last 1½ months
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
   /* Several states at once: one person covers more than one, and picking them
      one at a time meant running the same report over and over. Empty means all. */
@@ -185,9 +194,18 @@ export default function EnquiryPage() {
 
   const TABS = ["Enquiries", "Pending to Assign", "Assigned", "Processing", "Pending", "Spam", "Duplicate", "Reassign", "Win"];
 
-  const load = () => api.list("enquiry", false)
-    .then((d) => setRows((d.records || []).map((r) => ({ ...r.data, _id: r.id, _created: r.created_at }))))
-    .catch(() => setRows([]));
+  /* the oldest date currently pulled from the server; lets a plain load()
+     after assign / delete / sync keep whatever window the admin last opened */
+  const loadedFrom = useRef(null);
+  const load = (fromD) => {
+    const from = fromD || loadedFrom.current || daysAgo(ENQ_WINDOW_DAYS);
+    loadedFrom.current = from;
+    /* listAll walks every page, so the whole window loads — not just the
+       newest 500 — and assigned leads never roll out of sight */
+    return api.listAll("enquiry", false, { from, limit: 1000 })
+      .then((d) => setRows((d.records || []).map((r) => ({ ...r.data, _id: r.id, _created: r.created_at }))))
+      .catch(() => setRows([]));
+  };
   useEffect(() => { load(); api.listUsers().then((d) => setUsers((d.users || d.records || []).filter((u) => (u.role || u.data?.role) !== "Admin"))).catch(() => {}); }, []);
 
   /* auto-sync IndiaMart leads once per hour when admin opens Enquiry */
@@ -336,7 +354,13 @@ export default function EnquiryPage() {
     setIntroBusy(null);
   };
 
-  const applyShow = () => { setApplied({ from: fromDate, to: toDate, sources: [...sourceSel], subs: [...subSel], shown: true }); setPage(1); };
+  const applyShow = () => {
+    /* if the admin asks for a date older than what is already loaded, pull that
+       wider window from the server (7-day buffer covers lead-date vs sync-date skew) */
+    if (!loadedFrom.current || fromDate < loadedFrom.current) load(minusDays(fromDate, 7));
+    setApplied({ from: fromDate, to: toDate, sources: [...sourceSel], subs: [...subSel], shown: true });
+    setPage(1);
+  };
 
   const pages = Math.max(1, Math.ceil(list.length / pageSize));
   const pageRows = list.slice((page - 1) * pageSize, page * pageSize);
