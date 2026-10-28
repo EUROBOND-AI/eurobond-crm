@@ -13,7 +13,7 @@ export default function ExpenseDashboard() {
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    Promise.all([api.list("expense", false, { slim: true }), api.listUsers().catch(() => ({ users: [] }))])
+    Promise.all([api.listAll("expense", false, { slim: true }), api.listUsers().catch(() => ({ users: [] }))])
       .then(([d, uu]) => setRows(scopeRows(
         (d.records || []).map((r) => ({ ...r.data, _by: r.created_by_name, _at: r.created_at })),
         uu.users || [], ["createdBy", "_by", "user"])))

@@ -239,6 +239,7 @@ export const api = {
     for (let i = 0; i < 20; i++) {              // hard stop at 20k rows
       const p = new URLSearchParams({ module, limit: pageSize, offset });
       if (mine) p.set("mine", "1");
+      if (opts.slim) p.set("slim", "1");
       if (opts.from) p.set("from", opts.from);
       if (opts.to) p.set("to", opts.to);
       const d = await req(`/records.php?${p.toString()}`);

@@ -16,7 +16,7 @@ export default function UserReportCard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([api.listUsers(), api.list("expense"), api.list("enquiry")])
+    Promise.all([api.listUsers(), api.listAll("expense"), api.listAll("enquiry")])
       .then(([u, e, q]) => {
         const all = u.users || [];
         setUsers(visibleUsers(all).filter((x) => x.status == 1));

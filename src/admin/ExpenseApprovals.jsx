@@ -185,7 +185,9 @@ export default function ExpenseApprovals() {
 
   const load = () => {
     setLoading(true);
-    api.list("expense")
+    /* every page, not just the newest 500: a statement is created when it is
+       prepared and only updated on submit, so an older one fell out of view */
+    api.listAll("expense")
       .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, _by: r.created_by_name, _at: r.created_at }))))
       .catch(() => {})
       .finally(() => setLoading(false));
