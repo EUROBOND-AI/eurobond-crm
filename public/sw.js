@@ -1,23 +1,51 @@
-/* Service worker — app shell caching so returning to the app does NOT reload */
-const CACHE = "eb-crm-v2";
+/* Service worker — app shell caching so returning to the app does NOT reload.
 
-self.addEventListener("install", (e) => self.skipWaiting());
+   HTML/navigation is network-FIRST so a fresh deploy loads immediately and the
+   browser never serves an old index that points at JS chunks a new build has
+   removed (which left the whole app/admin blank). Hashed static assets stay
+   cache-first for a no-flicker resume. Every response is cloned SYNCHRONOUSLY
+   before its body is read, which fixes the "Response body is already used". */
+const CACHE = "eb-crm-v3";
+
+self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => {
-  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))));
-  self.clients.claim();
+  e.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener("fetch", (e) => {
-  const url = new URL(e.request.url);
-  if (e.request.method !== "GET" || url.origin !== self.location.origin) return; // let API calls pass through
-  // cache-first for app assets (no reload flicker on resume)
+  const req = e.request;
+  const url = new URL(req.url);
+  if (req.method !== "GET" || url.origin !== self.location.origin) return; // API/cross-origin pass through
+
+  const isHTML = req.mode === "navigate" || url.pathname === "/" || url.pathname.endsWith(".html");
+
+  if (isHTML) {
+    e.respondWith(
+      fetch(req)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy));
+          return res;
+        })
+        .catch(() => caches.match(req).then((c) => c || caches.match("/index.html")))
+    );
+    return;
+  }
+
   e.respondWith(
-    caches.match(e.request).then((cached) => {
-      const fetchP = fetch(e.request).then((res) => {
-        if (res.ok) caches.open(CACHE).then((c) => c.put(e.request, res.clone()));
+    caches.match(req).then((cached) => {
+      if (cached) return cached;
+      return fetch(req).then((res) => {
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy));
+        }
         return res;
-      }).catch(() => cached);
-      return cached || fetchP;
+      });
     })
   );
 });
