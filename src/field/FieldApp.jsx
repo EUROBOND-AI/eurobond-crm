@@ -7595,6 +7595,12 @@ function FieldQuotationNew({ prefill }) {
                   ...ed, ...f, customer: f.partyName, mobile: f.contactNumber,
                   items, grade: items[0]?.grade, colour: items[0]?.colour, rate: items[0]?.rate,
                   tc, quoteNo: newNo, baseNo: base, editCount,
+                  /* a re-edited quotation needs fresh approval: send it back to
+                     Pending, stamp today's date on it, and move it to the top of
+                     the admin list (updatedAt) */
+                  status: "Pending", approvedAt: "", approvedBy: "",
+                  createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+                  updatedAt: new Date().toISOString(),
                 });
                 const updMsg = `${CU().name} updated quotation ${newNo}`;
                 const updNote = {

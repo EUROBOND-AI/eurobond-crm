@@ -180,6 +180,10 @@ export default function QuotationAdmin() {
       const vv = String(v || "").toLowerCase();
       if (vv) l = l.filter((r) => String(r[k] ?? "").toLowerCase().includes(vv));
     });
+    /* most-recently edited / approved / created first, so a just-edited
+       quotation jumps to the top of the list */
+    const ts = (r) => Date.parse(r.updatedAt || 0) || 0;
+    l = [...l].sort((a, b) => (ts(b) - ts(a)) || ((b._id || 0) - (a._id || 0)));
     return l;
   }, [scoped, colSearch, applied]);
   const pager = usePager(list, 10, "");
@@ -187,7 +191,7 @@ export default function QuotationAdmin() {
   const approve = async (q) => {
     setBusy(true);
     try {
-      await api.update("quotation", q._id, { ...q, status: "Approved", approvedAt: new Date().toISOString() });
+      await api.update("quotation", q._id, { ...q, status: "Approved", approvedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
       /* notify the field user that admin approved */
       try { await api.create("notification", { title: "Quotation Approved", message: `Your quotation ${q.quoteNo || q.id} has been approved.`, forUser: q.createdById, to: q.createdBy || "", link: "/app/m/quotation", at: new Date().toISOString() }); } catch {}
       load();
@@ -941,6 +945,7 @@ function AdminQuoteForm({ onClose, onSaved }) {
         ...f, items, tc, quoteNo, baseNo: quoteNo, editCount: 0,
         grade: items[0]?.grade, colour: items[0]?.colour, rate: items[0]?.rate, ratePerSqm: items[0]?.ratePerSqm,
         status: "Pending", createdBy: "Admin", createdAt: new Date().toLocaleDateString("en-GB"),
+        updatedAt: new Date().toISOString(),
       });
       onSaved();
     } catch (e) { alert(e.message); setBusy(false); }
