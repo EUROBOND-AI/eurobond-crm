@@ -756,7 +756,7 @@ function downloadQuotePdf(q) {
   const w = window.open("", "_blank");
   const rowsHtml = items.map((it, i) => `<tr>
     <td class="srno">${i + 1}</td>
-    <td class="desc">${tidyProduct(it.grade)}${it.thickness ? `<span class="thk">(${it.thickness})</span>` : ""}${it.fins ? " (Running Feet)" : ""}</td>
+    <td class="desc"><span class="gr">${tidyProduct(it.grade)}</span>${it.thickness ? `<span class="thk">(${it.thickness})</span>` : ""}${it.fins ? " (Running Feet)" : ""}</td>
     <td class="colour">${colourCell(it)}</td>
     <td class="rate">${!it.fins && it.ratePerSqm ? it.ratePerSqm : "—"}</td>
     <td class="rate">${rate2(it.rate)}</td>
@@ -777,10 +777,10 @@ function downloadQuotePdf(q) {
        empty bands reserve the letterhead's header/footer area on EVERY page and
        the text can never sit on top of the letterhead. */
     table.sheet{width:100%;border-collapse:collapse;position:relative;z-index:1}
-    table.sheet>thead>tr>td{height:42mm;border:none;padding:0}
-    table.sheet>tfoot>tr>td{height:34mm;border:none;padding:0}
+    table.sheet>thead>tr>td{height:34mm;border:none;padding:0}
+    table.sheet>tfoot>tr>td{height:30mm;border:none;padding:0}
     table.sheet>tbody>tr>td{border:none;padding:0;vertical-align:top}
-    .content{padding:0 18mm}
+    .content{padding:0 16mm}
     .top{display:flex;justify-content:space-between;align-items:flex-start}
     .qno{font-weight:bold}
     /* the products table; its own header row repeats if the table runs onto a
@@ -788,19 +788,20 @@ function downloadQuotePdf(q) {
     table.items{width:100%;border-collapse:collapse;margin:12px 0}
     table.items thead{display:table-header-group}
     table.items tr{page-break-inside:avoid}
-    table.items td,table.items th{border:1px solid #999;padding:8px 10px;vertical-align:middle;font-family:Arial;font-size:12.5px;color:#1a1a1a}
-    table.items th{background:rgba(240,240,240,.85);text-align:center}
-    td.srno{text-align:center;width:8%}
-    td.desc{text-align:center;width:38%}
-    td.colour{text-align:center;width:22%}
-    td.rate{text-align:center;width:16%}
+    table.items td,table.items th{border:1px solid #999;padding:6px 7px;vertical-align:middle;font-family:Arial;font-size:11.5px;color:#1a1a1a}
+    table.items th{background:rgba(240,240,240,.85);text-align:center;white-space:nowrap}
+    td.srno{text-align:center;width:7%}
+    td.desc{text-align:center;width:57%}
+    td.colour{text-align:center;width:14%}
+    td.rate{text-align:center;width:11%}
     /* terms line up in one column with a clear gap, whatever the label length */
     table.tc{border-collapse:collapse;margin:6px 0 10px;width:100%}
     table.tc td{border:none;padding:3px 0;vertical-align:top;font-size:13px}
     table.tc td.k{width:170px;white-space:nowrap}
     table.tc td.c{width:14px;text-align:center}
     table.tc td.v{padding-left:6px}
-    .thk{display:block;margin-top:2px;font-size:12.5px;color:#1a1a1a}
+    .gr{white-space:nowrap}
+    .thk{white-space:nowrap}
     .sign{margin-top:26px;page-break-inside:avoid}
     h3{margin:6px 0}
     p{margin:8px 0}
@@ -823,7 +824,7 @@ function downloadQuotePdf(q) {
           <div style="margin-top:6px"><b>Sub :-Quotation For Eurobond</b></div>
           <p>Sir,<br>In reference to the discusssion held with you regarding the said subject, we are please to quote our most preferred rates & others terms and condition for the same as follows.</p>
           <table class="items">
-            <thead><tr><th>Sr.No</th><th>Description</th><th>Color Code/Series</th><th>Rate/Sq.Mtr (INR)</th><th>Rate/Sq.Ft (INR)</th></tr></thead>
+            <thead><tr><th>Sr.No</th><th>Description</th><th>Color Code/Series</th><th>Rate/Sq.Mtr</th><th>Rate/Sq.Ft</th></tr></thead>
             <tbody>${rowsHtml}</tbody>
           </table>
           <h3>Terms &amp; Conditions:-</h3>
