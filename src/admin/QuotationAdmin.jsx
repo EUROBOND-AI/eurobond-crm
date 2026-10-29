@@ -766,21 +766,30 @@ function downloadQuotePdf(q) {
   <style>
     @page { size: A4; margin: 0; }
     * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    html, body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    body{font-family:Arial;color:#1a1a1a;font-size:12.5px;margin:0;padding:0}
-    .page{position:relative;width:210mm;min-height:297mm;padding:42mm 18mm 34mm 18mm;}
-    /* a real <img> rather than a CSS background: a background is a print layer
-       that PDF editors drop as soon as the file is edited */
-    .page{position:relative;}
-    .page > .lh{position:absolute;top:0;left:0;width:210mm;height:297mm;z-index:0;}
-    .page > .body{position:relative;z-index:1;}
+    html, body { margin:0; padding:0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    body{font-family:Arial;color:#1a1a1a;font-size:12.5px}
+    /* Letterhead as a position:fixed image: the browser repaints a fixed element
+       on EVERY printed page, so page 2, 3 ... all carry the same letterhead.
+       A real <img> (not a CSS background) also survives when the PDF is edited. */
+    .lh{position:fixed;top:0;left:0;width:210mm;height:297mm;z-index:0;}
+    /* The whole quotation sits inside one table. A table's thead repeats at the
+       TOP of every page and its tfoot at the BOTTOM of every page, so these two
+       empty bands reserve the letterhead's header/footer area on EVERY page and
+       the text can never sit on top of the letterhead. */
+    table.sheet{width:100%;border-collapse:collapse;position:relative;z-index:1}
+    table.sheet>thead>tr>td{height:42mm;border:none;padding:0}
+    table.sheet>tfoot>tr>td{height:34mm;border:none;padding:0}
+    table.sheet>tbody>tr>td{border:none;padding:0;vertical-align:top}
+    .content{padding:0 18mm}
     .top{display:flex;justify-content:space-between;align-items:flex-start}
     .qno{font-weight:bold}
-    table{width:100%;border-collapse:collapse;margin:12px 0}
-    /* exactly the body size — nothing in the products box is set larger than
-       the rest of the page */
-    td,th{border:1px solid #999;padding:8px 10px;vertical-align:middle;font-family:Arial;font-size:12.5px;color:#1a1a1a}
-    th{background:rgba(240,240,240,.85);text-align:center}
+    /* the products table; its own header row repeats if the table runs onto a
+       second page, and a single row is never split across a page break */
+    table.items{width:100%;border-collapse:collapse;margin:12px 0}
+    table.items thead{display:table-header-group}
+    table.items tr{page-break-inside:avoid}
+    table.items td,table.items th{border:1px solid #999;padding:8px 10px;vertical-align:middle;font-family:Arial;font-size:12.5px;color:#1a1a1a}
+    table.items th{background:rgba(240,240,240,.85);text-align:center}
     td.srno{text-align:center;width:8%}
     td.desc{text-align:center;width:38%}
     td.colour{text-align:center;width:22%}
@@ -792,53 +801,56 @@ function downloadQuotePdf(q) {
     table.tc td.c{width:14px;text-align:center}
     table.tc td.v{padding-left:6px}
     .thk{display:block;margin-top:2px;font-size:12.5px;color:#1a1a1a}
-    .tc div{margin:2px 0}
-    .sign{margin-top:26px}
+    .sign{margin-top:26px;page-break-inside:avoid}
     h3{margin:6px 0}
     p{margin:8px 0}
   </style></head><body>
-    <div class="page">
-      <img class="lh" src="${LETTERHEAD}" alt="" />
-      <div class="body">
-      <div class="top">
-        <div><b>DATE: ${q.createdAt || new Date().toLocaleDateString("en-GB")}</b></div>
-        <div class="qno">${q.quoteNo || q.id}</div>
-      </div>
-      <div style="margin-top:14px">
-        <b>To,</b><br>${tidyName(q.partyName || q.customer || "")}<br>${tidyAddress(q.address)}
-      </div>
-      <div style="margin-top:10px">Project Name : ${q.projectName || ""}</div>
-      ${attnBlock({ ...q, contactName: tidyName(q.contactName || "") })}
-      <div style="margin-top:6px"><b>Sub :-Quotation For Eurobond</b></div>
-      <p>Sir,<br>In reference to the discusssion held with you regarding the said subject, we are please to quote our most preferred rates & others terms and condition for the same as follows.</p>
-      <table>
-        <thead><tr><th>Sr.No</th><th>Description</th><th>Color Code/Series</th><th>Rate/Sq.Mtr (INR)</th><th>Rate/Sq.Ft (INR)</th></tr></thead>
-        <tbody>${rowsHtml}</tbody>
-      </table>
-      <h3>Terms &amp; Conditions:-</h3>
-      <table class="tc">
-        ${[
-          ["Taxes", tc.taxes],
-          ["Freight", tc.freight],
-          ["Delivery Time", tc.delivery],
-          ["Payment", tc.payment],
-          ["Validity", tc.validity],
-          ["Billing", tc.billing || "Billing will be in Sq. Mt."],
-          ...(tc.remarks ? [["Remarks", tc.remarks]] : []),
-        ].map(([k, v]) => `<tr><td class="k">${k}</td><td class="c">:</td><td class="v">${v || ""}</td></tr>`).join("")}
-      </table>
-      <p><b>Note : Unloading of the material will in scope of Client.</b></p>
-      <p>Anticipating healthy business relation with your esteemed organization.</p>
-      <div class="sign">
-        <b>Thanks & Regards,</b><br>
-        <b>EURO PANEL PRODUCTS LIMITED</b><br>
-        ${q.createdBy || ""}<br>
-        ${q.createdByDesignation || q.designation || ""}<br>
-        ${q.createdByEmail ? "Email : " + q.createdByEmail + "<br>" : ""}
-        ${q.createdByPhone ? "Mob : " + q.createdByPhone : ""}
-      </div>
-      </div>
-    </div>
+    <img class="lh" src="${LETTERHEAD}" alt="" />
+    <table class="sheet">
+      <thead><tr><td></td></tr></thead>
+      <tfoot><tr><td></td></tr></tfoot>
+      <tbody><tr><td>
+        <div class="content">
+          <div class="top">
+            <div><b>DATE: ${q.createdAt || new Date().toLocaleDateString("en-GB")}</b></div>
+            <div class="qno">${q.quoteNo || q.id}</div>
+          </div>
+          <div style="margin-top:14px">
+            <b>To,</b><br>${tidyName(q.partyName || q.customer || "")}<br>${tidyAddress(q.address)}
+          </div>
+          <div style="margin-top:10px">Project Name : ${q.projectName || ""}</div>
+          ${attnBlock({ ...q, contactName: tidyName(q.contactName || "") })}
+          <div style="margin-top:6px"><b>Sub :-Quotation For Eurobond</b></div>
+          <p>Sir,<br>In reference to the discusssion held with you regarding the said subject, we are please to quote our most preferred rates & others terms and condition for the same as follows.</p>
+          <table class="items">
+            <thead><tr><th>Sr.No</th><th>Description</th><th>Color Code/Series</th><th>Rate/Sq.Mtr (INR)</th><th>Rate/Sq.Ft (INR)</th></tr></thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+          <h3>Terms &amp; Conditions:-</h3>
+          <table class="tc">
+            ${[
+              ["Taxes", tc.taxes],
+              ["Freight", tc.freight],
+              ["Delivery Time", tc.delivery],
+              ["Payment", tc.payment],
+              ["Validity", tc.validity],
+              ["Billing", tc.billing || "Billing will be in Sq. Mt."],
+              ...(tc.remarks ? [["Remarks", tc.remarks]] : []),
+            ].map(([k, v]) => `<tr><td class="k">${k}</td><td class="c">:</td><td class="v">${v || ""}</td></tr>`).join("")}
+          </table>
+          <p><b>Note : Unloading of the material will in scope of Client.</b></p>
+          <p>Anticipating healthy business relation with your esteemed organization.</p>
+          <div class="sign">
+            <b>Thanks & Regards,</b><br>
+            <b>EURO PANEL PRODUCTS LIMITED</b><br>
+            ${q.createdBy || ""}<br>
+            ${q.createdByDesignation || q.designation || ""}<br>
+            ${q.createdByEmail ? "Email : " + q.createdByEmail + "<br>" : ""}
+            ${q.createdByPhone ? "Mob : " + q.createdByPhone : ""}
+          </div>
+        </div>
+      </td></tr></tbody>
+    </table>
   </body></html>`);
   w.document.close();
   setTimeout(() => w.print(), 500);
