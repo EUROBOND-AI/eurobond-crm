@@ -788,7 +788,7 @@ function downloadQuotePdf(q) {
     table.items{width:100%;border-collapse:collapse;margin:12px 0}
     table.items thead{display:table-header-group}
     table.items tr{page-break-inside:avoid}
-    table.items td,table.items th{border:1px solid #999;padding:6px 7px;vertical-align:middle;font-family:Arial;font-size:11.5px;color:#1a1a1a}
+    table.items td,table.items th{border:1px solid #999;padding:7px 9px;vertical-align:middle;font-family:Arial;font-size:12.5px;color:#1a1a1a}
     table.items th{background:rgba(240,240,240,.85);text-align:center;white-space:nowrap}
     td.srno{text-align:center;width:7%}
     td.desc{text-align:center;width:57%}
@@ -801,7 +801,7 @@ function downloadQuotePdf(q) {
     table.tc td.c{width:14px;text-align:center}
     table.tc td.v{padding-left:6px}
     .gr{white-space:nowrap}
-    .thk{white-space:nowrap}
+    .thk{display:block;margin-top:2px;white-space:nowrap}
     .sign{margin-top:26px;page-break-inside:avoid}
     h3{margin:6px 0}
     p{margin:8px 0}
