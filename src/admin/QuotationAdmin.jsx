@@ -767,7 +767,7 @@ function downloadQuotePdf(q) {
     @page { size: A4; margin: 0; }
     * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     html, body { margin:0; padding:0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    body{font-family:Arial;color:#1a1a1a;font-size:12.5px}
+    body{font-family:Arial;color:#1a1a1a;font-size:12.5px;width:210mm;position:relative}
     /* Letterhead as a position:fixed image: the browser repaints a fixed element
        on EVERY printed page, so page 2, 3 ... all carry the same letterhead.
        A real <img> (not a CSS background) also survives when the PDF is edited. */
@@ -803,6 +803,8 @@ function downloadQuotePdf(q) {
     .gr{white-space:nowrap}
     .thk{display:block;margin-top:2px;white-space:nowrap}
     .sign{margin-top:26px;page-break-inside:avoid}
+    /* page number, bottom-right of each page, only shown when 2+ pages (added by the script below) */
+    .pageno{position:absolute;right:16mm;text-align:right;font-size:10.5px;color:#444}
     h3{margin:6px 0}
     p{margin:8px 0}
   </style></head><body>
@@ -852,6 +854,7 @@ function downloadQuotePdf(q) {
         </div>
       </td></tr></tbody>
     </table>
+    <script>(function(){var MM=96/25.4,perPage=(297-34-30)*MM,pageH=297*MM;var c=document.querySelector('.content');if(!c)return;var H=c.scrollHeight;var pages=Math.max(1,Math.ceil((H-2)/perPage));if(pages>1){for(var i=0;i<pages;i++){var d=document.createElement('div');d.className='pageno';d.textContent='Page '+(i+1)+' of '+pages;d.style.top=((i+1)*pageH-14*MM)+'px';document.body.appendChild(d);}}})();<\/script>
   </body></html>`);
   w.document.close();
   setTimeout(() => w.print(), 500);
