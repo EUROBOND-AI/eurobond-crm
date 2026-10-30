@@ -58,7 +58,7 @@ export function onSaving(fn) {
   return () => saveWatchers.delete(fn);
 }
 
-async function req(path, { method = "GET", body, isForm = false } = {}) {
+async function req(path, { method = "GET", body, isForm = false, timeout } = {}) {
   const isWrite = method !== "GET" && !QUIET_WRITES.some((q) => path.includes(q));
   if (isWrite) {
     /* changing something that is already there reads as "Updating…", a new row
@@ -68,13 +68,13 @@ async function req(path, { method = "GET", body, isForm = false } = {}) {
     tellSaveWatchers();
   }
   try {
-    return await reqRaw(path, { method, body, isForm });
+    return await reqRaw(path, { method, body, isForm, timeout });
   } finally {
     if (isWrite) { writesInFlight = Math.max(0, writesInFlight - 1); tellSaveWatchers(); }
   }
 }
 
-async function reqRaw(path, { method = "GET", body, isForm = false } = {}) {
+async function reqRaw(path, { method = "GET", body, isForm = false, timeout } = {}) {
   const headers = {};
   if (auth.token) headers.Authorization = "Bearer " + auth.token;
   let payload;
@@ -98,7 +98,7 @@ async function reqRaw(path, { method = "GET", body, isForm = false } = {}) {
   try {
     /* abort after 25s so the UI never hangs forever (e.g. slow SMTP on OTP send) */
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 25000);
+    const timer = setTimeout(() => ctrl.abort(), timeout || 25000);
     try {
       res = await fetch(API_BASE + path, { method, headers, body: payload, signal: ctrl.signal });
     } finally {
@@ -326,7 +326,7 @@ export const api = {
   sendMail: (payload) => req("/mail.php", { method: "POST", body: payload }),
   /* AI assistant — the Gemini key stays on the server (gemini.php); we only
      send the conversation and get back a reply (+ an optional create proposal) */
-  aiChat: (messages) => req("/gemini.php", { method: "POST", body: { messages } }),
+  aiChat: (messages) => req("/gemini.php", { method: "POST", body: { messages }, timeout: 60000 }),
   /* which mailbox the server actually sends from — the screen used to name one
      in its own text, which then said the wrong address the moment the server's
      mail settings changed */
