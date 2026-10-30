@@ -37,15 +37,39 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
   useEffect(() => { try { localStorage.setItem("eb_ai_lang", lang); } catch {} }, [lang]);
   useEffect(() => { try { localStorage.setItem("eb_ai_voice", voiceOut ? "1" : "0"); } catch {} }, [voiceOut]);
   useEffect(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, [msgs, busy, pending]);
+  /* load TTS voices up front (getVoices is async the first time) */
+  useEffect(() => { if (canTTS) { try { window.speechSynthesis.getVoices(); window.speechSynthesis.onvoiceschanged = () => {}; } catch {} } }, []);
 
   const name = (auth.user && (auth.user.name || auth.user.fullName)) || "";
 
+  /* detect the language of the REPLY from its script, so Telugu is spoken by a
+     Telugu voice (not Hindi), whatever the dropdown is set to */
+  function detectLang(t) {
+    if (/[ఀ-౿]/.test(t)) return "te-IN";  // Telugu
+    if (/[஀-௿]/.test(t)) return "ta-IN";  // Tamil
+    if (/[ಀ-೿]/.test(t)) return "kn-IN";  // Kannada
+    if (/[ऀ-ॿ]/.test(t)) return "hi-IN";  // Devanagari (Hindi / Marathi)
+    return lang || "en-IN";
+  }
+  function pickVoice(code) {
+    try {
+      const vs = window.speechSynthesis.getVoices() || [];
+      const base = code.split("-")[0];
+      return vs.find((v) => v.lang === code) || vs.find((v) => v.lang && v.lang.replace("_", "-").startsWith(base)) || null;
+    } catch { return null; }
+  }
   function speak(text) {
     if (!voiceOut || !canTTS || !text) return;
     try {
       window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = lang;
+      /* strip markdown (**bold**, #, `code`) so the whole sentence is read, not just digits */
+      const clean = String(text).replace(/[*_#`>~]/g, "").replace(/\s+/g, " ").trim();
+      const code = detectLang(clean);
+      const u = new SpeechSynthesisUtterance(clean);
+      u.lang = code;
+      const v = pickVoice(code);
+      if (v) u.voice = v;
+      u.rate = 1; u.pitch = 1;
       window.speechSynthesis.speak(u);
     } catch {}
   }
@@ -103,6 +127,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
     } catch { setListening(false); }
   }
 
+  const mdClean = (t) => String(t).replace(/\*\*(.*?)\*\*/g, "$1").replace(/[*_`#>~]/g, "");
   const prettyFields = (f) => Object.entries(f || {}).filter(([, v]) => v !== "" && v != null)
     .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`);
 
@@ -150,7 +175,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
               {msgs.map((m, i) => (
                 m.role === "note"
                   ? <div key={i} style={note}>{m.text}</div>
-                  : <div key={i} style={m.role === "user" ? bubbleU : bubbleM}>{m.text}</div>
+                  : <div key={i} style={m.role === "user" ? bubbleU : bubbleM}>{m.role === "model" ? mdClean(m.text) : m.text}</div>
               ))}
 
               {pending && (
