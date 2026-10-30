@@ -9,7 +9,18 @@
    Place once in the app shell and once in the admin shell.                 */
 import React, { useEffect, useRef, useState } from "react";
 import { api, auth } from "../lib/api.js";
-import eubotImg from "../assets/eubot.png";
+import eubotOrb from "../assets/eubot_orb.png";
+import eubotLogo from "../assets/eubot_logo.png";
+
+/* EUBOT mark: the glowing orb turns slowly and breathes, the logo stays still */
+function EubotIcon({ size = 40 }) {
+  return (
+    <span style={{ position: "relative", display: "inline-block", width: size, height: size, flexShrink: 0, animation: "eubotpulse 3.2s ease-in-out infinite alternate" }}>
+      <img src={eubotOrb} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", animation: "eubotspin 14s linear infinite" }} />
+      <img src={eubotLogo} alt="EUBOT" style={{ position: "absolute", left: "50%", top: "50%", width: "23.5%", transform: "translate(-50%,-50%)", filter: "drop-shadow(0 1px 2px rgba(0,0,0,.6))" }} />
+    </span>
+  );
+}
 
 /* clean line icons (no emoji) */
 const Icon = {
@@ -160,17 +171,17 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
 
   return (
     <>
-      <style>{`@keyframes eubotwave{0%,100%{height:5px}50%{height:18px}}`}</style>
+      <style>{`@keyframes eubotwave{0%,100%{height:5px}50%{height:18px}}@keyframes eubotspin{to{transform:rotate(360deg)}}@keyframes eubotpulse{from{transform:scale(.96)}to{transform:scale(1.05)}}@media (prefers-reduced-motion:reduce){[style*="eubotspin"],[style*="eubotpulse"]{animation:none!important}}`}</style>
       {!open && (
         <button style={fab} title="EUBOT — AI Assistant" onClick={() => setOpen(true)}>
-          <img src={eubotImg} alt="EUBOT" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+          <EubotIcon size={66} />
         </button>
       )}
       {open && (
         <div style={mask} onClick={() => setOpen(false)}>
           <div style={panel} onClick={(e) => e.stopPropagation()}>
             <div style={head}>
-              <img src={eubotImg} alt="" style={{ width: 38, height: 38, objectFit: "contain", display: "block" }} />
+              <EubotIcon size={38} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 800, fontSize: 16, letterSpacing: .5 }}>EUBOT</div>
                 <div style={{ fontSize: 11, opacity: .85 }}>{name ? "Hi " + name.split(" ")[0] + " · " : ""}ask or speak</div>
@@ -185,7 +196,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
             <div style={body} ref={listRef}>
               {msgs.length === 0 && (
                 <div style={{ color: "#6b7694", fontSize: 13.5, textAlign: "center", margin: "auto", padding: 16, lineHeight: 1.6 }}>
-                  <img src={eubotImg} alt="" style={{ width: 80, height: 80, objectFit: "contain", marginBottom: 10 }} />
+                  <div style={{ marginBottom: 10 }}><EubotIcon size={80} /></div>
                   <div style={{ fontWeight: 800, color: "#2a3450", fontSize: 15, marginBottom: 4 }}>Hi, I'm EUBOT</div>
                   Ask me anything — find a customer, show your tasks, add a new enquiry, or “how do I…”.<br />
                   <span style={{ fontSize: 12, opacity: .8 }}>Tap the mic to talk.</span>
