@@ -10,14 +10,36 @@
 import React, { useEffect, useRef, useState } from "react";
 import { api, auth } from "../lib/api.js";
 import eubotOrb from "../assets/eubot_orb.png";
+import eubotDisc from "../assets/eubot_disc.png";
 import eubotLogo from "../assets/eubot_logo.png";
 
-/* EUBOT mark: the glowing orb turns slowly and breathes, the logo stays still */
+/* EUBOT mark.
+   Bottom: the colour smoke — turned slowly AND pushed through a moving noise
+   field (feTurbulence + feDisplacementMap), so its edges swell and ripple up and
+   down like real smoke instead of just spinning.
+   Middle: the dark disc and white ring, kept a clean circle.
+   Top: the Eurobond logo, steady. */
 function EubotIcon({ size = 40 }) {
+  const fid = "ebw" + React.useId().replace(/[^a-zA-Z0-9]/g, "");
+  const spin = (s, rev) => ({ transformBox: "view-box", transformOrigin: "128px 128px", animation: `eubotspin ${s}s linear infinite${rev ? " reverse" : ""}` });
   return (
     <span style={{ position: "relative", display: "inline-block", width: size, height: size, flexShrink: 0, animation: "eubotpulse 3.2s ease-in-out infinite alternate" }}>
-      <img src={eubotOrb} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", animation: "eubotspin 14s linear infinite" }} />
-      <img src={eubotLogo} alt="EUBOT" style={{ position: "absolute", left: "50%", top: "50%", width: "23.5%", transform: "translate(-50%,-50%)", filter: "drop-shadow(0 1px 2px rgba(0,0,0,.6))" }} />
+      <svg viewBox="0 0 256 256" width={size} height={size} style={{ display: "block", overflow: "visible" }} aria-label="EUBOT">
+        <defs>
+          <filter id={fid} x="-30%" y="-30%" width="160%" height="160%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.009" numOctaves="1" seed="7" result="n">
+              <animate attributeName="baseFrequency" dur="6s" values="0.006;0.013;0.006" repeatCount="indefinite" />
+            </feTurbulence>
+            <feDisplacementMap in="SourceGraphic" in2="n" scale="34" xChannelSelector="R" yChannelSelector="G" result="d" />
+            <feGaussianBlur in="d" stdDeviation="2.5" />
+          </filter>
+        </defs>
+        <g filter={`url(#${fid})`}>
+          <g style={spin(16)}><image href={eubotOrb} width="256" height="256" /></g>
+        </g>
+        <g style={spin(40, true)}><image href={eubotDisc} width="256" height="256" /></g>
+        <image href={eubotLogo} x="98" y="93.5" width="60" height="69" />
+      </svg>
     </span>
   );
 }
