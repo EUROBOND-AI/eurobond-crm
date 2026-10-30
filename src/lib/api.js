@@ -324,6 +324,9 @@ export const api = {
 
   /* ---------- Customers (from follow-ups) ---------- */
   sendMail: (payload) => req("/mail.php", { method: "POST", body: payload }),
+  /* AI assistant — the Gemini key stays on the server (gemini.php); we only
+     send the conversation and get back a reply (+ an optional create proposal) */
+  aiChat: (messages) => req("/gemini.php", { method: "POST", body: { messages } }),
   /* which mailbox the server actually sends from — the screen used to name one
      in its own text, which then said the wrong address the moment the server's
      mail settings changed */

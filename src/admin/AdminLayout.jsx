@@ -6,6 +6,7 @@ import {
   BarChart3, Boxes, LifeBuoy, BellRing, ChevronDown, LogOut,
 } from "lucide-react";
 import { FooterNote } from "../components/ui.jsx";
+import ChatAssistant from "../components/ChatAssistant.jsx";
 import { auth, api, API_BASE } from "../lib/api.js";
 import { MODULES } from "./moduleConfigs.jsx";
 import { loadPerms, canView } from "../lib/perms.js";
@@ -311,6 +312,7 @@ export default function AdminLayout() {
   return (
     <div className="admin-shell">
       <BgTaskBadge />
+      <ChatAssistant accent="#1b3a8f" />
       <aside className="sidebar">
         <div className="brand" style={{ padding: "14px 14px 10px" }}>
           <span style={{ background: "#fff", borderRadius: 10, padding: "7px 10px", display: "inline-block" }}>

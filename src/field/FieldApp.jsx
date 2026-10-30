@@ -15,6 +15,7 @@ import { api, auth, API_BASE, clearApiCache, myStates, areasForMyStates } from "
 import { Avatar, fileUrl } from "../lib/avatar.jsx";
 import BeatPlan, { BeatPlanConfirm } from "./BeatPlan.jsx";
 import ErrorBoundary from "../components/ErrorBoundary.jsx";
+import ChatAssistant from "../components/ChatAssistant.jsx";
 import MeetingCalendar from "./MeetingCalendar.jsx";
 import BiltraxList from "./BiltraxList.jsx";
 import { buildExpensePdf } from "../lib/expensePdf.js";
@@ -9539,6 +9540,7 @@ export default function FieldApp() {
         </div>
 
         <MenuDrawer open={menu} close={() => setMenu(false)} />
+        <ChatAssistant accent="#1b3a8f" bottom={78} />
         {/* first open of the day only */}
         <BirthdayGreeter />
         {overlayWarn && (
