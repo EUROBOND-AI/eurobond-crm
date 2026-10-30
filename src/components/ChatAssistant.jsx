@@ -9,7 +9,7 @@
    Place once in the app shell and once in the admin shell.                 */
 import React, { useEffect, useRef, useState } from "react";
 import { api, auth } from "../lib/api.js";
-import hexLogo from "../assets/hexlogo.png";
+import eubotImg from "../assets/eubot.png";
 
 /* clean line icons (no emoji) */
 const Icon = {
@@ -147,7 +147,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
     .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`);
 
   /* ----- styles ----- */
-  const fab = { position: "fixed", right: 18, bottom: bottom, width: 58, height: 58, borderRadius: "50%", background: "#fff", border: "1.5px solid #e4e8f3", boxShadow: "0 10px 26px rgba(20,25,60,.28)", cursor: "pointer", zIndex: 9998, display: "grid", placeItems: "center", padding: 0 };
+  const fab = { position: "fixed", right: 18, bottom: bottom, width: 62, height: 62, borderRadius: "50%", background: "#000", border: "none", boxShadow: "0 10px 28px rgba(60,40,160,.45)", cursor: "pointer", zIndex: 9998, padding: 0, overflow: "hidden" };
   const mask = { position: "fixed", inset: 0, background: "rgba(10,16,40,.35)", zIndex: 9999, display: "flex", justifyContent: "flex-end", alignItems: "flex-end" };
   const panel = { width: "min(420px, 100vw)", height: "min(620px, 90vh)", background: "#fff", borderTopLeftRadius: 16, borderTopRightRadius: 16, display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 -8px 40px rgba(10,16,40,.35)" };
   const head = { background: accent, color: "#fff", padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 };
@@ -163,16 +163,14 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
       <style>{`@keyframes eubotwave{0%,100%{height:5px}50%{height:18px}}`}</style>
       {!open && (
         <button style={fab} title="EUBOT — AI Assistant" onClick={() => setOpen(true)}>
-          <img src={hexLogo} alt="EUBOT" style={{ width: 34, height: 34, objectFit: "contain", display: "block" }} />
+          <img src={eubotImg} alt="EUBOT" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
         </button>
       )}
       {open && (
         <div style={mask} onClick={() => setOpen(false)}>
           <div style={panel} onClick={(e) => e.stopPropagation()}>
             <div style={head}>
-              <span style={{ background: "#fff", borderRadius: 9, padding: 4, display: "inline-flex" }}>
-                <img src={hexLogo} alt="" style={{ width: 24, height: 24, objectFit: "contain", display: "block" }} />
-              </span>
+              <img src={eubotImg} alt="" style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover", display: "block", background: "#000" }} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 800, fontSize: 16, letterSpacing: .5 }}>EUBOT</div>
                 <div style={{ fontSize: 11, opacity: .85 }}>{name ? "Hi " + name.split(" ")[0] + " · " : ""}ask or speak</div>
@@ -187,7 +185,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
             <div style={body} ref={listRef}>
               {msgs.length === 0 && (
                 <div style={{ color: "#6b7694", fontSize: 13.5, textAlign: "center", margin: "auto", padding: 16, lineHeight: 1.6 }}>
-                  <img src={hexLogo} alt="" style={{ width: 46, height: 46, objectFit: "contain", marginBottom: 10, opacity: .9 }} />
+                  <img src={eubotImg} alt="" style={{ width: 72, height: 72, borderRadius: "50%", objectFit: "cover", marginBottom: 10, background: "#000" }} />
                   <div style={{ fontWeight: 800, color: "#2a3450", fontSize: 15, marginBottom: 4 }}>Hi, I'm EUBOT</div>
                   Ask me anything — find a customer, show your tasks, add a new enquiry, or “how do I…”.<br />
                   <span style={{ fontSize: 12, opacity: .8 }}>Tap the mic to talk.</span>
