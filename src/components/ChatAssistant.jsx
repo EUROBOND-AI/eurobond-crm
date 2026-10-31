@@ -13,7 +13,7 @@ import eubotOrb from "../assets/eubot_orb.png";
 import eubotDisc from "../assets/eubot_disc.png";
 import eubotLogo from "../assets/eubot_logo.png";
 
-/* EUBOT mark.
+/* EUVA mark.
    Bottom: the colour smoke — turned slowly AND pushed through a moving noise
    field (feTurbulence + feDisplacementMap), so its edges swell and ripple up and
    down like real smoke instead of just spinning.
@@ -24,7 +24,7 @@ function EubotIcon({ size = 40 }) {
   const spin = (s, rev) => ({ transformBox: "view-box", transformOrigin: "128px 128px", animation: `eubotspin ${s}s linear infinite${rev ? " reverse" : ""}` });
   return (
     <span style={{ position: "relative", display: "inline-block", width: size, height: size, flexShrink: 0, animation: "eubotpulse 3.2s ease-in-out infinite alternate" }}>
-      <svg viewBox="0 0 256 256" width={size} height={size} style={{ display: "block", overflow: "visible" }} aria-label="EUBOT">
+      <svg viewBox="0 0 256 256" width={size} height={size} style={{ display: "block", overflow: "visible" }} aria-label="EUVA">
         <defs>
           <filter id={fid} x="-30%" y="-30%" width="160%" height="160%">
             <feTurbulence type="fractalNoise" baseFrequency="0.009" numOctaves="1" seed="7" result="n">
@@ -188,9 +188,13 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
     } catch {}
   }
 
-  async function send(text) {
+  /* Typed question -> text reply (no voice). Spoken question -> the answer is
+     read aloud. So "chat" stays chat and "talk" talks back. The speaker toggle
+     can still force voice for typed questions if someone turns it on. */
+  async function send(text, spoken = false) {
     const t = (text ?? input).trim();
     if (!t || busy) return;
+    stopSpeaking();                       // any running reply stops the moment a new one starts
     const history = [...msgs.filter((m) => m.role === "user" || m.role === "model"), { role: "user", text: t }];
     setMsgs((m) => [...m, { role: "user", text: t }]);
     setInput("");
@@ -201,7 +205,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
       const reply = (d && d.reply) || "…";
       setMsgs((m) => [...m, { role: "model", text: reply }]);
       if (d && d.action && (d.action.type === "create" || d.action.type === "update")) setPending(d.action);
-      speak(reply);
+      if (spoken || voiceOut) speak(reply);
     } catch (e) {
       setMsgs((m) => [...m, { role: "model", text: "Sorry — couldn't reach the assistant. " + (e.message || "") }]);
     }
@@ -221,7 +225,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
     });
   }
 
-  /* Save what EUBOT prepared — only ever on the user's tap.
+  /* Save what EUVA prepared — only ever on the user's tap.
      create → a new record; update → read the record fresh, apply the change
      (set fields, append to a list) and write it back, so nothing typed on
      another screen in the meantime is lost. Then the same follow-ups the
@@ -276,16 +280,17 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
       if (av && av.available === false) { setMsgs((m) => [...m, { role: "note", text: "Voice input isn't available on this phone — please install/enable Google voice typing, or type instead." }]); return; }
       let perm = await P.checkPermissions().catch(() => null);
       if (!perm || perm.speechRecognition !== "granted") perm = await P.requestPermissions().catch(() => null);
-      if (!perm || perm.speechRecognition !== "granted") { setMsgs((m) => [...m, { role: "note", text: "Please allow the microphone for Eurobond CRM to talk to EUBOT." }]); return; }
+      if (!perm || perm.speechRecognition !== "granted") { setMsgs((m) => [...m, { role: "note", text: "Please allow the microphone for Eurobond CRM to talk to EUVA." }]); return; }
       setListening(true);
-      const res = await P.start({ language: lang, maxResults: 1, prompt: "Speak to EUBOT…", partialResults: false, popup: false });
+      const res = await P.start({ language: lang, maxResults: 1, prompt: "Speak to EUVA…", partialResults: false, popup: false });
       setListening(false);
       const said = res && Array.isArray(res.matches) ? res.matches[0] : "";
-      if (said) send(said);
+      if (said) send(said, true);
     } catch { setListening(false); }
   }
 
   function toggleMic() {
+    stopSpeaking();                       // tapping the mic silences the current reply at once
     const P = capPlug("SpeechRecognition");
     if (P) { nativeMic(P); return; }
     if (!SR) { setMsgs((m) => [...m, { role: "note", text: "Voice input isn't available on this device — you can type instead." }]); return; }
@@ -300,7 +305,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
       rec.onresult = (e) => {
         const said = e.results[0][0].transcript;
         setListening(false);
-        if (said) send(said);
+        if (said) send(said, true);
       };
       rec.start();
     } catch { setListening(false); }
@@ -325,12 +330,13 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
     .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`);
 
   /* ----- styles ----- */
-  const gap = bottom || 16;
-  const leftSide = ((pos ? pos.x : 14) + FABSZ / 2) < (typeof window !== "undefined" ? window.innerWidth : 400) / 2;
   const fab = { position: "fixed", left: pos ? pos.x : 14, top: pos ? pos.y : undefined, width: FABSZ, height: FABSZ, background: "transparent", border: "none", cursor: "grab", touchAction: "none", zIndex: 9998, padding: 0, filter: "drop-shadow(0 6px 14px rgba(70,40,170,.35))" };
-  /* a floating card, NOT a full-screen cover — the app behind it (the bottom
-     Home / Attendance / Target / Profile bar and every screen) stays usable. */
-  const panel = { position: "fixed", bottom: gap, [leftSide ? "left" : "right"]: 10, width: "min(400px, calc(100vw - 20px))", height: "min(70vh, 560px)", background: "#fff", borderRadius: 16, display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 14px 50px rgba(10,16,40,.4)", border: "1px solid rgba(20,30,70,.08)", zIndex: 9998 };
+  /* APP: full screen, but it stops just above the bottom Home / Attendance /
+     Target / Profile bar so that bar stays visible and tappable underneath.
+     ADMIN: a tall panel down the right edge. */
+  const panel = surface === "app"
+    ? { position: "fixed", top: 0, left: 0, right: 0, bottom: "var(--f-nav-total, 56px)", background: "#fff", display: "flex", flexDirection: "column", overflow: "hidden", zIndex: 9997 }
+    : { position: "fixed", top: 0, right: 0, bottom: 0, width: "min(440px, 100vw)", background: "#fff", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "-10px 0 48px rgba(10,16,40,.28)", zIndex: 9997 };
   const head = { background: accent, color: "#fff", padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 };
   const body = { flex: 1, overflowY: "auto", padding: 14, background: "#f6f8fd", display: "flex", flexDirection: "column", gap: 10 };
   const bubbleU = { alignSelf: "flex-end", background: accent, color: "#fff", padding: "8px 12px", borderRadius: "14px 14px 3px 14px", maxWidth: "82%", fontSize: 14, lineHeight: 1.45, whiteSpace: "pre-wrap" };
@@ -343,7 +349,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
     <>
       <style>{`@keyframes eubotwave{0%,100%{height:5px}50%{height:18px}}@keyframes eubotspin{to{transform:rotate(360deg)}}@keyframes eubotpulse{from{transform:scale(.96)}to{transform:scale(1.05)}}@media (prefers-reduced-motion:reduce){[style*="eubotspin"],[style*="eubotpulse"]{animation:none!important}}`}</style>
       {!open && pos && (
-        <button style={fab} title="EUBOT — drag to move, tap to chat" aria-label="EUBOT" onPointerDown={onFabDown}>
+        <button style={fab} title="EUVA — drag to move, tap to chat" aria-label="EUVA" onPointerDown={onFabDown}>
           <EubotIcon size={FABSZ} />
         </button>
       )}
@@ -352,7 +358,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
             <div style={head}>
               <EubotIcon size={36} />
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 800, fontSize: 16, letterSpacing: .5 }}>EUBOT</div>
+                <div style={{ fontWeight: 800, fontSize: 16, letterSpacing: .5 }}>EUVA</div>
                 <div style={{ fontSize: 11, opacity: .85 }}>{name ? "Hi " + name.split(" ")[0] + " · " : ""}ask or speak</div>
               </div>
               <select value={lang} onChange={(e) => setLang(e.target.value)} title="Language"
@@ -366,8 +372,9 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
               {msgs.length === 0 && (
                 <div style={{ color: "#6b7694", fontSize: 13.5, textAlign: "center", margin: "auto", padding: 16, lineHeight: 1.6 }}>
                   <div style={{ marginBottom: 10 }}><EubotIcon size={80} /></div>
-                  <div style={{ fontWeight: 800, color: "#2a3450", fontSize: 15, marginBottom: 4 }}>Hi, I'm EUBOT</div>
-                  Ask me anything, in any language — I can find, calculate, explain any screen, give product & contact details, and make entries for you.<br />
+                  <div style={{ fontWeight: 800, color: "#2a3450", fontSize: 16, marginBottom: 6 }}>Meet EUVA</div>
+                  <div style={{ fontWeight: 700, color: "#5a6482", fontSize: 13, marginBottom: 6 }}>Your Smart Digital Assistant by Eurobond ACP</div>
+                  Aap poochhiye, EUVA batayegi! Ask me anything, in any language — I can find, calculate, explain any screen, give product &amp; contact details, and make entries for you.<br />
                   <span style={{ fontSize: 12, opacity: .8 }}>Tap the mic to talk.</span>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", marginTop: 14 }}>
                     {(isAdminUser ? SUGGEST_ADMIN : SUGGEST_APP).map((s) => (

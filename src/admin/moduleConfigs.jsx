@@ -398,11 +398,11 @@ export const MODULES = {
     ],
   },
 
-  /* AI Training — EUBOT's knowledge base. Admin pastes product write-ups,
-     policies, technical notes, FAQs or PDF text here; EUBOT answers from it.
-     Nothing in code changes — add matter here and it reflects in EUBOT at once. */
+  /* AI Training — EUVA's knowledge base. Admin pastes product write-ups,
+     policies, technical notes, FAQs or PDF text here; EUVA answers from it.
+     Nothing in code changes — add matter here and it reflects in EUVA at once. */
   aiTraining: {
-    path: "master/ai-training", title: "AI Training (EUBOT Knowledge)", crumb: "AI Training", addLabel: "Add Knowledge",
+    path: "master/ai-training", title: "AI Training (EUVA Knowledge)", crumb: "AI Training", addLabel: "Add Knowledge",
     idPrefix: "AIT",
     tabs: [{ key: "Active", label: "Active" }, { key: "Inactive", label: "Inactive" }],
     tabField: "status",
@@ -417,7 +417,7 @@ export const MODULES = {
       { name: "title", label: "Title (what this is about)", required: true, full: true },
       { name: "topic", label: "Topic / Category (e.g. Product, Policy, Warranty, Technical)" },
       { name: "pdfText", label: "Read a PDF (optional — its text is pulled into Matter below)", type: "pdfextract", target: "content", full: true },
-      { name: "content", label: "Matter (paste the information EUBOT should learn — or it fills from the PDF)", type: "textarea", required: true, full: true },
+      { name: "content", label: "Matter (paste the information EUVA should learn — or it fills from the PDF)", type: "textarea", required: true, full: true },
       { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] },
     ],
   },

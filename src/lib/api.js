@@ -44,7 +44,7 @@ const QUIET_WRITES = [
   "whatsapp",
   "indiamart.php",
   "mail.php",
-  /* logging in and talking to EUBOT are POST requests, but they are not a
+  /* logging in and talking to EUVA are POST requests, but they are not a
      "save" — each has its own loader (the login button, the chat "…"), so the
      full-screen "Saving…" badge must not cover the screen for them. */
   "/auth.php?action=login",
@@ -52,6 +52,9 @@ const QUIET_WRITES = [
   "/auth.php?action=send_otp",
   "/auth.php?action=verify_otp",
   "gemini.php",
+  /* opening a screen quietly records which screen was visited — that is not a
+     save, so it must not flash "Saving…" over a page that is only loading. */
+  "/activity.php?action=log",
 ];
 let writesInFlight = 0;
 let writeWord = "Saving";

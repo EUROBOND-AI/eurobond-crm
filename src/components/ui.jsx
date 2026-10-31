@@ -385,7 +385,7 @@ export function LongText({ text, at = 40 }) {
 
 
 /* Pull the text out of a PDF in the browser (no server, no upload) and hand it
-   to the form, so EUBOT can learn from a document the admin already has.
+   to the form, so EUVA can learn from a document the admin already has.
    pdf.js is loaded only when a PDF is actually chosen. */
 export function PdfExtract({ onText, onStart, onError, busy }) {
   const [name, setName] = useState("");
