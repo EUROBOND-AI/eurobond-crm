@@ -339,6 +339,7 @@ export const api = {
      send the conversation and get back a reply (+ an optional create proposal) */
   aiChat: (messages, chatId) => req("/gemini.php", { method: "POST", body: { messages, chatId: String(chatId || "") }, timeout: 60000 }),
   euvaDeleteChat: (chatId) => req("/gemini.php?action=delete_chat", { method: "POST", body: { chatId: String(chatId || "") } }),
+  euvaMyChats: () => req("/gemini.php?action=my_chats"),
   /* which mailbox the server actually sends from — the screen used to name one
      in its own text, which then said the wrong address the moment the server's
      mail settings changed */

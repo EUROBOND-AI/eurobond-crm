@@ -125,7 +125,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
     setPos(side === "right" ? { x: W - FABSZ - 14, y: H - FABSZ - gap - 44 } : { x: 14, y: H - FABSZ - gap - 44 });
   }, []);
   useEffect(() => { if (pos) { try { localStorage.setItem("eb_eubot_pos_" + surface, JSON.stringify(pos)); } catch {} } }, [pos]);
-  const clampPos = (x, y) => { const W = window.innerWidth, H = window.innerHeight; return { x: Math.max(-Math.round(FABSZ * 0.5), Math.min(W - Math.round(FABSZ * 0.5), x)), y: Math.max(64, Math.min(H - FABSZ - 10, y)) }; };
+  const clampPos = (x, y) => { const W = window.innerWidth, H = window.innerHeight; return { x: Math.max(-Math.round(FABSZ * 0.74), Math.min(W - Math.round(FABSZ * 0.26), x)), y: Math.max(64, Math.min(H - FABSZ - 10, y)) }; };
   function onFabDown(e) {
     const cur = pos || { x: 14, y: window.innerHeight - 120 };
     drag.current = { active: true, moved: false, sx: e.clientX, sy: e.clientY, ox: cur.x, oy: cur.y };
@@ -150,8 +150,8 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
     setPos((p) => {
       const W = window.innerWidth;
       let x;
-      if (p.x < 24) x = -Math.round(FABSZ * 0.42);
-      else if (p.x > W - FABSZ - 24) x = W - Math.round(FABSZ * 0.58);
+      if (p.x < 28) x = -Math.round(FABSZ * 0.66);
+      else if (p.x > W - FABSZ - 28) x = W - Math.round(FABSZ * 0.34);
       else x = (p.x + FABSZ / 2) < W / 2 ? 14 : W - FABSZ - 14;
       return clampPos(x, p.y);
     });
@@ -185,6 +185,27 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
   const loc = useLocation();
   const firstLoc = useRef(true);
   useEffect(() => { if (firstLoc.current) { firstLoc.current = false; return; } setOpen(false); stopSpeaking(); }, [loc.pathname]);
+  /* when the panel opens, drop from the on-phone list any chat the admin has
+     deleted on the server (a chat with a reply that the server no longer has). */
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    (async () => {
+      try {
+        const d = await api.euvaMyChats();
+        if (!alive || !d || !d.ok || !Array.isArray(d.chatIds)) return;
+        const keep = new Set(d.chatIds.map(String));
+        setChats((prev) => {
+          const next = prev.filter((c) => {
+            const hasReply = Array.isArray(c.msgs) && c.msgs.some((m) => m.role === "model");
+            return hasReply ? keep.has(String(c.id)) : true;
+          });
+          saveChats(next); return next;
+        });
+      } catch {}
+    })();
+    return () => { alive = false; };
+  }, [open]);
 
   const name = (auth.user && (auth.user.name || auth.user.fullName)) || "";
   const isAdminUser = !!(auth.user && (auth.user.owner || /admin/i.test(String(auth.user.role || ""))));
@@ -429,7 +450,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
               </select>
               <button style={hBtn} title="New chat" onClick={newChat}>{Icon.newchat("#fff")}</button>
               <button style={hBtn} title="Recent chats" onClick={() => setShowHist((v) => !v)}>{Icon.hist("#fff")}</button>
-              <button style={hBtn} title="Minimise (keeps the chat)" onClick={() => { setOpen(false); stopSpeaking(); }}>{Icon.min("#fff")}</button>
+              <button style={hBtn} title="Close (your chat is kept)" onClick={() => { setOpen(false); stopSpeaking(); }}>{Icon.close("#fff")}</button>
             </div>
 
             {showHist && (
@@ -437,13 +458,10 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
                 <div style={{ fontWeight: 800, color: "#2a3450", fontSize: 13, margin: "2px 4px 10px" }}>Recent chats · last 7 days</div>
                 {chats.length === 0 && <div style={{ color: "#8b93a7", fontSize: 13, textAlign: "center", padding: 24 }}>No saved chats yet.</div>}
                 {chats.map((c) => (
-                  <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                    <button onClick={() => openChat(c)} style={{ flex: 1, minWidth: 0, textAlign: "left", border: "1px solid #e2e7f3", background: c.id === activeId ? "#eef3ff" : "#fff", borderRadius: 10, padding: "9px 12px", cursor: "pointer" }}>
-                      <div style={{ fontWeight: 700, fontSize: 13, color: "#2a3450", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.title}</div>
-                      <div style={{ fontSize: 11, color: "#8b93a7" }}>{new Date(c.at).toLocaleString("en-IN")}</div>
-                    </button>
-                    <button onClick={() => deleteChat(c.id)} title="Delete this chat (also from admin)" style={{ border: "none", background: "#fdecec", color: "#c0392b", borderRadius: 9, width: 36, height: 36, cursor: "pointer", flexShrink: 0, display: "grid", placeItems: "center" }}>{Icon.trash("#c0392b")}</button>
-                  </div>
+                  <button key={c.id} onClick={() => openChat(c)} style={{ display: "block", width: "100%", textAlign: "left", border: "1px solid #e2e7f3", background: c.id === activeId ? "#eef3ff" : "#fff", borderRadius: 10, padding: "9px 12px", marginBottom: 8, cursor: "pointer" }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "#2a3450", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.title}</div>
+                    <div style={{ fontSize: 11, color: "#8b93a7" }}>{new Date(c.at).toLocaleString("en-IN")}</div>
+                  </button>
                 ))}
                 <div style={{ fontSize: 11, color: "#9aa3bd", textAlign: "center", marginTop: 8 }}>Chats older than 7 days are cleared on this phone.</div>
               </div>
