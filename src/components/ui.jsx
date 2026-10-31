@@ -290,6 +290,11 @@ export function FormModal({ title, fields, onClose, onSave, initial }) {
                 <MultiFiles value={values[f.name]} onChange={(list) => setValues({ ...values, [f.name]: list })} />
               ) : f.type === "textarea" ? (
                 <textarea rows={3} value={values[f.name] || ""} onChange={(e) => setValues({ ...values, [f.name]: e.target.value })} />
+              ) : f.type === "pdfextract" ? (
+                <PdfExtract busy={upBusy === f.name}
+                  onStart={() => setUpBusy(f.name)}
+                  onText={(txt) => { setUpBusy(""); setValues((v) => ({ ...v, [f.target || "content"]: ((v[f.target || "content"] || "").trim() ? (v[f.target || "content"] + "\n\n") : "") + txt })); }}
+                  onError={(m) => { setUpBusy(""); alert(m); }} />
               ) : f.type === "file" ? (
                 <div>
                   <input type="file" onChange={(e) => uploadFile(f.name, e.target.files[0])} />
@@ -375,5 +380,46 @@ export function LongText({ text, at = 40 }) {
         {open ? "less" : "read more"}
       </span>
     </span>
+  );
+}
+
+
+/* Pull the text out of a PDF in the browser (no server, no upload) and hand it
+   to the form, so EUBOT can learn from a document the admin already has.
+   pdf.js is loaded only when a PDF is actually chosen. */
+export function PdfExtract({ onText, onStart, onError, busy }) {
+  const [name, setName] = useState("");
+  const [pct, setPct] = useState(0);
+  const pick = async (file) => {
+    if (!file) return;
+    if (!/\.pdf$/i.test(file.name)) { onError && onError("Please choose a PDF file."); return; }
+    setName(file.name); setPct(0); onStart && onStart();
+    try {
+      const pdfjs = await import("pdfjs-dist");
+      const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
+      pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+      const buf = await file.arrayBuffer();
+      const doc = await pdfjs.getDocument({ data: buf }).promise;
+      let out = "";
+      for (let i = 1; i <= doc.numPages; i++) {
+        const page = await doc.getPage(i);
+        const tc = await page.getTextContent();
+        const line = tc.items.map((it) => it.str).join(" ").replace(/\s+/g, " ").trim();
+        if (line) out += line + "\n";
+        setPct(Math.round((i / doc.numPages) * 100));
+      }
+      out = out.trim();
+      if (!out) { onError && onError("No readable text in this PDF (it may be a scan/image). Please type the matter instead."); return; }
+      onText && onText(out);
+    } catch (e) {
+      onError && onError("Could not read the PDF: " + (e.message || "error") + ". You can type the matter instead.");
+    }
+  };
+  return (
+    <div>
+      <input type="file" accept="application/pdf,.pdf" onChange={(e) => pick(e.target.files[0])} disabled={busy} />
+      {busy && <span style={{ fontSize: 12, color: "var(--muted)" }}> Reading {name}… {pct}%</span>}
+      {!busy && name && <span style={{ fontSize: 12, color: "#1f9d55" }}> ✓ Text added to Matter — review it below</span>}
+    </div>
   );
 }

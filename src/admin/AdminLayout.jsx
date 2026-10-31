@@ -68,6 +68,7 @@ const NAV = [
           { label: "Areas", to: "/admin/master/areas" },
           { label: "Products", to: "/admin/master/products" },
           { label: "Resources & Links", to: "/admin/master/resources" },
+          { label: "AI Training (EUBOT)", to: "/admin/master/ai-training" },
           { label: "API Keys & Settings", to: "/admin/master/api-keys", ownerOnly: true },
           { label: "Activity Logs", to: "/admin/master/logs" },
           { label: "Login History", to: "/admin/master/login-history" },
@@ -127,6 +128,7 @@ function ModuleSearch({ nav }) {
     { title: "Notification", path: "master/notification" }, { title: "App Users", path: "master/app-users" },
     { title: "Admin Users", path: "master/admin-users" }, { title: "Role & Permission", path: "master/roles" },
     { title: "Resources & Links", path: "master/resources" },
+    { title: "AI Training (EUBOT Knowledge)", path: "master/ai-training" },
     { title: "API Keys & Settings", path: "master/api-keys" },
     { title: "System Health", path: "master/health" },
     { title: "Activity Logs", path: "master/logs" },
@@ -312,7 +314,7 @@ export default function AdminLayout() {
   return (
     <div className="admin-shell">
       <BgTaskBadge />
-      <ChatAssistant accent="#1b3a8f" />
+      <ChatAssistant accent="#1b3a8f" surface="admin" side="right" />
       <aside className="sidebar">
         <div className="brand" style={{ padding: "14px 14px 10px" }}>
           <span style={{ background: "#fff", borderRadius: 10, padding: "7px 10px", display: "inline-block" }}>

@@ -398,6 +398,30 @@ export const MODULES = {
     ],
   },
 
+  /* AI Training — EUBOT's knowledge base. Admin pastes product write-ups,
+     policies, technical notes, FAQs or PDF text here; EUBOT answers from it.
+     Nothing in code changes — add matter here and it reflects in EUBOT at once. */
+  aiTraining: {
+    path: "master/ai-training", title: "AI Training (EUBOT Knowledge)", crumb: "AI Training", addLabel: "Add Knowledge",
+    idPrefix: "AIT",
+    tabs: [{ key: "Active", label: "Active" }, { key: "Inactive", label: "Inactive" }],
+    tabField: "status",
+    columns: [
+      { key: "title", label: "Title" },
+      { key: "topic", label: "Topic" },
+      { key: "content", label: "Matter", render: (v) => (v ? String(v).slice(0, 80) + (String(v).length > 80 ? "…" : "") : "") },
+      { key: "createdAt", label: "Added On" },
+      { key: "status", label: "Status", render: pill },
+    ],
+    form: [
+      { name: "title", label: "Title (what this is about)", required: true, full: true },
+      { name: "topic", label: "Topic / Category (e.g. Product, Policy, Warranty, Technical)" },
+      { name: "pdfText", label: "Read a PDF (optional — its text is pulled into Matter below)", type: "pdfextract", target: "content", full: true },
+      { name: "content", label: "Matter (paste the information EUBOT should learn — or it fills from the PDF)", type: "textarea", required: true, full: true },
+      { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] },
+    ],
+  },
+
   holidays: {
     path: "master/holidays", title: "Holiday List", crumb: "Holiday", perm: "Holidays", addLabel: "Add Holiday",
     columns: [{ key: "date", label: "Date" }, { key: "name", label: "Holiday Name" }, { key: "type", label: "Type" }],

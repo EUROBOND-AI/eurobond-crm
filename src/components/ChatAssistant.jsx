@@ -50,6 +50,7 @@ const Icon = {
   stop: (c = "currentColor") => (<svg width="15" height="15" viewBox="0 0 24 24" fill={c}><rect x="5" y="5" width="14" height="14" rx="3" /></svg>),
   speaker: (c = "currentColor") => (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /></svg>),
   send: (c = "currentColor") => (<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>),
+  min: (c = "currentColor") => (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>),
   close: (c = "currentColor") => (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>),
 };
 function Waveform({ color = "#fff" }) {
@@ -82,7 +83,7 @@ const canTTS = (typeof window !== "undefined") && "speechSynthesis" in window;
 const SUGGEST_APP = ["My schedule today", "Add a new customer", "Add remark + next visit", "My enquiries", "Apply leave", "How do I add an expense?"];
 const SUGGEST_ADMIN = ["Enquiries this month by source", "Win sq.m & ₹ by person this month", "Today's attendance", "Quotation value this month", "Assign a task", "How do I assign enquiries?"];
 
-export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
+export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface = "admin", side = "right" }) {
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState([]);            // {role:'user'|'model'|'note', text, action?}
   const [input, setInput] = useState("");
@@ -93,6 +94,39 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
   const [pending, setPending] = useState(null);    // {type:'create', module, fields}
   const listRef = useRef(null);
   const recRef = useRef(null);
+  const FABSZ = 62;
+  /* the floating button can be dragged anywhere and remembers where it was put
+     (separately for the app and the admin panel). */
+  const [pos, setPos] = useState(() => { try { const v = JSON.parse(localStorage.getItem("eb_eubot_pos_" + surface) || "null"); if (v && typeof v.x === "number") return v; } catch {} return null; });
+  const drag = useRef({ active: false, moved: false, sx: 0, sy: 0, ox: 0, oy: 0 });
+  useEffect(() => {
+    if (pos) return;
+    const W = window.innerWidth, H = window.innerHeight, gap = (bottom || 16);
+    setPos(side === "right" ? { x: W - FABSZ - 14, y: H - FABSZ - gap - 44 } : { x: 14, y: H - FABSZ - gap - 44 });
+  }, []);
+  useEffect(() => { if (pos) { try { localStorage.setItem("eb_eubot_pos_" + surface, JSON.stringify(pos)); } catch {} } }, [pos]);
+  const clampPos = (x, y) => { const W = window.innerWidth, H = window.innerHeight; return { x: Math.max(6, Math.min(W - FABSZ - 6, x)), y: Math.max(64, Math.min(H - FABSZ - 10, y)) }; };
+  function onFabDown(e) {
+    const cur = pos || { x: 14, y: window.innerHeight - 120 };
+    drag.current = { active: true, moved: false, sx: e.clientX, sy: e.clientY, ox: cur.x, oy: cur.y };
+    window.addEventListener("pointermove", onFabMove);
+    window.addEventListener("pointerup", onFabUp);
+    try { e.target.setPointerCapture && e.target.setPointerCapture(e.pointerId); } catch {}
+  }
+  function onFabMove(e) {
+    if (!drag.current.active) return;
+    const dx = e.clientX - drag.current.sx, dy = e.clientY - drag.current.sy;
+    if (Math.abs(dx) + Math.abs(dy) > 6) drag.current.moved = true;
+    setPos(clampPos(drag.current.ox + dx, drag.current.oy + dy));
+  }
+  function onFabUp() {
+    window.removeEventListener("pointermove", onFabMove);
+    window.removeEventListener("pointerup", onFabUp);
+    const wasMoved = drag.current.moved;
+    drag.current.active = false;
+    if (!wasMoved) { setOpen(true); return; }
+    setPos((p) => { const W = window.innerWidth; const x = (p.x + FABSZ / 2) < W / 2 ? 14 : W - FABSZ - 14; return clampPos(x, p.y); });
+  }
 
   useEffect(() => { try { localStorage.setItem("eb_ai_lang", lang); } catch {} }, [lang]);
   useEffect(() => { try { localStorage.setItem("eb_ai_voice", voiceOut ? "1" : "0"); } catch {} }, [voiceOut]);
@@ -102,6 +136,11 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
 
   const name = (auth.user && (auth.user.name || auth.user.fullName)) || "";
   const isAdminUser = !!(auth.user && (auth.user.owner || /admin/i.test(String(auth.user.role || ""))));
+
+  /* text prepared for the voice: drop links, markdown AND emojis/symbols, so it
+     reads the sentence and never spells an emoji out loud */
+  const EMOJI = /([\u2190-\u21FF\u2300-\u27BF\u2B00-\u2BFF\u2600-\u26FF\uFE00-\uFE0F\u2022\u200D\u2713\u2714\u2716\u2717]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|\uD83E[\uDC00-\uDFFF])/g;
+  const speechClean = (t) => String(t).replace(/https?:\/\/\S+/g, "").replace(EMOJI, "").replace(/[*_#`>~]/g, "").replace(/\s+/g, " ").trim();
 
   /* detect the language of the REPLY from its script, so Telugu is spoken by a
      Telugu voice (not Hindi), whatever the dropdown is set to */
@@ -128,7 +167,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
     if (!voiceOut || !text) return;
     const T = capPlug("TextToSpeech");
     if (T) {
-      const clean = String(text).replace(/https?:\/\/\S+/g, "").replace(/[*_#`>~]/g, "").replace(/\s+/g, " ").trim();
+      const clean = speechClean(text);
       const code = detectLang(clean);
       Promise.resolve(T.stop ? T.stop() : null).catch(() => {})
         .then(() => T.speak({ text: clean, lang: code, rate: 1.0, pitch: 1.0, volume: 1.0, category: "ambient" }))
@@ -138,8 +177,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
     if (!canTTS) return;
     try {
       window.speechSynthesis.cancel();
-      /* strip markdown (**bold**, #, `code`) so the whole sentence is read, not just digits */
-      const clean = String(text).replace(/[*_#`>~]/g, "").replace(/\s+/g, " ").trim();
+      const clean = speechClean(text);
       const code = detectLang(clean);
       const u = new SpeechSynthesisUtterance(clean);
       u.lang = code;
@@ -287,9 +325,12 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
     .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`);
 
   /* ----- styles ----- */
-  const fab = { position: "fixed", right: 18, bottom: bottom, width: 66, height: 66, background: "transparent", border: "none", cursor: "pointer", zIndex: 9998, padding: 0, filter: "drop-shadow(0 6px 14px rgba(70,40,170,.35))" };
-  const mask = { position: "fixed", inset: 0, background: "rgba(10,16,40,.35)", zIndex: 9999, display: "flex", justifyContent: "flex-end", alignItems: "flex-end" };
-  const panel = { width: "min(420px, 100vw)", height: "min(620px, 90vh)", background: "#fff", borderTopLeftRadius: 16, borderTopRightRadius: 16, display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 -8px 40px rgba(10,16,40,.35)" };
+  const gap = bottom || 16;
+  const leftSide = ((pos ? pos.x : 14) + FABSZ / 2) < (typeof window !== "undefined" ? window.innerWidth : 400) / 2;
+  const fab = { position: "fixed", left: pos ? pos.x : 14, top: pos ? pos.y : undefined, width: FABSZ, height: FABSZ, background: "transparent", border: "none", cursor: "grab", touchAction: "none", zIndex: 9998, padding: 0, filter: "drop-shadow(0 6px 14px rgba(70,40,170,.35))" };
+  /* a floating card, NOT a full-screen cover — the app behind it (the bottom
+     Home / Attendance / Target / Profile bar and every screen) stays usable. */
+  const panel = { position: "fixed", bottom: gap, [leftSide ? "left" : "right"]: 10, width: "min(400px, calc(100vw - 20px))", height: "min(70vh, 560px)", background: "#fff", borderRadius: 16, display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 14px 50px rgba(10,16,40,.4)", border: "1px solid rgba(20,30,70,.08)", zIndex: 9998 };
   const head = { background: accent, color: "#fff", padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 };
   const body = { flex: 1, overflowY: "auto", padding: 14, background: "#f6f8fd", display: "flex", flexDirection: "column", gap: 10 };
   const bubbleU = { alignSelf: "flex-end", background: accent, color: "#fff", padding: "8px 12px", borderRadius: "14px 14px 3px 14px", maxWidth: "82%", fontSize: 14, lineHeight: 1.45, whiteSpace: "pre-wrap" };
@@ -301,16 +342,15 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
   return (
     <>
       <style>{`@keyframes eubotwave{0%,100%{height:5px}50%{height:18px}}@keyframes eubotspin{to{transform:rotate(360deg)}}@keyframes eubotpulse{from{transform:scale(.96)}to{transform:scale(1.05)}}@media (prefers-reduced-motion:reduce){[style*="eubotspin"],[style*="eubotpulse"]{animation:none!important}}`}</style>
-      {!open && (
-        <button style={fab} title="EUBOT — AI Assistant" onClick={() => setOpen(true)}>
-          <EubotIcon size={66} />
+      {!open && pos && (
+        <button style={fab} title="EUBOT — drag to move, tap to chat" aria-label="EUBOT" onPointerDown={onFabDown}>
+          <EubotIcon size={FABSZ} />
         </button>
       )}
       {open && (
-        <div style={mask} onClick={() => setOpen(false)}>
-          <div style={panel} onClick={(e) => e.stopPropagation()}>
+          <div style={panel}>
             <div style={head}>
-              <EubotIcon size={38} />
+              <EubotIcon size={36} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 800, fontSize: 16, letterSpacing: .5 }}>EUBOT</div>
                 <div style={{ fontSize: 11, opacity: .85 }}>{name ? "Hi " + name.split(" ")[0] + " · " : ""}ask or speak</div>
@@ -319,7 +359,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
                 style={{ background: "rgba(255,255,255,.15)", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, padding: "4px 6px" }}>
                 {LANGS.map((l) => <option key={l.code} value={l.code} style={{ color: "#1a2236" }}>{l.label}</option>)}
               </select>
-              <button onClick={() => setOpen(false)} title="Close" style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", lineHeight: 1, display: "grid", placeItems: "center", padding: 2 }}>{Icon.close("#fff")}</button>
+              <button onClick={() => { setOpen(false); stopSpeaking(); }} title="Minimise (keeps the chat)" style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", lineHeight: 1, display: "grid", placeItems: "center", padding: 2 }}>{Icon.min("#fff")}</button>
             </div>
 
             <div style={body} ref={listRef}>
@@ -327,7 +367,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
                 <div style={{ color: "#6b7694", fontSize: 13.5, textAlign: "center", margin: "auto", padding: 16, lineHeight: 1.6 }}>
                   <div style={{ marginBottom: 10 }}><EubotIcon size={80} /></div>
                   <div style={{ fontWeight: 800, color: "#2a3450", fontSize: 15, marginBottom: 4 }}>Hi, I'm EUBOT</div>
-                  Ask me anything, in any language — I can find, calculate, explain any screen and make entries for you.<br />
+                  Ask me anything, in any language — I can find, calculate, explain any screen, give product & contact details, and make entries for you.<br />
                   <span style={{ fontSize: 12, opacity: .8 }}>Tap the mic to talk.</span>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", marginTop: 14 }}>
                     {(isAdminUser ? SUGGEST_ADMIN : SUGGEST_APP).map((s) => (
@@ -376,8 +416,10 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
               )}
               <button style={{ ...iconBtn(true), background: accent }} title="Send" disabled={busy || !input.trim()} onClick={() => send()}>{Icon.send("#fff")}</button>
             </div>
+            <div style={{ textAlign: "center", fontSize: 10.5, color: "#9aa3bd", padding: "4px 0 6px", background: "#fff", letterSpacing: .2 }}>
+              Developed &amp; Designed by <b style={{ color: "#7a84a0" }}>Karthik G</b>
+            </div>
           </div>
-        </div>
       )}
     </>
   );

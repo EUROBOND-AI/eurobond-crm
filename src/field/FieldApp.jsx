@@ -9540,7 +9540,7 @@ export default function FieldApp() {
         </div>
 
         <MenuDrawer open={menu} close={() => setMenu(false)} />
-        <ChatAssistant accent="#1b3a8f" bottom={78} />
+        <ChatAssistant accent="#1b3a8f" bottom={78} surface="app" side="left" />
         {/* first open of the day only */}
         <BirthdayGreeter />
         {overlayWarn && (

@@ -44,6 +44,14 @@ const QUIET_WRITES = [
   "whatsapp",
   "indiamart.php",
   "mail.php",
+  /* logging in and talking to EUBOT are POST requests, but they are not a
+     "save" — each has its own loader (the login button, the chat "…"), so the
+     full-screen "Saving…" badge must not cover the screen for them. */
+  "/auth.php?action=login",
+  "/auth.php?action=admin_login",
+  "/auth.php?action=send_otp",
+  "/auth.php?action=verify_otp",
+  "gemini.php",
 ];
 let writesInFlight = 0;
 let writeWord = "Saving";
