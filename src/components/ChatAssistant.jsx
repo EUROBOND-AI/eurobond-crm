@@ -9,6 +9,7 @@
    Place once in the app shell and once in the admin shell.                 */
 import React, { useEffect, useRef, useState } from "react";
 import { api, auth } from "../lib/api.js";
+import { useLocation } from "react-router-dom";
 import eubotOrb from "../assets/eubot_orb.png";
 import eubotDisc from "../assets/eubot_disc.png";
 import eubotLogo from "../assets/eubot_logo.png";
@@ -50,6 +51,7 @@ const Icon = {
   stop: (c = "currentColor") => (<svg width="15" height="15" viewBox="0 0 24 24" fill={c}><rect x="5" y="5" width="14" height="14" rx="3" /></svg>),
   speaker: (c = "currentColor") => (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /></svg>),
   send: (c = "currentColor") => (<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>),
+  trash: (c = "currentColor") => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>),
   newchat: (c = "currentColor") => (<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg>),
   hist: (c = "currentColor") => (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>),
   info: (c = "currentColor") => (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><circle cx="12" cy="7.6" r="0.7" fill={c} stroke="none" /></svg>),
@@ -70,6 +72,17 @@ function loadChats() {
   try { const a = JSON.parse(localStorage.getItem(HIST_KEY) || "[]"); return (Array.isArray(a) ? a : []).filter((c) => c && Array.isArray(c.msgs) && c.msgs.length && (Date.now() - (c.at || 0)) < HIST_WEEK); } catch { return []; }
 }
 function saveChats(a) { try { localStorage.setItem(HIST_KEY, JSON.stringify(a.slice(0, 40))); } catch {} }
+
+/* the dropdown sets which language the MIC listens for (speech recognition
+   needs to be told); the written reply always follows the language used. */
+const LANGS = [
+  { code: "en-IN", label: "English" },
+  { code: "te-IN", label: "తెలుగు" },
+  { code: "hi-IN", label: "हिन्दी" },
+  { code: "ta-IN", label: "தமிழ்" },
+  { code: "mr-IN", label: "मराठी" },
+  { code: "kn-IN", label: "ಕನ್ನಡ" },
+];
 
 const SR = (typeof window !== "undefined") && (window.SpeechRecognition || window.webkitSpeechRecognition);
 /* Inside the Android app the browser voice APIs are missing, so the native
@@ -112,7 +125,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
     setPos(side === "right" ? { x: W - FABSZ - 14, y: H - FABSZ - gap - 44 } : { x: 14, y: H - FABSZ - gap - 44 });
   }, []);
   useEffect(() => { if (pos) { try { localStorage.setItem("eb_eubot_pos_" + surface, JSON.stringify(pos)); } catch {} } }, [pos]);
-  const clampPos = (x, y) => { const W = window.innerWidth, H = window.innerHeight; return { x: Math.max(6, Math.min(W - FABSZ - 6, x)), y: Math.max(64, Math.min(H - FABSZ - 10, y)) }; };
+  const clampPos = (x, y) => { const W = window.innerWidth, H = window.innerHeight; return { x: Math.max(-Math.round(FABSZ * 0.5), Math.min(W - Math.round(FABSZ * 0.5), x)), y: Math.max(64, Math.min(H - FABSZ - 10, y)) }; };
   function onFabDown(e) {
     const cur = pos || { x: 14, y: window.innerHeight - 120 };
     drag.current = { active: true, moved: false, sx: e.clientX, sy: e.clientY, ox: cur.x, oy: cur.y };
@@ -132,7 +145,16 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
     const wasMoved = drag.current.moved;
     drag.current.active = false;
     if (!wasMoved) { setOpen(true); return; }
-    setPos((p) => { const W = window.innerWidth; const x = (p.x + FABSZ / 2) < W / 2 ? 14 : W - FABSZ - 14; return clampPos(x, p.y); });
+    /* shoved to an edge -> tuck it half into the edge (a small peeking handle);
+       otherwise rest at a normal margin. Either way, tap it to open, drag to move. */
+    setPos((p) => {
+      const W = window.innerWidth;
+      let x;
+      if (p.x < 24) x = -Math.round(FABSZ * 0.42);
+      else if (p.x > W - FABSZ - 24) x = W - Math.round(FABSZ * 0.58);
+      else x = (p.x + FABSZ / 2) < W / 2 ? 14 : W - FABSZ - 14;
+      return clampPos(x, p.y);
+    });
   }
 
   useEffect(() => { try { localStorage.setItem("eb_ai_lang", lang); } catch {} }, [lang]);
@@ -153,6 +175,16 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
   }, [msgs]);
   function newChat() { setMsgs([]); setPending(null); setInput(""); setShowHist(false); setShowInfo(false); setActiveId(Date.now()); stopSpeaking(); }
   function openChat(c) { stopSpeaking(); setMsgs(Array.isArray(c.msgs) ? c.msgs : []); setActiveId(c.id); setPending(null); setShowHist(false); }
+  function deleteChat(id) {
+    setChats((prev) => { const next = prev.filter((c) => c.id !== id); saveChats(next); return next; });
+    try { api.euvaDeleteChat && api.euvaDeleteChat(id); } catch {}   // also remove it from the admin history
+    if (id === activeId) newChat();
+  }
+  /* using a bottom-nav button (Home / Attendance / Target / Profile) or opening
+     any screen closes EUVA, so it is out of the way the moment you move on. */
+  const loc = useLocation();
+  const firstLoc = useRef(true);
+  useEffect(() => { if (firstLoc.current) { firstLoc.current = false; return; } setOpen(false); stopSpeaking(); }, [loc.pathname]);
 
   const name = (auth.user && (auth.user.name || auth.user.fullName)) || "";
   const isAdminUser = !!(auth.user && (auth.user.owner || /admin/i.test(String(auth.user.role || ""))));
@@ -215,6 +247,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
     const t = (text ?? input).trim();
     if (!t || busy) return;
     try { const L = detectLang(t); if (L) setLang(L); } catch {}   // reply & voice follow the language used
+    setVoiceOut(spoken);            // mic -> speaker on, typing -> speaker off
     stopSpeaking();                       // any running reply stops the moment a new one starts
     const history = [...msgs.filter((m) => m.role === "user" || m.role === "model"), { role: "user", text: t }];
     setMsgs((m) => [...m, { role: "user", text: t }]);
@@ -222,11 +255,11 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
     setPending(null);
     setBusy(true);
     try {
-      const d = await api.aiChat(history.map((m) => ({ role: m.role, text: m.text })));
+      const d = await api.aiChat(history.map((m) => ({ role: m.role, text: m.text })), activeId);
       const reply = (d && d.reply) || "…";
       setMsgs((m) => [...m, { role: "model", text: reply }]);
       if (d && d.action && (d.action.type === "create" || d.action.type === "update")) setPending(d.action);
-      if (spoken && voiceOut) speak(reply);
+      if (spoken) speak(reply);
     } catch (e) {
       setMsgs((m) => [...m, { role: "model", text: "Sorry — couldn't reach the assistant. " + (e.message || "") }]);
     }
@@ -390,9 +423,12 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
                 <div style={{ fontWeight: 800, fontSize: 16, letterSpacing: .5 }}>EUVA</div>
                 <div style={{ fontSize: 11, opacity: .85 }}>{name ? "Hi " + name.split(" ")[0] + " · " : ""}ask or speak</div>
               </div>
+              <select value={lang} onChange={(e) => setLang(e.target.value)} title="Speaking language (for the mic)"
+                style={{ background: "rgba(255,255,255,.14)", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, padding: "4px 4px", maxWidth: 72 }}>
+                {LANGS.map((l) => <option key={l.code} value={l.code} style={{ color: "#1a2236" }}>{l.label}</option>)}
+              </select>
               <button style={hBtn} title="New chat" onClick={newChat}>{Icon.newchat("#fff")}</button>
-              <button style={hBtn} title="Recent chats" onClick={() => { setShowInfo(false); setShowHist((v) => !v); }}>{Icon.hist("#fff")}</button>
-              <button style={hBtn} title="About EUVA" onClick={() => { setShowHist(false); setShowInfo((v) => !v); }}>{Icon.info("#fff")}</button>
+              <button style={hBtn} title="Recent chats" onClick={() => setShowHist((v) => !v)}>{Icon.hist("#fff")}</button>
               <button style={hBtn} title="Minimise (keeps the chat)" onClick={() => { setOpen(false); stopSpeaking(); }}>{Icon.min("#fff")}</button>
             </div>
 
@@ -401,31 +437,15 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
                 <div style={{ fontWeight: 800, color: "#2a3450", fontSize: 13, margin: "2px 4px 10px" }}>Recent chats · last 7 days</div>
                 {chats.length === 0 && <div style={{ color: "#8b93a7", fontSize: 13, textAlign: "center", padding: 24 }}>No saved chats yet.</div>}
                 {chats.map((c) => (
-                  <button key={c.id} onClick={() => openChat(c)} style={{ display: "block", width: "100%", textAlign: "left", border: "1px solid #e2e7f3", background: c.id === activeId ? "#eef3ff" : "#fff", borderRadius: 10, padding: "9px 12px", marginBottom: 8, cursor: "pointer" }}>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: "#2a3450", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.title}</div>
-                    <div style={{ fontSize: 11, color: "#8b93a7" }}>{new Date(c.at).toLocaleString("en-IN")}</div>
-                  </button>
+                  <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                    <button onClick={() => openChat(c)} style={{ flex: 1, minWidth: 0, textAlign: "left", border: "1px solid #e2e7f3", background: c.id === activeId ? "#eef3ff" : "#fff", borderRadius: 10, padding: "9px 12px", cursor: "pointer" }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: "#2a3450", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.title}</div>
+                      <div style={{ fontSize: 11, color: "#8b93a7" }}>{new Date(c.at).toLocaleString("en-IN")}</div>
+                    </button>
+                    <button onClick={() => deleteChat(c.id)} title="Delete this chat (also from admin)" style={{ border: "none", background: "#fdecec", color: "#c0392b", borderRadius: 9, width: 36, height: 36, cursor: "pointer", flexShrink: 0, display: "grid", placeItems: "center" }}>{Icon.trash("#c0392b")}</button>
+                  </div>
                 ))}
                 <div style={{ fontSize: 11, color: "#9aa3bd", textAlign: "center", marginTop: 8 }}>Chats older than 7 days are cleared on this phone.</div>
-              </div>
-            )}
-            {showInfo && (
-              <div style={{ position: "absolute", top: 62, left: 0, right: 0, bottom: 0, background: "#fff", overflowY: "auto", padding: 18, zIndex: 5 }}>
-                <div style={{ textAlign: "center", marginBottom: 8 }}><EubotIcon size={64} /></div>
-                <div style={{ fontWeight: 800, color: "#2a3450", fontSize: 16, textAlign: "center" }}>EUVA</div>
-                <div style={{ color: "#5a6482", fontSize: 12.5, textAlign: "center", marginBottom: 12 }}>Your Smart Digital Assistant by Eurobond ACP</div>
-                <div style={{ fontSize: 13, color: "#33415c", lineHeight: 1.7 }}>
-                  • Ask anything in any language, by typing or voice.<br />
-                  • Find customers, enquiries, quotations, tasks, expenses, projects.<br />
-                  • Totals &amp; reports (admin): by person, state, source, month.<br />
-                  • Product details, staff contacts, videos &amp; catalogues.<br />
-                  • Make entries — add customer, remark, next call/visit, task, leave, expense — you tap Confirm.<br />
-                  • Explain any screen, step by step.
-                </div>
-                <div className="euva-sign" style={{ textAlign: "center", marginTop: 16 }}>Trained &amp; Developed by Karthik G</div>
-                <div style={{ textAlign: "center", marginTop: 14 }}>
-                  <button onClick={() => setShowInfo(false)} style={{ border: "none", background: accent, color: "#fff", fontWeight: 700, borderRadius: 9, padding: "8px 20px", cursor: "pointer" }}>Got it</button>
-                </div>
               </div>
             )}
 

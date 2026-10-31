@@ -402,7 +402,7 @@ export const MODULES = {
      policies, technical notes, FAQs or PDF text here; EUVA answers from it.
      Nothing in code changes — add matter here and it reflects in EUVA at once. */
   aiTraining: {
-    path: "master/ai-training", title: "AI Training (EUVA Knowledge)", crumb: "AI Training", addLabel: "Add Knowledge",
+    path: "master/ai-training", title: "EUVA AI Training", crumb: "EUVA AI Training", addLabel: "Add Knowledge",
     idPrefix: "AIT",
     tabs: [{ key: "Active", label: "Active" }, { key: "Inactive", label: "Inactive" }],
     tabField: "status",
