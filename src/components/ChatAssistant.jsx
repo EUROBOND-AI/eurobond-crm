@@ -50,6 +50,9 @@ const Icon = {
   stop: (c = "currentColor") => (<svg width="15" height="15" viewBox="0 0 24 24" fill={c}><rect x="5" y="5" width="14" height="14" rx="3" /></svg>),
   speaker: (c = "currentColor") => (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /></svg>),
   send: (c = "currentColor") => (<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>),
+  newchat: (c = "currentColor") => (<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg>),
+  hist: (c = "currentColor") => (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>),
+  info: (c = "currentColor") => (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><circle cx="12" cy="7.6" r="0.7" fill={c} stroke="none" /></svg>),
   min: (c = "currentColor") => (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>),
   close: (c = "currentColor") => (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>),
 };
@@ -59,14 +62,14 @@ function Waveform({ color = "#fff" }) {
   </span>);
 }
 
-const LANGS = [
-  { code: "en-IN", label: "English" },
-  { code: "te-IN", label: "తెలుగు" },
-  { code: "hi-IN", label: "हिन्दी" },
-  { code: "ta-IN", label: "தமிழ்" },
-  { code: "mr-IN", label: "मराठी" },
-  { code: "kn-IN", label: "ಕನ್ನಡ" },
-];
+/* recent chats are kept on this phone for a week; the company-wide record is
+   saved on the server, by user. */
+const HIST_KEY = "eb_euva_chats";
+const HIST_WEEK = 7 * 24 * 3600 * 1000;
+function loadChats() {
+  try { const a = JSON.parse(localStorage.getItem(HIST_KEY) || "[]"); return (Array.isArray(a) ? a : []).filter((c) => c && Array.isArray(c.msgs) && c.msgs.length && (Date.now() - (c.at || 0)) < HIST_WEEK); } catch { return []; }
+}
+function saveChats(a) { try { localStorage.setItem(HIST_KEY, JSON.stringify(a.slice(0, 40))); } catch {} }
 
 const SR = (typeof window !== "undefined") && (window.SpeechRecognition || window.webkitSpeechRecognition);
 /* Inside the Android app the browser voice APIs are missing, so the native
@@ -89,9 +92,13 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
-  const [voiceOut, setVoiceOut] = useState(() => { try { return localStorage.getItem("eb_ai_voice") === "1"; } catch { return false; } });
+  const [voiceOut, setVoiceOut] = useState(() => { try { return localStorage.getItem("eb_ai_voice") !== "0"; } catch { return true; } });
   const [lang, setLang] = useState(() => { try { return localStorage.getItem("eb_ai_lang") || "en-IN"; } catch { return "en-IN"; } });
   const [pending, setPending] = useState(null);    // {type:'create', module, fields}
+  const [activeId, setActiveId] = useState(() => Date.now());
+  const [chats, setChats] = useState(() => loadChats());
+  const [showHist, setShowHist] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
   const listRef = useRef(null);
   const recRef = useRef(null);
   const FABSZ = 62;
@@ -133,6 +140,19 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
   useEffect(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, [msgs, busy, pending]);
   /* load TTS voices up front (getVoices is async the first time) */
   useEffect(() => { if (canTTS) { try { window.speechSynthesis.getVoices(); window.speechSynthesis.onvoiceschanged = () => {}; } catch {} } }, []);
+  /* keep this chat in the 7-day on-phone history */
+  useEffect(() => {
+    if (!msgs.length) return;
+    const title = (msgs.find((m) => m.role === "user") || {}).text || "Chat";
+    setChats((prev) => {
+      const rest = prev.filter((c) => c.id !== activeId);
+      const next = [{ id: activeId, at: Date.now(), title: String(title).slice(0, 48), msgs }, ...rest]
+        .filter((c) => (Date.now() - (c.at || 0)) < HIST_WEEK).slice(0, 40);
+      saveChats(next); return next;
+    });
+  }, [msgs]);
+  function newChat() { setMsgs([]); setPending(null); setInput(""); setShowHist(false); setShowInfo(false); setActiveId(Date.now()); stopSpeaking(); }
+  function openChat(c) { stopSpeaking(); setMsgs(Array.isArray(c.msgs) ? c.msgs : []); setActiveId(c.id); setPending(null); setShowHist(false); }
 
   const name = (auth.user && (auth.user.name || auth.user.fullName)) || "";
   const isAdminUser = !!(auth.user && (auth.user.owner || /admin/i.test(String(auth.user.role || ""))));
@@ -194,6 +214,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
   async function send(text, spoken = false) {
     const t = (text ?? input).trim();
     if (!t || busy) return;
+    try { const L = detectLang(t); if (L) setLang(L); } catch {}   // reply & voice follow the language used
     stopSpeaking();                       // any running reply stops the moment a new one starts
     const history = [...msgs.filter((m) => m.role === "user" || m.role === "model"), { role: "user", text: t }];
     setMsgs((m) => [...m, { role: "user", text: t }]);
@@ -205,7 +226,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
       const reply = (d && d.reply) || "…";
       setMsgs((m) => [...m, { role: "model", text: reply }]);
       if (d && d.action && (d.action.type === "create" || d.action.type === "update")) setPending(d.action);
-      if (spoken || voiceOut) speak(reply);
+      if (spoken && voiceOut) speak(reply);
     } catch (e) {
       setMsgs((m) => [...m, { role: "model", text: "Sorry — couldn't reach the assistant. " + (e.message || "") }]);
     }
@@ -335,8 +356,14 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
      Target / Profile bar so that bar stays visible and tappable underneath.
      ADMIN: a tall panel down the right edge. */
   const panel = surface === "app"
-    ? { position: "fixed", top: 0, left: 0, right: 0, bottom: "var(--f-nav-total, 56px)", background: "#fff", display: "flex", flexDirection: "column", overflow: "hidden", zIndex: 9997 }
+    ? { position: "fixed", top: "18vh", left: 0, right: 0, bottom: "var(--f-nav-total, 56px)", background: "#fff", display: "flex", flexDirection: "column", overflow: "hidden", zIndex: 9997, borderTopLeftRadius: 18, borderTopRightRadius: 18, boxShadow: "0 -10px 44px rgba(10,16,40,.3)" }
     : { position: "fixed", top: 0, right: 0, bottom: 0, width: "min(440px, 100vw)", background: "#fff", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "-10px 0 48px rgba(10,16,40,.28)", zIndex: 9997 };
+  /* tap outside the sheet to close — in the app this strip never covers the
+     bottom Home/Attendance/Target/Profile bar, so that stays live. */
+  const backdrop = surface === "app"
+    ? { position: "fixed", top: 0, left: 0, right: 0, bottom: "var(--f-nav-total, 56px)", background: "rgba(10,16,40,.18)", zIndex: 9996 }
+    : { position: "fixed", inset: 0, background: "rgba(10,16,40,.25)", zIndex: 9996 };
+  const hBtn = { background: "rgba(255,255,255,.14)", border: "none", color: "#fff", cursor: "pointer", width: 32, height: 32, borderRadius: 8, display: "grid", placeItems: "center", flexShrink: 0 };
   const head = { background: accent, color: "#fff", padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 };
   const body = { flex: 1, overflowY: "auto", padding: 14, background: "#f6f8fd", display: "flex", flexDirection: "column", gap: 10 };
   const bubbleU = { alignSelf: "flex-end", background: accent, color: "#fff", padding: "8px 12px", borderRadius: "14px 14px 3px 14px", maxWidth: "82%", fontSize: 14, lineHeight: 1.45, whiteSpace: "pre-wrap" };
@@ -347,13 +374,15 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
 
   return (
     <>
-      <style>{`@keyframes eubotwave{0%,100%{height:5px}50%{height:18px}}@keyframes eubotspin{to{transform:rotate(360deg)}}@keyframes eubotpulse{from{transform:scale(.96)}to{transform:scale(1.05)}}@media (prefers-reduced-motion:reduce){[style*="eubotspin"],[style*="eubotpulse"]{animation:none!important}}`}</style>
+      <style>{`@keyframes eubotwave{0%,100%{height:5px}50%{height:18px}}@keyframes eubotspin{to{transform:rotate(360deg)}}@keyframes eubotpulse{from{transform:scale(.96)}to{transform:scale(1.05)}}@media (prefers-reduced-motion:reduce){[style*="eubotspin"],[style*="eubotpulse"]{animation:none!important}}.euva-sign{font-weight:800;font-size:13.5px;letter-spacing:.3px;background:linear-gradient(90deg,#1b3a8f,#6c5ce7,#00b894,#1b3a8f);background-size:300% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:euvashine 6s linear infinite}@keyframes euvashine{to{background-position:300% 0}}`}</style>
       {!open && pos && (
         <button style={fab} title="EUVA — drag to move, tap to chat" aria-label="EUVA" onPointerDown={onFabDown}>
           <EubotIcon size={FABSZ} />
         </button>
       )}
       {open && (
+        <>
+          <div style={backdrop} onClick={() => { setOpen(false); stopSpeaking(); }} />
           <div style={panel}>
             <div style={head}>
               <EubotIcon size={36} />
@@ -361,20 +390,52 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
                 <div style={{ fontWeight: 800, fontSize: 16, letterSpacing: .5 }}>EUVA</div>
                 <div style={{ fontSize: 11, opacity: .85 }}>{name ? "Hi " + name.split(" ")[0] + " · " : ""}ask or speak</div>
               </div>
-              <select value={lang} onChange={(e) => setLang(e.target.value)} title="Language"
-                style={{ background: "rgba(255,255,255,.15)", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, padding: "4px 6px" }}>
-                {LANGS.map((l) => <option key={l.code} value={l.code} style={{ color: "#1a2236" }}>{l.label}</option>)}
-              </select>
-              <button onClick={() => { setOpen(false); stopSpeaking(); }} title="Minimise (keeps the chat)" style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", lineHeight: 1, display: "grid", placeItems: "center", padding: 2 }}>{Icon.min("#fff")}</button>
+              <button style={hBtn} title="New chat" onClick={newChat}>{Icon.newchat("#fff")}</button>
+              <button style={hBtn} title="Recent chats" onClick={() => { setShowInfo(false); setShowHist((v) => !v); }}>{Icon.hist("#fff")}</button>
+              <button style={hBtn} title="About EUVA" onClick={() => { setShowHist(false); setShowInfo((v) => !v); }}>{Icon.info("#fff")}</button>
+              <button style={hBtn} title="Minimise (keeps the chat)" onClick={() => { setOpen(false); stopSpeaking(); }}>{Icon.min("#fff")}</button>
             </div>
+
+            {showHist && (
+              <div style={{ position: "absolute", top: 62, left: 0, right: 0, bottom: 0, background: "#f6f8fd", overflowY: "auto", padding: 12, zIndex: 5 }}>
+                <div style={{ fontWeight: 800, color: "#2a3450", fontSize: 13, margin: "2px 4px 10px" }}>Recent chats · last 7 days</div>
+                {chats.length === 0 && <div style={{ color: "#8b93a7", fontSize: 13, textAlign: "center", padding: 24 }}>No saved chats yet.</div>}
+                {chats.map((c) => (
+                  <button key={c.id} onClick={() => openChat(c)} style={{ display: "block", width: "100%", textAlign: "left", border: "1px solid #e2e7f3", background: c.id === activeId ? "#eef3ff" : "#fff", borderRadius: 10, padding: "9px 12px", marginBottom: 8, cursor: "pointer" }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "#2a3450", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.title}</div>
+                    <div style={{ fontSize: 11, color: "#8b93a7" }}>{new Date(c.at).toLocaleString("en-IN")}</div>
+                  </button>
+                ))}
+                <div style={{ fontSize: 11, color: "#9aa3bd", textAlign: "center", marginTop: 8 }}>Chats older than 7 days are cleared on this phone.</div>
+              </div>
+            )}
+            {showInfo && (
+              <div style={{ position: "absolute", top: 62, left: 0, right: 0, bottom: 0, background: "#fff", overflowY: "auto", padding: 18, zIndex: 5 }}>
+                <div style={{ textAlign: "center", marginBottom: 8 }}><EubotIcon size={64} /></div>
+                <div style={{ fontWeight: 800, color: "#2a3450", fontSize: 16, textAlign: "center" }}>EUVA</div>
+                <div style={{ color: "#5a6482", fontSize: 12.5, textAlign: "center", marginBottom: 12 }}>Your Smart Digital Assistant by Eurobond ACP</div>
+                <div style={{ fontSize: 13, color: "#33415c", lineHeight: 1.7 }}>
+                  • Ask anything in any language, by typing or voice.<br />
+                  • Find customers, enquiries, quotations, tasks, expenses, projects.<br />
+                  • Totals &amp; reports (admin): by person, state, source, month.<br />
+                  • Product details, staff contacts, videos &amp; catalogues.<br />
+                  • Make entries — add customer, remark, next call/visit, task, leave, expense — you tap Confirm.<br />
+                  • Explain any screen, step by step.
+                </div>
+                <div className="euva-sign" style={{ textAlign: "center", marginTop: 16 }}>Trained &amp; Developed by Karthik G</div>
+                <div style={{ textAlign: "center", marginTop: 14 }}>
+                  <button onClick={() => setShowInfo(false)} style={{ border: "none", background: accent, color: "#fff", fontWeight: 700, borderRadius: 9, padding: "8px 20px", cursor: "pointer" }}>Got it</button>
+                </div>
+              </div>
+            )}
 
             <div style={body} ref={listRef}>
               {msgs.length === 0 && (
                 <div style={{ color: "#6b7694", fontSize: 13.5, textAlign: "center", margin: "auto", padding: 16, lineHeight: 1.6 }}>
                   <div style={{ marginBottom: 10 }}><EubotIcon size={80} /></div>
                   <div style={{ fontWeight: 800, color: "#2a3450", fontSize: 16, marginBottom: 6 }}>Meet EUVA</div>
-                  <div style={{ fontWeight: 700, color: "#5a6482", fontSize: 13, marginBottom: 6 }}>Your Smart Digital Assistant by Eurobond ACP</div>
-                  Aap poochhiye, EUVA batayegi! Ask me anything, in any language — I can find, calculate, explain any screen, give product &amp; contact details, and make entries for you.<br />
+                  <div className="euva-sign" style={{ marginBottom: 10 }}>Trained &amp; Developed by Karthik G</div>
+                  Ask me anything, in any language — I can find, calculate, explain any screen, give product &amp; contact details, and make entries for you.<br />
                   <span style={{ fontSize: 12, opacity: .8 }}>Tap the mic to talk.</span>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", marginTop: 14 }}>
                     {(isAdminUser ? SUGGEST_ADMIN : SUGGEST_APP).map((s) => (
@@ -411,7 +472,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
 
             <div style={foot}>
               <button style={iconBtn(listening)} title="Speak" onClick={toggleMic}>{listening ? Icon.stop("#fff") : Icon.mic("#44506a")}</button>
-              <button style={iconBtn(voiceOut)} title="Speak replies aloud" onClick={() => { setVoiceOut((v) => !v); stopSpeaking(); }}>{Icon.speaker(voiceOut ? "#fff" : "#44506a")}</button>
+              <button style={iconBtn(voiceOut)} title={voiceOut ? "Voice replies: ON" : "Voice replies: OFF"} onClick={() => { setVoiceOut((v) => !v); stopSpeaking(); }}>{Icon.speaker(voiceOut ? "#fff" : "#44506a")}</button>
               {listening ? (
                 <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 10, padding: "0 12px", color: accent, fontWeight: 700, fontSize: 13 }}>
                   <Waveform color={accent} /> Listening…
@@ -423,10 +484,8 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
               )}
               <button style={{ ...iconBtn(true), background: accent }} title="Send" disabled={busy || !input.trim()} onClick={() => send()}>{Icon.send("#fff")}</button>
             </div>
-            <div style={{ textAlign: "center", fontSize: 10.5, color: "#9aa3bd", padding: "4px 0 6px", background: "#fff", letterSpacing: .2 }}>
-              Developed &amp; Designed by <b style={{ color: "#7a84a0" }}>Karthik G</b>
-            </div>
           </div>
+        </>
       )}
     </>
   );

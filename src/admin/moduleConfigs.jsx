@@ -422,6 +422,19 @@ export const MODULES = {
     ],
   },
 
+  /* EUVA Chat History — what staff asked EUVA (read-only). Use it to see the
+     common questions and add answers to AI Training. No add form. */
+  euvaLog: {
+    path: "master/euva-history", title: "EUVA Chat History", crumb: "EUVA History",
+    columns: [
+      { key: "createdAt", label: "When" },
+      { key: "user", label: "User" },
+      { key: "role", label: "Role" },
+      { key: "question", label: "Question" },
+      { key: "answer", label: "EUVA's answer", render: (v) => (v ? String(v).slice(0, 120) + (String(v).length > 120 ? "…" : "") : "") },
+    ],
+  },
+
   holidays: {
     path: "master/holidays", title: "Holiday List", crumb: "Holiday", perm: "Holidays", addLabel: "Add Holiday",
     columns: [{ key: "date", label: "Date" }, { key: "name", label: "Holiday Name" }, { key: "type", label: "Type" }],
