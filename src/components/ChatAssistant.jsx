@@ -31,13 +31,13 @@ function EubotIcon({ size = 40 }) {
               <animate attributeName="baseFrequency" dur="6s" values="0.006;0.013;0.006" repeatCount="indefinite" />
             </feTurbulence>
             <feDisplacementMap in="SourceGraphic" in2="n" scale="34" xChannelSelector="R" yChannelSelector="G" result="d" />
-            <feGaussianBlur in="d" stdDeviation="2.5" />
+            <feGaussianBlur in="d" stdDeviation="1.2" />
           </filter>
         </defs>
         <g filter={`url(#${fid})`}>
           <g style={spin(16)}><image href={eubotOrb} width="256" height="256" /></g>
         </g>
-        <g style={spin(40, true)}><image href={eubotDisc} width="256" height="256" /></g>
+        <image href={eubotDisc} width="256" height="256" />
         <image href={eubotLogo} x="98" y="93.5" width="60" height="69" />
       </svg>
     </span>
@@ -68,7 +68,19 @@ const LANGS = [
 ];
 
 const SR = (typeof window !== "undefined") && (window.SpeechRecognition || window.webkitSpeechRecognition);
+/* Inside the Android app the browser voice APIs are missing, so the native
+   plugins are used there (SpeechRecognition / TextToSpeech, added in the APK). */
+function capPlug(n) {
+  try {
+    const C = typeof window !== "undefined" ? window.Capacitor : null;
+    return C && C.isNativePlatform && C.isNativePlatform() && C.Plugins && C.Plugins[n] ? C.Plugins[n] : null;
+  } catch { return null; }
+}
 const canTTS = (typeof window !== "undefined") && "speechSynthesis" in window;
+
+/* one-tap starters on the empty screen */
+const SUGGEST_APP = ["My schedule today", "Add a new customer", "Add remark + next visit", "My enquiries", "Apply leave", "How do I add an expense?"];
+const SUGGEST_ADMIN = ["Enquiries this month by source", "Win sq.m & ₹ by person this month", "Today's attendance", "Quotation value this month", "Assign a task", "How do I assign enquiries?"];
 
 export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
   const [open, setOpen] = useState(false);
@@ -89,6 +101,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
   useEffect(() => { if (canTTS) { try { window.speechSynthesis.getVoices(); window.speechSynthesis.onvoiceschanged = () => {}; } catch {} } }, []);
 
   const name = (auth.user && (auth.user.name || auth.user.fullName)) || "";
+  const isAdminUser = !!(auth.user && (auth.user.owner || /admin/i.test(String(auth.user.role || ""))));
 
   /* detect the language of the REPLY from its script, so Telugu is spoken by a
      Telugu voice (not Hindi), whatever the dropdown is set to */
@@ -106,8 +119,23 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
       return vs.find((v) => v.lang === code) || vs.find((v) => v.lang && v.lang.replace("_", "-").startsWith(base)) || null;
     } catch { return null; }
   }
+  function stopSpeaking() {
+    const T = capPlug("TextToSpeech");
+    if (T) { try { T.stop(); } catch {} }
+    try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch {}
+  }
   function speak(text) {
-    if (!voiceOut || !canTTS || !text) return;
+    if (!voiceOut || !text) return;
+    const T = capPlug("TextToSpeech");
+    if (T) {
+      const clean = String(text).replace(/https?:\/\/\S+/g, "").replace(/[*_#`>~]/g, "").replace(/\s+/g, " ").trim();
+      const code = detectLang(clean);
+      Promise.resolve(T.stop ? T.stop() : null).catch(() => {})
+        .then(() => T.speak({ text: clean, lang: code, rate: 1.0, pitch: 1.0, volume: 1.0, category: "ambient" }))
+        .catch(() => { try { T.speak({ text: clean, lang: "en-IN", rate: 1.0, pitch: 1.0, volume: 1.0, category: "ambient" }); } catch {} });
+      return;
+    }
+    if (!canTTS) return;
     try {
       window.speechSynthesis.cancel();
       /* strip markdown (**bold**, #, `code`) so the whole sentence is read, not just digits */
@@ -134,7 +162,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
       const d = await api.aiChat(history.map((m) => ({ role: m.role, text: m.text })));
       const reply = (d && d.reply) || "…";
       setMsgs((m) => [...m, { role: "model", text: reply }]);
-      if (d && d.action && d.action.type === "create") setPending(d.action);
+      if (d && d.action && (d.action.type === "create" || d.action.type === "update")) setPending(d.action);
       speak(reply);
     } catch (e) {
       setMsgs((m) => [...m, { role: "model", text: "Sorry — couldn't reach the assistant. " + (e.message || "") }]);
@@ -142,13 +170,60 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
     setBusy(false);
   }
 
-  async function confirmCreate() {
+  /* the phone's position, for a customer added without an address */
+  function gpsNow() {
+    return new Promise((res) => {
+      if (!navigator.geolocation) return res(null);
+      let done = false;
+      const t = setTimeout(() => { if (!done) { done = true; res(null); } }, 9000);
+      navigator.geolocation.getCurrentPosition(
+        (p) => { if (!done) { done = true; clearTimeout(t); res({ lat: p.coords.latitude, lng: p.coords.longitude }); } },
+        () => { if (!done) { done = true; clearTimeout(t); res(null); } },
+        { enableHighAccuracy: true, timeout: 8000 });
+    });
+  }
+
+  /* Save what EUBOT prepared — only ever on the user's tap.
+     create → a new record; update → read the record fresh, apply the change
+     (set fields, append to a list) and write it back, so nothing typed on
+     another screen in the meantime is lost. Then the same follow-ups the
+     normal screens do: phone reminder for a next call/visit, notifications. */
+  async function confirmEntry() {
     if (!pending) return;
+    const p = pending;
     setBusy(true);
     try {
-      const res = await api.create(pending.module, pending.fields);
-      const id = (res && (res.id || (res.record && res.record.id))) || "";
-      setMsgs((m) => [...m, { role: "note", text: `✓ Saved to ${pending.module}${id ? " (#" + id + ")" : ""}.` }]);
+      let label = "";
+      if (p.type === "update") {
+        const cur = await api.get(p.module, p.id);
+        const rec = { ...((cur && cur.record && cur.record.data) || {}) };
+        const set = { ...(p.set || {}) };
+        const su = set.__statusUnless; delete set.__statusUnless;
+        Object.assign(rec, set);
+        if (su && !(su.keep || []).includes(String(rec.status || "").toLowerCase())) rec.status = su.value;
+        Object.entries(p.push || {}).forEach(([k, v]) => { rec[k] = [...(Array.isArray(rec[k]) ? rec[k] : []), v]; });
+        delete rec._id;
+        await api.update(p.module, p.id, rec);
+        label = `✓ ${p.title || "Updated"} saved (#${p.id}).`;
+      } else {
+        const fields = { ...(p.fields || {}) };
+        if (p.gps) {
+          const g = await gpsNow();
+          if (g) { fields.lat = g.lat; fields.lng = g.lng; if (!fields.address) fields.address = `${g.lat.toFixed(5)}, ${g.lng.toFixed(5)}`; }
+        }
+        const res = await api.create(p.module, fields);
+        const id = (res && (res.id || (res.record && res.record.id))) || "";
+        label = `✓ ${p.title || "Entry"} saved${id ? " (#" + id + ")" : ""}.`;
+      }
+      const r = p.reminder;
+      if (r && r.date && typeof window !== "undefined" && typeof window.ebScheduleReminder === "function") {
+        try { window.ebScheduleReminder(r.title, r.date, r.note, r.time, r.kind); } catch {}
+      }
+      for (const n of (p.notify || [])) {
+        try { await api.notify({ ...n, createdAt: new Date().toLocaleString("en-IN"), at: new Date().toISOString() }); } catch {}
+      }
+      if (r && r.date) label += ` Added to calendar for ${r.date}${r.time ? " " + r.time : ""}.`;
+      setMsgs((m) => [...m, { role: "note", text: label }]);
       setPending(null);
     } catch (e) {
       setMsgs((m) => [...m, { role: "note", text: "Could not save: " + (e.message || "error") }]);
@@ -156,7 +231,25 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
     setBusy(false);
   }
 
+  async function nativeMic(P) {
+    if (listening) { try { await P.stop(); } catch {} setListening(false); return; }
+    try {
+      const av = await P.available().catch(() => ({ available: true }));
+      if (av && av.available === false) { setMsgs((m) => [...m, { role: "note", text: "Voice input isn't available on this phone — please install/enable Google voice typing, or type instead." }]); return; }
+      let perm = await P.checkPermissions().catch(() => null);
+      if (!perm || perm.speechRecognition !== "granted") perm = await P.requestPermissions().catch(() => null);
+      if (!perm || perm.speechRecognition !== "granted") { setMsgs((m) => [...m, { role: "note", text: "Please allow the microphone for Eurobond CRM to talk to EUBOT." }]); return; }
+      setListening(true);
+      const res = await P.start({ language: lang, maxResults: 1, prompt: "Speak to EUBOT…", partialResults: false, popup: false });
+      setListening(false);
+      const said = res && Array.isArray(res.matches) ? res.matches[0] : "";
+      if (said) send(said);
+    } catch { setListening(false); }
+  }
+
   function toggleMic() {
+    const P = capPlug("SpeechRecognition");
+    if (P) { nativeMic(P); return; }
     if (!SR) { setMsgs((m) => [...m, { role: "note", text: "Voice input isn't available on this device — you can type instead." }]); return; }
     if (listening) { try { recRef.current && recRef.current.stop(); } catch {} return; }
     try {
@@ -175,7 +268,21 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
     } catch { setListening(false); }
   }
 
-  const mdClean = (t) => String(t).replace(/\*\*(.*?)\*\*/g, "$1").replace(/[*_`#>~]/g, "");
+  const mdClean = (t) => String(t)
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, "$1 — $2")   // [Video](url) → Video — url
+    .replace(/^\s*[*-]\s+/gm, "• ")          // markdown bullets → •
+    .replace(/^\s*#{1,6}\s*/gm, "")          // headings
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/[*`#>~]/g, "")
+    .trim();
+  /* links in a reply (videos, catalogues from Resources & Links) are tappable —
+     opened the same way the Resources screen opens them */
+  const openLink = (u) => { try { window.open(u, "_blank"); } catch {} };
+  const withLinks = (t) => String(t).split(/(https?:\/\/[^\s<>()"']+)/g).map((part, k) =>
+    /^https?:\/\//.test(part)
+      ? <a key={k} href={part.replace(/[.,;:!?)\]]+$/, "")} onClick={(e) => { e.preventDefault(); openLink(part.replace(/[.,;:!?)\]]+$/, "")); }}
+          style={{ color: accent, fontWeight: 700, wordBreak: "break-all", textDecoration: "underline" }}>{part}</a>
+      : part);
   const prettyFields = (f) => Object.entries(f || {}).filter(([, v]) => v !== "" && v != null)
     .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`);
 
@@ -220,24 +327,33 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
                 <div style={{ color: "#6b7694", fontSize: 13.5, textAlign: "center", margin: "auto", padding: 16, lineHeight: 1.6 }}>
                   <div style={{ marginBottom: 10 }}><EubotIcon size={80} /></div>
                   <div style={{ fontWeight: 800, color: "#2a3450", fontSize: 15, marginBottom: 4 }}>Hi, I'm EUBOT</div>
-                  Ask me anything — find a customer, show your tasks, add a new enquiry, or “how do I…”.<br />
+                  Ask me anything, in any language — I can find, calculate, explain any screen and make entries for you.<br />
                   <span style={{ fontSize: 12, opacity: .8 }}>Tap the mic to talk.</span>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", marginTop: 14 }}>
+                    {(isAdminUser ? SUGGEST_ADMIN : SUGGEST_APP).map((s) => (
+                      <button key={s} onClick={() => send(s)}
+                        style={{ border: "1px solid #d6dcf0", background: "#fff", color: "#2a3450", borderRadius: 16, padding: "6px 11px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{s}</button>
+                    ))}
+                  </div>
                 </div>
               )}
               {msgs.map((m, i) => (
                 m.role === "note"
                   ? <div key={i} style={note}>{m.text}</div>
-                  : <div key={i} style={m.role === "user" ? bubbleU : bubbleM}>{m.role === "model" ? mdClean(m.text) : m.text}</div>
+                  : <div key={i} style={m.role === "user" ? bubbleU : bubbleM}>{m.role === "model" ? withLinks(mdClean(m.text)) : m.text}</div>
               ))}
 
               {pending && (
                 <div style={{ alignSelf: "flex-start", background: "#fff", border: "1.5px solid " + accent, borderRadius: 12, padding: 12, maxWidth: "92%", boxShadow: "0 2px 10px rgba(20,25,60,.1)" }}>
-                  <div style={{ fontWeight: 800, fontSize: 13, color: accent, marginBottom: 6 }}>New {pending.module} — confirm to save</div>
+                  <div style={{ fontWeight: 800, fontSize: 13, color: accent, marginBottom: 6 }}>{pending.title || ("New " + pending.module)} — confirm to save</div>
                   <div style={{ fontSize: 12.5, color: "#33415c", lineHeight: 1.6 }}>
-                    {prettyFields(pending.fields).map((l, j) => <div key={j}>• {l}</div>)}
+                    {Array.isArray(pending.preview)
+                      ? pending.preview.filter(([, v]) => v !== "" && v != null).map(([k, v], j) => (
+                          <div key={j} style={{ display: "flex", gap: 8 }}><span style={{ color: "#7a8399", minWidth: 86 }}>{k}</span><b style={{ fontWeight: 600 }}>{String(v)}</b></div>))
+                      : prettyFields(pending.fields).map((l, j) => <div key={j}>• {l}</div>)}
                   </div>
                   <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                    <button disabled={busy} onClick={confirmCreate} style={{ flex: 1, padding: "8px 0", borderRadius: 9, border: "none", background: accent, color: "#fff", fontWeight: 700, cursor: "pointer" }}>✓ Confirm & Save</button>
+                    <button disabled={busy} onClick={confirmEntry} style={{ flex: 1, padding: "8px 0", borderRadius: 9, border: "none", background: accent, color: "#fff", fontWeight: 700, cursor: "pointer" }}>✓ Confirm & Save</button>
                     <button disabled={busy} onClick={() => setPending(null)} style={{ padding: "8px 14px", borderRadius: 9, border: "1px solid #d4d9e6", background: "#fff", color: "#55607a", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
                   </div>
                 </div>
@@ -248,7 +364,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18 }) {
 
             <div style={foot}>
               <button style={iconBtn(listening)} title="Speak" onClick={toggleMic}>{listening ? Icon.stop("#fff") : Icon.mic("#44506a")}</button>
-              <button style={iconBtn(voiceOut)} title="Speak replies aloud" onClick={() => { setVoiceOut((v) => !v); try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch {} }}>{Icon.speaker(voiceOut ? "#fff" : "#44506a")}</button>
+              <button style={iconBtn(voiceOut)} title="Speak replies aloud" onClick={() => { setVoiceOut((v) => !v); stopSpeaking(); }}>{Icon.speaker(voiceOut ? "#fff" : "#44506a")}</button>
               {listening ? (
                 <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 10, padding: "0 12px", color: accent, fontWeight: 700, fontSize: 13 }}>
                   <Waveform color={accent} /> Listening…

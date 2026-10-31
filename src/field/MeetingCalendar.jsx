@@ -56,6 +56,21 @@ export default function MeetingCalendar() {
             nextMeetingRemark: r.latestSubStatus || "",
             isBiltrax: true,
           }));
+        /* Biltrax call-backs and visits planned from a follow-up remark */
+        const bfu = (b.records || [])
+          .map((r) => ({ _id: r.id, ...r.data }))
+          .filter((r) => r.nextFollowDate && String(r.status || "").toLowerCase() !== "win")
+          .filter((r) => !me || r.assignPerson === me || r.createdBy === me)
+          .map((r) => ({
+            name: r.projectName || "Biltrax project",
+            contactName: r.professional1 || "",
+            mobile: (String(r.professional1 || "").match(/\d{10}/) || [""])[0],
+            place: r.landmark || r.address || "",
+            nextMeetingDate: toIso(r.nextFollowDate),
+            nextMeetingTime: r.nextFollowTime || "",
+            nextMeetingRemark: `${r.nextFollowType || "Call"} · ${r.nextFollowNote || r.lastRemark || ""}`,
+            isBiltrax: true,
+          }));
         /* enquiry call-backs and visits planned from a remark */
         const enq = (e.records || [])
           .map((r) => ({ _id: r.id, ...r.data }))
@@ -106,7 +121,7 @@ export default function MeetingCalendar() {
             };
           })
           .filter((x) => x.nextMeetingDate);
-        setRows([...(c.customers || []), ...appts, ...enq, ...tasks]);
+        setRows([...(c.customers || []), ...appts, ...bfu, ...enq, ...tasks]);
       })
       .finally(() => setLoading(false));
   };
