@@ -9,7 +9,7 @@
    Place once in the app shell and once in the admin shell.                 */
 import React, { useEffect, useRef, useState } from "react";
 import { api, auth } from "../lib/api.js";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import eubotOrb from "../assets/eubot_orb.png";
 import eubotDisc from "../assets/eubot_disc.png";
 import eubotLogo from "../assets/eubot_logo.png";
@@ -51,6 +51,7 @@ const Icon = {
   stop: (c = "currentColor") => (<svg width="15" height="15" viewBox="0 0 24 24" fill={c}><rect x="5" y="5" width="14" height="14" rx="3" /></svg>),
   speaker: (c = "currentColor") => (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /></svg>),
   send: (c = "currentColor") => (<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>),
+  agent: (c = "currentColor") => (<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><polygon points="15.5 8.5 10.5 10.5 8.5 15.5 13.5 13.5" fill={c} stroke="none" /></svg>),
   trash: (c = "currentColor") => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>),
   newchat: (c = "currentColor") => (<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg>),
   hist: (c = "currentColor") => (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>),
@@ -75,6 +76,45 @@ function saveChats(a) { try { localStorage.setItem(HIST_KEY, JSON.stringify(a.sl
 
 /* the dropdown sets which language the MIC listens for (speech recognition
    needs to be told); the written reply always follows the language used. */
+/* screen ids EUVA can open -> the real routes (per surface) */
+const APP_NAV = {
+  home: "/app", customers: "/app/customers", add_customer: "/app/followup/new",
+  nearby: "/app/nearby", nearby_projects: "/app/nearby-projects",
+  enquiry: "/app/m/enquiry", add_enquiry: "/app/m/enquiry", quotation: "/app/m/quotation", add_quotation: "/app/m/quotation/new",
+  project: "/app/m/projectProjection", add_project: "/app/project/new",
+  sales_to_spec: "/app/m/salesToSpec", spec_to_sales: "/app/m/specToSales",
+  expense: "/app/expense", add_expense: "/app/expense/new",
+  leave: "/app/leave", apply_leave: "/app/leave/new",
+  target: "/app/target", attendance: "/app/attendance",
+  task: "/app/m/task", add_task: "/app/m/task", beat_plan: "/app/beat-plan", biltrax: "/app/biltrax",
+  resources: "/app/resources", calendar: "/app/calendar", profile: "/app/profile",
+  team: "/app/team", team_tracking: "/app/team-tracking", team_customers: "/app/team-customers",
+  leave_approval: "/app/leave-approval", notifications: "/app/notifications", help: "/app/help",
+};
+const ADMIN_NAV = {
+  home: "/admin/dashboards/home", dashboards: "/admin/dashboards/enquiry",
+  enquiry: "/admin/sfa/enquiry", add_enquiry: "/admin/sfa/enquiry", customers: "/admin/sfa/customers",
+  quotation: "/admin/sfa/quotation", add_quotation: "/admin/sfa/quotation",
+  project: "/admin/sfa/project-projection", add_project: "/admin/sfa/project-projection",
+  sales_to_spec: "/admin/sfa/sales-to-spec", spec_to_sales: "/admin/sfa/spec-to-sales",
+  expense: "/admin/sfa/expense", leave: "/admin/sfa/leave", apply_leave: "/admin/sfa/leave",
+  target: "/admin/sfa/target", attendance: "/admin/sfa/attendance", attendance_sheet: "/admin/sfa/attendance-sheet",
+  checkin: "/admin/sfa/checkin", tour_report: "/admin/sfa/tour-report",
+  task: "/admin/sfa/task", add_task: "/admin/sfa/task", beat_plan: "/admin/sfa/beat-plan", biltrax: "/admin/sfa/biltrax",
+  products: "/admin/master/products", users: "/admin/master/users", resources: "/admin/master/resources",
+  holidays: "/admin/master/holidays", ai_training: "/admin/master/ai-training", euva_history: "/admin/master/euva-history",
+  notifications: "/admin/support/notification", help: "/admin/support/tickets",
+};
+const NAV_LABEL = {
+  home: "Home", customers: "Customers", add_customer: "Add Customer", nearby: "Near By Customers", nearby_projects: "Near By Projects",
+  enquiry: "Enquiry", add_enquiry: "Enquiry", quotation: "Quotation", add_quotation: "New Quotation", project: "Project Projection", add_project: "Add Site-Project",
+  sales_to_spec: "Sales to Spec", spec_to_sales: "Spec to Sales", expense: "Expense", add_expense: "Add Expense", leave: "Leave", apply_leave: "Apply Leave",
+  target: "Target", attendance: "Attendance", attendance_sheet: "Attendance Sheet", checkin: "Check-in", tour_report: "Tour Report",
+  task: "Task", add_task: "Task", beat_plan: "Beat Plan", biltrax: "Biltrax", resources: "Resources & Links", calendar: "Calendar", profile: "Profile",
+  team: "Team Performance", team_tracking: "Team Tracking", team_customers: "Team Customers", leave_approval: "Leave Approval", notifications: "Notifications",
+  help: "Support & Help", products: "Products", users: "Users", ai_training: "EUVA AI Training", euva_history: "EUVA Chat History", dashboards: "Dashboards",
+};
+
 const LANGS = [
   { code: "en-IN", label: "English" },
   { code: "te-IN", label: "తెలుగు" },
@@ -94,6 +134,7 @@ function capPlug(n) {
   } catch { return null; }
 }
 const canTTS = (typeof window !== "undefined") && "speechSynthesis" in window;
+function SR_OK() { try { return !!(SR || capPlug("SpeechRecognition")); } catch { return false; } }
 
 /* one-tap starters on the empty screen */
 const SUGGEST_APP = ["My schedule today", "Add a new customer", "Add remark + next visit", "My enquiries", "Apply leave", "How do I add an expense?"];
@@ -112,6 +153,11 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
   const [chats, setChats] = useState(() => loadChats());
   const [showHist, setShowHist] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+  const [agent, setAgent] = useState(() => { try { return localStorage.getItem("eb_euva_agent") === "1"; } catch { return false; } });
+  const nav = useNavigate();
+  const selfNav = useRef(false);
+  const listeningRef = useRef(false);
+  const openRef = useRef(false);
   const listRef = useRef(null);
   const recRef = useRef(null);
   const FABSZ = 62;
@@ -159,6 +205,9 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
 
   useEffect(() => { try { localStorage.setItem("eb_ai_lang", lang); } catch {} }, [lang]);
   useEffect(() => { try { localStorage.setItem("eb_ai_voice", voiceOut ? "1" : "0"); } catch {} }, [voiceOut]);
+  useEffect(() => { try { localStorage.setItem("eb_euva_agent", agent ? "1" : "0"); } catch {} }, [agent]);
+  useEffect(() => { listeningRef.current = listening; }, [listening]);
+  useEffect(() => { openRef.current = open; }, [open]);
   useEffect(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, [msgs, busy, pending]);
   /* load TTS voices up front (getVoices is async the first time) */
   useEffect(() => { if (canTTS) { try { window.speechSynthesis.getVoices(); window.speechSynthesis.onvoiceschanged = () => {}; } catch {} } }, []);
@@ -175,6 +224,16 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
   }, [msgs]);
   function newChat() { setMsgs([]); setPending(null); setInput(""); setShowHist(false); setShowInfo(false); setActiveId(Date.now()); stopSpeaking(); }
   function openChat(c) { stopSpeaking(); setMsgs(Array.isArray(c.msgs) ? c.msgs : []); setActiveId(c.id); setPending(null); setShowHist(false); }
+  /* EUVA opens a screen for the user. It navigates the app underneath and the
+     chat stays open, so the next command can follow. */
+  function goScreen(screen) {
+    const map = surface === "admin" ? ADMIN_NAV : APP_NAV;
+    const path = map[screen];
+    if (!path) { setMsgs((m) => [...m, { role: "note", text: "I can't open that screen from here." }]); return; }
+    selfNav.current = true;                    // don't let my own navigation close the chat
+    try { nav(path); } catch {}
+    setMsgs((m) => [...m, { role: "note", text: "Opened " + (NAV_LABEL[screen] || screen) + " — tap the top to see it." }]);
+  }
   function deleteChat(id) {
     setChats((prev) => { const next = prev.filter((c) => c.id !== id); saveChats(next); return next; });
     try { api.euvaDeleteChat && api.euvaDeleteChat(id); } catch {}   // also remove it from the admin history
@@ -184,7 +243,11 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
      any screen closes EUVA, so it is out of the way the moment you move on. */
   const loc = useLocation();
   const firstLoc = useRef(true);
-  useEffect(() => { if (firstLoc.current) { firstLoc.current = false; return; } setOpen(false); stopSpeaking(); }, [loc.pathname]);
+  useEffect(() => {
+    if (firstLoc.current) { firstLoc.current = false; return; }
+    if (selfNav.current) { selfNav.current = false; return; }   // EUVA drove here on purpose — stay open
+    setOpen(false); stopSpeaking();
+  }, [loc.pathname]);
   /* when the panel opens, drop from the on-phone list any chat the admin has
      deleted on the server (a chat with a reply that the server no longer has). */
   useEffect(() => {
@@ -276,15 +339,18 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
     setPending(null);
     setBusy(true);
     try {
-      const d = await api.aiChat(history.map((m) => ({ role: m.role, text: m.text })), activeId);
+      const d = await api.aiChat(history.map((m) => ({ role: m.role, text: m.text })), activeId, { agent, surface });
       const reply = (d && d.reply) || "…";
       setMsgs((m) => [...m, { role: "model", text: reply }]);
-      if (d && d.action && (d.action.type === "create" || d.action.type === "update")) setPending(d.action);
+      if (d && d.action && (d.action.type === "create" || d.action.type === "update" || d.action.type === "delete")) setPending(d.action);
+      if (d && d.nav) goScreen(d.nav);
       if (spoken) speak(reply);
     } catch (e) {
       setMsgs((m) => [...m, { role: "model", text: "Sorry — couldn't reach the assistant. " + (e.message || "") }]);
     }
     setBusy(false);
+    /* agent mode + spoke to it -> re-open the mic so you can just keep talking */
+    if (agent && spoken && SR_OK()) setTimeout(() => { if (openRef.current && !listeningRef.current) toggleMic(); }, 800);
   }
 
   /* the phone's position, for a customer added without an address */
@@ -311,6 +377,12 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
     setBusy(true);
     try {
       let label = "";
+      if (p.type === "delete") {
+        await api.remove(p.module, p.id);
+        label = `🗑 ${p.title || "Record"} deleted.`;
+        setMsgs((m) => [...m, { role: "note", text: label }]);
+        setPending(null); setBusy(false); return;
+      }
       if (p.type === "update") {
         const cur = await api.get(p.module, p.id);
         const rec = { ...((cur && cur.record && cur.record.data) || {}) };
@@ -417,8 +489,8 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
   const backdrop = surface === "app"
     ? { position: "fixed", top: 0, left: 0, right: 0, bottom: "var(--f-nav-total, 56px)", background: "rgba(10,16,40,.18)", zIndex: 9996 }
     : { position: "fixed", inset: 0, background: "rgba(10,16,40,.25)", zIndex: 9996 };
-  const hBtn = { background: "rgba(255,255,255,.14)", border: "none", color: "#fff", cursor: "pointer", width: 32, height: 32, borderRadius: 8, display: "grid", placeItems: "center", flexShrink: 0 };
-  const head = { background: accent, color: "#fff", padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 };
+  const hBtn = { background: "rgba(255,255,255,.14)", border: "none", color: "#fff", cursor: "pointer", width: 30, height: 30, borderRadius: 8, display: "grid", placeItems: "center", flexShrink: 0 };
+  const head = { background: accent, color: "#fff", padding: "11px 12px", display: "flex", alignItems: "center", gap: 7 };
   const body = { flex: 1, overflowY: "auto", padding: 14, background: "#f6f8fd", display: "flex", flexDirection: "column", gap: 10 };
   const bubbleU = { alignSelf: "flex-end", background: accent, color: "#fff", padding: "8px 12px", borderRadius: "14px 14px 3px 14px", maxWidth: "82%", fontSize: 14, lineHeight: 1.45, whiteSpace: "pre-wrap" };
   const bubbleM = { alignSelf: "flex-start", background: "#fff", color: "#1a2236", padding: "8px 12px", borderRadius: "14px 14px 14px 3px", maxWidth: "82%", fontSize: 14, lineHeight: 1.45, whiteSpace: "pre-wrap", boxShadow: "0 1px 4px rgba(20,25,60,.08)" };
@@ -440,7 +512,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
           <div style={panel}>
             <div style={head}>
               <EubotIcon size={36} />
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 800, fontSize: 16, letterSpacing: .5 }}>EUVA</div>
                 <div style={{ fontSize: 11, opacity: .85 }}>{name ? "Hi " + name.split(" ")[0] + " · " : ""}ask or speak</div>
               </div>
@@ -448,6 +520,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
                 style={{ background: "rgba(255,255,255,.14)", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, padding: "4px 4px", maxWidth: 72 }}>
                 {LANGS.map((l) => <option key={l.code} value={l.code} style={{ color: "#1a2236" }}>{l.label}</option>)}
               </select>
+              <button style={{ ...hBtn, background: agent ? "#fff" : "rgba(255,255,255,.14)", color: agent ? accent : "#fff" }} title={agent ? "Agent mode: ON — I open screens as you ask" : "Agent mode: OFF"} onClick={() => setAgent((v) => !v)}>{Icon.agent(agent ? accent : "#fff")}</button>
               <button style={hBtn} title="New chat" onClick={newChat}>{Icon.newchat("#fff")}</button>
               <button style={hBtn} title="Recent chats" onClick={() => setShowHist((v) => !v)}>{Icon.hist("#fff")}</button>
               <button style={hBtn} title="Close (your chat is kept)" onClick={() => { setOpen(false); stopSpeaking(); }}>{Icon.close("#fff")}</button>
@@ -491,7 +564,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
 
               {pending && (
                 <div style={{ alignSelf: "flex-start", background: "#fff", border: "1.5px solid " + accent, borderRadius: 12, padding: 12, maxWidth: "92%", boxShadow: "0 2px 10px rgba(20,25,60,.1)" }}>
-                  <div style={{ fontWeight: 800, fontSize: 13, color: accent, marginBottom: 6 }}>{pending.title || ("New " + pending.module)} — confirm to save</div>
+                  <div style={{ fontWeight: 800, fontSize: 13, color: pending.type === "delete" ? "#c0392b" : accent, marginBottom: 6 }}>{pending.title || ("New " + pending.module)}{pending.type === "delete" ? " — tap Delete to remove" : " — confirm to save"}</div>
                   <div style={{ fontSize: 12.5, color: "#33415c", lineHeight: 1.6 }}>
                     {Array.isArray(pending.preview)
                       ? pending.preview.filter(([, v]) => v !== "" && v != null).map(([k, v], j) => (
@@ -499,7 +572,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
                       : prettyFields(pending.fields).map((l, j) => <div key={j}>• {l}</div>)}
                   </div>
                   <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                    <button disabled={busy} onClick={confirmEntry} style={{ flex: 1, padding: "8px 0", borderRadius: 9, border: "none", background: accent, color: "#fff", fontWeight: 700, cursor: "pointer" }}>✓ Confirm & Save</button>
+                    <button disabled={busy} onClick={confirmEntry} style={{ flex: 1, padding: "8px 0", borderRadius: 9, border: "none", background: pending.type === "delete" ? "#c0392b" : accent, color: "#fff", fontWeight: 700, cursor: "pointer" }}>{pending.type === "delete" ? "🗑 Delete" : "✓ Confirm & Save"}</button>
                     <button disabled={busy} onClick={() => setPending(null)} style={{ padding: "8px 14px", borderRadius: 9, border: "1px solid #d4d9e6", background: "#fff", color: "#55607a", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
                   </div>
                 </div>
