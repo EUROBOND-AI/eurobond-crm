@@ -146,6 +146,20 @@ const NAV_KEYWORDS = {
   team_tracking: ["team tracking", "టీమ్ ట్రాకింగ్"],
   nearby: ["near by customer", "nearby customer", "దగ్గర కస్టమర్"],
 };
+const BTN_SYN = {
+  "show": "show", "చూపించు": "show", "చూపు": "show", "షో": "show", "chupinchu": "show", "chupu": "show",
+  "add": "add", "యాడ్": "add", "కొత్త": "add", "new": "add", "add new": "add",
+  "search": "search", "వెతుకు": "search", "సెర్చ్": "search",
+  "refresh": "refresh", "రిఫ్రెష్": "refresh", "reload": "refresh",
+  "submit": "submit", "సబ్మిట్": "submit",
+  "save": "save", "సేవ్": "save",
+  "export": "export", "ఎక్స్‌పోర్ట్": "export",
+  "download": "download", "డౌన్‌లోడ్": "download",
+  "filter": "filter", "ఫిల్టర్": "filter",
+  "edit": "edit", "ఎడిట్": "edit",
+  "apply": "apply", "అప్లై": "apply",
+};
+const CLICK_VERB = /\b(click|press|tap|clik)\b|క్లిక్|నొక్కు|నొక్కం|క్లిక్ చెయ్|press chey/i;
 const NAV_OPEN = /\b(open|go to|goto|take me|show me the|jao|kholo)\b|ఓపెన్|తెర|వెళ్|చూపించు|खोल|चल/i;
 const NAV_DATA = /\b(all|states|state wise|total|how many|count|filter|list|breakdown|summary|report)\b|ఎన్ని|మొత్తం|వారీగా|ఉన్నాయి|జాబితా|ఫిల్టర్/i;
 
@@ -291,6 +305,45 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
     const bareShort = agentRef.current && t.trim().split(/\s+/).length <= 3;
     return (NAV_OPEN.test(t) || bareShort) ? best.screen : null;
   }
+  /* click a visible button/link on the CURRENT screen by its name (Show, Add,
+     Search, Refresh, Submit…). Works on any screen because the whole app is one
+     page. EUVA's own controls are skipped (data-euva). */
+  function clickOnScreen(word) {
+    try {
+      const want = String(word).toLowerCase().trim();
+      const vis = (el) => { try { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && el.offsetParent !== null && getComputedStyle(el).visibility !== "hidden"; } catch { return false; } };
+      const norm = (s) => String(s || "").replace(/[^a-z0-9 ]/gi, " ").replace(/\s+/g, " ").trim().toLowerCase();
+      const els = Array.from(document.querySelectorAll("button, a, [role='button'], input[type='submit'], input[type='button']"))
+        .filter((el) => !el.closest("[data-euva]") && vis(el));
+      const score = (el) => {
+        const tx = norm(el.textContent || el.value || el.getAttribute("title") || el.getAttribute("aria-label"));
+        if (!tx) return 0;
+        if (tx === want) return 100;
+        if (tx.split(" ")[0] === want) return 80;
+        if (tx.startsWith(want)) return 60;
+        if (tx.includes(want)) return 40 - Math.min(20, tx.length);
+        return 0;
+      };
+      let best = null, bs = 0;
+      for (const el of els) { const sc = score(el); if (sc > bs) { bs = sc; best = el; } }
+      if (best && bs >= 40) { best.click(); return true; }
+      return false;
+    } catch { return false; }
+  }
+  /* "click the Show button", "show button click chey" -> click it on screen. */
+  function localClick(text) {
+    const t = " " + text.toLowerCase() + " ";
+    if (!CLICK_VERB.test(t)) return null;
+    let target = null, tl = 0;
+    for (const k of Object.keys(BTN_SYN)) { if (t.includes(k)) { if (k.length > tl) { tl = k.length; target = BTN_SYN[k]; } } }
+    if (target) return target;
+    /* no known word -> use whatever English word they named (e.g. "click Win") */
+    const cleaned = t.replace(/\b(click|press|tap|clik|the|button|btn|on|please|now|chey|cheyyi|chesi|screen|this|here|a|an)\b/gi, " ")
+      .replace(/క్లిక్|నొక్కు|బటన్|మీద|చెయ్|చేసి|ని|ను/g, " ")
+      .replace(/[^a-z0-9 ]/gi, " ").replace(/\s+/g, " ").trim();
+    const w = cleaned.split(" ").filter((x) => x.length >= 2)[0];
+    return w || null;
+  }
   /* keep the mic live in hands-free agent mode */
   function armMic() {
     if (!SR_OK() || listeningRef.current || busyRef.current || pendingRef.current) return;
@@ -414,6 +467,19 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
       setInput("");
       goScreen(scr);
       if (spoken) speak("Opened " + (NAV_LABEL[scr] || scr));
+      if (agentRef.current) setTimeout(armMic, 500);
+      return;
+    }
+    /* INSTANT: a "click the X button" works on the screen you're on, no server. */
+    const btn = localClick(t);
+    if (btn) {
+      stopSpeaking();
+      setMsgs((m) => [...m, { role: "user", text: t }]);
+      setInput("");
+      const ok = clickOnScreen(btn);
+      const msg = ok ? ("Clicked " + btn) : ("I couldn't find a \"" + btn + "\" button on this screen.");
+      setMsgs((m) => [...m, { role: "note", text: msg }]);
+      if (spoken) speak(msg);
       if (agentRef.current) setTimeout(armMic, 500);
       return;
     }
@@ -594,7 +660,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
   return (
     <>
       {agent && !open && (
-        <div style={agentBar} onClick={(e) => e.stopPropagation()}>
+        <div style={agentBar} data-euva="1" onClick={(e) => e.stopPropagation()}>
           <EubotIcon size={34} />
           {pending ? (
             <>
@@ -620,14 +686,14 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
       )}
       <style>{`@keyframes eubotwave{0%,100%{height:5px}50%{height:18px}}@keyframes eubotspin{to{transform:rotate(360deg)}}@keyframes eubotpulse{from{transform:scale(.96)}to{transform:scale(1.05)}}@media (prefers-reduced-motion:reduce){[style*="eubotspin"],[style*="eubotpulse"]{animation:none!important}}.euva-sign{font-weight:800;font-size:13.5px;letter-spacing:.3px;background:linear-gradient(90deg,#1b3a8f,#6c5ce7,#00b894,#1b3a8f);background-size:300% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:euvashine 6s linear infinite}@keyframes euvashine{to{background-position:300% 0}}`}</style>
       {!open && pos && !agent && (
-        <button style={fab} title="EUVA — drag to move, tap to chat" aria-label="EUVA" onPointerDown={onFabDown}>
+        <button style={fab} data-euva="1" title="EUVA — drag to move, tap to chat" aria-label="EUVA" onPointerDown={onFabDown}>
           <EubotIcon size={FABSZ} />
         </button>
       )}
       {open && (
         <>
           <div style={backdrop} onClick={() => { setOpen(false); stopSpeaking(); }} />
-          <div style={panel}>
+          <div style={panel} data-euva="1">
             <div style={head}>
               <EubotIcon size={36} />
               <div style={{ flex: 1, minWidth: 0 }}>
