@@ -147,7 +147,7 @@ const NAV_KEYWORDS = {
   nearby: ["near by customer", "nearby customer", "దగ్గర కస్టమర్"],
 };
 const BTN_SYN = {
-  "show": "show", "చూపించు": "show", "చూపు": "show", "షో": "show", "chupinchu": "show", "chupu": "show",
+  "show": "show", "చూపించు": "show", "చూపు": "show", "షో": "show", "షూ": "show", "షోవ్": "show", "chupinchu": "show", "chupu": "show", "shoo": "show", "sho": "show",
   "add": "add", "యాడ్": "add", "కొత్త": "add", "new": "add", "add new": "add",
   "search": "search", "వెతుకు": "search", "సెర్చ్": "search",
   "refresh": "refresh", "రిఫ్రెష్": "refresh", "reload": "refresh",
@@ -308,41 +308,69 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
   /* click a visible button/link on the CURRENT screen by its name (Show, Add,
      Search, Refresh, Submit…). Works on any screen because the whole app is one
      page. EUVA's own controls are skipped (data-euva). */
-  function clickOnScreen(word) {
+  const euvaVis = (el) => { try { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && el.offsetParent !== null && getComputedStyle(el).visibility !== "hidden"; } catch { return false; } };
+  function clickOnScreen(phrase) {
     try {
-      const want = String(word).toLowerCase().trim();
-      const vis = (el) => { try { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && el.offsetParent !== null && getComputedStyle(el).visibility !== "hidden"; } catch { return false; } };
       const norm = (s) => String(s || "").replace(/[^a-z0-9 ]/gi, " ").replace(/\s+/g, " ").trim().toLowerCase();
+      const want = norm(phrase);
+      const words = want.split(" ").filter(Boolean);
+      if (!words.length) return false;
       const els = Array.from(document.querySelectorAll("button, a, [role='button'], input[type='submit'], input[type='button']"))
-        .filter((el) => !el.closest("[data-euva]") && vis(el));
+        .filter((el) => !el.closest("[data-euva]") && euvaVis(el));
       const score = (el) => {
         const tx = norm(el.textContent || el.value || el.getAttribute("title") || el.getAttribute("aria-label"));
         if (!tx) return 0;
         if (tx === want) return 100;
-        if (tx.split(" ")[0] === want) return 80;
-        if (tx.startsWith(want)) return 60;
-        if (tx.includes(want)) return 40 - Math.min(20, tx.length);
+        if (words.every((w) => tx.includes(w))) return 70 - Math.min(25, tx.length);
+        if (tx.split(" ")[0] === words[0]) return 55;
+        if (tx.includes(words[0]) && words[0].length >= 3) return 35 - Math.min(15, tx.length);
         return 0;
       };
       let best = null, bs = 0;
       for (const el of els) { const sc = score(el); if (sc > bs) { bs = sc; best = el; } }
-      if (best && bs >= 40) { best.click(); return true; }
+      if (best && bs >= 35) { best.click(); return true; }
       return false;
     } catch { return false; }
   }
-  /* "click the Show button", "show button click chey" -> click it on screen. */
+  /* type a value into the screen's search / filter box and trigger it */
+  function fillOnScreen(value) {
+    try {
+      const v = String(value).trim(); if (!v) return false;
+      const inputs = Array.from(document.querySelectorAll("input[type='text'], input[type='search'], input:not([type]), textarea"))
+        .filter((el) => !el.closest("[data-euva]") && euvaVis(el) && !el.disabled && !el.readOnly);
+      if (!inputs.length) return false;
+      const pref = inputs.find((el) => /search|filter|name|type|find|enter|వెతుక|పేరు/i.test((el.placeholder || "") + " " + (el.getAttribute("aria-label") || ""))) || inputs[0];
+      const proto = pref.tagName === "TEXTAREA" ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(proto, "value").set;
+      pref.focus(); setter.call(pref, v);
+      pref.dispatchEvent(new Event("input", { bubbles: true }));
+      pref.dispatchEvent(new Event("change", { bubbles: true }));
+      pref.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true }));
+      pref.dispatchEvent(new KeyboardEvent("keyup", { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true }));
+      return true;
+    } catch { return false; }
+  }
+  /* "click the Show button", "show button click chey", "view timeline" -> the
+     button text/phrase to click on the current screen. */
   function localClick(text) {
     const t = " " + text.toLowerCase() + " ";
     if (!CLICK_VERB.test(t)) return null;
     let target = null, tl = 0;
     for (const k of Object.keys(BTN_SYN)) { if (t.includes(k)) { if (k.length > tl) { tl = k.length; target = BTN_SYN[k]; } } }
     if (target) return target;
-    /* no known word -> use whatever English word they named (e.g. "click Win") */
-    const cleaned = t.replace(/\b(click|press|tap|clik|the|button|btn|on|please|now|chey|cheyyi|chesi|screen|this|here|a|an)\b/gi, " ")
-      .replace(/క్లిక్|నొక్కు|బటన్|మీద|చెయ్|చేసి|ని|ను/g, " ")
+    const cleaned = t.replace(/\b(click|press|tap|clik|the|button|btn|on|please|now|chey|cheyyi|chesi|screen|this|here|a|an|do|open)\b/gi, " ")
+      .replace(/క్లిక్|నొక్కు|బటన్|మీద|చెయ్|చేసి|ని|ను|చూడు/g, " ")
       .replace(/[^a-z0-9 ]/gi, " ").replace(/\s+/g, " ").trim();
-    const w = cleaned.split(" ").filter((x) => x.length >= 2)[0];
-    return w || null;
+    return cleaned.length >= 2 ? cleaned : null;   // may be multi-word ("view timeline")
+  }
+  /* "filter Ashok", "Ashok ni filter chey", "search ABC" -> the value to type. */
+  function localFilter(text) {
+    const t = " " + text.toLowerCase() + " ";
+    if (!(/\b(filter|search|find)\b/i.test(t) || /ఫిల్టర్|వెతుక|సెర్చ్/.test(text))) return null;
+    const val = text.replace(/\b(filter|search|find|by|the|name|chey|cheyyi|chesi|please|now|do|for)\b/gi, " ")
+      .replace(/ఫిల్టర్|వెతుకు|వెతకు|సెర్చ్|చెయ్|చేసి|పేరు|ని|ను|కోసం/g, " ")
+      .replace(/\s+/g, " ").trim();
+    return val.length >= 2 ? val : null;
   }
   /* keep the mic live in hands-free agent mode */
   function armMic() {
@@ -460,25 +488,20 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
     if (!t || busy) return;
     try { const L = detectLang(t); if (L) setLang(L); } catch {}   // reply & voice follow the language used
     /* INSTANT: a plain "open X" opens on the device right away — no server, no wait. */
+    /* INSTANT on-device actions (no server, no wait): open a screen, click a
+       button, or filter/search by a name on the current screen. */
     const scr = localNav(t);
-    if (scr) {
+    const fil = scr ? null : localFilter(t);
+    const btn = (scr || fil) ? null : localClick(t);
+    if (scr || fil || btn) {
       stopSpeaking();
       setMsgs((m) => [...m, { role: "user", text: t }]);
       setInput("");
-      goScreen(scr);
-      if (spoken) speak("Opened " + (NAV_LABEL[scr] || scr));
-      if (agentRef.current) setTimeout(armMic, 500);
-      return;
-    }
-    /* INSTANT: a "click the X button" works on the screen you're on, no server. */
-    const btn = localClick(t);
-    if (btn) {
-      stopSpeaking();
-      setMsgs((m) => [...m, { role: "user", text: t }]);
-      setInput("");
-      const ok = clickOnScreen(btn);
-      const msg = ok ? ("Clicked " + btn) : ("I couldn't find a \"" + btn + "\" button on this screen.");
-      setMsgs((m) => [...m, { role: "note", text: msg }]);
+      let msg;
+      if (scr) { goScreen(scr); msg = "Opened " + (NAV_LABEL[scr] || scr); }
+      else if (fil) { msg = fillOnScreen(fil) ? ("Filtered by " + fil) : ("No search box on this screen for \"" + fil + "\"."); }
+      else { msg = clickOnScreen(btn) ? ("Clicked " + btn) : ("I couldn't find \"" + btn + "\" on this screen."); }
+      if (!scr) setMsgs((m) => [...m, { role: "note", text: msg }]);
       if (spoken) speak(msg);
       if (agentRef.current) setTimeout(armMic, 500);
       return;
