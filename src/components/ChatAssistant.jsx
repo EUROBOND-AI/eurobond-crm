@@ -616,32 +616,6 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
     const t = (text ?? input).trim();
     if (!t || busy) return;
     try { const L = detectLang(t); if (L) setLang(L); } catch {}   // reply & voice follow the language used
-    /* INSTANT: a plain "open X" opens on the device right away — no server, no wait. */
-    /* INSTANT on-device actions (no server, no wait): open a screen, click a
-       button, or filter/search by a name on the current screen. */
-    const scr = localNav(t);
-    const isHelp = !scr && HELP_ASK.test(t);
-    const btn = (scr || isHelp) ? null : localClick(t);
-    const fil = (scr || isHelp || btn) ? null : localFilter(t);
-    const selV = (scr || isHelp || btn || fil) ? null : localSelect(t);
-    const fld = (scr || isHelp || btn || fil || selV) ? null : localTypeField(t);
-    let handled = false, msg = "", silentHint = false;
-    if (scr) { stopSpeaking(); goScreen(scr); handled = true; silentHint = true; }   // goScreen already speaks the hint
-    else if (isHelp) { stopSpeaking(); msg = screenHint(currentScreenRef.current); handled = true; }
-    else if (btn) { stopSpeaking(); msg = clickOnScreen(btn) ? ("Clicked " + btn) : ("I couldn't find \"" + btn + "\" on this screen."); handled = true; }
-    else if (fil) { stopSpeaking(); msg = fillOnScreen(fil) ? ("Filtered by " + fil) : ("No search box on this screen for \"" + fil + "\"."); handled = true; }
-    else if (selV) { stopSpeaking(); const picked = selectOnScreen(selV); msg = picked ? ("Selected " + picked) : ("No dropdown option like \"" + selV + "\" here."); handled = true; }
-    else if (fld && fillFieldByLabel(fld.find, fld.value)) { stopSpeaking(); msg = "Typed \"" + fld.value + "\""; handled = true; }
-    /* a bare name while driving a screen -> pick it from a dropdown if one matches */
-    if (!handled && agentRef.current) { const picked = selectOnScreen(t); if (picked) { stopSpeaking(); msg = "Selected " + picked; handled = true; } }
-    if (handled) {
-      setMsgs((m) => [...m, { role: "user", text: t }]);
-      setInput("");
-      if (msg) setMsgs((m) => [...m, { role: "note", text: msg }]);
-      if (spoken && msg && !silentHint) speak(msg);
-      if (agentRef.current) setTimeout(armMic, 500);
-      return;
-    }
     setVoiceOut(spoken);            // mic -> speaker on, typing -> speaker off
     stopSpeaking();                       // any running reply stops the moment a new one starts
     const history = [...msgs.filter((m) => m.role === "user" || m.role === "model"), { role: "user", text: t }];
@@ -660,8 +634,6 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
       setMsgs((m) => [...m, { role: "model", text: "Sorry — couldn't reach the assistant. " + (e.message || "") }]);
     }
     setBusy(false);
-    /* hands-free: keep listening for the next command in agent mode */
-    if (agentRef.current && !pendingRef.current) setTimeout(armMic, 800);
   }
 
   /* the phone's position, for a customer added without an address */
@@ -824,32 +796,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
 
   return (
     <>
-      {agent && !open && (
-        <div style={agentBar} data-euva="1" onClick={(e) => e.stopPropagation()}>
-          <EubotIcon size={34} />
-          {pending ? (
-            <>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 800, fontSize: 12.5, color: pending.type === "delete" ? "#ffd3d0" : "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{pending.title}</div>
-                <div style={{ fontSize: 10.5, opacity: .85, color: "#fff" }}>{pending.type === "delete" ? "Say yes / tap Delete" : "Tap to confirm"}</div>
-              </div>
-              <button disabled={busy} onClick={confirmEntry} style={{ border: "none", background: pending.type === "delete" ? "#e74c3c" : "#fff", color: pending.type === "delete" ? "#fff" : accent, fontWeight: 800, borderRadius: 9, padding: "7px 12px", cursor: "pointer", flexShrink: 0 }}>{pending.type === "delete" ? "Delete" : "Confirm"}</button>
-              <button disabled={busy} onClick={() => { setPending(null); setTimeout(armMic, 400); }} style={{ border: "none", background: "rgba(255,255,255,.18)", color: "#fff", borderRadius: 9, padding: "7px 10px", cursor: "pointer", flexShrink: 0 }}>✕</button>
-            </>
-          ) : (
-            <>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 800, fontSize: 13, color: "#fff" }}>EUVA {busy ? "working…" : listening ? "listening…" : "ready"}</div>
-                <div style={{ fontSize: 10.5, opacity: .85, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Say: open enquiry · mark … Win · add a customer</div>
-              </div>
-              {listening ? <Waveform color="#fff" /> : <button onClick={armMic} title="Tap to speak" style={{ border: "none", background: "rgba(255,255,255,.18)", color: "#fff", width: 34, height: 34, borderRadius: "50%", cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0 }}>{Icon.mic("#fff")}</button>}
-              <button onClick={() => setOpen(true)} title="Open chat" style={{ border: "none", background: "rgba(255,255,255,.18)", color: "#fff", width: 34, height: 34, borderRadius: "50%", cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0 }}>{Icon.hist("#fff")}</button>
-              <button onClick={toggleAgent} title="Stop agent mode" style={{ border: "none", background: "#fff", color: accent, width: 34, height: 34, borderRadius: "50%", cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, fontWeight: 800 }}>{Icon.close(accent)}</button>
-            </>
-          )}
-        </div>
-      )}
-      <style>{`@keyframes eubotwave{0%,100%{height:5px}50%{height:18px}}@keyframes eubotspin{to{transform:rotate(360deg)}}@keyframes eubotpulse{from{transform:scale(.96)}to{transform:scale(1.05)}}@media (prefers-reduced-motion:reduce){[style*="eubotspin"],[style*="eubotpulse"]{animation:none!important}}.euva-sign{font-weight:800;font-size:13.5px;letter-spacing:.3px;background:linear-gradient(90deg,#1b3a8f,#6c5ce7,#00b894,#1b3a8f);background-size:300% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:euvashine 6s linear infinite}@keyframes euvashine{to{background-position:300% 0}}`}</style>
+      <style>{`@keyframes eubotwave{0%,100%{height:5px}50%{height:18px}}@keyframes eubotspin{to{transform:rotate(360deg)}}@keyframes eubotpulse{from{transform:scale(.96)}to{transform:scale(1.05)}}@media (prefers-reduced-motion:reduce){[style*="eubotspin"],[style*="eubotpulse"]{animation:none!important}}.euva-sign{font-weight:800;font-size:13.5px;letter-spacing:.3px;background:linear-gradient(90deg,#1b3a8f,#6c5ce7,#00b894,#1b3a8f);background-size:300% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:euvashine 6s linear infinite}@keyframes euvashine{to{background-position:300% 0}}@keyframes eubotdot{0%,100%{transform:translateY(0);opacity:.45}50%{transform:translateY(-6px);opacity:1}}`}</style>
       {!open && pos && !agent && (
         <button style={fab} data-euva="1" title="EUVA — drag to move, tap to chat" aria-label="EUVA" onPointerDown={onFabDown}>
           <EubotIcon size={FABSZ} />
@@ -869,7 +816,6 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
                 style={{ background: "rgba(255,255,255,.14)", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, padding: "4px 4px", maxWidth: 72 }}>
                 {LANGS.map((l) => <option key={l.code} value={l.code} style={{ color: "#1a2236" }}>{l.label}</option>)}
               </select>
-              <button style={{ ...hBtn, background: agent ? "#fff" : "rgba(255,255,255,.14)", color: agent ? accent : "#fff" }} title={agent ? "Agent mode: ON — I open screens as you ask" : "Agent mode: OFF"} onClick={toggleAgent}>{Icon.agent(agent ? accent : "#fff")}</button>
               <button style={hBtn} title="New chat" onClick={newChat}>{Icon.newchat("#fff")}</button>
               <button style={hBtn} title="Recent chats" onClick={() => setShowHist((v) => !v)}>{Icon.hist("#fff")}</button>
               <button style={hBtn} title="Close (your chat is kept)" onClick={() => { setOpen(false); stopSpeaking(); }}>{Icon.close("#fff")}</button>
@@ -927,7 +873,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
                 </div>
               )}
 
-              {busy && <div style={{ ...bubbleM, color: "#8b93a7" }}>…</div>}
+              {busy && <div style={{ ...bubbleM, display: "inline-flex", alignItems: "center", gap: 5, padding: "12px 14px" }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "#9aa3bd", animation: "eubotdot 1s ease-in-out 0s infinite" }} /><span style={{ width: 7, height: 7, borderRadius: "50%", background: "#9aa3bd", animation: "eubotdot 1s ease-in-out .15s infinite" }} /><span style={{ width: 7, height: 7, borderRadius: "50%", background: "#9aa3bd", animation: "eubotdot 1s ease-in-out .3s infinite" }} /></div>}
             </div>
 
             <div style={foot}>
