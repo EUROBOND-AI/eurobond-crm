@@ -89,7 +89,7 @@ const APP_NAV = {
   task: "/app/m/task", add_task: "/app/m/task", beat_plan: "/app/beat-plan", biltrax: "/app/biltrax",
   resources: "/app/resources", calendar: "/app/calendar", profile: "/app/profile",
   team: "/app/team", team_tracking: "/app/team-tracking", team_customers: "/app/team-customers",
-  leave_approval: "/app/leave-approval", notifications: "/app/notifications", help: "/app/help",
+  leave_approval: "/app/leave-approval", notifications: "/app/notifications", help: "/app/help", settings: "/app/profile",
 };
 const ADMIN_NAV = {
   home: "/admin/dashboards/home", dashboards: "/admin/dashboards/enquiry",
@@ -103,7 +103,7 @@ const ADMIN_NAV = {
   task: "/admin/sfa/task", add_task: "/admin/sfa/task", beat_plan: "/admin/sfa/beat-plan", biltrax: "/admin/sfa/biltrax",
   products: "/admin/master/products", users: "/admin/master/users", resources: "/admin/master/resources",
   holidays: "/admin/master/holidays", ai_training: "/admin/master/ai-training", euva_history: "/admin/master/euva-history",
-  notifications: "/admin/support/notification", help: "/admin/support/tickets",
+  notifications: "/admin/support/notification", help: "/admin/support/tickets", settings: "/admin/master/app-settings",
 };
 const NAV_LABEL = {
   home: "Home", customers: "Customers", add_customer: "Add Customer", nearby: "Near By Customers", nearby_projects: "Near By Projects",
@@ -112,7 +112,7 @@ const NAV_LABEL = {
   target: "Target", attendance: "Attendance", attendance_sheet: "Attendance Sheet", checkin: "Check-in", tour_report: "Tour Report",
   task: "Task", add_task: "Task", beat_plan: "Beat Plan", biltrax: "Biltrax", resources: "Resources & Links", calendar: "Calendar", profile: "Profile",
   team: "Team Performance", team_tracking: "Team Tracking", team_customers: "Team Customers", leave_approval: "Leave Approval", notifications: "Notifications",
-  help: "Support & Help", products: "Products", users: "Users", ai_training: "EUVA AI Training", euva_history: "EUVA Chat History", dashboards: "Dashboards",
+  help: "Support & Help", settings: "Settings", products: "Products", users: "Users", ai_training: "EUVA AI Training", euva_history: "EUVA Chat History", dashboards: "Dashboards",
 };
 
 const LANGS = [
