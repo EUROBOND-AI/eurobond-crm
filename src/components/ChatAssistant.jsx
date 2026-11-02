@@ -161,6 +161,26 @@ const BTN_SYN = {
 };
 const CLICK_VERB = /\b(click|press|tap|clik)\b|క్లిక్|నొక్కు|నొక్కం|క్లిక్ చెయ్|press chey/i;
 const NAV_OPEN = /\b(open|go to|goto|take me|show me the|jao|kholo)\b|ఓపెన్|తెర|వెళ్|చూపించు|खोल|चल/i;
+const WORKFLOW_HINTS = {
+  attendance_sheet: "Say show to load it. Then say a person's name to pick them, then view timeline or absent.",
+  attendance: "Say show to load it, then a person's name.",
+  checkin: "Say show to load today's check-ins, then a person's name.",
+  enquiry: "Say add for a new enquiry, or a firm name to find one. Then win, or a remark.",
+  customers: "Say add for a new customer, or a name to find one.",
+  add_customer: "Tell me: customer name …, mobile …, then save.",
+  quotation: "Say add for a new quotation, or a name to find one.",
+  expense: "Say add to add an expense.",
+  add_expense: "Tell me: amount …, category …, then save.",
+  leave: "Say apply to apply for leave.",
+  task: "Say add for a new task.",
+  products: "Tell me a product or grade to look up.",
+  biltrax: "Say a project name, or add a follow-up.",
+  project: "Say add for a new site-project, or a name to find one.",
+  tour_report: "Say a person's name to see their route and km.",
+  target: "Say add to add a sales or specs entry.",
+};
+const SELECT_VERB = /\b(select|choose|pick)\b|సెలెక్ట్|ఎంచు|ఎంపిక/i;
+const HELP_ASK = /\b(what next|whats next|next step|what to do|what can i do|what now|help)\b|ఏం చేయాలి|తరువాత|తర్వాత ఏమి|ఎలా|next em/i;
 const NAV_DATA = /\b(all|states|state wise|total|how many|count|filter|list|breakdown|summary|report)\b|ఎన్ని|మొత్తం|వారీగా|ఉన్నాయి|జాబితా|ఫిల్టర్/i;
 
 const LANGS = [
@@ -209,6 +229,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
   const agentRef = useRef(false);
   const pendingRef = useRef(false);
   const busyRef = useRef(false);
+  const currentScreenRef = useRef("");
   const listRef = useRef(null);
   const recRef = useRef(null);
   const FABSZ = 62;
@@ -286,7 +307,9 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
     if (!path) { setMsgs((m) => [...m, { role: "note", text: "I can't open that screen from here." }]); return; }
     selfNav.current = true;                    // don't let my own navigation close the chat
     try { nav(path); } catch {}
-    if (!agentRef.current) setMsgs((m) => [...m, { role: "note", text: "Opened " + (NAV_LABEL[screen] || screen) + " — tap the top to see it." }]);
+    currentScreenRef.current = screen;
+    if (agentRef.current) { const h = screenHint(screen); setMsgs((m) => [...m, { role: "note", text: "Opened " + (NAV_LABEL[screen] || screen) + ". " + h }]); speak(h); }
+    else setMsgs((m) => [...m, { role: "note", text: "Opened " + (NAV_LABEL[screen] || screen) + " — tap the top to see it." }]);
   }
   /* a plain "open X" command -> which screen (resolved on the device, instantly).
      Returns a screen id only for a clear, short open command, so data questions
@@ -353,10 +376,12 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
      button text/phrase to click on the current screen. */
   function localClick(text) {
     const t = " " + text.toLowerCase() + " ";
-    if (!CLICK_VERB.test(t)) return null;
+    const hasVerb = CLICK_VERB.test(t);
+    const short = text.trim().split(/\s+/).length <= 2;
     let target = null, tl = 0;
     for (const k of Object.keys(BTN_SYN)) { if (t.includes(k)) { if (k.length > tl) { tl = k.length; target = BTN_SYN[k]; } } }
-    if (target) return target;
+    if (target && (hasVerb || short)) return target;   // "show" / "add" alone also works
+    if (!hasVerb) return null;
     const cleaned = t.replace(/\b(click|press|tap|clik|the|button|btn|on|please|now|chey|cheyyi|chesi|screen|this|here|a|an|do|open)\b/gi, " ")
       .replace(/క్లిక్|నొక్కు|బటన్|మీద|చెయ్|చేసి|ని|ను|చూడు/g, " ")
       .replace(/[^a-z0-9 ]/gi, " ").replace(/\s+/g, " ").trim();
@@ -439,6 +464,37 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
     }
     return null;
   }
+  /* pick an option in a dropdown by its text, e.g. a sales person on the
+     Attendance Sheet. Returns the chosen option text, or null. */
+  function selectOnScreen(value) {
+    try {
+      const want = String(value).toLowerCase().trim();
+      if (want.length < 2) return null;
+      const sels = Array.from(document.querySelectorAll("select")).filter((el) => !el.closest("[data-euva]") && euvaVis(el) && !el.disabled);
+      let best = null, bopt = null, bs = 0;
+      for (const sel of sels) {
+        for (const o of Array.from(sel.options)) {
+          const ot = String(o.text || "").toLowerCase().trim();
+          if (ot.length < 2) continue;
+          let sc = 0;
+          if (ot === want) sc = 100; else if (ot.includes(want)) sc = 80 - Math.min(20, ot.length - want.length); else if (want.includes(ot) && ot.length >= 4) sc = 60;
+          if (sc > bs) { bs = sc; best = sel; bopt = o; }
+        }
+      }
+      if (best && bopt && bs >= 55) {
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value").set; setter.call(best, bopt.value);
+        best.dispatchEvent(new Event("change", { bubbles: true }));
+        return bopt.text;
+      }
+      return null;
+    } catch { return null; }
+  }
+  function localSelect(text) {
+    if (!SELECT_VERB.test(text)) return null;
+    const v = text.replace(/\b(select|choose|pick|the|option|please|chey|cheyyi|chesi)\b/gi, " ").replace(/సెలెక్ట్|ఎంచు|ఎంపిక|చెయ్|చేసి|ని|ను/g, " ").replace(/\s+/g, " ").trim();
+    return v.length >= 2 ? v : null;
+  }
+  function screenHint(scr) { return (scr && WORKFLOW_HINTS[scr]) || "Say open <screen>, click <button>, a name to filter, or ask me anything."; }
   /* keep the mic live in hands-free agent mode */
   function armMic() {
     if (!SR_OK() || listeningRef.current || busyRef.current || pendingRef.current) return;
@@ -467,6 +523,12 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
   const loc = useLocation();
   const firstLoc = useRef(true);
   useEffect(() => {
+    /* remember which screen we're on, for "what next?" guidance */
+    try {
+      const map = surface === "admin" ? ADMIN_NAV : APP_NAV; let found = "";
+      for (const [scr, pth] of Object.entries(map)) { if (loc.pathname === pth || loc.pathname.startsWith(pth + "/")) { if (!found || map[found].length < pth.length) found = scr; } }
+      currentScreenRef.current = found;
+    } catch {}
     if (firstLoc.current) { firstLoc.current = false; return; }
     if (selfNav.current) { selfNav.current = false; return; }   // EUVA drove here on purpose — stay open
     setOpen(false); stopSpeaking();
@@ -558,19 +620,25 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
     /* INSTANT on-device actions (no server, no wait): open a screen, click a
        button, or filter/search by a name on the current screen. */
     const scr = localNav(t);
-    const btn = scr ? null : localClick(t);
-    const fil = (scr || btn) ? null : localFilter(t);
-    const fld = (scr || btn || fil) ? null : localTypeField(t);
-    let handled = false, msg = "";
-    if (scr) { stopSpeaking(); goScreen(scr); handled = true; }
+    const isHelp = !scr && HELP_ASK.test(t);
+    const btn = (scr || isHelp) ? null : localClick(t);
+    const fil = (scr || isHelp || btn) ? null : localFilter(t);
+    const selV = (scr || isHelp || btn || fil) ? null : localSelect(t);
+    const fld = (scr || isHelp || btn || fil || selV) ? null : localTypeField(t);
+    let handled = false, msg = "", silentHint = false;
+    if (scr) { stopSpeaking(); goScreen(scr); handled = true; silentHint = true; }   // goScreen already speaks the hint
+    else if (isHelp) { stopSpeaking(); msg = screenHint(currentScreenRef.current); handled = true; }
     else if (btn) { stopSpeaking(); msg = clickOnScreen(btn) ? ("Clicked " + btn) : ("I couldn't find \"" + btn + "\" on this screen."); handled = true; }
     else if (fil) { stopSpeaking(); msg = fillOnScreen(fil) ? ("Filtered by " + fil) : ("No search box on this screen for \"" + fil + "\"."); handled = true; }
+    else if (selV) { stopSpeaking(); const picked = selectOnScreen(selV); msg = picked ? ("Selected " + picked) : ("No dropdown option like \"" + selV + "\" here."); handled = true; }
     else if (fld && fillFieldByLabel(fld.find, fld.value)) { stopSpeaking(); msg = "Typed \"" + fld.value + "\""; handled = true; }
+    /* a bare name while driving a screen -> pick it from a dropdown if one matches */
+    if (!handled && agentRef.current) { const picked = selectOnScreen(t); if (picked) { stopSpeaking(); msg = "Selected " + picked; handled = true; } }
     if (handled) {
       setMsgs((m) => [...m, { role: "user", text: t }]);
       setInput("");
       if (msg) setMsgs((m) => [...m, { role: "note", text: msg }]);
-      if (spoken && msg) speak(msg);
+      if (spoken && msg && !silentHint) speak(msg);
       if (agentRef.current) setTimeout(armMic, 500);
       return;
     }
