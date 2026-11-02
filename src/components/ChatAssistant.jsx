@@ -89,7 +89,7 @@ const APP_NAV = {
   task: "/app/m/task", add_task: "/app/m/task", beat_plan: "/app/beat-plan", biltrax: "/app/biltrax",
   resources: "/app/resources", calendar: "/app/calendar", profile: "/app/profile",
   team: "/app/team", team_tracking: "/app/team-tracking", team_customers: "/app/team-customers",
-  leave_approval: "/app/leave-approval", notifications: "/app/notifications", help: "/app/help", settings: "/app/profile",
+  leave_approval: "/app/leave-approval", notifications: "/app/notifications", help: "/app/help", settings: "/app/profile", announcement: "/app/notifications",
 };
 const ADMIN_NAV = {
   home: "/admin/dashboards/home", dashboards: "/admin/dashboards/enquiry",
@@ -103,7 +103,7 @@ const ADMIN_NAV = {
   task: "/admin/sfa/task", add_task: "/admin/sfa/task", beat_plan: "/admin/sfa/beat-plan", biltrax: "/admin/sfa/biltrax",
   products: "/admin/master/products", users: "/admin/master/users", resources: "/admin/master/resources",
   holidays: "/admin/master/holidays", ai_training: "/admin/master/ai-training", euva_history: "/admin/master/euva-history",
-  notifications: "/admin/support/notification", help: "/admin/support/tickets", settings: "/admin/master/app-settings",
+  notifications: "/admin/support/notification", help: "/admin/support/tickets", settings: "/admin/master/app-settings", announcement: "/admin/support/announcement",
 };
 const NAV_LABEL = {
   home: "Home", customers: "Customers", add_customer: "Add Customer", nearby: "Near By Customers", nearby_projects: "Near By Projects",
@@ -112,8 +112,42 @@ const NAV_LABEL = {
   target: "Target", attendance: "Attendance", attendance_sheet: "Attendance Sheet", checkin: "Check-in", tour_report: "Tour Report",
   task: "Task", add_task: "Task", beat_plan: "Beat Plan", biltrax: "Biltrax", resources: "Resources & Links", calendar: "Calendar", profile: "Profile",
   team: "Team Performance", team_tracking: "Team Tracking", team_customers: "Team Customers", leave_approval: "Leave Approval", notifications: "Notifications",
-  help: "Support & Help", settings: "Settings", products: "Products", users: "Users", ai_training: "EUVA AI Training", euva_history: "EUVA Chat History", dashboards: "Dashboards",
+  help: "Support & Help", settings: "Settings", announcement: "Announcements", products: "Products", users: "Users", ai_training: "EUVA AI Training", euva_history: "EUVA Chat History", dashboards: "Dashboards",
 };
+
+/* words that mean a screen, so a plain "open X" is handled on the device at
+   once (no server, no wait). Keep common English + Telugu/Hindi forms. */
+const NAV_KEYWORDS = {
+  home: ["home", "హోమ్", "होम"],
+  attendance_sheet: ["attendance sheet", "హాజరు షీట్", "అటెండెన్స్ షీట్"],
+  attendance: ["attendance", "అటెండెన్స్", "హాజరు", "हाज़िरी", "hajiri"],
+  customers: ["customer", "కస్టమర్", "కష్టమర్", "ఖాతాదారు", "follow up", "followup", "ఫాలో"],
+  enquiry: ["enquiry", "enquiries", "ఎంక్వైరీ", "ఎంక్వయిరీ", "ఎన్‌క్వైరీ", "lead", "లీడ్"],
+  quotation: ["quotation", "quote", "కొటేషన్", "కోటేషన్"],
+  expense: ["expense", "ఖర్చు", "ఎక్స్‌పెన్స్", "खर्च"],
+  leave: ["leave", "లీవ్", "సెలవు", "छुट्टी"],
+  target: ["target", "టార్గెట్", "లక్ష్యం"],
+  task: ["task", "టాస్క్", "పని"],
+  project: ["project", "ప్రాజెక్ట్", "ప్రాజక్ట్"],
+  biltrax: ["biltrax", "బిల్ట్రాక్స్"],
+  beat_plan: ["beat plan", "బీట్"],
+  resources: ["resource", "catalogue", "catalog", "రిసోర్స్", "వీడియో", "కేటలాగ్"],
+  calendar: ["calendar", "క్యాలెండర్", "కేలండర్"],
+  profile: ["profile", "ప్రొఫైల్", "ప్రొఫైల్"],
+  settings: ["settings", "setting", "సెట్టింగ్", "సెట్టింగ్స్"],
+  announcement: ["announcement", "headline", "హెడ్‌లైన్", "హెడ్ లైన్", "ప్రకటన"],
+  notifications: ["notification", "నోటిఫికేషన్", "నోటిఫికేషన్స్"],
+  help: ["help", "support", "హెల్ప్", "సపోర్ట్"],
+  products: ["product", "ప్రొడక్ట్", "ఉత్పత్తి"],
+  users: ["users", "staff list", "యూజర్", "సిబ్బంది జాబితా"],
+  ai_training: ["ai training", "euva training", "ఏఐ ట్రైనింగ్"],
+  euva_history: ["chat history", "euva history", "చాట్ హిస్టరీ"],
+  team: ["team performance", "టీమ్ పెర్ఫార్మెన్స్"],
+  team_tracking: ["team tracking", "టీమ్ ట్రాకింగ్"],
+  nearby: ["near by customer", "nearby customer", "దగ్గర కస్టమర్"],
+};
+const NAV_OPEN = /\b(open|go to|goto|take me|show me the|jao|kholo)\b|ఓపెన్|తెర|వెళ్|చూపించు|खोल|चल/i;
+const NAV_DATA = /\b(all|states|state wise|total|how many|count|filter|list|breakdown|summary|report)\b|ఎన్ని|మొత్తం|వారీగా|ఉన్నాయి|జాబితా|ఫిల్టర్/i;
 
 const LANGS = [
   { code: "en-IN", label: "English" },
@@ -240,6 +274,23 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
     try { nav(path); } catch {}
     if (!agentRef.current) setMsgs((m) => [...m, { role: "note", text: "Opened " + (NAV_LABEL[screen] || screen) + " — tap the top to see it." }]);
   }
+  /* a plain "open X" command -> which screen (resolved on the device, instantly).
+     Returns a screen id only for a clear, short open command, so data questions
+     like "enquiry dashboard all states" still go to EUVA. */
+  function localNav(text) {
+    const t = " " + text.toLowerCase().trim() + " ";
+    if (NAV_DATA.test(t)) return null;
+    if (t.trim().split(/\s+/).length > 6) return null;
+    const map = surface === "admin" ? ADMIN_NAV : APP_NAV;
+    let best = null;
+    for (const [screen, words] of Object.entries(NAV_KEYWORDS)) {
+      if (!map[screen]) continue;
+      for (const w of words) { if (t.includes(w)) { if (!best || w.length > best.len) best = { screen, len: w.length }; } }
+    }
+    if (!best) return null;
+    const bareShort = agentRef.current && t.trim().split(/\s+/).length <= 3;
+    return (NAV_OPEN.test(t) || bareShort) ? best.screen : null;
+  }
   /* keep the mic live in hands-free agent mode */
   function armMic() {
     if (!SR_OK() || listeningRef.current || busyRef.current || pendingRef.current) return;
@@ -355,6 +406,17 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
     const t = (text ?? input).trim();
     if (!t || busy) return;
     try { const L = detectLang(t); if (L) setLang(L); } catch {}   // reply & voice follow the language used
+    /* INSTANT: a plain "open X" opens on the device right away — no server, no wait. */
+    const scr = localNav(t);
+    if (scr) {
+      stopSpeaking();
+      setMsgs((m) => [...m, { role: "user", text: t }]);
+      setInput("");
+      goScreen(scr);
+      if (spoken) speak("Opened " + (NAV_LABEL[scr] || scr));
+      if (agentRef.current) setTimeout(armMic, 500);
+      return;
+    }
     setVoiceOut(spoken);            // mic -> speaker on, typing -> speaker off
     stopSpeaking();                       // any running reply stops the moment a new one starts
     const history = [...msgs.filter((m) => m.role === "user" || m.role === "model"), { role: "user", text: t }];
