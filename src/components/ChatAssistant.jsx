@@ -302,8 +302,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
       for (const w of words) { if (t.includes(w)) { if (!best || w.length > best.len) best = { screen, len: w.length }; } }
     }
     if (!best) return null;
-    const bareShort = agentRef.current && t.trim().split(/\s+/).length <= 3;
-    return (NAV_OPEN.test(t) || bareShort) ? best.screen : null;
+    return NAV_OPEN.test(t) ? best.screen : null;   // only "open X", never a bare keyword mid-form
   }
   /* click a visible button/link on the CURRENT screen by its name (Show, Add,
      Search, Refresh, Submit…). Works on any screen because the whole app is one
@@ -371,6 +370,74 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
       .replace(/ఫిల్టర్|వెతుకు|వెతకు|సెర్చ్|చెయ్|చేసి|పేరు|ని|ను|కోసం/g, " ")
       .replace(/\s+/g, " ").trim();
     return val.length >= 2 ? val : null;
+  }
+  /* type a value into a form field named by the user, e.g. "customer name Karthik",
+     "contact person Ravi", "amount 5000". Handles text inputs and dropdowns. */
+  const FILL_FIELDS = [
+    { say: ["customer name", "firm name", "party name", "company name"], find: ["customer", "firm", "party", "company"] },
+    { say: ["contact person", "contact name", "person name"], find: ["contact person", "contact name", "person"] },
+    { say: ["phone number", "contact number", "mobile number", "mobile", "phone", "number"], find: ["mobile", "phone", "contact number", "number"] },
+    { say: ["email id", "email", "mail"], find: ["email", "mail"] },
+    { say: ["order value", "amount", "value", "price"], find: ["amount", "value", "price"] },
+    { say: ["quantity", "qty"], find: ["quantity", "qty"] },
+    { say: ["product name", "product"], find: ["product"] },
+    { say: ["remark", "note", "comment", "notes"], find: ["remark", "note", "comment"] },
+    { say: ["full address", "address"], find: ["address"] },
+    { say: ["state"], find: ["state"] },
+    { say: ["city", "area", "location"], find: ["city", "area", "location"] },
+    { say: ["designation"], find: ["designation"] },
+    { say: ["title"], find: ["title"] },
+    { say: ["firm", "customer"], find: ["customer", "firm", "party", "company"] },
+    { say: ["name"], find: ["name"] },
+  ];
+  const FILL_PHRASES = FILL_FIELDS.flatMap((f) => f.say.map((phrase) => ({ phrase, find: f.find }))).sort((a, b) => b.phrase.length - a.phrase.length);
+  function labelTextOf(el) {
+    const parts = [];
+    try { if (el.id) { const l = document.querySelector('label[for="' + (window.CSS && CSS.escape ? CSS.escape(el.id) : el.id) + '"]'); if (l) parts.push(l.textContent); } } catch {}
+    const wrap = el.closest && el.closest("label"); if (wrap) parts.push(wrap.textContent);
+    let prev = el.previousElementSibling, hops = 0;
+    while (prev && hops < 2) { if (/^(label|span|div|p|b|strong)$/i.test(prev.tagName)) parts.push(prev.textContent); prev = prev.previousElementSibling; hops++; }
+    parts.push(el.placeholder || "", el.getAttribute("aria-label") || "", el.getAttribute("name") || "");
+    return parts.join(" ").toLowerCase();
+  }
+  function fillFieldByLabel(findTerms, value) {
+    try {
+      const any = findTerms.includes("__any__");
+      const cands = Array.from(document.querySelectorAll("input, textarea, select"))
+        .filter((el) => !el.closest("[data-euva]") && euvaVis(el) && !el.disabled && !el.readOnly && !/^(checkbox|radio|button|submit|file|hidden)$/i.test(el.type || ""));
+      let best = null, bs = -1;
+      if (any) { best = (document.activeElement && cands.includes(document.activeElement)) ? document.activeElement : cands.find((el) => !el.value) || cands[0]; }
+      else { for (const el of cands) { const lt = labelTextOf(el); let sc = 0; for (const f of findTerms) if (lt.includes(f)) sc = Math.max(sc, f.length); if (sc > bs) { bs = sc; best = el; } } if (bs <= 0) best = null; }
+      if (!best) return false;
+      if (best.tagName === "SELECT") {
+        const opt = Array.from(best.options).find((o) => o.text.toLowerCase().includes(String(value).toLowerCase()));
+        if (!opt) return false;
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value").set; setter.call(best, opt.value);
+        best.dispatchEvent(new Event("change", { bubbles: true })); return true;
+      }
+      const proto = best.tagName === "TEXTAREA" ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(proto, "value").set; best.focus(); setter.call(best, value);
+      best.dispatchEvent(new Event("input", { bubbles: true })); best.dispatchEvent(new Event("change", { bubbles: true }));
+      return true;
+    } catch { return false; }
+  }
+  function localTypeField(text) {
+    const t = text.toLowerCase();
+    for (const { phrase, find } of FILL_PHRASES) {
+      const idx = t.indexOf(phrase);
+      if (idx !== -1) {
+        let value = text.slice(idx + phrase.length).trim();
+        value = value.replace(/^(ki|ku|is|:|-|=|ani|అని|కి|కు|లో)\s*/i, "").trim();
+        value = value.replace(/\s*(ani type chey|ani rayi|ani pettu|type chey|అని|చెయ్|పెట్టు|రాయి)\s*$/i, "").trim();
+        if (value.length >= 1 && !/^(click|open|show|chey|cheyyi)$/i.test(value)) return { find, value };
+      }
+    }
+    const m = t.match(/\b(type|enter|fill)\b/) || text.match(/టైప్|రాయి|పెట్టు/);
+    if (m) {
+      let value = text.replace(/.*\b(type|enter|fill)\b/i, "").replace(/టైప్|రాయి|పెట్టు|చెయ్|అని/g, "").trim();
+      if (value.length >= 1) return { find: ["__any__"], value };
+    }
+    return null;
   }
   /* keep the mic live in hands-free agent mode */
   function armMic() {
@@ -491,18 +558,19 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
     /* INSTANT on-device actions (no server, no wait): open a screen, click a
        button, or filter/search by a name on the current screen. */
     const scr = localNav(t);
-    const fil = scr ? null : localFilter(t);
-    const btn = (scr || fil) ? null : localClick(t);
-    if (scr || fil || btn) {
-      stopSpeaking();
+    const btn = scr ? null : localClick(t);
+    const fil = (scr || btn) ? null : localFilter(t);
+    const fld = (scr || btn || fil) ? null : localTypeField(t);
+    let handled = false, msg = "";
+    if (scr) { stopSpeaking(); goScreen(scr); handled = true; }
+    else if (btn) { stopSpeaking(); msg = clickOnScreen(btn) ? ("Clicked " + btn) : ("I couldn't find \"" + btn + "\" on this screen."); handled = true; }
+    else if (fil) { stopSpeaking(); msg = fillOnScreen(fil) ? ("Filtered by " + fil) : ("No search box on this screen for \"" + fil + "\"."); handled = true; }
+    else if (fld && fillFieldByLabel(fld.find, fld.value)) { stopSpeaking(); msg = "Typed \"" + fld.value + "\""; handled = true; }
+    if (handled) {
       setMsgs((m) => [...m, { role: "user", text: t }]);
       setInput("");
-      let msg;
-      if (scr) { goScreen(scr); msg = "Opened " + (NAV_LABEL[scr] || scr); }
-      else if (fil) { msg = fillOnScreen(fil) ? ("Filtered by " + fil) : ("No search box on this screen for \"" + fil + "\"."); }
-      else { msg = clickOnScreen(btn) ? ("Clicked " + btn) : ("I couldn't find \"" + btn + "\" on this screen."); }
-      if (!scr) setMsgs((m) => [...m, { role: "note", text: msg }]);
-      if (spoken) speak(msg);
+      if (msg) setMsgs((m) => [...m, { role: "note", text: msg }]);
+      if (spoken && msg) speak(msg);
       if (agentRef.current) setTimeout(armMic, 500);
       return;
     }
@@ -626,14 +694,20 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
     try {
       const rec = new SR();
       recRef.current = rec;
-      rec.lang = lang; rec.interimResults = false; rec.maxAlternatives = 1;
+      /* interim + continuous so a short pause in the middle of a sentence does
+         not cut you off; the whole sentence is gathered and sent when you stop. */
+      rec.lang = lang; rec.interimResults = true; rec.continuous = true; rec.maxAlternatives = 1;
+      let buf = "";
       rec.onstart = () => setListening(true);
       rec.onerror = () => { setListening(false); if (agentRef.current && !pendingRef.current) setTimeout(armMic, 1200); };
-      rec.onend = () => { setListening(false); if (agentRef.current && !pendingRef.current && !busyRef.current) setTimeout(armMic, 700); };
-      rec.onresult = (e) => {
-        const said = e.results[0][0].transcript;
+      rec.onend = () => {
         setListening(false);
+        const said = buf.trim(); buf = "";
         if (said) send(said, true);
+        else if (agentRef.current && !pendingRef.current && !busyRef.current) setTimeout(armMic, 700);
+      };
+      rec.onresult = (e) => {
+        for (let i = e.resultIndex; i < e.results.length; i++) { if (e.results[i].isFinal) buf += e.results[i][0].transcript + " "; }
       };
       rec.start();
     } catch { setListening(false); }
