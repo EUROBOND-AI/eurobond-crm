@@ -733,20 +733,14 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
     try {
       const rec = new SR();
       recRef.current = rec;
-      /* interim + continuous so a short pause in the middle of a sentence does
-         not cut you off; the whole sentence is gathered and sent when you stop. */
-      rec.lang = lang; rec.interimResults = true; rec.continuous = true; rec.maxAlternatives = 1;
-      let buf = "";
+      rec.lang = lang; rec.interimResults = false; rec.maxAlternatives = 1;
       rec.onstart = () => setListening(true);
-      rec.onerror = () => { setListening(false); if (agentRef.current && !pendingRef.current) setTimeout(armMic, 1200); };
-      rec.onend = () => {
-        setListening(false);
-        const said = buf.trim(); buf = "";
-        if (said) send(said, true);
-        else if (agentRef.current && !pendingRef.current && !busyRef.current) setTimeout(armMic, 700);
-      };
+      rec.onerror = () => setListening(false);
+      rec.onend = () => setListening(false);
       rec.onresult = (e) => {
-        for (let i = e.resultIndex; i < e.results.length; i++) { if (e.results[i].isFinal) buf += e.results[i][0].transcript + " "; }
+        const said = e.results[0][0].transcript;
+        setListening(false);
+        if (said) send(said, true);     // you stop speaking -> it sends automatically
       };
       rec.start();
     } catch { setListening(false); }
