@@ -628,7 +628,6 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
       const reply = (d && d.reply) || "…";
       setMsgs((m) => [...m, { role: "model", text: reply }]);
       if (d && d.action && (d.action.type === "create" || d.action.type === "update" || d.action.type === "delete")) setPending(d.action);
-      if (d && d.nav) goScreen(d.nav);
       if (spoken) speak(reply);
     } catch (e) {
       setMsgs((m) => [...m, { role: "model", text: "Sorry — couldn't reach the assistant. " + (e.message || "") }]);
