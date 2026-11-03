@@ -159,6 +159,7 @@ export default function UsersPage() {
 
   const [fRole, setFRole] = useState("");
   const [fState, setFState] = useState("");
+  const [fStatus, setFStatus] = useState("");
   const [shown, setShown] = useState(false);
   const [importing, setImporting] = useState(false);
   const [picked, setPicked] = useState(new Set());
@@ -166,6 +167,7 @@ export default function UsersPage() {
     (!q || (u.name + u.mobile + (u.code || "") + (u.city || "")).toLowerCase().includes(q.toLowerCase()))
     && (!fRole || u.role === fRole)
     && (!fState || u.state === fState)
+    && (!fStatus || (fStatus === "active" ? (u.status == 1) : (u.status != 1)))
   );
 
   return (
@@ -209,8 +211,13 @@ export default function UsersPage() {
           <option value="">All States</option>
           {[...new Set(users.map((u) => u.state).filter(Boolean))].sort().map((r) => <option key={r}>{r}</option>)}
         </select>
+        <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} style={selStyle}>
+          <option value="">All Status</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
         <button className="btn btn-primary" style={{ padding: "8px 20px", fontWeight: 700 }} onClick={() => setShown(true)}>Show</button>
-        {shown && <button className="btn btn-ghost" onClick={() => { setShown(false); setQ(""); setFRole(""); setFState(""); setPicked(new Set()); }}>Clear</button>}
+        {shown && <button className="btn btn-ghost" onClick={() => { setShown(false); setQ(""); setFRole(""); setFState(""); setFStatus(""); setPicked(new Set()); }}>Clear</button>}
         {picked.size > 0 && (
           <button className="btn btn-danger" onClick={async () => {
             if (!window.confirm(`Permanently delete ${picked.size} user(s) and their attendance history? This cannot be undone.`)) return;

@@ -85,7 +85,7 @@ export default function BiltraxPage() {
   const list = useMemo(() => (!shown ? [] : rows.filter((r) => {
     if (stageOf(r) !== tab) return false;
     if (fType && (r.biltraxType || "Requested") !== fType) return false;
-    if (fState && (r.state || "") !== fState) return false;
+    if (fState && (r.state || "").trim().toLowerCase() !== fState.trim().toLowerCase()) return false;
     if (fHod && (r.hod || "") !== fHod) return false;
     if (fPerson && (r.assignPerson || "") !== fPerson) return false;
     /* An appointment date arrives either from the form (2026-10-09) or from an
@@ -338,7 +338,7 @@ export default function BiltraxPage() {
                   ) : "—"}
                 </td>
                 <td style={td}>{r.nextFollowDate ? `${r.nextFollowType || "Call"} · ${r.nextFollowDate}${r.nextFollowTime ? " " + r.nextFollowTime : ""}` : "—"}</td>
-                <td style={td}>{r.status || "Pending"}</td>
+                <td style={td}>{stageOf(r)}</td>
               </tr>
             ))}
           </tbody>
@@ -404,7 +404,7 @@ function BiltraxForm({ row, users, onClose, onSave }) {
             const nm = e.target.value;
             const u = users.find((x) => x.name === nm);
             setF((x) => ({ ...x, assignPerson: nm, hod: u?.manager || x.hod,
-              assignedDate: nm ? (x.assignedDate || new Date().toLocaleDateString("en-GB")) : "" }));
+              assignedDate: nm ? (x.assignedDate || new Date().toISOString().slice(0, 10)) : "" }));
           }} style={inp}>
             <option value="">— Select —</option>{people.map((n) => <option key={n}>{n}</option>)}
           </select></div>
@@ -412,7 +412,7 @@ function BiltraxForm({ row, users, onClose, onSave }) {
           <select value={f.hod} onChange={(e) => set("hod", e.target.value)} style={inp}>
             <option value="">— Select —</option>{hods.map((n) => <option key={n}>{n}</option>)}
           </select></div>
-        <div><label style={lbl}>Assigned Date</label><input value={f.assignedDate} onChange={(e) => set("assignedDate", e.target.value)} style={inp} /></div>
+        <div><label style={lbl}>Assigned Date</label><input type="date" value={f.assignedDate} onChange={(e) => set("assignedDate", e.target.value)} style={inp} /></div>
         {f.biltraxType === "Appointment" && (
           <div><label style={lbl}>Appointment Date</label>
             <input type="date" value={f.appointmentDate} onChange={(e) => set("appointmentDate", e.target.value)} style={inp} /></div>
