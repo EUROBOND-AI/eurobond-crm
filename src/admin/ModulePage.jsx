@@ -315,6 +315,7 @@ export default function ModulePage({ cfgKey }) {
   const visible = useMemo(() => {
     const list = filteredNoTab;
     if (!cfg.tabField || cfg.noTabFilter) return list;
+    if ((cfg.tabs || []).find((t) => t.key === tab)?.all) return list;   // "All" tab shows everything
     return list.filter((r) => {
       const st = String(r[cfg.tabField] ?? "");
       if (st === tab) return true;
@@ -339,7 +340,7 @@ export default function ModulePage({ cfgKey }) {
     if (["createdBy", "specPerson", "salesPerson", "assignedTo"].includes(key)) return userNames;
     if (key === "hod") return hodNames;
     if (key === "state") return [...new Set(visibleUsers(allUsers).map((u) => u.state).filter(Boolean))].sort();
-    if (key === "status") return (cfg.tabs || []).map((t) => t.key);
+    if (key === "status") return (cfg.tabs || []).filter((t) => !t.all).map((t) => t.key);
     return found;
   };
   const hasCol = (key) => cfg.columns.some((c) => c.key === key);

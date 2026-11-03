@@ -253,6 +253,7 @@ export const MODULES = {
     path: "sfa/task", title: "Task List", crumb: "Task", addLabel: "Add Task",
     idPrefix: "TSK", app: true, appLabel: "Task", chat: true,
     tabs: [
+      { key: "All", label: "All Tasks", all: true },
       { key: "Pending", label: "Pending" }, { key: "In Progress", label: "In Progress" },
       { key: "Completed", label: "Completed" }, { key: "Close", label: "Close" }, { key: "Rejected", label: "Rejected" },
     ],

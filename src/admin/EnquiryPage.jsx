@@ -378,7 +378,7 @@ export default function EnquiryPage() {
         const row = (rows || []).find((r) => (r._id || r.id) === id);
         if (!row) continue;
         const assignee = (users || []).find((u) => (u.name || u.data?.name) === userName);
-        const hodName = assignee ? (assignee.manager || assignee.data?.manager || "") : "";
+        const hodName = assignee ? (assignee.manager || assignee.manager_name || assignee.hod || assignee.reportingManager || assignee.data?.manager || "") : "";
         await api.update("enquiry", id, {
           ...row, assignedTo: userName, assignedToId: userId,
           passto: userName, hod: hodName || row.hod || "",
@@ -397,8 +397,8 @@ export default function EnquiryPage() {
   };
 
   const exportCsv = () => {
-    const head = ["Sl#", "Lead From", "Sub From", "Year", "Month", "Date", "Time", "Company", "Contact", "Email", "State", "Area", "Full Address", "HOD", "Passto", "Product", "Enquiry Details", "Status", "Assign Date", "Assign Time", "Assigned By"];
-    const body = list.map((r, i) => [i + 1, r.leadFrom || r.leadSource, r.subFrom || "", r.year, monthLabel(r), r.date, enqTime(r), r.company || r.customer, r.contact || r.phone, r.email, r.state, r.area || r.city, r.address || r.fullAddress || "", r.hod, r.passto || r.assignedTo, r.product, r.enquiryDetails, r.status || "Pending", r.assignDate, r.assignTime || "", r.assignedBy || ""]);
+    const head = ["Sl#", "Lead From", "Sub From", "Year", "Month", "Date", "Time", "Company", "Contact Person", "Contact", "Email", "State", "Area", "Full Address", "HOD", "Passto", "Product", "Enquiry Details", "Status", "Assign Date", "Assign Time", "Assigned By", "Last Remark"];
+    const body = list.map((r, i) => [i + 1, r.leadFrom || r.leadSource, r.subFrom || "", r.year, monthLabel(r), r.date, enqTime(r), r.company || r.customer, r.contactPerson || "", r.contact || r.phone, r.email, r.state, r.area || r.city, r.address || r.fullAddress || "", r.hod, r.passto || r.assignedTo, r.product, r.enquiryDetails, r.status || "Pending", r.assignDate, r.assignTime || "", r.assignedBy || "", r.lastRemark || ""]);
     const csv = [head, ...body].map((row) => row.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
@@ -647,7 +647,7 @@ export default function EnquiryPage() {
                           const isSpam = String(r.status).toLowerCase() === "spam";
                           if (!window.confirm(isSpam ? "Remove this enquiry from Spam?" : "Mark this enquiry as Spam?")) return;
                           try {
-                            await api.update("enquiry", r._id || r.id, { ...r, status: isSpam ? (r.assignedTo || r.passto ? "Assigned" : "Pending") : "Spam" });
+                            await api.update("enquiry", r._id || r.id, { ...r, status: isSpam ? (r.assignedTo || r.passto ? "Assigned" : "Pending") : "Spam", spamBy: isSpam ? "" : (auth.user?.name || auth.user?.username || "Admin"), spamAt: isSpam ? "" : new Date().toLocaleString("en-IN") });
                             load();
                           } catch (e) { alert(e.message); }
                         }}><Ban size={14} /></button>}
@@ -675,7 +675,8 @@ export default function EnquiryPage() {
                   <td style={{ ...td, maxWidth: 220, whiteSpace: "normal" }}><LongCell text={r.enquiryDetails} /></td>
                   <td style={td}>{r.hod || "—"}</td>
                   <td style={td}>{r.passto || r.assignedTo || "—"}</td>
-                  <td style={td}><span style={{ fontSize: 11, fontWeight: 800, padding: "2px 9px", borderRadius: 8, background: statusBg(r.status), color: statusFg(r.status) }}>{r.status || "Pending"}</span></td>
+                  <td style={td}><span style={{ fontSize: 11, fontWeight: 800, padding: "2px 9px", borderRadius: 8, background: statusBg(r.status), color: statusFg(r.status) }}>{r.status || "Pending"}</span>
+                    {String(r.status).toLowerCase() === "spam" && r.spamBy ? <div style={{ fontSize: 10, color: "#c0392b", marginTop: 3, lineHeight: 1.3 }}>by {r.spamBy}<br />{r.spamAt}</div> : null}</td>
                   <td style={{ ...td, maxWidth: 220, whiteSpace: "normal" }}>
                     {r.lastRemark ? (
                       <>
