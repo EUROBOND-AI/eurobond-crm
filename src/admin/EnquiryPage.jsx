@@ -780,6 +780,14 @@ function EnquiryForm({ row, onClose, onSaved }) {
             </select>
           </div>
         )}
+        {/* #10 — Lead From = Exhibition aynapude Appointment Date + Time kanipistayi.
+            ivi app Calendar lo appointment laaga kanipistayi (assign ayina sales person ki) */}
+        {f.leadFrom === "Exhibition" && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <div><label style={{ fontSize: 11.5, fontWeight: 700 }}>Appointment Date</label><input type="date" value={f.appointmentDate || ""} onChange={(e) => set("appointmentDate", e.target.value)} style={inp} /></div>
+            <div><label style={{ fontSize: 11.5, fontWeight: 700 }}>Appointment Time</label><input type="time" value={f.appointmentTime || ""} onChange={(e) => set("appointmentTime", e.target.value)} style={inp} /></div>
+          </div>
+        )}
         <label style={{ fontSize: 11.5, fontWeight: 700 }}>Customer Name *</label>
         <input value={f.customer} onChange={(e) => set("customer", e.target.value)} style={inp} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>

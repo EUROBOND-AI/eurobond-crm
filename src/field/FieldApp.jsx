@@ -7170,7 +7170,9 @@ function FieldQuotationList() {
   const [view, setView] = useState(null);
   const [winFor, setWinFor] = useState(null);
 
-  const load = () => api.list("quotation", true).then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data })))).catch(() => setRows([]));
+  /* kotta quotation add cheyganey pytaki (medana) kanipinchaali — anduke
+     _id (server auto-increment) descending tho sort chestunnam, kotta vi pyna */
+  const load = () => api.list("quotation", true).then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data })).sort((a, b) => (Number(b._id) || 0) - (Number(a._id) || 0)))).catch(() => setRows([]));
   useEffect(() => { load(); }, []);
   useAppRefresh(load);
 
