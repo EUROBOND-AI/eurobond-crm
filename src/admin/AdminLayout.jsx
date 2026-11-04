@@ -459,6 +459,7 @@ export default function AdminLayout() {
 function AdminBell({ nav }) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState([]);
+  const [detail, setDetail] = useState(null);   // #9 — notification details overlay
   const readKey = "eb_admin_notif_read";
   /* Cleared ones are remembered here rather than deleted, because the record
      itself belongs to everyone who was notified — clearing the panel is this
@@ -517,11 +518,13 @@ function AdminBell({ nav }) {
   const read = getRead();
   const unread = rows.filter((n) => !read.has(n._id)).length;
 
+  /* #9 — click chesthe venttaney navigate kakunda, details oka overlay lo
+     terustundi; user dismiss chesey varaku screen meeda pyna (foreground) untundi */
   const openItem = (n) => {
     const s = getRead(); s.add(n._id);
     localStorage.setItem(readKey, JSON.stringify([...s].slice(-300)));
     setOpen(false);
-    if (n.adminLink) nav(n.adminLink.replace(/^\/admin/, "/admin"));
+    setDetail(n);
   };
 
   return (
@@ -560,6 +563,32 @@ function AdminBell({ nav }) {
             })}
           </div>
         </>
+      )}
+
+      {/* #9 — notification details overlay: foreground layering, dismiss cheseydaka
+          screen meeda untundi. mask meeda click chesina close avvదు — only buttons tho */}
+      {detail && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 100000, background: "rgba(13,20,45,.45)", display: "grid", placeItems: "center", padding: 16 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 420, background: "#fff", borderRadius: 16, boxShadow: "0 24px 70px rgba(10,15,40,.4)", overflow: "hidden" }}>
+            <div style={{ padding: "14px 18px", borderBottom: "1px solid #eef1f8", display: "flex", alignItems: "center", gap: 8 }}>
+              <BellRing size={17} color="#2b6fb8" />
+              <span style={{ fontWeight: 800, fontSize: 14, flex: 1, fontFamily: "Bricolage Grotesque" }}>{detail.title || "Notification"}</span>
+            </div>
+            <div style={{ padding: "16px 18px" }}>
+              <div style={{ fontSize: 13.5, color: "#1c2340", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{detail.message || ""}</div>
+              {detail.createdAt && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 10 }}>{detail.createdAt}</div>}
+            </div>
+            <div style={{ display: "flex", gap: 8, padding: "0 18px 16px" }}>
+              {detail.adminLink && (
+                <button className="btn btn-primary" style={{ flex: 1 }}
+                  onClick={() => { const l = detail.adminLink; setDetail(null); nav(l.replace(/^\/admin/, "/admin")); }}>
+                  Open
+                </button>
+              )}
+              <button className="btn btn-soft" style={{ flex: detail.adminLink ? "0 0 auto" : 1 }} onClick={() => setDetail(null)}>Dismiss</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
