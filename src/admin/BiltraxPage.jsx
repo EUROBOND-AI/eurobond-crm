@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Eye, Share2, Trash2, MessageSquare, Pencil, UserPlus, RefreshCw } from "lucide-react";
 import { PageHead, StatCard, ToolButtons } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
-import { scopeRows, visibleUsers } from "../lib/scope.js";
+import { scopeRows, visibleUsers, recordMatchesPlace, isUnderHod } from "../lib/scope.js";
 import { canAdd, canDelete, canExport, canImport, canModify } from "../lib/perms.js";
 import { isPanelAdmin } from "../lib/scope.js";
 import { usePager, Pager } from "../components/Pager.jsx";
@@ -32,6 +32,7 @@ export default function BiltraxPage() {
   const [reassign, setReassign] = useState(false);
   const [fwdOpen, setFwdOpen] = useState(false);
   const [fType, setFType] = useState("");
+  const [fZone, setFZone] = useState("");   // #7 — cascade Zone step
   const [fState, setFState] = useState("");
   const [fHod, setFHod] = useState("");
   const [fPerson, setFPerson] = useState("");
@@ -85,6 +86,8 @@ export default function BiltraxPage() {
   const list = useMemo(() => (!shown ? [] : rows.filter((r) => {
     if (stageOf(r) !== tab) return false;
     if (fType && (r.biltraxType || "Requested") !== fType) return false;
+    /* #7 — Zone is matched through the person the row is tied to (their user record) */
+    if (fZone && !recordMatchesPlace(r, users, { zone: fZone })) return false;
     if (fState && (r.state || "").trim().toLowerCase() !== fState.trim().toLowerCase()) return false;
     if (fHod && (r.hod || "") !== fHod) return false;
     if (fPerson && (r.assignPerson || "") !== fPerson) return false;
@@ -95,8 +98,8 @@ export default function BiltraxPage() {
     if (!q.trim()) return true;
     const t = q.toLowerCase();
     return `${r.projectName} ${r.address} ${r.landmark} ${r.assignPerson}`.toLowerCase().includes(t);
-  })), [rows, shown, tab, fType, fState, fHod, fPerson, fAppt, q]);
-  const pager = usePager(list, 10, tab + fType + fState + fHod + fPerson + fAppt + q);
+  })), [rows, shown, tab, fType, fZone, fState, fHod, fPerson, fAppt, q, users]);
+  const pager = usePager(list, 10, tab + fType + fZone + fState + fHod + fPerson + fAppt + q);
 
   const save = async (data) => {
     try {
@@ -227,22 +230,32 @@ export default function BiltraxPage() {
           <option value="">All Types</option>
           {BILTRAX_TYPES.map((t) => <option key={t}>{t}</option>)}
         </select>
-        <select value={fState} onChange={(e) => setFState(e.target.value)} style={{ ...inp, width: 170, marginBottom: 0 }}>
-          <option value="">All States</option>
-          {[...new Set(rows.map((r) => r.state).filter(Boolean))].sort().map((x) => <option key={x}>{x}</option>)}
-        </select>
-        <select value={fHod} onChange={(e) => setFHod(e.target.value)} style={{ ...inp, width: 170, marginBottom: 0 }}>
-          <option value="">All HOD</option>
-          {[...new Set(rows.map((r) => r.hod).filter(Boolean))].sort().map((x) => <option key={x}>{x}</option>)}
-        </select>
-        <select value={fPerson} onChange={(e) => setFPerson(e.target.value)} style={{ ...inp, width: 190, marginBottom: 0 }}>
-          <option value="">All Persons</option>
-          {[...new Set(rows.map((r) => r.assignPerson).filter(Boolean))].sort().map((x) => <option key={x}>{x}</option>)}
-        </select>
+        {/* #7 — Zone → State → HOD → Person cascade (users-based), same as every module */}
+        {(() => {
+          const low = (x) => String(x || "").trim().toLowerCase();
+          const vu = visibleUsers(users || []);
+          const uniq = (a) => [...new Set(a.map((x) => String(x || "").trim()).filter(Boolean))].sort();
+          const inZone = fZone ? vu.filter((u) => low(u.zone) === low(fZone)) : vu;
+          const inState = fState ? inZone.filter((u) => [u.state, ...String(u.states || "").split(",")].map(low).includes(low(fState))) : inZone;
+          const inHod = fHod ? inState.filter((u) => isUnderHod(users, u.name, fHod)) : inState;
+          const zones = uniq(vu.map((u) => u.zone));
+          const states = uniq(inZone.flatMap((u) => [u.state, ...String(u.states || "").split(",")]));
+          const hods = uniq(inState.filter((u) => /hod/i.test(u.role || "")).map((u) => u.name));
+          const persons = uniq(inHod.map((u) => u.name));
+          const s = { ...inp, width: 160, marginBottom: 0 };
+          return (
+            <>
+              {zones.length > 0 && <select value={fZone} onChange={(e) => { setFZone(e.target.value); setFState(""); setFHod(""); setFPerson(""); }} style={s}><option value="">All Zones</option>{zones.map((x) => <option key={x}>{x}</option>)}</select>}
+              <select value={fState} onChange={(e) => { setFState(e.target.value); setFHod(""); setFPerson(""); }} style={s}><option value="">All States</option>{states.map((x) => <option key={x}>{x}</option>)}</select>
+              <select value={fHod} onChange={(e) => { setFHod(e.target.value); setFPerson(""); }} style={s}><option value="">All HOD</option>{hods.map((x) => <option key={x}>{x}</option>)}</select>
+              <select value={fPerson} onChange={(e) => setFPerson(e.target.value)} style={{ ...inp, width: 190, marginBottom: 0 }}><option value="">All Persons</option>{persons.map((x) => <option key={x}>{x}</option>)}</select>
+            </>
+          );
+        })()}
         <input type="date" value={fAppt} onChange={(e) => setFAppt(e.target.value)} title="Appointment date"
           style={{ ...inp, width: 170, marginBottom: 0 }} />
         <button className="btn btn-primary" style={{ padding: "9px 22px", fontWeight: 700 }} onClick={() => setShown(true)}>Show</button>
-        {shown && <button className="btn btn-ghost" onClick={() => { setShown(false); setQ(""); setFType(""); setFState(""); setFHod(""); setFPerson(""); setFAppt(""); }}>Clear</button>}
+        {shown && <button className="btn btn-ghost" onClick={() => { setShown(false); setQ(""); setFType(""); setFZone(""); setFState(""); setFHod(""); setFPerson(""); setFAppt(""); }}>Clear</button>}
       </div>
 
       {/* status tabs */}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
-import { visibleUsers, visibleNameSet } from "../lib/scope.js";
+import { visibleUsers, visibleNameSet, isUnderHod } from "../lib/scope.js";
 import { Avatar } from "../lib/avatar.jsx";
 
 /* Live check-in overview — 4 cards (Total Users, Login, Pending, Leave).
@@ -11,6 +11,8 @@ export default function CheckinPage() {
   const [zone, setZone] = useState("");
   const [city, setCity] = useState("");
   const [stateF, setStateF] = useState("");
+  const [hodF, setHodF] = useState("");     // #7 — cascade HOD step
+  const [userF, setUserF] = useState("");   // #7 — cascade User step
   const [sessions, setSessions] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [leaves, setLeaves] = useState([]);
@@ -34,7 +36,12 @@ export default function CheckinPage() {
       .finally(() => setLoading(false));
   };
 
-  const inScope = allUsers.filter((u) => (!zone || u.zone === zone) && (!stateF || u.state === stateF) && (!city || u.city === city));
+  const inScope = allUsers.filter((u) =>
+    (!zone || u.zone === zone)
+    && (!stateF || [u.state, ...String(u.states || "").split(",")].map((x) => String(x || "").trim().toLowerCase()).includes(stateF.trim().toLowerCase()))
+    && (!hodF || isUnderHod(allUsers, u.name, hodF))
+    && (!userF || u.name === userF)
+    && (!city || u.city === city));
   const checkedIds = new Set(sessions.map((s) => String(s.user_id)));
   const loginUsers = inScope.filter((u) => checkedIds.has(String(u.id)));
   /* A HOD reading this screen sees their own team everywhere else on it —
@@ -84,18 +91,27 @@ export default function CheckinPage() {
       <div style={{ marginBottom: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={sel} />
         <button className="btn" style={{ background: "#22a45d", color: "#fff", borderColor: "transparent" }} onClick={loadData} disabled={loading}>{loading ? "Loading…" : "Show"}</button>
-        <select value={zone} onChange={(e) => setZone(e.target.value)} style={sel}>
-          <option value="">All Zones</option>
-          {[...new Set(allUsers.map((u) => u.zone).filter(Boolean))].map((z) => <option key={z}>{z}</option>)}
-        </select>
-        <select value={stateF} onChange={(e) => setStateF(e.target.value)} style={sel}>
-          <option value="">All States</option>
-          {[...new Set(allUsers.map((u) => u.state).filter(Boolean))].map((s) => <option key={s}>{s}</option>)}
-        </select>
-        <select value={city} onChange={(e) => setCity(e.target.value)} style={sel}>
-          <option value="">All Cities</option>
-          {[...new Set(allUsers.map((u) => u.city).filter(Boolean))].map((c) => <option key={c}>{c}</option>)}
-        </select>
+        {/* #7 — Zone → State → HOD → User cascade (users-based), same as every module */}
+        {(() => {
+          const low = (x) => String(x || "").trim().toLowerCase();
+          const uniq = (a) => [...new Set(a.map((x) => String(x || "").trim()).filter(Boolean))].sort();
+          const inZone = zone ? allUsers.filter((u) => low(u.zone) === low(zone)) : allUsers;
+          const inState = stateF ? inZone.filter((u) => [u.state, ...String(u.states || "").split(",")].map(low).includes(low(stateF))) : inZone;
+          const inHod = hodF ? inState.filter((u) => isUnderHod(allUsers, u.name, hodF)) : inState;
+          const zones = uniq(allUsers.map((u) => u.zone));
+          const states = uniq(inZone.flatMap((u) => [u.state, ...String(u.states || "").split(",")]));
+          const hods = uniq(inState.filter((u) => /hod/i.test(u.role || "")).map((u) => u.name));
+          const usersL = uniq(inHod.map((u) => u.name));
+          return (
+            <>
+              {zones.length > 0 && <select value={zone} onChange={(e) => { setZone(e.target.value); setStateF(""); setHodF(""); setUserF(""); }} style={sel}><option value="">All Zones</option>{zones.map((z) => <option key={z}>{z}</option>)}</select>}
+              <select value={stateF} onChange={(e) => { setStateF(e.target.value); setHodF(""); setUserF(""); }} style={sel}><option value="">All States</option>{states.map((s) => <option key={s}>{s}</option>)}</select>
+              {hods.length > 0 && <select value={hodF} onChange={(e) => { setHodF(e.target.value); setUserF(""); }} style={sel}><option value="">All HOD</option>{hods.map((h) => <option key={h}>{h}</option>)}</select>}
+              <select value={userF} onChange={(e) => setUserF(e.target.value)} style={sel}><option value="">All Users</option>{usersL.map((u) => <option key={u}>{u}</option>)}</select>
+              <select value={city} onChange={(e) => setCity(e.target.value)} style={sel}><option value="">All Cities</option>{uniq(inHod.map((u) => u.city)).map((c) => <option key={c}>{c}</option>)}</select>
+            </>
+          );
+        })()}
       </div>
 
       {!loaded ? (

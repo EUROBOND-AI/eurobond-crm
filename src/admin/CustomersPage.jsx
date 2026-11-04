@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Phone, MapPin, Eye, X } from "lucide-react";
 import { PageHead, StatCard, ToolButtons } from "../components/ui.jsx";
-import { scopeRows, visibleUsers } from "../lib/scope.js";
+import { scopeRows, visibleUsers, recordMatchesPlace, isUnderHod } from "../lib/scope.js";
 import { canDelete, canModify } from "../lib/perms.js";
 import { api } from "../lib/api.js";
 import { usePager, Pager } from "../components/Pager.jsx";
@@ -40,6 +40,7 @@ export default function CustomersPage() {
   const toggleCol = (c) => setHiddenCols((s) => { const n = new Set(s); n.has(c) ? n.delete(c) : n.add(c); localStorage.setItem("cust_hidden_cols", JSON.stringify([...n])); return n; });
   const colVisible = (c) => !hiddenCols.has(c);
   /* filters */
+  const [fZone, setFZone] = useState("");   // #7 — cascade Zone step
   const [fState, setFState] = useState("");
   const [fHod, setFHod] = useState("");
   const [fPerson, setFPerson] = useState("");
@@ -62,7 +63,7 @@ export default function CustomersPage() {
   useEffect(load, []);
   useEffect(() => { api.listUsers().then((d) => setUsers((d.users || []).filter((u) => u.role !== "Admin"))).catch(() => {}); }, []);
 
-  const applyShow = () => setApplied({ state: fState, hod: fHod, person: fPerson, from: fFrom, to: fTo, dup: fDup });
+  const applyShow = () => setApplied({ zone: fZone, state: fState, hod: fHod, person: fPerson, from: fFrom, to: fTo, dup: fDup });
 
   /* What this login may see. The rows went through this, but the State and HOD
      lists were built from the raw fetch, so they offered every state and every
@@ -84,6 +85,7 @@ export default function CustomersPage() {
     }
     /* applied filters (Show button) */
     if (applied) {
+      if (applied.zone) l = l.filter((r) => recordMatchesPlace(r, users, { zone: applied.zone }));
       if (applied.state) l = l.filter((r) => (r.state || "").toLowerCase() === applied.state.toLowerCase());
       if (applied.hod) l = l.filter((r) => (r.hod || "").toLowerCase().includes(applied.hod.toLowerCase()));
       if (applied.person) l = l.filter((r) => (r.by || "").toLowerCase().includes(applied.person.toLowerCase()));
@@ -401,24 +403,32 @@ export default function CustomersPage() {
 
       {/* filters + Show */}
       <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap", margin: "14px 0", background: "#fff", padding: 14, borderRadius: 12, boxShadow: "var(--shadow)" }}>
-        <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>State</label>
-          <select value={fState} onChange={(e) => setFState(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5, minWidth: 130 }}>
-            <option value="">All States</option>
-            {[...new Set(visibleRows.map((r) => r.state).filter(Boolean))].sort().map((s) => <option key={s}>{s}</option>)}
-          </select></div>
-        <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>HOD</label>
-          <select value={fHod} onChange={(e) => setFHod(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5, minWidth: 130 }}>
-            <option value="">All HODs</option>
-            {[...new Set(visibleRows.map((r) => r.hod).filter(Boolean))].sort().map((h) => <option key={h}>{h}</option>)}
-          </select></div>
-        <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>Sales Person</label>
-          <select value={fPerson} onChange={(e) => setFPerson(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5, minWidth: 150 }}>
-            <option value="">All</option>
-            {/* The rows were already limited to this login's team, but this list
-                offered every name in the company. The full list is still held
-                for working out who reports to whom. */}
-            {visibleUsers(users).map((u) => <option key={u.id} value={u.name}>{u.name}</option>)}
-          </select></div>
+        {/* #7 — Zone → State → HOD → Sales Person cascade (users-based), same as every module */}
+        {(() => {
+          const low = (x) => String(x || "").trim().toLowerCase();
+          const vu = visibleUsers(users || []);
+          const uniq = (a) => [...new Set(a.map((x) => String(x || "").trim()).filter(Boolean))].sort();
+          const inZone = fZone ? vu.filter((u) => low(u.zone) === low(fZone)) : vu;
+          const inState = fState ? inZone.filter((u) => [u.state, ...String(u.states || "").split(",")].map(low).includes(low(fState))) : inZone;
+          const inHod = fHod ? inState.filter((u) => isUnderHod(users, u.name, fHod)) : inState;
+          const zones = uniq(vu.map((u) => u.zone));
+          const states = uniq(inZone.flatMap((u) => [u.state, ...String(u.states || "").split(",")]));
+          const hods = uniq(inState.filter((u) => /hod/i.test(u.role || "")).map((u) => u.name));
+          const persons = uniq(inHod.map((u) => u.name));
+          const s = { padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5, minWidth: 130 };
+          return (
+            <>
+              {zones.length > 0 && <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>Zone</label>
+                <select value={fZone} onChange={(e) => { setFZone(e.target.value); setFState(""); setFHod(""); setFPerson(""); }} style={s}><option value="">All Zones</option>{zones.map((x) => <option key={x}>{x}</option>)}</select></div>}
+              <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>State</label>
+                <select value={fState} onChange={(e) => { setFState(e.target.value); setFHod(""); setFPerson(""); }} style={s}><option value="">All States</option>{states.map((x) => <option key={x}>{x}</option>)}</select></div>
+              <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>HOD</label>
+                <select value={fHod} onChange={(e) => { setFHod(e.target.value); setFPerson(""); }} style={s}><option value="">All HODs</option>{hods.map((x) => <option key={x}>{x}</option>)}</select></div>
+              <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>Sales Person</label>
+                <select value={fPerson} onChange={(e) => setFPerson(e.target.value)} style={{ ...s, minWidth: 150 }}><option value="">All</option>{persons.map((x) => <option key={x}>{x}</option>)}</select></div>
+            </>
+          );
+        })()}
         <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>From Date</label>
           <input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5 }} /></div>
         <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>To Date</label>
@@ -430,7 +440,7 @@ export default function CustomersPage() {
             <option value="unique">Hide duplicates</option>
           </select></div>
         <button className="btn" style={{ background: "#22a45d", color: "#fff", borderColor: "transparent" }} onClick={applyShow}>Show</button>
-        {applied && <button className="btn btn-soft" onClick={() => { setApplied(null); setFState(""); setFHod(""); setFPerson(""); setFFrom(""); setFTo(""); setFDup(""); }}>Clear</button>}
+        {applied && <button className="btn btn-soft" onClick={() => { setApplied(null); setFZone(""); setFState(""); setFHod(""); setFPerson(""); setFFrom(""); setFTo(""); setFDup(""); }}>Clear</button>}
       </div>
 
       <div style={{ position: "relative", margin: "14px 0" }}>
