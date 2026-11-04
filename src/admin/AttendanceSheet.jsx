@@ -112,6 +112,7 @@ export default function AttendanceSheet() {
     return m;
   }, [leaves]);
 
+  const todayStr = new Date().toLocaleDateString("en-CA");   // YYYY-MM-DD, local
   const codeFor = (u, dateStr, dow) => {
     const s = sessMap[`${u.id}|${dateStr}`];
     if (s) {
@@ -126,6 +127,9 @@ export default function AttendanceSheet() {
     const off = (u.weekly_off || "Sunday").slice(0, 3).toLowerCase();
     const dayName = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][dow];
     if (dayName === off) return "S";
+    /* #19 — a past working day with no session, no leave and no holiday is an
+       absence (auto-absent). Today and future days stay blank. */
+    if (dateStr < todayStr) return "A";
     return "";
   };
 

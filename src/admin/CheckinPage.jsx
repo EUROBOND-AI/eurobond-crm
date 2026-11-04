@@ -153,10 +153,24 @@ export default function CheckinPage() {
               {listFor().map((r, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, background: "#f6f8fd", borderRadius: 11, padding: "11px 13px" }}>
                   <Avatar name={r.name} photo={r.photo} size={34} />
-                  <div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 13.5 }}>{r.name}</div>
                     <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{r.sub}</div>
                   </div>
+                  {/* #19 — unlock late attendance for this person so they can still
+                      mark it after the 10:30 cut-off */}
+                  {show === "pending" && (
+                    <button
+                      onClick={async (e) => {
+                        const btn = e.currentTarget; btn.disabled = true; btn.textContent = "…";
+                        try { await api.attUnlock(r.name, date); btn.textContent = "✓ Unlocked"; }
+                        catch (err) { alert(err.message); btn.disabled = false; btn.textContent = "Unlock"; }
+                      }}
+                      title="Let this person mark attendance after the cut-off"
+                      style={{ border: "none", cursor: "pointer", fontWeight: 800, fontSize: 11, padding: "5px 10px", borderRadius: 8, background: "#e8f0ff", color: "#2563eb", flexShrink: 0 }}>
+                      Unlock
+                    </button>
+                  )}
                 </div>
               ))}
             </div>}

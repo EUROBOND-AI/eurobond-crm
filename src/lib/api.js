@@ -291,6 +291,10 @@ export const api = {
   attPointsList: (session_id) => req("/attendance.php?action=pointsList&session_id=" + session_id),
   attStop: (session_id, extra) => req("/attendance.php?action=stop", { method: "POST", body: { session_id, ...(extra || {}) } }),
   attToday: () => req("/attendance.php?action=today"),
+  /* #19 — whether the admin has unlocked late attendance for me today */
+  attLockStatus: () => req("/attendance.php?action=lockStatus"),
+  /* #19 — admin unlocks a user so they can still mark attendance after the cut-off */
+  attUnlock: (name, date) => req("/attendance.php?action=unlock", { method: "POST", body: { name, date } }),
   attList: (from, to) => req(`/attendance.php?action=list&from=${from}&to=${to || from}`),
   areasAll: () => req("/areas.php?action=all"),
   areaStates: () => req("/areas.php?action=states"),

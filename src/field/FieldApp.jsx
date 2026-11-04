@@ -914,7 +914,7 @@ async function registerPush() {
 /* ---- Daily attendance reminders: 9:00 AM to 10:00 AM, every 10 minutes ----
    Scheduled with the OS so they fire even when the app is fully closed.
    They are cancelled for the day as soon as attendance is started. */
-const ATT_REMINDER_IDS = [910001, 910002, 910003, 910004, 910005, 910006, 910007];
+const ATT_REMINDER_IDS = [910001, 910002, 910003, 910004, 910005, 910006, 910007, 910008, 910009];
 /* logout reminders: 7:00 PM to 8:00 PM, every 10 minutes */
 const LOGOUT_REMINDER_IDS = [920001, 920002, 920003, 920004, 920005, 920006, 920007];
 async function scheduleAttendanceReminders() {
@@ -981,7 +981,20 @@ async function scheduleAttendanceReminders() {
         });
     } catch {}
 
-    const times = [[9, 0], [9, 10], [9, 20], [9, 30], [9, 40], [9, 50], [10, 0]];
+    /* #19 — 9:00–9:50 the usual reminder, then a 30-minute countdown to the
+       10:30 cut-off: 10:00 → 30 min left, 10:10 → 20 min, 10:20 → 10 min.
+       After 10:30 the window is up; at 11:00 the app marks the day absent. */
+    const times = [
+      [9, 0, "Please start your attendance login for today."],
+      [9, 10, "Please start your attendance login for today."],
+      [9, 20, "Please start your attendance login for today."],
+      [9, 30, "Please start your attendance login for today."],
+      [9, 40, "Please start your attendance login for today."],
+      [9, 50, "Please start your attendance login for today."],
+      [10, 0, "⏳ 30 minutes left to mark your attendance (by 10:30 AM)."],
+      [10, 10, "⏳ 20 minutes left to mark your attendance (by 10:30 AM)."],
+      [10, 20, "⏳ 10 minutes left — mark your attendance now (by 10:30 AM)."],
+    ];
     const notifications = [];
     for (let day = 0; day < 7; day++) {
       const base = new Date();
@@ -989,14 +1002,14 @@ async function scheduleAttendanceReminders() {
       if (day === 0 && doneToday) continue;                    // already marked today
       if (base.getDay() === 0) continue;                       // Sunday
       if (off.has(base.toISOString().slice(0, 10))) continue;  // holiday / leave
-      times.forEach(([h, m], i) => {
+      times.forEach(([h, m, body], i) => {
         const at = new Date(base);
         at.setHours(h, m, 0, 0);
         if (at.getTime() <= Date.now()) return;                // already past
         notifications.push({
           id: ATT_REMINDER_IDS[i] + day * 10,
           title: "Attendance Reminder",
-          body: "Please start your attendance login for today.",
+          body,
           channelId: "eurobond_reminder",
           smallIcon: "ic_stat_notify",
           schedule: { at, allowWhileIdle: true },
@@ -1185,6 +1198,12 @@ function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expense
   /* #6 — a resigned employee sees the home screen, but only the attendance
      swipe on it; every module card/quick-action is hidden. */
   const isResigned = Number(CU().resigned) === 1;
+  /* #19 — after 11:00 AM, if the day was never started, attendance is locked and
+     the day counts as Absent, unless an admin unlocked it from Check-in. */
+  const [attUnlocked, setAttUnlocked] = useState(false);
+  useEffect(() => { api.attLockStatus().then((d) => setAttUnlocked(!!(d && d.unlocked))).catch(() => {}); }, []);
+  const _nowH = new Date().getHours();
+  const lockedAbsent = _nowH >= 11 && !doneToday && !attendanceOn && !attUnlocked;
 
   /* holiday reminders — run once per day (region-wise: 2 days before, 1 day before, same day) */
   useEffect(() => {
@@ -1268,6 +1287,13 @@ function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expense
         {doneToday ? (
           <div style={{ background: "#e8f7ee", border: "1.5px solid #7ed9a0", borderRadius: 16, padding: "16px", textAlign: "center", fontWeight: 800, color: "#1f7a44", fontSize: 14 }}>
             ✓ Attendance completed for today
+          </div>
+        ) : lockedAbsent ? (
+          /* #19 — not started by 11:00 AM: the day is Absent and the swipe is
+             gone until an admin unlocks it from Check-in. */
+          <div style={{ background: "#fdecec", border: "1.5px solid #f3a3a3", borderRadius: 16, padding: "16px", textAlign: "center" }}>
+            <div style={{ fontWeight: 900, color: "#c0392b", fontSize: 18, letterSpacing: 0.5 }}>ABSENT</div>
+            <div style={{ fontWeight: 600, color: "#9b4a44", fontSize: 12.5, marginTop: 4 }}>Attendance was not started by 10:30 AM. Ask the admin to unlock it from Check-in.</div>
           </div>
         ) : !withinAttWindow() && !attendanceOn ? (
           <div style={{ background: "#f1f3f8", border: "1.5px solid #d7dcef", borderRadius: 16, padding: "16px", textAlign: "center", fontWeight: 700, color: "var(--muted)", fontSize: 13 }}>
