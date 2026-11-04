@@ -10,6 +10,11 @@ import { usePager, Pager } from "../components/Pager.jsx";
 import { useVisiblePoll } from "../lib/poll.js";
 import { taskFlash } from "../lib/bgTask.js";
 
+/* #7 — the data modules that carry people/place, so the Zone→State→HOD→User
+   cascade belongs on them. Master lists (products, holidays, announcement,
+   tickets, notification, resources, policies, …) are left out on purpose. */
+const CASCADE_MODS = ["enquiry", "quotation", "projectProjection", "salesToSpec", "specToSales", "task", "expense", "leave", "beatPlan", "target"];
+
 /* Which name to ask the permission grid about.
 
    The grid in Roles & Permission lists modules as "Leave" and "Expense", but
@@ -302,14 +307,17 @@ export default function ModulePage({ cfgKey }) {
     if (fZone) list = list.filter((r) => (r.zone || "") === fZone);
     if (fLead) list = list.filter((r) => (r.leadSource || "") === fLead);
     if (fAssign) list = list.filter((r) => (r.assignedTo || "") === fAssign || (r.specPerson || "") === fAssign || (r.salesPerson || "") === fAssign);
-    /* #7 — the common Zone→State→HOD→User cascade, same in every module.
-       Task carries names, so it keeps its own matcher; every other module
-       matches on whoever the record is tied to (recordMatchesPlace). */
-    if (tZone || tState || tHod) {
-      const placeMatch = cfgKey === "task" ? taskMatchesPlace : recordMatchesPlace;
-      list = list.filter((r) => placeMatch(r, allUsers, { zone: tZone, state: tState, hod: tHod }));
+    /* #7 — the common Zone→State→HOD→User cascade, shown only on the data
+       modules where place/people make sense (CASCADE_MODS), not on master
+       lists. Task carries names, so it keeps its own matcher; the rest match
+       on whoever the record is tied to (recordMatchesPlace). */
+    if (CASCADE_MODS.includes(cfgKey)) {
+      if (tZone || tState || tHod) {
+        const placeMatch = cfgKey === "task" ? taskMatchesPlace : recordMatchesPlace;
+        list = list.filter((r) => placeMatch(r, allUsers, { zone: tZone, state: tState, hod: tHod }));
+      }
+      if (tUser) list = list.filter((r) => recordPeople(r).map((x) => x.toLowerCase()).includes(tUser.toLowerCase()));
     }
-    if (tUser) list = list.filter((r) => recordPeople(r).map((x) => x.toLowerCase()).includes(tUser.toLowerCase()));
     return list;
   }, [visibleRows, cfg, fUser, fHod, fSpec, fSales, fStatus, fStateM, projSide, fCity, fZone, fLead, fAssign, fFrom, fTo, cfgKey, tZone, tState, tHod, tUser, allUsers]);
 
@@ -659,10 +667,11 @@ export default function ModulePage({ cfgKey }) {
         <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
           <input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} title="From date" style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }} />
           <input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} title="To date" style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }} />
-          {/* #7 — Zone → State → HOD → User cascade, same block in every module.
-              Each step narrows the next: choose a Zone and only that zone's
-              states show, then its HODs, then its users. */}
-          {(() => {
+          {/* #7 — Zone → State → HOD → User cascade. Only on the data modules
+              where place/people apply (CASCADE_MODS); master lists don't show it.
+              Each step narrows the next: a Zone shows only its states, then its
+              HODs, then its users. */}
+          {CASCADE_MODS.includes(cfgKey) && (() => {
             const low = (x) => String(x || "").trim().toLowerCase();
             const vu = visibleUsers(allUsers || []);
             const uniq = (a) => [...new Set(a.map((x) => String(x || "").trim()).filter(Boolean))].sort();

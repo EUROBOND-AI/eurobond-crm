@@ -1,5 +1,6 @@
 import logoImg from "../assets/logo.jpg";
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Outlet, NavLink, useNavigate, Navigate, useLocation } from "react-router-dom";
 import {
   Search, Bell, Moon, Maximize, Pin, LayoutDashboard, Megaphone, Users,
@@ -565,10 +566,12 @@ function AdminBell({ nav }) {
         </>
       )}
 
-      {/* #9 — notification details overlay: foreground layering, dismiss cheseydaka
-          screen meeda untundi. mask meeda click chesina close avvదు — only buttons tho */}
-      {detail && (
-        <div onClick={() => setDetail(null)} style={{ position: "fixed", inset: 0, zIndex: 100000, background: "rgba(13,20,45,.45)", display: "grid", placeItems: "center", padding: 16 }}>
+      {/* #9 — notification details overlay. Rendered through a portal to <body>
+          so it sits above everything (frozen table headers included) instead of
+          being trapped inside the top-bar's stacking context. Click outside
+          (on the dark mask) closes it. */}
+      {detail && createPortal(
+        <div onClick={() => setDetail(null)} style={{ position: "fixed", inset: 0, zIndex: 2147483000, background: "rgba(13,20,45,.45)", display: "grid", placeItems: "center", padding: 16 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 420, background: "#fff", borderRadius: 16, boxShadow: "0 24px 70px rgba(10,15,40,.4)", overflow: "hidden" }}>
             <div style={{ padding: "14px 18px", borderBottom: "1px solid #eef1f8", display: "flex", alignItems: "center", gap: 8 }}>
               <BellRing size={17} color="#2b6fb8" />
@@ -588,7 +591,8 @@ function AdminBell({ nav }) {
               <button className="btn btn-soft" style={{ flex: detail.adminLink ? "0 0 auto" : 1 }} onClick={() => setDetail(null)}>Dismiss</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
