@@ -1,17 +1,9 @@
-/* Tap any photo anywhere (notifications, admin, dashboards, check-in,
-   attendance, forms) and it opens large in a circular view. Mounted once per
-   shell; it listens for clicks on real photos (uploaded images / data URLs),
-   not icons or logos, and shows only the zoom so an underlying card does not
-   also fire. */
+/* Tap a PERSON'S photo (a face drawn by the Avatar component — notifications,
+   admin, dashboards, check-in, attendance) and it opens large in a circular
+   view. Mounted once per shell. It fires ONLY for images marked
+   data-userphoto, so product pictures, invoices, selfies and other attachments
+   keep opening the normal way, exactly as before. */
 import { useEffect, useState } from "react";
-
-const isPhoto = (img) => {
-  const s = img.currentSrc || img.src || "";
-  if (!s) return false;
-  if (/^data:image\//i.test(s) || /^blob:/i.test(s)) return true;
-  if (/(upload|\/photos?\/|attach|selfie|invoice|avatar|\.(jpe?g|png|webp|heic))/i.test(s)) return true;
-  return false;
-};
 
 export default function PhotoZoom() {
   const [src, setSrc] = useState(null);
@@ -20,12 +12,10 @@ export default function PhotoZoom() {
       const img = e.target && e.target.closest ? e.target.closest("img") : null;
       if (!img) return;
       if (img.closest("[data-euva]") || img.closest("[data-nozoom]")) return;
-      const alt = (img.getAttribute("alt") || "").toLowerCase();
-      if (/logo|brand|icon|flag/.test(alt)) return;
-      let r; try { r = img.getBoundingClientRect(); } catch { return; }
-      if (r.width < 34 || r.height < 34) return;         // skip tiny icons / avatars
-      if (!isPhoto(img)) return;
+      /* only a user photo (Avatar). everything else is left to open as it did before */
+      if (!img.hasAttribute("data-userphoto") && !img.closest("[data-userphoto]")) return;
       const s = img.currentSrc || img.src;
+      if (!s) return;
       e.preventDefault(); e.stopPropagation();
       setSrc(s);
     };

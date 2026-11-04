@@ -9459,11 +9459,19 @@ export default function FieldApp() {
           <ErrorBoundary routeKey={location.pathname}>
           <div key={refreshTick} style={{ display: "contents" }}>
           {/* #6 — a resigned employee may only use Attendance (and reach their
-              profile to log out); any other screen bounces back to attendance,
-              whichever way they got there. */}
-          {Number(CU().resigned) === 1 && !["/app", "/app/attendance", "/app/profile"].includes(location.pathname) && (
-            <Navigate to="/app/attendance" replace />
-          )}
+              profile to log out). Every other screen shows a clear "access
+              removed" message instead of the module, whichever way they got
+              there (menu, home, or a direct link). */}
+          {Number(CU().resigned) === 1 && !["/app/attendance", "/app/profile"].includes(location.pathname) ? (
+            <div style={{ padding: "64px 24px", textAlign: "center" }}>
+              <div style={{ fontSize: 46, marginBottom: 14 }}>🔒</div>
+              <div style={{ fontWeight: 800, fontSize: 18, color: "var(--navy)", marginBottom: 8, fontFamily: "Bricolage Grotesque" }}>Access removed</div>
+              <div style={{ fontSize: 14, color: "var(--muted)", lineHeight: 1.6, maxWidth: 320, margin: "0 auto 22px" }}>
+                You have been marked as resigned, so you no longer have access to this section. You can still mark your attendance.
+              </div>
+              <button className="btn btn-primary" onClick={() => nav("/app/attendance")} style={{ padding: "11px 26px", fontWeight: 700 }}>Go to Attendance</button>
+            </div>
+          ) : (
           <Routes>
             <Route index element={<FieldHome attendanceOn={attendanceOn} doneToday={doneToday} setAttendanceOn={setAttendanceOn} tracking={tracking} expenses={expenses} followups={followups} leaves={leaves} onStartAttendance={async () => {
               try {
@@ -9545,6 +9553,7 @@ export default function FieldApp() {
             <Route path="profile" element={<FieldProfile onLogout={() => { api.logout(); setAuthed(false); setAttendanceOn(false); nav("/"); }} />} />
             <Route path="*" element={<Navigate to="/app" replace />} />
           </Routes>
+          )}
           </div>
           </ErrorBoundary>
         </div>

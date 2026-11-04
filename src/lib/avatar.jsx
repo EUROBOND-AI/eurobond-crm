@@ -61,8 +61,10 @@ export function Avatar({ name, photo, size = 40, ring = "" }) {
   };
   if (src) {
     return (
-      <div style={base}>
-        <img src={src} alt={name || ""} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+      /* data-userphoto marks this as a person's photo, so the circular zoom
+         (PhotoZoom) opens it — and ONLY it, never product/invoice/selfie images */
+      <div style={base} data-userphoto="1">
+        <img src={src} alt={name || ""} data-userphoto="1" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", cursor: "zoom-in" }} />
       </div>
     );
   }
