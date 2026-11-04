@@ -182,8 +182,11 @@ export default function QuotationAdmin() {
     });
     /* most-recently edited / approved / created first, so a just-edited
        quotation jumps to the top of the list */
-    const ts = (r) => Date.parse(r.updatedAt || 0) || 0;
-    l = [...l].sort((a, b) => (ts(b) - ts(a)) || ((b._id || 0) - (a._id || 0)));
+    /* kotta ga add chesinadi eppudu pyna undaali, edit chesina position marakudadu —
+       anduke _id (server creation order) descending tho matrame sort. mundu updatedAt
+       tho sort chesi undevallam, anduke edit chesthe pyki ekki, kotta quotation (updatedAt
+       lekunda) kindaki potundi. */
+    l = [...l].sort((a, b) => (Number(b._id) || 0) - (Number(a._id) || 0));
     return l;
   }, [scoped, colSearch, applied]);
   const pager = usePager(list, 10, "");
