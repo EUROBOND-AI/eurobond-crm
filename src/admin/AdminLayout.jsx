@@ -568,7 +568,7 @@ function AdminBell({ nav }) {
       {/* #9 — notification details overlay: foreground layering, dismiss cheseydaka
           screen meeda untundi. mask meeda click chesina close avvదు — only buttons tho */}
       {detail && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 100000, background: "rgba(13,20,45,.45)", display: "grid", placeItems: "center", padding: 16 }}>
+        <div onClick={() => setDetail(null)} style={{ position: "fixed", inset: 0, zIndex: 100000, background: "rgba(13,20,45,.45)", display: "grid", placeItems: "center", padding: 16 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 420, background: "#fff", borderRadius: 16, boxShadow: "0 24px 70px rgba(10,15,40,.4)", overflow: "hidden" }}>
             <div style={{ padding: "14px 18px", borderBottom: "1px solid #eef1f8", display: "flex", alignItems: "center", gap: 8 }}>
               <BellRing size={17} color="#2b6fb8" />

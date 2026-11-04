@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { MODULES } from "./moduleConfigs.jsx";
 import { PageHead, Tabs, DataTable, ToolButtons, FormModal, StatCard } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
-import { scopeRows, visibleUsers, isPanelAdmin, taskMatchesPlace, hodNamesOf } from "../lib/scope.js";
+import { scopeRows, visibleUsers, isPanelAdmin, taskMatchesPlace, hodNamesOf, recordMatchesPlace, recordPeople, isUnderHod } from "../lib/scope.js";
 import { AdminSearchSelect } from "./QuotationAdmin.jsx";
 import { canAdd, canDelete, canModify, canExport, canImport } from "../lib/perms.js";
 import { usePager, Pager } from "../components/Pager.jsx";
@@ -221,6 +221,7 @@ export default function ModulePage({ cfgKey }) {
   const [tZone, setTZone] = useState("");
   const [tState, setTState] = useState("");
   const [tHod, setTHod] = useState("");
+  const [tUser, setTUser] = useState("");   // #7 — the User step of the cascade
 
   const knownTabs = (cfg.tabs || []).map((t) => t.key);
   const firstTab = cfg.tabs?.[0]?.key;
@@ -301,9 +302,16 @@ export default function ModulePage({ cfgKey }) {
     if (fZone) list = list.filter((r) => (r.zone || "") === fZone);
     if (fLead) list = list.filter((r) => (r.leadSource || "") === fLead);
     if (fAssign) list = list.filter((r) => (r.assignedTo || "") === fAssign || (r.specPerson || "") === fAssign || (r.salesPerson || "") === fAssign);
-    if (cfgKey === "task" && (tZone || tState || tHod)) list = list.filter((r) => taskMatchesPlace(r, allUsers, { zone: tZone, state: tState, hod: tHod }));
+    /* #7 — the common Zone→State→HOD→User cascade, same in every module.
+       Task carries names, so it keeps its own matcher; every other module
+       matches on whoever the record is tied to (recordMatchesPlace). */
+    if (tZone || tState || tHod) {
+      const placeMatch = cfgKey === "task" ? taskMatchesPlace : recordMatchesPlace;
+      list = list.filter((r) => placeMatch(r, allUsers, { zone: tZone, state: tState, hod: tHod }));
+    }
+    if (tUser) list = list.filter((r) => recordPeople(r).map((x) => x.toLowerCase()).includes(tUser.toLowerCase()));
     return list;
-  }, [visibleRows, cfg, fUser, fHod, fSpec, fSales, fStatus, fStateM, projSide, fCity, fZone, fLead, fAssign, fFrom, fTo, cfgKey, tZone, tState, tHod, allUsers]);
+  }, [visibleRows, cfg, fUser, fHod, fSpec, fSales, fStatus, fStateM, projSide, fCity, fZone, fLead, fAssign, fFrom, fTo, cfgKey, tZone, tState, tHod, tUser, allUsers]);
 
   /* the rows the tab is then chosen from — the totals count these, so filtering
      to twenty rows no longer still reads the full table */
@@ -651,33 +659,32 @@ export default function ModulePage({ cfgKey }) {
         <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
           <input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} title="From date" style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }} />
           <input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} title="To date" style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }} />
-          {cfgKey === "task" && (() => {
+          {/* #7 — Zone → State → HOD → User cascade, same block in every module.
+              Each step narrows the next: choose a Zone and only that zone's
+              states show, then its HODs, then its users. */}
+          {(() => {
+            const low = (x) => String(x || "").trim().toLowerCase();
             const vu = visibleUsers(allUsers || []);
             const uniq = (a) => [...new Set(a.map((x) => String(x || "").trim()).filter(Boolean))].sort();
+            const inZone = tZone ? vu.filter((u) => low(u.zone) === low(tZone)) : vu;
+            const inState = tState ? inZone.filter((u) => [u.state, ...String(u.states || "").split(",")].map(low).includes(low(tState))) : inZone;
+            const inHod = tHod ? inState.filter((u) => isUnderHod(allUsers, u.name, tHod)) : inState;
             const zones = uniq(vu.map((u) => u.zone));
-            const states = uniq(vu.flatMap((u) => [u.state, ...String(u.states || "").split(",")]));
-            const hods = hodNamesOf(vu.length ? vu : allUsers);
+            const states = uniq(inZone.flatMap((u) => [u.state, ...String(u.states || "").split(",")]));
+            const hods = hodNamesOf(inState.length ? inState : vu);
+            const users = uniq(inHod.map((u) => u.name));
             const sel = { padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" };
             return (
               <>
-                <select value={tZone} onChange={(e) => setTZone(e.target.value)} style={sel} title="Zone"><option value="">All Zones</option>{zones.map((z) => <option key={z}>{z}</option>)}</select>
-                <select value={tState} onChange={(e) => setTState(e.target.value)} style={sel} title="State"><option value="">All States</option>{states.map((z) => <option key={z}>{z}</option>)}</select>
-                {hods.length > 0 && <select value={tHod} onChange={(e) => setTHod(e.target.value)} style={sel} title="HOD"><option value="">All HODs</option>{hods.map((z) => <option key={z}>{z}</option>)}</select>}
+                {zones.length > 0 && <select value={tZone} onChange={(e) => { setTZone(e.target.value); setTState(""); setTHod(""); setTUser(""); }} style={sel} title="Zone"><option value="">All Zones</option>{zones.map((z) => <option key={z}>{z}</option>)}</select>}
+                {states.length > 0 && <select value={tState} onChange={(e) => { setTState(e.target.value); setTHod(""); setTUser(""); }} style={sel} title="State"><option value="">All States</option>{states.map((z) => <option key={z}>{z}</option>)}</select>}
+                {hods.length > 0 && <select value={tHod} onChange={(e) => { setTHod(e.target.value); setTUser(""); }} style={sel} title="HOD"><option value="">All HODs</option>{hods.map((z) => <option key={z}>{z}</option>)}</select>}
+                {users.length > 0 && <select value={tUser} onChange={(e) => setTUser(e.target.value)} style={sel} title="User"><option value="">All Users</option>{users.map((z) => <option key={z}>{z}</option>)}</select>}
               </>
             );
           })()}
-          {distinct("createdBy").length > 0 && (
-            <select value={fUser} onChange={(e) => setFUser(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
-              <option value="">All Users</option>
-              {distinct("createdBy").map((u) => <option key={u}>{u}</option>)}
-            </select>
-          )}
-          {["projectProjection", "salesToSpec", "specToSales", "target"].includes(cfgKey) && distinct("hod").length > 0 && (
-            <select value={fHod} onChange={(e) => setFHod(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
-              <option value="">All HOD</option>
-              {distinct("hod").map((h) => <option key={h}>{h}</option>)}
-            </select>
-          )}
+          {/* #7 — old standalone "All Users" (createdBy) and "All HOD" dropdowns
+              removed; the Zone→State→HOD→User cascade above now covers both. */}
           {["salesToSpec"].includes(cfgKey) && distinct("specPerson").length > 0 && (
             <select value={fSpec} onChange={(e) => setFSpec(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
               <option value="">All Spec Persons</option>

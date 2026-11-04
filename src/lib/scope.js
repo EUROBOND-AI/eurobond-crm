@@ -140,6 +140,38 @@ export function taskMatchesPlace(t, users, { zone = "", state = "", hod = "" } =
   });
 }
 
+/* #7 — the people ANY record is tied to (not just a task): whoever it was
+   assigned to, created by, or named on as sales/spec person. Used by the
+   common Zone→State→HOD→User cascade so every module filters the same way. */
+export function recordPeople(r) {
+  const row = r || {};
+  const out = [];
+  if (Array.isArray(row.assigneeList) && row.assigneeList.length) out.push(...row.assigneeList);
+  else if (row.assignee) out.push(...String(row.assignee).split(","));
+  for (const k of ["assignedTo", "createdBy", "salesPerson", "specPerson", "passto"]) {
+    if (row[k]) out.push(row[k]);
+  }
+  return [...new Set(out.map((x) => String(x).trim()).filter(Boolean))];
+}
+
+/* does any person on this record fall inside the chosen zone / state / HOD */
+export function recordMatchesPlace(r, users, { zone = "", state = "", hod = "" } = {}) {
+  if (!zone && !state && !hod) return true;
+  const people = recordPeople(r);
+  if (!people.length) return false;
+  return people.some((n) => {
+    const u = userByName(users, n);
+    if (!u) return false;
+    if (zone && low(u.zone) !== low(zone)) return false;
+    if (state) {
+      const theirs = [u.state, ...String(u.states || "").split(",")].map(low).filter(Boolean);
+      if (!theirs.includes(low(state))) return false;
+    }
+    if (hod && !isUnderHod(users, u.name, hod)) return false;
+    return true;
+  });
+}
+
 /* the HODs on offer in a filter — people whose role says HOD, within reach */
 export function hodNamesOf(users) {
   return [...new Set((users || [])
