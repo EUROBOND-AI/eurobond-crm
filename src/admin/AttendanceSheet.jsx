@@ -23,6 +23,7 @@ export default function AttendanceSheet() {
   const now = new Date();
   const [month, setMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`);
   const [zoneF, setZoneF] = useState("All Zones");
+  const [stateF, setStateF] = useState("All States");   // #7 — cascade State step
   const [hodF, setHodF] = useState("All HOD");
   const [userF, setUserF] = useState("All Users");
   const [dFrom, setDFrom] = useState("");
@@ -128,9 +129,15 @@ export default function AttendanceSheet() {
     return "";
   };
 
+  /* #7 — Zone → State → HOD → User cascade: each list narrowed by the one above */
+  const low = (x) => String(x || "").trim().toLowerCase();
+  const inZone = useMemo(() => (zoneF !== "All Zones" ? (users || []).filter((u) => u.zone === zoneF) : (users || [])), [users, zoneF]);
+  const inState = useMemo(() => (stateF !== "All States" ? inZone.filter((u) => [u.state, ...String(u.states || "").split(",")].map(low).includes(low(stateF))) : inZone), [inZone, stateF]);
+  const inHod = useMemo(() => (hodF !== "All HOD" ? inState.filter((u) => u.manager === hodF) : inState), [inState, hodF]);
   const zones = useMemo(() => ["All Zones", ...[...new Set((users || []).map((u) => u.zone).filter(Boolean))].sort()], [users]);
-  const hods = useMemo(() => ["All HOD", ...[...new Set((users || []).map((u) => u.manager).filter(Boolean))].sort()], [users]);
-  const userNames = useMemo(() => ["All Users", ...(users || []).map((u) => u.name).sort()], [users]);
+  const states = useMemo(() => ["All States", ...[...new Set(inZone.flatMap((u) => [u.state, ...String(u.states || "").split(",")]).map((x) => String(x || "").trim()).filter(Boolean))].sort()], [inZone]);
+  const hods = useMemo(() => ["All HOD", ...[...new Set(inState.map((u) => u.manager).filter(Boolean))].sort()], [inState]);
+  const userNames = useMemo(() => ["All Users", ...inHod.map((u) => u.name).sort()], [inHod]);
 
   /* From/To range: month lopala day columns limit */
   const dayRange = useMemo(() => {
@@ -144,6 +151,7 @@ export default function AttendanceSheet() {
     if (!users) return null;
     let filtered = users;
     if (zoneF !== "All Zones") filtered = filtered.filter((u) => u.zone === zoneF);
+    if (stateF !== "All States") filtered = filtered.filter((u) => [u.state, ...String(u.states || "").split(",")].map(low).includes(low(stateF)));
     if (hodF !== "All HOD") filtered = filtered.filter((u) => u.manager === hodF);
     if (userF !== "All Users") filtered = filtered.filter((u) => u.name === userF);
     return filtered.map((u) => {
@@ -159,7 +167,7 @@ export default function AttendanceSheet() {
       }
       return { u, cells, totals: { p, t, wfh, l, ho, s, a, present: p + t + wfh, total: p + t + wfh + l + ho + s } };
     });
-  }, [users, sessMap, leaveMap, holidaysByDate, month, zoneF, hodF, userF]);
+  }, [users, sessMap, leaveMap, holidaysByDate, month, zoneF, stateF, hodF, userF]);
 
   const exportCsv = () => {
     if (!grid) return;
@@ -193,8 +201,10 @@ export default function AttendanceSheet() {
           <button className="btn" style={{ background: "#22a45d", color: "#fff", borderColor: "transparent" }} onClick={load} disabled={busy}>{busy ? "Loading…" : "Show"}</button>
           <input type="date" value={dFrom} onChange={(e) => setDFrom(e.target.value)} title="From date" style={selS} />
           <input type="date" value={dTo} onChange={(e) => setDTo(e.target.value)} title="To date" style={selS} />
-          <select value={zoneF} onChange={(e) => setZoneF(e.target.value)} style={selS}>{zones.map((z) => <option key={z}>{z}</option>)}</select>
-          <select value={hodF} onChange={(e) => setHodF(e.target.value)} style={selS}>{hods.map((c) => <option key={c}>{c}</option>)}</select>
+          {/* #7 — Zone → State → HOD → User cascade */}
+          <select value={zoneF} onChange={(e) => { setZoneF(e.target.value); setStateF("All States"); setHodF("All HOD"); setUserF("All Users"); }} style={selS}>{zones.map((z) => <option key={z}>{z}</option>)}</select>
+          <select value={stateF} onChange={(e) => { setStateF(e.target.value); setHodF("All HOD"); setUserF("All Users"); }} style={selS}>{states.map((z) => <option key={z}>{z}</option>)}</select>
+          <select value={hodF} onChange={(e) => { setHodF(e.target.value); setUserF("All Users"); }} style={selS}>{hods.map((c) => <option key={c}>{c}</option>)}</select>
           <select value={userF} onChange={(e) => setUserF(e.target.value)} style={selS}>{userNames.map((n) => <option key={n}>{n}</option>)}</select>
           <button className="btn btn-ghost" onClick={load} disabled={busy} style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <RefreshCw size={14} className={busy ? "spin" : ""} /> Refresh

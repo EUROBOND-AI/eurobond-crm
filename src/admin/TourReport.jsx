@@ -15,6 +15,7 @@ export default function TourReport() {
   const [sessions, setSessions] = useState(null);
   const [users, setUsers] = useState([]);
   const [fy, setFy] = useState(() => { const n = new Date(); return n.getMonth() >= 3 ? n.getFullYear() : n.getFullYear() - 1; });
+  const [fZone, setFZone] = useState("");   // #7 — cascade Zone step
   const [fState, setFState] = useState("");
   const [fHod, setFHod] = useState("");
   const [fUser, setFUser] = useState("");
@@ -42,13 +43,18 @@ export default function TourReport() {
   const filtered = useMemo(() => {
     if (!sessions) return [];
     return sessions.filter((s) => {
+      if (fZone) {
+        const nm = String(s.name || s.user || "").trim().toLowerCase();
+        const u = users.find((x) => String(x.name || "").trim().toLowerCase() === nm);
+        if (!u || String(u.zone || "").trim().toLowerCase() !== fZone.trim().toLowerCase()) return false;
+      }
       if (fState && (s.state || "") !== fState) return false;
       if (fHod && (s.manager || s.hod || "") !== fHod) return false;
       if (fUser && (s.name || s.user || "") !== fUser) return false;
       if (fMonth && monthKey(s.work_date) !== fMonth) return false;
       return true;
     });
-  }, [sessions, fState, fHod, fUser, fMonth]);
+  }, [sessions, fZone, fState, fHod, fUser, fMonth, users]);
 
   /* explode areas: one session may have 2-3 areas -> each counts once.
      ONLY tour visits (Ex Station / Out-Station) — Local visits are excluded. */
@@ -98,9 +104,15 @@ export default function TourReport() {
       return { area, cells, total };
     });
   }, [areaFiltered]);
-  const states = [...new Set(users.map((u) => u.state).filter(Boolean))].sort();
-  const hods = users.filter((u) => `${u.role || ""} ${u.designation || ""}`.toLowerCase().includes("hod")).map((u) => u.name);
-  const userNames = users.map((u) => u.name);
+  /* #7 — Zone → State → HOD → User cascade option lists */
+  const low = (x) => String(x || "").trim().toLowerCase();
+  const inZone = fZone ? users.filter((u) => low(u.zone) === low(fZone)) : users;
+  const inState = fState ? inZone.filter((u) => [u.state, ...String(u.states || "").split(",")].map(low).includes(low(fState))) : inZone;
+  const inHod = fHod ? inState.filter((u) => low(u.manager) === low(fHod)) : inState;
+  const zones = [...new Set(users.map((u) => u.zone).filter(Boolean))].sort();
+  const states = [...new Set(inZone.flatMap((u) => [u.state, ...String(u.states || "").split(",")]).map((x) => String(x || "").trim()).filter(Boolean))].sort();
+  const hods = [...new Set(inState.filter((u) => `${u.role || ""} ${u.designation || ""}`.toLowerCase().includes("hod")).map((u) => u.name))].sort();
+  const userNames = [...new Set(inHod.map((u) => u.name).filter(Boolean))].sort();
 
   const exportExcel = () => {
     const head = "Month,Ex Station,Out-Station,Tour Count\n";
@@ -127,8 +139,10 @@ export default function TourReport() {
         <select value={fy} onChange={(e) => setFy(Number(e.target.value))} style={sel}>
           {[0, 1, 2, 3].map((o) => { const y = new Date().getFullYear() - o; return <option key={y} value={y}>{y}-{String(y + 1).slice(2)}</option>; })}
         </select>
-        <select value={fState} onChange={(e) => setFState(e.target.value)} style={sel}><option value="">All States</option>{states.map((s) => <option key={s}>{s}</option>)}</select>
-        <select value={fHod} onChange={(e) => setFHod(e.target.value)} style={sel}><option value="">All HOD</option>{hods.map((h) => <option key={h}>{h}</option>)}</select>
+        {/* #7 — Zone → State → HOD → User cascade */}
+        {zones.length > 0 && <select value={fZone} onChange={(e) => { setFZone(e.target.value); setFState(""); setFHod(""); setFUser(""); }} style={sel}><option value="">All Zones</option>{zones.map((z) => <option key={z}>{z}</option>)}</select>}
+        <select value={fState} onChange={(e) => { setFState(e.target.value); setFHod(""); setFUser(""); }} style={sel}><option value="">All States</option>{states.map((s) => <option key={s}>{s}</option>)}</select>
+        <select value={fHod} onChange={(e) => { setFHod(e.target.value); setFUser(""); }} style={sel}><option value="">All HOD</option>{hods.map((h) => <option key={h}>{h}</option>)}</select>
         <select value={fUser} onChange={(e) => setFUser(e.target.value)} style={sel}><option value="">All Users</option>{userNames.map((u) => <option key={u}>{u}</option>)}</select>
         {/* the financial year runs April to March, so the months are listed that way */}
         <select value={fMonth} onChange={(e) => setFMonth(e.target.value)} style={sel}>

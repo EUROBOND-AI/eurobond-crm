@@ -36,6 +36,15 @@ export default function CheckinPage() {
       .finally(() => setLoading(false));
   };
 
+  /* #7 — the filter dropdowns must look the same before and after Show, so the
+     user list is fetched once on mount (not only when Show is pressed). */
+  useEffect(() => {
+    api.listUsers().then((u) => {
+      const allowed = visibleUsers(u.users || []);
+      setAllUsers(allowed.filter((x) => Number(x.status) !== 0 && x.role !== "Admin"));
+    }).catch(() => {});
+  }, []);
+
   const inScope = allUsers.filter((u) =>
     (!zone || u.zone === zone)
     && (!stateF || [u.state, ...String(u.states || "").split(",")].map((x) => String(x || "").trim().toLowerCase()).includes(stateF.trim().toLowerCase()))

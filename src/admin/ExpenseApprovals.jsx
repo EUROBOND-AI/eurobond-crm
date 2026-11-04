@@ -18,6 +18,7 @@ export default function ExpenseApprovals() {
   const [tab, setTab] = useState("Submitted");
   const [view, setView] = useState(null);
   const [users, setUsers] = useState([]);
+  const [fZone, setFZone] = useState("");   // #7 — cascade Zone step
   const [fPerson, setFPerson] = useState("");
   const [fHod, setFHod] = useState("");
   const [fState, setFState] = useState("");
@@ -27,7 +28,14 @@ export default function ExpenseApprovals() {
   const [cfgOpen, setCfgOpen] = useState(false);
   const toggleCol = (c) => setHiddenCols((s) => { const n = new Set(s); n.has(c) ? n.delete(c) : n.add(c); localStorage.setItem("exp_hidden_cols", JSON.stringify([...n])); return n; });
   const colVisible = (c) => !hiddenCols.has(c);
-  const applyShow = () => setApplied({ person: fPerson, hod: fHod, state: fState });
+  const applyShow = () => setApplied({ zone: fZone, person: fPerson, hod: fHod, state: fState });
+  /* #7 — a row's person -> their user record, for the Zone match */
+  const zoneOk = (r, zone) => {
+    if (!zone) return true;
+    const nm = String(r.user || r._by || "").trim().toLowerCase();
+    const u = (users || []).find((x) => String(x.name || "").trim().toLowerCase() === nm);
+    return !!u && String(u.zone || "").trim().toLowerCase() === zone.trim().toLowerCase();
+  };
   const [picked, setPicked] = useState(new Set());
   const [areaState, setAreaState] = useState({});
   const [refMaster, setRefMaster] = useState(null);   // { depo: lastUsed }
@@ -217,6 +225,7 @@ export default function ExpenseApprovals() {
     else if (tab === "Rejected") ok = r.status === "Rejected" || r.status === "Reject";
     if (!ok) return false;
     if (applied) {
+      if (applied.zone && !zoneOk(r, applied.zone)) return false;
       if (applied.person && !((r.user || r._by || "").toLowerCase().includes(applied.person.toLowerCase()))) return false;
       if (applied.state && !((r.location || "").toLowerCase().includes(applied.state.toLowerCase()))) return false;
       if (applied.hod) {
@@ -234,6 +243,7 @@ export default function ExpenseApprovals() {
   const stats = useMemo(() => {
     if (!applied) return { subN: 0, subAmt: 0, appN: 0, appAmt: 0, allN: 0 };
     const base = applied ? statements.filter((r) => {
+      if (applied.zone && !zoneOk(r, applied.zone)) return false;
       if (applied.person && !((r.user || r._by || "").toLowerCase().includes(applied.person.toLowerCase()))) return false;
       if (applied.state && !((r.location || "").toLowerCase().includes(applied.state.toLowerCase()))) return false;
       if (applied.hod) {
@@ -264,31 +274,33 @@ export default function ExpenseApprovals() {
 
       {/* filters */}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 14, boxShadow: "var(--shadow)" }}>
-        <div>
-          <label style={fLbl}>Sales Person</label>
-          <select value={fPerson} onChange={(e) => setFPerson(e.target.value)} style={fSel}>
-            <option value="">All</option>
-            {/* only the people this login is allowed to see; the full list is
-                still kept for working out who reports to whom */}
-            {[...new Set(visibleUsers(users).map((u) => u.name))].filter(Boolean).map((n) => <option key={n}>{n}</option>)}
-          </select>
-        </div>
-        <div>
-          <label style={fLbl}>HOD</label>
-          <select value={fHod} onChange={(e) => setFHod(e.target.value)} style={fSel}>
-            <option value="">All</option>
-            {[...new Set(visibleUsers(users).filter((u) => /hod/i.test(u.role || "")).map((u) => u.name))].filter(Boolean).map((n) => <option key={n}>{n}</option>)}
-          </select>
-        </div>
-        <div>
-          <label style={fLbl}>State</label>
-          <select value={fState} onChange={(e) => setFState(e.target.value)} style={fSel}>
-            <option value="">All</option>
-            {[...new Set(users.map((u) => u.state))].filter(Boolean).map((s) => <option key={s}>{s}</option>)}
-          </select>
-        </div>
+        {/* #7 — Zone → State → HOD → Sales Person cascade (users-based), same as every module */}
+        {(() => {
+          const low = (x) => String(x || "").trim().toLowerCase();
+          const vu = visibleUsers(users || []);
+          const uniq = (a) => [...new Set(a.map((x) => String(x || "").trim()).filter(Boolean))].sort();
+          const inZone = fZone ? vu.filter((u) => low(u.zone) === low(fZone)) : vu;
+          const inState = fState ? inZone.filter((u) => [u.state, ...String(u.states || "").split(",")].map(low).includes(low(fState))) : inZone;
+          const inHod = fHod ? inState.filter((u) => low(u.manager) === low(fHod)) : inState;
+          const zones = uniq(vu.map((u) => u.zone));
+          const states = uniq(inZone.flatMap((u) => [u.state, ...String(u.states || "").split(",")]));
+          const hods = uniq(inState.filter((u) => /hod/i.test(u.role || "")).map((u) => u.name));
+          const persons = uniq(inHod.map((u) => u.name));
+          return (
+            <>
+              {zones.length > 0 && <div><label style={fLbl}>Zone</label>
+                <select value={fZone} onChange={(e) => { setFZone(e.target.value); setFState(""); setFHod(""); setFPerson(""); }} style={fSel}><option value="">All</option>{zones.map((x) => <option key={x}>{x}</option>)}</select></div>}
+              <div><label style={fLbl}>State</label>
+                <select value={fState} onChange={(e) => { setFState(e.target.value); setFHod(""); setFPerson(""); }} style={fSel}><option value="">All</option>{states.map((x) => <option key={x}>{x}</option>)}</select></div>
+              <div><label style={fLbl}>HOD</label>
+                <select value={fHod} onChange={(e) => { setFHod(e.target.value); setFPerson(""); }} style={fSel}><option value="">All</option>{hods.map((x) => <option key={x}>{x}</option>)}</select></div>
+              <div><label style={fLbl}>Sales Person</label>
+                <select value={fPerson} onChange={(e) => setFPerson(e.target.value)} style={fSel}><option value="">All</option>{persons.map((x) => <option key={x}>{x}</option>)}</select></div>
+            </>
+          );
+        })()}
         <button className="btn btn-primary" onClick={applyShow} style={{ height: 38 }}>Show</button>
-        {applied && <button className="btn btn-ghost" onClick={() => { setApplied(null); setFPerson(""); setFHod(""); setFState(""); }} style={{ height: 38 }}>Clear</button>}
+        {applied && <button className="btn btn-ghost" onClick={() => { setApplied(null); setFZone(""); setFPerson(""); setFHod(""); setFState(""); }} style={{ height: 38 }}>Clear</button>}
       </div>
 
       <div className="stat-row">

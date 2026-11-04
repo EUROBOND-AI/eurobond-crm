@@ -694,18 +694,8 @@ export default function ModulePage({ cfgKey }) {
           })()}
           {/* #7 — old standalone "All Users" (createdBy) and "All HOD" dropdowns
               removed; the Zone→State→HOD→User cascade above now covers both. */}
-          {["salesToSpec"].includes(cfgKey) && distinct("specPerson").length > 0 && (
-            <select value={fSpec} onChange={(e) => setFSpec(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
-              <option value="">All Spec Persons</option>
-              {distinct("specPerson").map((s) => <option key={s}>{s}</option>)}
-            </select>
-          )}
-          {["specToSales"].includes(cfgKey) && distinct("salesPerson").length > 0 && (
-            <select value={fSales} onChange={(e) => setFSales(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
-              <option value="">All Sales Persons</option>
-              {distinct("salesPerson").map((s) => <option key={s}>{s}</option>)}
-            </select>
-          )}
+          {/* #7 — "All Spec Persons" / "All Sales Persons" dropdowns removed;
+              the Zone→State→HOD→User cascade's User step covers them now. */}
           {["projectProjection", "salesToSpec", "specToSales", "target"].includes(cfgKey) && distinct("status").length > 0 && (
             <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
               <option value="">All Status</option>

@@ -158,15 +158,20 @@ export default function UsersPage() {
   )];
 
   const [fRole, setFRole] = useState("");
+  const [fZone, setFZone] = useState("");   // #7 — cascade Zone
   const [fState, setFState] = useState("");
+  const [fHod, setFHod] = useState("");     // #7 — cascade HOD
   const [fStatus, setFStatus] = useState("");
   const [shown, setShown] = useState(false);
   const [importing, setImporting] = useState(false);
   const [picked, setPicked] = useState(new Set());
+  const lowU = (x) => String(x || "").trim().toLowerCase();
   const filtered = !shown ? [] : users.filter((u) =>
     (!q || (u.name + u.mobile + (u.code || "") + (u.city || "")).toLowerCase().includes(q.toLowerCase()))
     && (!fRole || u.role === fRole)
-    && (!fState || u.state === fState)
+    && (!fZone || lowU(u.zone) === lowU(fZone))
+    && (!fState || [u.state, ...String(u.states || "").split(",")].map(lowU).includes(lowU(fState)))
+    && (!fHod || lowU(u.manager) === lowU(fHod))
     && (!fStatus || (fStatus === "active" ? (u.status == 1) : (u.status != 1)))
   );
 
@@ -207,17 +212,29 @@ export default function UsersPage() {
           <option value="">All Roles</option>
           {[...new Set(users.map((u) => u.role).filter(Boolean))].sort().map((r) => <option key={r}>{r}</option>)}
         </select>
-        <select value={fState} onChange={(e) => setFState(e.target.value)} style={selStyle}>
-          <option value="">All States</option>
-          {[...new Set(users.map((u) => u.state).filter(Boolean))].sort().map((r) => <option key={r}>{r}</option>)}
-        </select>
+        {/* #7 — Zone → State → HOD cascade (these rows are the users themselves) */}
+        {(() => {
+          const inZone = fZone ? users.filter((u) => lowU(u.zone) === lowU(fZone)) : users;
+          const inState = fState ? inZone.filter((u) => [u.state, ...String(u.states || "").split(",")].map(lowU).includes(lowU(fState))) : inZone;
+          const uniq = (a) => [...new Set(a.map((x) => String(x || "").trim()).filter(Boolean))].sort();
+          const zones = uniq(users.map((u) => u.zone));
+          const states = uniq(inZone.flatMap((u) => [u.state, ...String(u.states || "").split(",")]));
+          const hods = uniq(inState.filter((u) => /hod/i.test(u.role || "")).map((u) => u.name));
+          return (
+            <>
+              {zones.length > 0 && <select value={fZone} onChange={(e) => { setFZone(e.target.value); setFState(""); setFHod(""); }} style={selStyle}><option value="">All Zones</option>{zones.map((z) => <option key={z}>{z}</option>)}</select>}
+              <select value={fState} onChange={(e) => { setFState(e.target.value); setFHod(""); }} style={selStyle}><option value="">All States</option>{states.map((r) => <option key={r}>{r}</option>)}</select>
+              {hods.length > 0 && <select value={fHod} onChange={(e) => setFHod(e.target.value)} style={selStyle}><option value="">All HOD</option>{hods.map((h) => <option key={h}>{h}</option>)}</select>}
+            </>
+          );
+        })()}
         <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} style={selStyle}>
           <option value="">All Status</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
         </select>
         <button className="btn btn-primary" style={{ padding: "8px 20px", fontWeight: 700 }} onClick={() => setShown(true)}>Show</button>
-        {shown && <button className="btn btn-ghost" onClick={() => { setShown(false); setQ(""); setFRole(""); setFState(""); setFStatus(""); setPicked(new Set()); }}>Clear</button>}
+        {shown && <button className="btn btn-ghost" onClick={() => { setShown(false); setQ(""); setFRole(""); setFZone(""); setFState(""); setFHod(""); setFStatus(""); setPicked(new Set()); }}>Clear</button>}
         {picked.size > 0 && (
           <button className="btn btn-danger" onClick={async () => {
             if (!window.confirm(`Permanently delete ${picked.size} user(s) and their attendance history? This cannot be undone.`)) return;

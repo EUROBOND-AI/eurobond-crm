@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { PageHead, StatCard, ToolButtons } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
-import { scopeRows } from "../lib/scope.js";
+import { scopeRows, visibleUsers, recordMatchesPlace, isUnderHod } from "../lib/scope.js";
 import { canDelete, canApprove, canExport } from "../lib/perms.js";
 import { LETTERHEAD } from "./letterhead.js";
 import jsPDF from "jspdf";
@@ -136,6 +136,9 @@ export default function QuotationAdmin() {
   });
   const [busy, setBusy] = useState(false);
   const [fStatus, setFStatus] = useState("");
+  const [fZone, setFZone] = useState("");    // #7 — cascade Zone/State/HOD
+  const [fStateQ, setFStateQ] = useState("");
+  const [fHodQ, setFHodQ] = useState("");
   const [fPerson, setFPerson] = useState("");
   const [fFrom, setFFrom] = useState("");
   const [fTo, setFTo] = useState("");
@@ -146,7 +149,7 @@ export default function QuotationAdmin() {
   const [cfgOpen, setCfgOpen] = useState(false);
   const toggleCol = (c) => setHiddenCols((s) => { const n = new Set(s); n.has(c) ? n.delete(c) : n.add(c); localStorage.setItem("quote_hidden_cols", JSON.stringify([...n])); return n; });
   const colVisible = (c) => !hiddenCols.has(c);
-  const applyShow = () => setApplied({ status: fStatus, person: fPerson, from: fFrom, to: fTo });
+  const applyShow = () => setApplied({ status: fStatus, zone: fZone, state: fStateQ, hod: fHodQ, person: fPerson, from: fFrom, to: fTo });
 
   const load = () => api.list("quotation", false)
     .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data }))))
@@ -172,6 +175,7 @@ export default function QuotationAdmin() {
     if (!applied && !anyColSearch) return [];   // nothing until Show is clicked
     if (applied) {
       if (applied.status) l = l.filter((r) => (r.status || "Pending") === applied.status);
+      if (applied.zone || applied.state || applied.hod) l = l.filter((r) => recordMatchesPlace(r, qUsers, { zone: applied.zone, state: applied.state, hod: applied.hod }));
       if (applied.person) l = l.filter((r) => (r.createdBy || "") === applied.person);
       if (applied.from) l = l.filter((r) => { const d = (r.createdAt2 || r._created || "").slice(0, 10); return !d || d >= applied.from; });
       if (applied.to) l = l.filter((r) => { const d = (r.createdAt2 || r._created || "").slice(0, 10); return !d || d <= applied.to; });
@@ -269,19 +273,38 @@ export default function QuotationAdmin() {
           <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5 }}>
             <option value="">All</option><option>Pending</option><option>Approved</option><option>Win</option>
           </select></div>
-        <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>Created By</label>
-          <select value={fPerson} onChange={(e) => setFPerson(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5 }}>
-            <option value="">All Sales Persons</option>
-            {/* only the people whose quotations this login can see — this list
-                was built from the raw fetch and named everybody */}
-            {[...new Set(scopeRows(rows || [], qUsers, ["createdBy", "by", "salesPerson"]).map((r) => r.createdBy).filter(Boolean))].sort().map((p) => <option key={p}>{p}</option>)}
-          </select></div>
+        {/* #7 — Zone → State → HOD → Created By cascade (users-based), same as every module */}
+        {(() => {
+          const low = (x) => String(x || "").trim().toLowerCase();
+          const vu = visibleUsers(qUsers || []);
+          const uniq = (a) => [...new Set(a.map((x) => String(x || "").trim()).filter(Boolean))].sort();
+          const inZone = fZone ? vu.filter((u) => low(u.zone) === low(fZone)) : vu;
+          const inState = fStateQ ? inZone.filter((u) => [u.state, ...String(u.states || "").split(",")].map(low).includes(low(fStateQ))) : inZone;
+          const inHod = fHodQ ? inState.filter((u) => isUnderHod(qUsers, u.name, fHodQ)) : inState;
+          const zones = uniq(vu.map((u) => u.zone));
+          const states = uniq(inZone.flatMap((u) => [u.state, ...String(u.states || "").split(",")]));
+          const hods = uniq(inState.filter((u) => /hod/i.test(u.role || "")).map((u) => u.name));
+          const persons = uniq(inHod.map((u) => u.name));
+          const s = { padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5 };
+          return (
+            <>
+              {zones.length > 0 && <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>Zone</label>
+                <select value={fZone} onChange={(e) => { setFZone(e.target.value); setFStateQ(""); setFHodQ(""); setFPerson(""); }} style={s}><option value="">All Zones</option>{zones.map((x) => <option key={x}>{x}</option>)}</select></div>}
+              <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>State</label>
+                <select value={fStateQ} onChange={(e) => { setFStateQ(e.target.value); setFHodQ(""); setFPerson(""); }} style={s}><option value="">All States</option>{states.map((x) => <option key={x}>{x}</option>)}</select></div>
+              <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>HOD</label>
+                <select value={fHodQ} onChange={(e) => { setFHodQ(e.target.value); setFPerson(""); }} style={s}><option value="">All HOD</option>{hods.map((x) => <option key={x}>{x}</option>)}</select></div>
+              <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>Created By</label>
+                <select value={fPerson} onChange={(e) => setFPerson(e.target.value)} style={s}><option value="">All Sales Persons</option>{persons.map((p) => <option key={p}>{p}</option>)}</select></div>
+            </>
+          );
+        })()}
         <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>From Date</label>
           <input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5 }} /></div>
         <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>To Date</label>
           <input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5 }} /></div>
         <button className="btn" style={{ background: "#22a45d", color: "#fff", borderColor: "transparent" }} onClick={applyShow}>Show</button>
-        {applied && <button className="btn btn-soft" onClick={() => { setApplied(null); setFStatus(""); setFPerson(""); setFFrom(""); setFTo(""); }}>Clear</button>}
+        {applied && <button className="btn btn-soft" onClick={() => { setApplied(null); setFStatus(""); setFZone(""); setFStateQ(""); setFHodQ(""); setFPerson(""); setFFrom(""); setFTo(""); }}>Clear</button>}
       </div>
 
       <div style={{ background: "#fff", borderRadius: 14, boxShadow: "var(--shadow)", overflow: "hidden" }}>
