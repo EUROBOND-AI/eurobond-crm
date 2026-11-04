@@ -1803,8 +1803,13 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
   const openHistory = (iso, today) => {
     if (today) { setHistDate(null); setHistSess(null); return; }   // today -> live view
     setHistDate(iso); setHistLoading(true); setHistSess(null);
-    api.attList(iso, iso).then((d) => {
+    api.attList(iso, iso).then(async (d) => {
       const mine = (d.sessions || []).find((s) => s.name === CU().name || s.user_id === CU().id);
+      /* some days were closed automatically by the system and never had their
+         distance worked out, so it read 0. Rebuild it from the day's points. */
+      if (mine && !(Number(mine.distance_km) > 0) && mine.id) {
+        try { const pl = await api.attPointsList(mine.id); const km = pl && pl.points ? trackDistanceKm(cleanTrack(pl.points)) : 0; if (km > 0) mine.distance_km = km; } catch {}
+      }
       setHistSess(mine || false);
     }).catch(() => setHistSess(false)).finally(() => setHistLoading(false));
   };

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { visibleUsers, visibleNameSet } from "../lib/scope.js";
+import { Avatar } from "../lib/avatar.jsx";
 
 /* Live check-in overview — 4 cards (Total Users, Login, Pending, Leave).
    Click a card → that list below. No map, no per-row view. */
@@ -64,10 +65,11 @@ export default function CheckinPage() {
   ];
 
   const listFor = () => {
-    if (show === "login") return loginUsers.map((u) => ({ name: u.name, sub: sessionInfo(u.id) }));
-    if (show === "pending") return pendingUsers.map((u) => ({ name: u.name, sub: u.city || "—" }));
-    if (show === "leave") return onLeave.map((l) => ({ name: l.createdBy || l.appliedBy || l.user || "—", sub: `${l.from} → ${l.to || l.from}` }));
-    return inScope.map((u) => ({ name: u.name, sub: checkedIds.has(String(u.id)) ? "Logged in" : "Not logged in" }));
+    const photoOf = (nm) => { const u = (allUsers || []).find((x) => String(x.name).trim().toLowerCase() === String(nm).trim().toLowerCase()); return u ? u.photo : ""; };
+    if (show === "login") return loginUsers.map((u) => ({ name: u.name, sub: sessionInfo(u.id), photo: u.photo }));
+    if (show === "pending") return pendingUsers.map((u) => ({ name: u.name, sub: u.city || "—", photo: u.photo }));
+    if (show === "leave") return onLeave.map((l) => { const nm = l.createdBy || l.appliedBy || l.user || "—"; return { name: nm, sub: `${l.from} → ${l.to || l.from}`, photo: photoOf(nm) }; });
+    return inScope.map((u) => ({ name: u.name, sub: checkedIds.has(String(u.id)) ? "Logged in" : "Not logged in", photo: u.photo }));
   };
   const sessionInfo = (uid) => {
     const s = sessions.find((x) => String(x.user_id) === String(uid));
@@ -125,7 +127,7 @@ export default function CheckinPage() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10 }}>
               {listFor().map((r, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, background: "#f6f8fd", borderRadius: 11, padding: "11px 13px" }}>
-                  <span style={{ width: 34, height: 34, borderRadius: "50%", background: "linear-gradient(135deg,#5a78ff,#8b5cf6)", color: "#fff", display: "grid", placeItems: "center", fontWeight: 800, fontSize: 13 }}>{(r.name || "?")[0]}</span>
+                  <Avatar name={r.name} photo={r.photo} size={34} />
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 13.5 }}>{r.name}</div>
                     <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{r.sub}</div>
