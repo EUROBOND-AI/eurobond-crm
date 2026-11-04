@@ -231,10 +231,12 @@ export default function AttendancePage() {
       .finally(() => setLoading(false));
   };
 
-  const zones = useMemo(() => [...new Set(sessions.map((s) => s.zone).filter(Boolean))], [sessions]);
-  const hods = useMemo(() => [...new Set(sessions.map((s) => s.manager).filter(Boolean))].sort(), [sessions]);
-  const states = useMemo(() => [...new Set(sessions.map((s) => s.state).filter(Boolean))].sort(), [sessions]);
-  const users = useMemo(() => [...new Set(sessions.map((s) => s.name).filter(Boolean))], [sessions]);
+  /* #7 — Zone → State → HOD → User cascade: each list is narrowed by the
+     choices above it, same as every module. */
+  const zones = useMemo(() => [...new Set(sessions.map((s) => s.zone).filter(Boolean))].sort(), [sessions]);
+  const states = useMemo(() => [...new Set(sessions.filter((s) => !zone || s.zone === zone).map((s) => s.state).filter(Boolean))].sort(), [sessions, zone]);
+  const hods = useMemo(() => [...new Set(sessions.filter((s) => (!zone || s.zone === zone) && (!stateF || s.state === stateF)).map((s) => s.manager).filter(Boolean))].sort(), [sessions, zone, stateF]);
+  const users = useMemo(() => [...new Set(sessions.filter((s) => (!zone || s.zone === zone) && (!stateF || s.state === stateF) && (!hodF || s.manager === hodF)).map((s) => s.name).filter(Boolean))].sort(), [sessions, zone, stateF, hodF]);
 
   const [page, setPage] = useState(1);
   const PAGE = 10;
@@ -663,17 +665,18 @@ export default function AttendancePage() {
           <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} style={sel} />
           <button className="btn" style={{ background: "#22a45d", color: "#fff", borderColor: "transparent", marginLeft: 4 }} onClick={loadData}>{loading ? "Loading…" : "Show"}</button>
         </span>
-        <select value={hodF} onChange={(e) => setHodF(e.target.value)} style={sel}>
-          <option value="">All HOD</option>
-          {hods.map((h) => <option key={h}>{h}</option>)}
-        </select>
-        <select value={zone} onChange={(e) => setZone(e.target.value)} style={sel}>
+        {/* #7 — Zone → State → HOD → User, cascading (same order in every module) */}
+        <select value={zone} onChange={(e) => { setZone(e.target.value); setStateF(""); setHodF(""); setUser(""); }} style={sel}>
           <option value="">All Zones</option>
           {zones.map((z) => <option key={z}>{z}</option>)}
         </select>
-        <select value={stateF} onChange={(e) => setStateF(e.target.value)} style={sel}>
+        <select value={stateF} onChange={(e) => { setStateF(e.target.value); setHodF(""); setUser(""); }} style={sel}>
           <option value="">All States</option>
           {states.map((c) => <option key={c}>{c}</option>)}
+        </select>
+        <select value={hodF} onChange={(e) => { setHodF(e.target.value); setUser(""); }} style={sel}>
+          <option value="">All HOD</option>
+          {hods.map((h) => <option key={h}>{h}</option>)}
         </select>
         <select value={user} onChange={(e) => setUser(e.target.value)} style={sel}>
           <option value="">All Users</option>
