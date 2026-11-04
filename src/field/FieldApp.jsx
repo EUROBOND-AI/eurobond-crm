@@ -9458,6 +9458,12 @@ export default function FieldApp() {
         <div className="phone-body">
           <ErrorBoundary routeKey={location.pathname}>
           <div key={refreshTick} style={{ display: "contents" }}>
+          {/* #6 — a resigned employee may only use Attendance (and reach their
+              profile to log out); any other screen bounces back to attendance,
+              whichever way they got there. */}
+          {Number(CU().resigned) === 1 && !["/app", "/app/attendance", "/app/profile"].includes(location.pathname) && (
+            <Navigate to="/app/attendance" replace />
+          )}
           <Routes>
             <Route index element={<FieldHome attendanceOn={attendanceOn} doneToday={doneToday} setAttendanceOn={setAttendanceOn} tracking={tracking} expenses={expenses} followups={followups} leaves={leaves} onStartAttendance={async () => {
               try {
