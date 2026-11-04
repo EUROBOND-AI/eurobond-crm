@@ -38,8 +38,9 @@ export default function MeetingCalendar() {
       api.list("biltrax", false).catch(() => ({ records: [] })),
       api.list("enquiry", false).catch(() => ({ records: [] })),
       api.list("task", false, { slim: true }).catch(() => ({ records: [] })),
+      api.holidaysAll().catch(() => ({ holidays: [] })),   // #11 — holidays on the calendar, state-wise
     ])
-      .then(([c, b, e, t]) => {
+      .then(([c, b, e, t, hol]) => {
         const me = (auth.user || {}).name;
         /* Biltrax appointments show here too, alongside customer meetings */
         const appts = (b.records || [])
@@ -103,6 +104,25 @@ export default function MeetingCalendar() {
             nextMeetingRemark: "Exhibition appointment",
             isEnquiry: true,
           }));
+        /* #11 — holidays for THIS person's state(s) show on the calendar.
+           The admin keeps the holiday master; only the ones for a state this
+           person covers are shown (their own state + any extra ones). */
+        const myStates = [
+          (auth.user || {}).state,
+          ...String((auth.user || {}).states || "").split(","),
+        ].map((s) => String(s || "").trim().toLowerCase()).filter(Boolean);
+        const holidays = (hol.holidays || [])
+          .filter((h) => h && h.date && (!myStates.length || myStates.includes(String(h.state || "").trim().toLowerCase())))
+          .map((h) => ({
+            name: `🎉 ${h.holiday || "Holiday"}`,
+            contactName: "",
+            mobile: "",
+            place: h.state || "",
+            nextMeetingDate: toIso(h.date),
+            nextMeetingTime: "",
+            nextMeetingRemark: "Holiday",
+            isHoliday: true,
+          }));
         /* Tasks with a deadline belong on the calendar too.
 
            A task given to somebody for "tomorrow 8:00 AM" is an appointment
@@ -138,7 +158,7 @@ export default function MeetingCalendar() {
             };
           })
           .filter((x) => x.nextMeetingDate);
-        setRows([...(c.customers || []), ...appts, ...bfu, ...enq, ...enqAppt, ...tasks]);
+        setRows([...(c.customers || []), ...appts, ...bfu, ...enq, ...enqAppt, ...holidays, ...tasks]);
       })
       .finally(() => setLoading(false));
   };

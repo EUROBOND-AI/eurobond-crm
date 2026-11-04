@@ -13,7 +13,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, RefreshCw } from "lucide-react";
 import { Avatar } from "../lib/avatar.jsx";
-import { visibleUsers, hodNamesOf, taskMatchesPlace } from "../lib/scope.js";
+import { visibleUsers, hodNamesOf, taskMatchesPlace, isUnderHod } from "../lib/scope.js";
 
 /* ---------------------------------------------------------------- numbers */
 export const fmtInt = (n) => {
@@ -433,10 +433,17 @@ export function usePlaceFilter(users) {
   const [state, setState] = useState("");
   const [hod, setHod] = useState("");
   const [person, setPerson] = useState("");
+  const low = (x) => String(x || "").trim().toLowerCase();
   const vis = useMemo(() => visibleUsers(users || []).filter((u) => u.status == null || u.status == 1 || u.status === "1"), [users]);
+  /* #7 — Zone → State → HOD → Person cascade: each list is narrowed by the
+     choices above it, the same order in every dashboard. */
+  const inZone = useMemo(() => (zone ? vis.filter((u) => low(u.zone) === low(zone)) : vis), [vis, zone]);
+  const inState = useMemo(() => (state ? inZone.filter((u) => [u.state, ...String(u.states || "").split(",")].map(low).includes(low(state))) : inZone), [inZone, state]);
+  const inHod = useMemo(() => (hod ? inState.filter((u) => isUnderHod(users || [], u.name, hod)) : inState), [inState, hod, users]);
   const zones = useMemo(() => [...new Set(vis.map((u) => String(u.zone || "").trim()).filter(Boolean))].sort(), [vis]);
-  const states = useMemo(() => [...new Set(vis.flatMap((u) => [u.state, ...String(u.states || "").split(",")]).map((x) => String(x || "").trim()).filter(Boolean))].sort(), [vis]);
-  const hods = useMemo(() => hodNamesOf(vis.length ? vis : users || []), [vis, users]);
+  const states = useMemo(() => [...new Set(inZone.flatMap((u) => [u.state, ...String(u.states || "").split(",")]).map((x) => String(x || "").trim()).filter(Boolean))].sort(), [inZone]);
+  const hods = useMemo(() => hodNamesOf(inState.length ? inState : vis), [inState, vis]);
+  const peopleOpts = useMemo(() => [...inHod].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))), [inHod]);
   const any = !!(zone || state || hod || person);
   const match = (name) => {
     if (!any) return true;
@@ -448,10 +455,10 @@ export function usePlaceFilter(users) {
   const clear = () => { setZone(""); setState(""); setHod(""); setPerson(""); };
   const fields = (
     <>
-      <Field label="Zone"><select value={zone} onChange={(e) => setZone(e.target.value)}><option value="">All zones</option>{zones.map((z) => <option key={z}>{z}</option>)}</select></Field>
-      <Field label="State"><select value={state} onChange={(e) => setState(e.target.value)}><option value="">All states</option>{states.map((z) => <option key={z}>{z}</option>)}</select></Field>
-      <Field label="HOD"><select value={hod} onChange={(e) => setHod(e.target.value)}><option value="">All HODs</option>{hods.map((z) => <option key={z}>{z}</option>)}</select></Field>
-      <Field label="Person"><select value={person} onChange={(e) => setPerson(e.target.value)}><option value="">Everyone</option>{vis.map((u) => <option key={u.id || u.name} value={u.name}>{u.name}</option>)}</select></Field>
+      <Field label="Zone"><select value={zone} onChange={(e) => { setZone(e.target.value); setState(""); setHod(""); setPerson(""); }}><option value="">All zones</option>{zones.map((z) => <option key={z}>{z}</option>)}</select></Field>
+      <Field label="State"><select value={state} onChange={(e) => { setState(e.target.value); setHod(""); setPerson(""); }}><option value="">All states</option>{states.map((z) => <option key={z}>{z}</option>)}</select></Field>
+      <Field label="HOD"><select value={hod} onChange={(e) => { setHod(e.target.value); setPerson(""); }}><option value="">All HODs</option>{hods.map((z) => <option key={z}>{z}</option>)}</select></Field>
+      <Field label="Person"><select value={person} onChange={(e) => setPerson(e.target.value)}><option value="">Everyone</option>{peopleOpts.map((u) => <option key={u.id || u.name} value={u.name}>{u.name}</option>)}</select></Field>
     </>
   );
   return { zone, state, hod, person, any, match, matchAny, clear, fields, vis };
