@@ -15,6 +15,55 @@ import { taskFlash } from "../lib/bgTask.js";
    tickets, notification, resources, policies, …) are left out on purpose. */
 const CASCADE_MODS = ["enquiry", "quotation", "projectProjection", "salesToSpec", "specToSales", "task", "expense", "leave", "beatPlan", "target"];
 
+/* #13 — Project Projection bulk import/export. The contact categories are the
+   same six every sheet uses; Specs sheets carry two extra columns up front. */
+const PPJ_CONTACT_COLS = ["Architect", "Builder", "Fabricator", "Contractor", "Facade Consultant", "End User"];
+const PPJ_SALES_HEAD = ["Visit Date", "Created By", "Project Name", "Type", "City", ...PPJ_CONTACT_COLS, "Products", "Approval", "Expected", "Spec Person", "Sales Person", "Help / Work", "Sq.Mtr", "Sales", "Remark", "Status"];
+const PPJ_SPECS_HEAD = ["Visit Date", "Category", "Category Firm", "Created By", "Project Name", "Type", "City", ...PPJ_CONTACT_COLS, "Products", "Approval", "Expected", "Spec Person", "Sales Person", "Help / Work", "Sq.Mtr", "Sales", "Remark", "Status"];
+
+/* one "Firm (Person 98765...)" cell -> a contact record for that category */
+function ppjParseContact(cell, category) {
+  const t = String(cell || "").trim();
+  if (!t || t === "--" || t === "—") return null;
+  const m = t.match(/^(.*?)\s*\((.*)\)\s*$/);
+  let firmName = t, blob = "";
+  if (m) { firmName = m[1].trim(); blob = m[2].trim(); }
+  const people = [];
+  if (blob) {
+    const nm = blob.match(/(\d[\d\s-]{7,})\s*$/);
+    const number = nm ? nm[1].replace(/\D/g, "") : "";
+    const person = nm ? blob.slice(0, nm.index).trim() : blob;
+    people.push({ person, designation: "", number, email: "" });
+  }
+  return { category, firmName, people };
+}
+
+/* "3MM RUBY x350, 4MM PLATINIUM" -> item rows */
+function ppjParseProducts(cell) {
+  const t = String(cell || "").trim();
+  if (!t || t === "--" || t === "—") return [];
+  return t.split(/\s*[,;]\s*/).map((p) => {
+    const m = p.match(/^(.*?)\s*[x×]\s*(\d+)\s*$/i);
+    return m ? { grade: m[1].trim(), colourCode: "", qty: m[2] } : { grade: p.trim(), colourCode: "", qty: "" };
+  }).filter((x) => x.grade);
+}
+
+/* a parsed CSV row -> a project-projection record the app and panel both read */
+function ppjRowToRecord(obj, isSpec) {
+  const g = (k) => String(obj[k] ?? "").trim();
+  const contacts = [];
+  for (const c of PPJ_CONTACT_COLS) { const ct = ppjParseContact(obj[c], c); if (ct) contacts.push(ct); }
+  const rec = {
+    visitDate: g("Visit Date"), createdBy: g("Created By"), projectName: g("Project Name"),
+    projectType: g("Type"), city: g("City"), approvalStatus: g("Approval"), expectedMonth: g("Expected"),
+    specPerson: g("Spec Person"), salesPerson: g("Sales Person"), helpNeeded: g("Help / Work"),
+    winSqm: g("Sq.Mtr"), winSales: g("Sales"), statusRemark: g("Remark"), status: g("Status") || "Running",
+    contacts, items: ppjParseProducts(obj["Products"]), imported: true,
+  };
+  if (isSpec) { rec.isSpec = true; rec.category = g("Category"); rec.categoryFirm = g("Category Firm"); }
+  return rec;
+}
+
 /* Which name to ask the permission grid about.
 
    The grid in Roles & Permission lists modules as "Leave" and "Expense", but
@@ -416,6 +465,26 @@ export default function ModulePage({ cfgKey }) {
 
   /* download a CSV template with the module's column headers (like Holidays) */
   const downloadFormat = () => {
+    const q = (x) => `"${String(x ?? "").replace(/"/g, '""')}"`;
+    const dl = (name, rows) => {
+      const csv = rows.map((r) => r.map(q).join(",")).join("\n") + "\n";
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+      a.download = name; a.click();
+    };
+    /* #13 — Project Projection gets TWO templates, Sales and Specs, each with a
+       sample row showing the contact-cell and product formats. */
+    if (cfgKey === "projectProjection") {
+      const salesSample = ["2026-11-04", "Ravi Kumar", "Sample Commercial Tower", "Commercial", "MG Road, Bengaluru 560001",
+        "ABC Architects (Mr Rao 9876543210)", "", "XYZ Fabrication (Mr Shaikh 9811122233)", "", "", "",
+        "3MM RUBY x350, 4MM PLATINIUM", "Approved", "Dec-26", "Suresh (Spec)", "Ramesh (Sales)", "Running", "350", "500000", "Follow up next week", "Running"];
+      const specsSample = ["2026-11-04", "Architect", "ABC Architects", "Ravi Kumar", "Sample Commercial Tower", "Commercial", "MG Road, Bengaluru 560001",
+        "ABC Architects (Mr Rao 9876543210)", "", "XYZ Fabrication (Mr Shaikh 9811122233)", "", "", "",
+        "3MM RUBY x350", "Approved", "Dec-26", "Suresh (Spec)", "Ramesh (Sales)", "Work Done", "350", "", "In specs", "Running"];
+      dl("project-projection-SALES-format.csv", [PPJ_SALES_HEAD, salesSample]);
+      setTimeout(() => dl("project-projection-SPECS-format.csv", [PPJ_SPECS_HEAD, specsSample]), 400);
+      return;
+    }
     /* every field on the Add form (required ones marked), plus one sample row
        so the person knows exactly what to type in each column */
     const fields = (cfg.form || []).filter((f) => f && (f.label || f.name));
@@ -430,7 +499,6 @@ export default function ModulePage({ cfgKey }) {
           return "Sample " + String(f.label || f.name);
         })
       : heads.map(() => "");
-    const q = (x) => `"${String(x ?? "").replace(/"/g, '""')}"`;
     const csv = [heads, sample].map((r) => r.map(q).join(",")).join("\n") + "\n";
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
@@ -445,10 +513,25 @@ export default function ModulePage({ cfgKey }) {
       const text = await file.text();
       const [headLine, ...dataLines] = text.split(/\r?\n/).filter(Boolean);
       const labels = headLine.split(",").map((h) => h.replace(/^"|"$/g, "").replace(/\s*\*$/, "").trim());
-      const keyByLabel = {}; cfg.columns.forEach((c) => { keyByLabel[c.label] = c.key; });
+      const cut = (line) => line.match(/("([^"]|"")*"|[^,]*)/g).filter((_, i) => i % 2 === 0).map((c) => c.replace(/^"|"$/g, "").replace(/""/g, '"'));
       let ok = 0;
+      /* #13 — Project Projection: Sales or Specs sheet (Specs has a "Category"
+         column). Contacts and products are parsed into the record's arrays. */
+      if (cfgKey === "projectProjection") {
+        const isSpec = labels.includes("Category") && labels.includes("Category Firm");
+        for (const line of dataLines) {
+          const cells = cut(line);
+          const obj = {}; labels.forEach((lab, i) => { obj[lab] = cells[i]; });
+          if (!String(obj["Project Name"] || "").trim()) continue;   // skip blank rows
+          try { await api.create("projectProjection", ppjRowToRecord(obj, isSpec)); ok++; } catch {}
+        }
+        alert(`Imported ${ok} ${isSpec ? "Specs" : "Sales"} project(s)`);
+        reload();
+        return;
+      }
+      const keyByLabel = {}; cfg.columns.forEach((c) => { keyByLabel[c.label] = c.key; });
       for (const line of dataLines) {
-        const cells = line.match(/("([^"]|"")*"|[^,]*)/g).filter((_, i) => i % 2 === 0).map((c) => c.replace(/^"|"$/g, "").replace(/""/g, '"'));
+        const cells = cut(line);
         const data = {};
         labels.forEach((lab, i) => { if (keyByLabel[lab]) data[keyByLabel[lab]] = cells[i]; });
         if (Object.keys(data).length) { try { await api.create(cfgKey, data); ok++; } catch {} }
@@ -639,8 +722,8 @@ export default function ModulePage({ cfgKey }) {
             onRefresh={reload}
             refreshing={refreshing}
             onExport={exportCsv}
-            onImport={(cfg.form || cfg.importable) && cfg.importable ? importCsv : null}
-            onDownloadFormat={cfg.form && cfg.importable ? downloadFormat : null}
+            onImport={cfg.importable ? importCsv : null}
+            onDownloadFormat={cfg.importable ? downloadFormat : null}
             onHeaderConfig={() => setShowColCfg(true)}
             onLogs={() => setShowLogs(true)}
             onReport={viewReport}
