@@ -3406,7 +3406,7 @@ function ProjectStatus({ rec, onClose, onSaved }) {
           <SearchSelect value={grade} onChange={(v) => { setGrade(v); loadColours(v); }} options={gradeNames} placeholder="Search product…" />
           <div style={{ height: 8 }} />
           <label style={{ fontWeight: 800, fontSize: 13 }}>Colour Code</label>
-          <SearchSelect value={colour} onChange={setColour} options={(colourMap[grade] || []).map((c) => c.colourCode || c.colour)} placeholder="Search colour…" disabled={!grade} />
+          <SearchSelect value={colour} onChange={setColour} options={(colourMap[grade] || []).map((c) => c.colourCode || c.code || c.colour)} placeholder="Search colour…" disabled={!grade} />
           <div style={{ height: 8 }} />
           <label style={{ fontWeight: 800, fontSize: 13 }}>Sq.Mtr Approved</label>
           <input inputMode="numeric" value={winSqm} onChange={(e) => setWinSqm(e.target.value.replace(/\D/g, ""))} style={{ width: "100%", marginBottom: 10 }} />
@@ -4126,7 +4126,7 @@ function FieldProjectNew() {
             <SearchSelect value={r.grade} onChange={(v) => { setRow(i, "grade", v); loadColours(v); }} options={gradeNames} placeholder="Search product…" />
             <div style={{ height: 8 }} />
             <label>Colour Code</label>
-            <SearchSelect value={r.colourCode} onChange={(v) => setRow(i, "colourCode", v)} options={(colourMap[r.grade] || []).map((c) => c.colourCode || c.colour)} placeholder="Search colour…" disabled={!r.grade} />
+            <SearchSelect value={r.colourCode} onChange={(v) => setRow(i, "colourCode", v)} options={(colourMap[r.grade] || []).map((c) => c.colourCode || c.code || c.colour)} placeholder="Search colour…" disabled={!r.grade} />
             <div style={{ height: 8 }} />
             <label>QTY (Sq meter)</label>
             <input inputMode="numeric" value={r.qty} onChange={(e) => setRow(i, "qty", e.target.value.replace(/\D/g, ""))} style={{ width: "100%" }} />
@@ -5552,7 +5552,7 @@ function SpecReply({ rec, mod, isS2S, onClose, onSaved }) {
           <SearchSelect value={grade} onChange={(v) => { setGrade(v); loadColours(v); }} options={gradeNames} placeholder="Search product…" />
           <div style={{ height: 8 }} />
           <label style={{ fontWeight: 700, fontSize: 13 }}>Colour Approved</label>
-          <SearchSelect value={colour} onChange={setColour} options={(colourMap[grade] || []).map((c) => c.colourCode || c.colour)} placeholder="Search colour…" disabled={!grade} />
+          <SearchSelect value={colour} onChange={setColour} options={(colourMap[grade] || []).map((c) => c.colourCode || c.code || c.colour)} placeholder="Search colour…" disabled={!grade} />
           <div style={{ height: 8 }} />
           <label style={{ fontWeight: 700, fontSize: 13 }}>Sq Meter Approved</label>
           <input inputMode="numeric" value={sqm} onChange={(e) => setSqm(e.target.value.replace(/\D/g, ""))} style={{ width: "100%", marginBottom: 8 }} />
@@ -9570,7 +9570,8 @@ export default function FieldApp() {
         </div>
 
         <MenuDrawer open={menu} close={() => setMenu(false)} />
-        <ChatAssistant accent="#1b3a8f" bottom={78} surface="app" side="left" />
+        {/* #6 — EUVA assistant is hidden for a resigned employee too */}
+        {Number(CU().resigned) !== 1 && <ChatAssistant accent="#1b3a8f" bottom={78} surface="app" side="left" />}
         <PhotoZoom />
         {/* first open of the day only */}
         <BirthdayGreeter />

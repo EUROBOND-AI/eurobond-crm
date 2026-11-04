@@ -1005,6 +1005,7 @@ export default function ModulePage({ cfgKey }) {
    taken from each module's own tabs so the two can never drift apart. */
 const STATUS_PICK = {
   task: ["Pending", "In Progress", "Completed", "Close", "Rejected"],
+  tickets: ["Pending", "Assigned", "Complete", "Close"],
   enquiry: ["Review Pending", "Inprocess", "Completed", "Win", "Close"],
   projectProjection: ["Running", "Hold", "Win", "Loss"],
   salesToSpec: ["Pending", "Process", "Work Done", "Approved", "Rejected"],
