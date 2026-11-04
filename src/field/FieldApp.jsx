@@ -9459,10 +9459,13 @@ export default function FieldApp() {
           <ErrorBoundary routeKey={location.pathname}>
           <div key={refreshTick} style={{ display: "contents" }}>
           {/* #6 — a resigned employee may only use Attendance (and reach their
-              profile to log out). Every other screen shows a clear "access
-              removed" message instead of the module, whichever way they got
-              there (menu, home, or a direct link). */}
-          {Number(CU().resigned) === 1 && !["/app/attendance", "/app/profile"].includes(location.pathname) ? (
+              profile to log out). The home screen is blocked too: they land
+              straight on the attendance-mark screen. Every other screen shows a
+              clear "access removed" message, whichever way they got there. */}
+          {Number(CU().resigned) === 1 && location.pathname === "/app" && (
+            <Navigate to="/app/attendance" replace />
+          )}
+          {Number(CU().resigned) === 1 && !["/app", "/app/attendance", "/app/profile"].includes(location.pathname) ? (
             <div style={{ padding: "64px 24px", textAlign: "center" }}>
               <div style={{ fontSize: 46, marginBottom: 14 }}>🔒</div>
               <div style={{ fontWeight: 800, fontSize: 18, color: "var(--navy)", marginBottom: 8, fontFamily: "Bricolage Grotesque" }}>Access removed</div>

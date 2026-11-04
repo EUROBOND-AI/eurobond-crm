@@ -316,9 +316,14 @@ export default function UsersPage() {
                       onClick={async (e) => {
                         e.stopPropagation();
                         const next = Number(u.resigned) === 1 ? 0 : 1;
+                        /* change on screen at once and keep it — no full reload,
+                           so marking resign is instant and never "takes too long" */
                         setUsers((list) => list.map((x) => (x.id === u.id ? { ...x, resigned: next } : x)));
-                        try { await api.updateUser(u.id, { resigned: next }); load(); }
-                        catch (err) { alert(err.message); load(); }
+                        try { await api.updateUser(u.id, { resigned: next }); }
+                        catch (err) {
+                          alert(err.message);
+                          setUsers((list) => list.map((x) => (x.id === u.id ? { ...x, resigned: Number(u.resigned) === 1 ? 1 : 0 } : x)));
+                        }
                       }}
                       title="Mark this employee as resigned / rejoined"
                       style={{
