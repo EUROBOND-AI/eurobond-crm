@@ -246,7 +246,9 @@ export function FormModal({ title, fields, onClose, onSave, initial }) {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h3>{title}</h3>
         <div className="form-grid">
-          {fields.map((f) => (
+          {/* #10 — showIf tho oka field inko field value batti matrame kanipistundi
+              ( udaa: Lead Source = Exhibition aynapude Appointment date/time kanipinche) */}
+          {fields.filter((f) => !f.showIf || String(values[f.showIf.field] || "") === String(f.showIf.value)).map((f) => (
             <div key={f.name} className={`field ${f.full ? "full" : ""}`}
               data-missing={missing.includes(f.name) ? "1" : undefined}>
               <label style={{ color: missing.includes(f.name) ? "#c0392b" : undefined }}>

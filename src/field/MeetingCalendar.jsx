@@ -86,6 +86,23 @@ export default function MeetingCalendar() {
             nextMeetingRemark: `${r.nextFollowType || "Call"} · ${r.lastRemark || ""}`,
             isEnquiry: true,
           }));
+        /* #10 — Exhibition enquiry appointments (admin/app lo petti appointment
+           date/time ivvagaaney) ikkada appointment laaga kanipistayi */
+        const enqAppt = (e.records || [])
+          .map((r) => ({ _id: r.id, ...r.data }))
+          .filter((r) => String(r.leadSource || "").toLowerCase() === "exhibition" && r.appointmentDate)
+          .filter((r) => !me || r.assignedTo === me || r.passto === me || r.createdBy === me)
+          .filter((r) => !["win", "spam", "close"].includes(String(r.status || "").toLowerCase()))
+          .map((r) => ({
+            name: r.firm || r.company || r.customer || "Exhibition enquiry",
+            contactName: r.contactPerson || r.customer || "",
+            mobile: r.contact || r.phone || "",
+            place: r.city || r.area || "",
+            nextMeetingDate: toIso(r.appointmentDate),
+            nextMeetingTime: r.appointmentTime || "",
+            nextMeetingRemark: "Exhibition appointment",
+            isEnquiry: true,
+          }));
         /* Tasks with a deadline belong on the calendar too.
 
            A task given to somebody for "tomorrow 8:00 AM" is an appointment
@@ -121,7 +138,7 @@ export default function MeetingCalendar() {
             };
           })
           .filter((x) => x.nextMeetingDate);
-        setRows([...(c.customers || []), ...appts, ...bfu, ...enq, ...tasks]);
+        setRows([...(c.customers || []), ...appts, ...bfu, ...enq, ...enqAppt, ...tasks]);
       })
       .finally(() => setLoading(false));
   };

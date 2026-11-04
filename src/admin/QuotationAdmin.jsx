@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { PageHead, StatCard, ToolButtons } from "../components/ui.jsx";
-import { api } from "../lib/api.js";
+import { api, auth } from "../lib/api.js";
 import { scopeRows } from "../lib/scope.js";
 import { canDelete, canApprove, canExport } from "../lib/perms.js";
 import { LETTERHEAD } from "./letterhead.js";
@@ -357,6 +357,14 @@ export default function QuotationAdmin() {
                       color: r.status === "Win" ? "#059669" : r.status === "Approved" ? "#2563eb" : "#c07f00" }}>
                       {r.status || "Pending"}
                     </span>
+                    {/* #21 — mail chesaka, ye admin mail chesaro + eppudu chesaro
+                        green "Mailed" badge tho Status kindana chupistundi */}
+                    {r.mailStatus === "Mailed" && (
+                      <div style={{ marginTop: 4 }}>
+                        <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 8, background: "#e5f9f1", color: "#059669" }}>✓ Mailed</span>
+                        {r.mailedBy ? <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>by {r.mailedBy}{r.mailedAt ? <><br />{r.mailedAt}</> : null}</div> : null}
+                      </div>
+                    )}
                   </td>}
                   <td style={{ padding: "11px 14px" }}>
                     <div style={{ display: "flex", gap: 6 }}>
@@ -403,7 +411,7 @@ export default function QuotationAdmin() {
       )}
 
       {view && <QuoteAdminView q={view} onClose={() => setView(null)} onPdf={() => downloadQuotePdf(withDesignation(view))} />}
-      {mailFor && <MailModal q={mailFor} onClose={() => setMailFor(null)} />}
+      {mailFor && <MailModal q={mailFor} onClose={() => { setMailFor(null); load(); }} />}
       {showAdd && <AdminQuoteForm onClose={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); load(); }} />}
     </div>
   );
@@ -518,6 +526,11 @@ Mumbai - 400092, Maharashtra, India`;
         attachment: { name: `Quotation-${(q.quoteNo || q.id).replace(/\//g, "-")}.pdf`, mime: "application/pdf", base64: pdfB64 },
       });
       if (res && res.sent) {
+        /* #21 — mail-sent status + who mailed (admin name) ni record meeda stamp cheddam,
+           tarvata list lo Status pakkana colour tho kanipistundi */
+        const mailedBy = auth.user?.name || auth.user?.username || "Admin";
+        const mailedAt = new Date().toLocaleString("en-IN");
+        try { await api.update("quotation", q._id, { ...q, mailStatus: "Mailed", mailedBy, mailedAt }); } catch {}
         try { await api.create("notification", { title: "Quotation Sent", message: `Quotation ${q.quoteNo || q.id} sent to client.`, forUser: q.createdById, to: q.createdBy || "", link: "/app/m/quotation", at: new Date().toISOString() }); } catch {}
         alert("✓ Mail sent to client with quotation PDF.");
         onClose();

@@ -128,7 +128,11 @@ export const MODULES = {
     form: [
       { name: "customer", label: "Customer / Party Name", required: true },
       { name: "enquiryType", label: "Enquiry Type", type: "select", options: ["Product", "Price", "Dealership", "Project", "Other"], required: true },
-      { name: "leadSource", label: "Lead Source", type: "select", options: ["Direct Call", "IndiaMART", "Biltrax", "LinkedIn", "Reference", "Google AD (Archer)", "Google AD (Eurobond)", "Other"] },
+      { name: "leadSource", label: "Lead Source", type: "select", options: ["Direct Call", "IndiaMART", "Biltrax", "Exhibition", "LinkedIn", "Reference", "Google AD (Archer)", "Google AD (Eurobond)", "Other"] },
+      /* #10 — Lead Source = Exhibition aynapude Appointment date/time kanipistayi,
+         ivi app calendar lo kuda kanipistayi (Biltrax appointment laaga) */
+      { name: "appointmentDate", label: "Appointment Date", type: "date", showIf: { field: "leadSource", value: "Exhibition" } },
+      { name: "appointmentTime", label: "Appointment Time", type: "time", showIf: { field: "leadSource", value: "Exhibition" } },
       { name: "assignedTo", label: "Assign To (Sales Person)", type: "select", optionsSource: "users" },
       { name: "product", label: "Product / Requirement" },
       { name: "firm", label: "Firm Name" },
@@ -491,6 +495,9 @@ export const MODULES = {
     path: "support/tickets", title: "GK - Developer Support", crumb: "GK - Developer Support", addLabel: "Add Support Request",
     note: <>Designed &amp; Developed by <b style={{ color: "var(--navy)", fontWeight: 900 }}>Karthik G</b> · tickets raised from the app arrive here</>,
     idPrefix: "TKT", serverId: true,
+    /* #17 — row meeda click/View chesthe app laga thread terustundi: reply +
+       screenshot attachment akkadey; Edit button form kosam cfg.form tho vostundi */
+    chat: true,
     tabs: [
       { key: "Pending", label: "Pending" }, { key: "Assigned", label: "Assigned" },
       { key: "Complete", label: "Complete" }, { key: "Close", label: "Close" },
@@ -510,6 +517,8 @@ export const MODULES = {
          ticket can be answered without having to phone them back */
       { name: "status", label: "Status", type: "select", options: ["Pending", "Assigned", "Complete", "Close"] },
       { name: "desc", label: "Description", type: "textarea", full: true },
+      /* #17 — app laga admin kuda support request ki screenshots attach cheyyagalru */
+      { name: "shots", label: "Screenshots", type: "files", full: true },
       { name: "remark", label: "Reply to the person who raised it", type: "textarea", full: true },
     ],
   },
