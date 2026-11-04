@@ -1327,7 +1327,9 @@ function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expense
         </div>
       )}
 
-      <button className="f-fab" onClick={() => setSheet(true)}><Plus size={24} /></button>
+      {/* #6 — a resigned employee can only mark attendance, so the quick-add
+          actions (customer, leave, expense, site-project) are hidden for them */}
+      {Number(CU().resigned) !== 1 && <button className="f-fab" onClick={() => setSheet(true)}><Plus size={24} /></button>}
     </>
   );
 }
@@ -5330,6 +5332,8 @@ function MenuDrawer({ open, close }) {
      match the keys used in admin TeamAccess. Access map is the ONLY control. */
   const myRole = CU().role || "";
   const canSee = (key) => {
+    /* #6 — a resigned employee keeps attendance only; every other module is hidden */
+    if (Number(CU().resigned) === 1) return !key || key === "attendance";
     if (!key) return true;                          // no key (Home) → always
     if (/admin/i.test(CU().role || "")) return true;  // Admin → everything
     if (!access || !access[myRole]) return true;    // admin never saved a map → show all

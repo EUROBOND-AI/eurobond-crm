@@ -310,6 +310,23 @@ export default function UsersPage() {
                       }}>
                       {u.status == 1 ? "● Active" : "○ Inactive"}
                     </button>
+                    {/* #6 — Resign: stays able to sign in (status 1) but the app
+                        hides every module except Attendance. Click to toggle. */}
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const next = Number(u.resigned) === 1 ? 0 : 1;
+                        setUsers((list) => list.map((x) => (x.id === u.id ? { ...x, resigned: next } : x)));
+                        try { await api.updateUser(u.id, { resigned: next }); load(); }
+                        catch (err) { alert(err.message); load(); }
+                      }}
+                      title="Mark this employee as resigned / rejoined"
+                      style={{
+                        marginLeft: 6, border: "none", cursor: "pointer", fontWeight: 800, fontSize: 11.5, padding: "4px 12px", borderRadius: 9,
+                        background: Number(u.resigned) === 1 ? "#fff1e6" : "#eef1f8", color: Number(u.resigned) === 1 ? "#c2651a" : "#6b7280",
+                      }}>
+                      {Number(u.resigned) === 1 ? "⚑ Resigned" : "Mark Resign"}
+                    </button>
                   </td>
                   <td style={{ display: "flex", gap: 6 }}>
                     <button className="btn btn-ghost" title="Edit" onClick={() => setForm({ ...empty, ...u, password: "" })}>Edit</button>

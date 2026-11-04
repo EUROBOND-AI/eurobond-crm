@@ -18,8 +18,22 @@ const CASCADE_MODS = ["enquiry", "quotation", "projectProjection", "salesToSpec"
 /* #13 — Project Projection bulk import/export. The contact categories are the
    same six every sheet uses; Specs sheets carry two extra columns up front. */
 const PPJ_CONTACT_COLS = ["Architect", "Builder", "Fabricator", "Contractor", "Facade Consultant", "End User"];
-const PPJ_SALES_HEAD = ["Visit Date", "Created By", "Project Name", "Type", "City", ...PPJ_CONTACT_COLS, "Products", "Approval", "Expected", "Spec Person", "Sales Person", "Help / Work", "Sq.Mtr", "Sales", "Remark", "Status"];
-const PPJ_SPECS_HEAD = ["Visit Date", "Category", "Category Firm", "Created By", "Project Name", "Type", "City", ...PPJ_CONTACT_COLS, "Products", "Approval", "Expected", "Spec Person", "Sales Person", "Help / Work", "Sq.Mtr", "Sales", "Remark", "Status"];
+/* #13 — Created By / Spec Person / Sales Person are entered as EMP CODE; on import
+   each is resolved to the person's name. Sales sheet: Created By IS the sales
+   person, so no separate "Sales Person" column; it carries a "Spec Person" code.
+   Specs sheet: Created By IS the spec person, so no "Spec Person" column; it
+   carries a "Sales Person" code. */
+const PPJ_SALES_HEAD = ["Visit Date", "Created By (EMP Code)", "Project Name", "Type", "City", ...PPJ_CONTACT_COLS, "Products", "Approval", "Expected", "Spec Person (EMP Code)", "Help / Work", "Sq.Mtr", "Sales", "Remark", "Status"];
+const PPJ_SPECS_HEAD = ["Visit Date", "Category", "Category Firm", "Created By (EMP Code)", "Project Name", "Type", "City", ...PPJ_CONTACT_COLS, "Products", "Approval", "Expected", "Sales Person (EMP Code)", "Help / Work", "Sq.Mtr", "Sales", "Remark", "Status"];
+
+/* an EMP code (or a name already) -> the person's name */
+function ppjName(val, users) {
+  const t = String(val || "").trim();
+  if (!t || t === "--" || t === "—") return "";
+  const byCode = (users || []).find((u) => String(u.code || "").trim().toLowerCase() === t.toLowerCase());
+  if (byCode) return byCode.name;
+  return t;   // already a name
+}
 
 /* one "Firm (Person 98765...)" cell -> a contact record for that category */
 function ppjParseContact(cell, category) {
@@ -48,15 +62,21 @@ function ppjParseProducts(cell) {
   }).filter((x) => x.grade);
 }
 
-/* a parsed CSV row -> a project-projection record the app and panel both read */
-function ppjRowToRecord(obj, isSpec) {
+/* a parsed CSV row -> a project-projection record the app and panel both read.
+   `users` turns the EMP codes into names. */
+function ppjRowToRecord(obj, isSpec, users) {
   const g = (k) => String(obj[k] ?? "").trim();
   const contacts = [];
   for (const c of PPJ_CONTACT_COLS) { const ct = ppjParseContact(obj[c], c); if (ct) contacts.push(ct); }
+  /* Created By is the sales person on a Sales sheet and the spec person on a
+     Specs sheet; the other role comes from its own EMP-code column. */
+  const createdBy = ppjName(g("Created By (EMP Code)") || g("Created By"), users);
+  const specPerson = isSpec ? createdBy : ppjName(g("Spec Person (EMP Code)") || g("Spec Person"), users);
+  const salesPerson = isSpec ? ppjName(g("Sales Person (EMP Code)") || g("Sales Person"), users) : createdBy;
   const rec = {
-    visitDate: g("Visit Date"), createdBy: g("Created By"), projectName: g("Project Name"),
+    visitDate: g("Visit Date"), createdBy, projectName: g("Project Name"),
     projectType: g("Type"), city: g("City"), approvalStatus: g("Approval"), expectedMonth: g("Expected"),
-    specPerson: g("Spec Person"), salesPerson: g("Sales Person"), helpNeeded: g("Help / Work"),
+    specPerson, salesPerson, helpNeeded: g("Help / Work"),
     winSqm: g("Sq.Mtr"), winSales: g("Sales"), statusRemark: g("Remark"), status: g("Status") || "Running",
     contacts, items: ppjParseProducts(obj["Products"]), imported: true,
   };
@@ -475,12 +495,14 @@ export default function ModulePage({ cfgKey }) {
     /* #13 — Project Projection gets TWO templates, Sales and Specs, each with a
        sample row showing the contact-cell and product formats. */
     if (cfgKey === "projectProjection") {
-      const salesSample = ["2026-11-04", "Ravi Kumar", "Sample Commercial Tower", "Commercial", "MG Road, Bengaluru 560001",
+      /* Created By / Spec Person / Sales Person are EMP codes — the importer turns
+         them into names, so a typo in a name can never land the row on the wrong person. */
+      const salesSample = ["2026-11-04", "EMP001", "Sample Commercial Tower", "Commercial", "MG Road, Bengaluru 560001",
         "ABC Architects (Mr Rao 9876543210)", "", "XYZ Fabrication (Mr Shaikh 9811122233)", "", "", "",
-        "3MM RUBY x350, 4MM PLATINIUM", "Approved", "Dec-26", "Suresh (Spec)", "Ramesh (Sales)", "Running", "350", "500000", "Follow up next week", "Running"];
-      const specsSample = ["2026-11-04", "Architect", "ABC Architects", "Ravi Kumar", "Sample Commercial Tower", "Commercial", "MG Road, Bengaluru 560001",
+        "3MM RUBY x350, 4MM PLATINIUM", "Approved", "Dec-26", "EMP045", "Running", "350", "500000", "Follow up next week", "Running"];
+      const specsSample = ["2026-11-04", "Architect", "ABC Architects", "EMP045", "Sample Commercial Tower", "Commercial", "MG Road, Bengaluru 560001",
         "ABC Architects (Mr Rao 9876543210)", "", "XYZ Fabrication (Mr Shaikh 9811122233)", "", "", "",
-        "3MM RUBY x350", "Approved", "Dec-26", "Suresh (Spec)", "Ramesh (Sales)", "Work Done", "350", "", "In specs", "Running"];
+        "3MM RUBY x350", "Approved", "Dec-26", "EMP001", "Work Done", "350", "", "In specs", "Running"];
       dl("project-projection-SALES-format.csv", [PPJ_SALES_HEAD, salesSample]);
       setTimeout(() => dl("project-projection-SPECS-format.csv", [PPJ_SPECS_HEAD, specsSample]), 400);
       return;
@@ -523,7 +545,7 @@ export default function ModulePage({ cfgKey }) {
           const cells = cut(line);
           const obj = {}; labels.forEach((lab, i) => { obj[lab] = cells[i]; });
           if (!String(obj["Project Name"] || "").trim()) continue;   // skip blank rows
-          try { await api.create("projectProjection", ppjRowToRecord(obj, isSpec)); ok++; } catch {}
+          try { await api.create("projectProjection", ppjRowToRecord(obj, isSpec, allUsers)); ok++; } catch {}
         }
         alert(`Imported ${ok} ${isSpec ? "Specs" : "Sales"} project(s)`);
         reload();
