@@ -1182,6 +1182,9 @@ function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expense
   const [sheet, setSheet] = useState(false);
   const [, tickHome] = useState(0);
   const nav = useNavigate();
+  /* #6 — a resigned employee sees the home screen, but only the attendance
+     swipe on it; every module card/quick-action is hidden. */
+  const isResigned = Number(CU().resigned) === 1;
 
   /* holiday reminders — run once per day (region-wise: 2 days before, 1 day before, same day) */
   useEffect(() => {
@@ -1275,7 +1278,7 @@ function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expense
         )}
       </div>
 
-      {seg === "Matrics" && (
+      {!isResigned && seg === "Matrics" && (
         <div className="f-cards">
           {metrics.map((m) => (
             <Link to={m.to} key={m.label} className="f-metric" style={{ textDecoration: "none", color: "inherit" }}>
@@ -1286,7 +1289,7 @@ function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expense
           ))}
         </div>
       )}
-      {seg === "Summary" && (
+      {!isResigned && seg === "Summary" && (
         <div className="f-list-pad">
           <div className="f-metric" style={{ marginBottom: 10 }}>
             <h5><Navigation size={15} /> Today's distance</h5>
@@ -9458,13 +9461,10 @@ export default function FieldApp() {
         <div className="phone-body">
           <ErrorBoundary routeKey={location.pathname}>
           <div key={refreshTick} style={{ display: "contents" }}>
-          {/* #6 — a resigned employee may only use Attendance (and reach their
-              profile to log out). The home screen is blocked too: they land
-              straight on the attendance-mark screen. Every other screen shows a
-              clear "access removed" message, whichever way they got there. */}
-          {Number(CU().resigned) === 1 && location.pathname === "/app" && (
-            <Navigate to="/app/attendance" replace />
-          )}
+          {/* #6 — a resigned employee keeps the home screen (where only the
+              attendance swipe shows) and Attendance + Profile; every other
+              module screen shows a clear "access removed" message, whichever
+              way they got there (menu or a direct link). */}
           {Number(CU().resigned) === 1 && !["/app", "/app/attendance", "/app/profile"].includes(location.pathname) ? (
             <div style={{ padding: "64px 24px", textAlign: "center" }}>
               <div style={{ fontSize: 46, marginBottom: 14 }}>🔒</div>
