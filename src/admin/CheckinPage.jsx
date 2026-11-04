@@ -67,8 +67,15 @@ export default function CheckinPage() {
      approved leave showed the same person under both Leave and Pending, and
      Pending read as a list of people to chase. */
   const leaveNames = new Set(onLeave.map(leaveOwner).filter(Boolean));
+  /* #24 — ANYONE who has applied leave for the day (approved OR still pending
+     approval, just not rejected) is excluded from Pending — they should not be
+     chased for attendance. Pending = only those genuinely yet to log in. */
+  const appliedLeave = leaves.filter((l) => !String(l.status || "").toLowerCase().startsWith("reject")
+    && String(l.from || "").slice(0, 10) <= date && date <= String(l.to || l.from || "").slice(0, 10)
+    && (!seeable.size || seeable.has(leaveOwner(l))));
+  const appliedNames = new Set(appliedLeave.map(leaveOwner).filter(Boolean));
   const pendingUsers = inScope.filter((u) =>
-    !checkedIds.has(String(u.id)) && !leaveNames.has(String(u.name || "").trim().toLowerCase())
+    !checkedIds.has(String(u.id)) && !appliedNames.has(String(u.name || "").trim().toLowerCase())
   );
 
   const sel = { padding: "9px 12px", borderRadius: 10, border: "1px solid var(--line)", fontSize: 13, background: "#fff" };
@@ -76,7 +83,7 @@ export default function CheckinPage() {
   const cards = [
     { key: "total", label: "Total Users", value: inScope.length, color: "#4a7bff" },
     { key: "login", label: "Login", value: loginUsers.length, color: "#10b981" },
-    { key: "pending", label: "Pending", value: pendingUsers.length, color: "#ef4444", note: leaveNames.size ? "leave excluded" : "" },
+    { key: "pending", label: "Pending", value: pendingUsers.length, color: "#ef4444", note: appliedNames.size ? "leave excluded" : "" },
     { key: "leave", label: "Leave", value: onLeave.length, color: "#f59e0b" },
   ];
 
