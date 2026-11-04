@@ -104,7 +104,13 @@ input, select, textarea { font-family: inherit; font-size: 13px; }
   height: 64px; background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--line);
   display: flex; align-items: center; gap: 16px; padding: 0 22px;
-  box-shadow: 0 4px 20px rgba(40, 50, 100, 0.06); z-index: 4;
+  box-shadow: 0 4px 20px rgba(40, 50, 100, 0.06);
+  /* position is required for z-index to take effect. Without it the bar's
+     z-index was ignored, so the bell dropdown (inside the bar) could be
+     painted over by a frozen table header (sticky th, z-index 12). A real
+     stacking context above that header keeps the dropdown — and the click
+     that should close it — on top. */
+  position: relative; z-index: 50;
 }
 .top-search { position: relative; width: 320px; }
 .top-search input {
