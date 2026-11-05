@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EUROBOND · Pandiyan Chandraraj Team Dashboard</title>
+<script src="vendor/chart.umd.js"></script>
+<script src="vendor/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f0f2f5;--w:#fff;--bd:#dde1ea;--bd2:#c5cbda;
+  --tx:#1a2035;--t2:#4a5878;--t3:#8896b0;
+  --hd:#1a3a6b;--hd2:#0f2850;--hd3:#16305a;--ac:#1b6ec2;
+  --sh:0 2px 8px rgba(0,0,0,.1);--sh2:0 6px 24px rgba(0,0,0,.16)
+}
+body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--tx);font-size:12px}
+.app{display:flex;height:100vh;overflow:hidden}
+/* SIDEBAR */
+.sb{width:155px;min-width:155px;background:var(--w);border-right:1px solid var(--bd);display:flex;flex-direction:column}
+.sb-hd{background:var(--hd);padding:11px 13px}
+.sb-row{display:flex;align-items:center;gap:8px}
+.sb-ico{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;background:rgba(255,255,255,.2);border-radius:6px;font-size:11px;font-weight:900;color:#fff;border:1.5px solid rgba(255,255,255,.3);flex-shrink:0}
+.sb-nm{font-size:13px;font-weight:800;color:#fff}
+.sb-tg{font-size:8px;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.1em}
+.sb-nav{flex:1;padding:6px}
+.nit{display:flex;align-items:center;gap:7px;padding:9px 10px;border-radius:6px;cursor:pointer;color:var(--t2);font-size:12px;font-weight:500;border-left:3px solid transparent;margin-bottom:2px;transition:all .15s;user-select:none}
+.nit:hover{background:#eef3ff;color:var(--ac)}
+.nit.on{background:#e5eeff;color:var(--ac);font-weight:700;border-left-color:var(--ac)}
+.sb-ft{padding:9px;border-top:1px solid var(--bd)}
+.sb-box{background:linear-gradient(135deg,#e5eeff,#dce6f8);border:1px solid #b8d0f0;border-radius:8px;padding:8px}
+.sb-bl{font-size:8px;color:var(--t3);text-transform:uppercase;letter-spacing:.08em}
+.sb-bv{font-size:19px;font-weight:800;color:var(--ac);margin-top:1px}
+.sb-bs{font-size:9px;color:var(--t3)}
+/* MAIN */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+/* MULTI-SELECT FILTER BAR */
+.fbar{background:var(--w);border-bottom:2px solid var(--bd);padding:5px 12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-height:46px}
+.ftit{font-size:11px;font-weight:700;color:var(--ac);white-space:nowrap;padding-right:8px;margin-right:4px;border-right:2px solid var(--bd)}
+.fd{position:relative;display:flex;flex-direction:column;gap:1px}
+.fd-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--t3)}
+.fd-btn{display:flex;align-items:center;gap:4px;border:1.5px solid var(--bd2);border-radius:5px;padding:3px 7px;background:var(--w);cursor:pointer;font-size:11px;font-weight:600;color:var(--tx);min-width:68px;white-space:nowrap;transition:border-color .12s;user-select:none}
+.fd-btn:hover,.fd-btn.open{border-color:var(--ac)}
+.fd-btn.active{border-color:var(--ac);background:#eef5ff;color:var(--ac)}
+.fd-btn .arr{margin-left:auto;font-size:8px;color:var(--t3);flex-shrink:0}
+.fd-btn .cnt{background:var(--ac);color:#fff;border-radius:9px;padding:1px 5px;font-size:8px;font-weight:700;margin-left:2px;flex-shrink:0}
+.fd-drop{display:none;position:absolute;top:calc(100% + 3px);left:0;background:var(--w);border:1.5px solid var(--bd2);border-radius:7px;box-shadow:var(--sh2);z-index:300;min-width:145px;max-height:230px;overflow-y:auto;padding:4px}
+.fd-drop.open{display:block}
+.fd-opt{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:4px;cursor:pointer;font-size:11px;color:var(--tx);transition:background .1s;user-select:none}
+.fd-opt:hover{background:#eef3ff}
+.fd-opt input[type=checkbox]{accent-color:var(--ac);width:12px;height:12px;cursor:pointer;flex-shrink:0;pointer-events:none}
+.fd-opt.checked{color:var(--ac);font-weight:600}
+.fd-all{border-bottom:1px solid var(--bd);margin-bottom:3px;padding-bottom:5px}
+.fgap{flex:1}
+.xbtn{background:none;border:1.5px solid var(--bd2);color:var(--t2);border-radius:5px;padding:4px 9px;font-size:11px;font-weight:600;cursor:pointer;transition:all .12s;white-space:nowrap}
+.xbtn:hover{border-color:#d83b01;color:#d83b01}
+/* KPI HEADER */
+.kpi-hdr{background:var(--w);border-bottom:1px solid var(--bd);padding:5px 12px;display:flex;align-items:center;gap:7px;flex-wrap:wrap;min-height:46px}
+.kbox{border:1.5px solid var(--bd2);border-radius:7px;padding:5px 11px;min-width:100px}
+.kbox .lbl{font-size:9px;font-weight:700;text-transform:uppercase;color:var(--t3);letter-spacing:.05em}
+.kbox .val{font-size:16px;font-weight:800;margin-top:1px}
+.kbox.tgt .val{color:#1b6ec2}.kbox.sls .val{color:#107c10}
+.kbox.sf .val{color:#d83b01}.kbox.gw .val{font-size:13px}
+.csep{width:1px;height:20px;background:var(--bd);margin:0 2px;flex-shrink:0}
+.sp-lbl{font-size:9px;font-weight:700;text-transform:uppercase;color:var(--t3);white-space:nowrap;flex-shrink:0}
+.sp-pills{display:flex;gap:5px;overflow-x:auto;flex:1}
+.sp-pills::-webkit-scrollbar{height:0}
+.pill{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:12px;border:1.5px solid var(--bd2);background:var(--w);cursor:pointer;font-size:10.5px;font-weight:500;color:var(--t2);white-space:nowrap;user-select:none;flex-shrink:0;transition:all .12s}
+.pill:hover{border-color:var(--ac);background:#eef3ff;color:var(--ac)}
+.pill.on{background:var(--ac);border-color:var(--ac);color:#fff;font-weight:700}
+.pill-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+/* CONTENT */
+.content{flex:1;overflow-y:auto;padding:10px 12px 16px;background:var(--bg)}
+.content::-webkit-scrollbar{width:5px}
+.content::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:3px}
+.pg{display:none}.pg.on{display:block}
+/* PANEL */
+.panel{background:var(--w);border:1px solid var(--bd);border-radius:8px;overflow:hidden;box-shadow:var(--sh);margin-bottom:10px}
+.panel:hover{box-shadow:var(--sh2)}
+.ph{background:var(--hd);padding:6px 11px;display:flex;align-items:center;justify-content:space-between}
+.ph-tit{font-size:11px;font-weight:700;color:#fff}
+.ph-r{display:flex;align-items:center;gap:3px}
+.ph-badge{font-size:8.5px;font-weight:700;padding:1px 5px;border-radius:4px;background:rgba(255,255,255,.2);color:#fff}
+.zb{width:20px;height:20px;border-radius:4px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.15);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;transition:background .12s}
+.zb:hover{background:rgba(255,255,255,.3)}
+.pb{padding:8px}
+/* GRIDS */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.g3{display:grid;grid-template-columns:1.2fr 1fr 1.1fr;gap:10px;margin-bottom:10px}
+.row1{display:grid;grid-template-columns:0.5fr 0.9fr 0.7fr 1.2fr;gap:10px;margin-bottom:10px}
+.isplit{display:grid;grid-template-columns:50% 50%}
+.isplit>.pb{border-right:1px solid var(--bd)}
+/* CHART */
+.ch{position:relative;width:100%}
+.ch-140{height:140px}.ch-190{height:190px}.ch-200{height:200px}.ch-230{height:230px}
+/* TABLE */
+.tsc{overflow:auto}
+.tsc::-webkit-scrollbar{width:4px;height:4px}
+.tsc::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:2px}
+table{width:100%;border-collapse:collapse}
+th{background:var(--hd2);color:#fff;padding:5px 8px;text-align:left;font-size:9.5px;font-weight:700;border-right:1px solid rgba(255,255,255,.1);white-space:nowrap;position:sticky;top:0;z-index:2}
+th:last-child{border-right:none}
+th.r{text-align:right}
+td{padding:4px 8px;border-bottom:1px solid #eef0f5;font-size:10.5px;border-right:1px solid #f0f2f5;white-space:nowrap}
+td:last-child{border-right:none}
+td.r{text-align:right;font-size:10px}
+td.dim{color:var(--t2)}
+tr:hover td{background:#f0f5ff}
+tr.tot td{background:var(--hd2)!important;color:#fff!important;font-weight:700;font-size:11px}
+tr.shd td{background:var(--hd3)!important;color:#fff!important;font-weight:700}
+tr.sub td{padding-left:16px;color:var(--t2)}
+.hi{color:#107c10;font-weight:700}.md{color:#ca5010;font-weight:700}.lo{color:#d83b01;font-weight:700}
+/* MODAL */
+.mbg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:999;align-items:center;justify-content:center}
+.mbg.show{display:flex}
+.mbox{background:var(--w);border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.25);width:93vw;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;animation:pop .18s ease}
+@keyframes pop{from{transform:scale(.9);opacity:0}to{transform:scale(1);opacity:1}}
+.mhd{background:var(--hd);padding:10px 15px;display:flex;align-items:center;justify-content:space-between}
+.mhd-t{font-size:13px;font-weight:700;color:#fff}
+.mhd-x{width:25px;height:25px;border-radius:5px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.15);color:#fff;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center}
+.mhd-x:hover{background:rgba(220,60,60,.5)}
+.mbd{flex:1;overflow:auto;padding:14px}
+.mbd .ch{height:420px!important}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:3px}
+@media(max-width:900px){.g2,.g3,.row1,.isplit{grid-template-columns:1fr!important}}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="sb">
+  <div class="sb-hd"><div class="sb-row">
+    <div class="sb-ico">EB</div>
+    <div><div class="sb-nm">EUROBOND</div><div class="sb-tg">Pandiyan Team</div></div>
+  </div></div>
+  <div class="sb-nav">
+    <div class="nit on" onclick="goTab('sales')" id="n-sales"><span>&#128202;</span> Sales Review</div>
+    <div class="nit" onclick="goTab('tour')" id="n-tour"><span>&#128506;</span> Tour</div>
+    <div class="nit" onclick="goTab('enq')" id="n-enq"><span>&#128203;</span> Enquiry</div>
+  </div>
+  <div class="sb-ft"><div class="sb-box">
+    <div class="sb-bl">Records</div>
+    <div class="sb-bv" id="sb-v">&#8212;</div>
+    <div class="sb-bs" id="sb-s">loading&#8230;</div>
+  </div></div>
+</div>
+<div class="main">
+  <div class="fbar" id="fbr"></div>
+  <div class="kpi-hdr">
+    <div class="kbox tgt"><div class="lbl">Target</div><div class="val" id="kv-tgt">&#8212;</div></div>
+    <div class="kbox sls"><div class="lbl">Sales</div><div class="val" id="kv-sls">&#8212;</div></div>
+    <div class="kbox sf"><div class="lbl">Shortfall</div><div class="val" id="kv-sf">&#8212;</div></div>
+    <div class="kbox gw"><div class="lbl">GW %</div><div class="val" id="kv-gw">&#8212;</div></div>
+    <div class="csep"></div>
+    <div class="sp-lbl">&#128100; Sales Person:</div>
+    <div class="sp-pills" id="sp-pills"></div>
+  </div>
+  <div class="content">
+
+    <!-- SALES PAGE -->
+    <div class="pg on" id="pg-sales">
+      <div class="row1">
+        <div class="panel"><div class="ph"><div class="ph-tit">GW %</div></div>
+          <div id="gw-gauge" style="display:flex;align-items:center;justify-content:center;min-height:155px"></div>
+        </div>
+        <div class="panel"><div class="ph"><div class="ph-tit">F.Y. Ach%</div><div class="ph-r"><button class="zb" onclick="Z('fyach','F.Y. Ach%','chart')">&#10146;</button></div></div>
+          <div class="pb"><div class="ch ch-140"><canvas id="C-fyach"></canvas></div></div></div>
+        <div class="panel"><div class="ph"><div class="ph-tit">EXP %</div><div class="ph-r"><button class="zb" onclick="Z('exp','EXP %','chart')">&#10146;</button></div></div>
+          <div class="pb"><div class="ch ch-140"><canvas id="C-exp"></canvas></div></div></div>
+        <div class="panel"><div class="ph"><div class="ph-tit">Brandwise Contribution</div><div class="ph-r"><button class="zb" onclick="Z('brndb','Brandwise','chart')">&#10146;</button></div></div>
+          <div class="pb"><div class="ch ch-140"><canvas id="C-brndb"></canvas></div></div></div>
+      </div>
+      <div class="g2">
+        <div class="panel"><div class="ph"><div class="ph-tit">Quarterwise Ach%</div><div class="ph-r"><button class="zb" onclick="Z('qtr','Quarterwise Ach%','chart')">&#10146;</button></div></div>
+          <div class="pb"><div class="ch ch-200"><canvas id="C-qtr"></canvas></div></div></div>
+        <div class="panel"><div class="ph"><div class="ph-tit">Brandwise Contribution</div><div class="ph-r"><button class="zb" onclick="Z('brndt','Brandwise Table','table','TB-brnd')">&#10146;</button></div></div>
+          <div class="tsc" style="max-height:225px"><table><thead>
+            <tr><th rowspan="2">Brand</th><th colspan="2" class="r" style="background:var(--hd3)">2024-25</th><th colspan="2" class="r" style="background:var(--hd3)">2025-26</th><th colspan="2" class="r">Total</th></tr>
+            <tr><th class="r">Sales</th><th class="r">%</th><th class="r">Sales</th><th class="r">%</th><th class="r">Sales</th><th class="r">%</th></tr>
+          </thead><tbody id="TB-brnd"></tbody></table></div></div>
+      </div>
+      <div class="g3">
+        <div class="panel"><div class="ph"><div class="ph-tit">Category</div><div class="ph-r"><button class="zb" onclick="Z('cat','Category','chart')">&#10146;</button></div></div>
+          <div class="pb"><div class="ch ch-190"><canvas id="C-cat"></canvas></div></div></div>
+        <div class="panel"><div class="ph"><div class="ph-tit">Categorywise Contribution</div><div class="ph-r"><button class="zb" onclick="Z('catt','Categorywise Table','table','TB-catt')">&#10146;</button></div></div>
+          <div class="tsc"><table><thead>
+            <tr><th rowspan="2">Category</th><th colspan="2" class="r" style="background:var(--hd3)">2024-25</th><th colspan="2" class="r" style="background:var(--hd3)">2025-26</th><th class="r">Total</th></tr>
+            <tr><th class="r">Sales</th><th class="r">%</th><th class="r">Sales</th><th class="r">%</th><th class="r">Sales</th></tr>
+          </thead><tbody id="TB-catt"></tbody></table></div></div>
+        <div class="panel"><div class="ph"><div class="ph-tit">Categorywise Ach%</div><div class="ph-r"><button class="zb" onclick="Z('catach','Categorywise Ach%','table','TB-catach')">&#10146;</button></div></div>
+          <div class="tsc"><table><thead><tr><th>Year</th><th class="r">Target</th><th class="r">Sales</th><th class="r">Ach%</th></tr></thead>
+          <tbody id="TB-catach"></tbody></table></div></div>
+      </div>
+      <div class="g2">
+        <div class="panel"><div class="ph"><div class="ph-tit">Code</div><div class="ph-r"><span class="ph-badge" id="B-code"></span><button class="zb" onclick="Z('code','Code','table','TB-code')">&#10146;</button></div></div>
+          <div class="tsc" style="max-height:280px"><table><thead>
+            <tr><th rowspan="2">Code</th><th colspan="3" class="r" style="background:var(--hd3)">2024-25</th><th colspan="3" class="r" style="background:var(--hd3)">2025-26</th></tr>
+            <tr><th class="r">Sq.Mtr</th><th class="r">Sales</th><th class="r">%</th><th class="r">Sq.Mtr</th><th class="r">Sales</th><th class="r">%</th></tr>
+          </thead><tbody id="TB-code"></tbody></table></div></div>
+        <div class="panel"><div class="ph"><div class="ph-tit">Grade</div><div class="ph-r"><span class="ph-badge" id="B-grade"></span><button class="zb" onclick="Z('grade','Grade','table','TB-grade')">&#10146;</button></div></div>
+          <div class="tsc" style="max-height:280px"><table><thead>
+            <tr><th rowspan="2">Grade</th><th colspan="3" class="r" style="background:var(--hd3)">2024-25</th><th colspan="3" class="r" style="background:var(--hd3)">2025-26</th></tr>
+            <tr><th class="r">Sq.Mtr</th><th class="r">Sales</th><th class="r">%</th><th class="r">Sq.Mtr</th><th class="r">Sales</th><th class="r">%</th></tr>
+          </thead><tbody id="TB-grade"></tbody></table></div></div>
+      </div>
+      <div class="g2">
+        <div class="panel"><div class="ph"><div class="ph-tit">Monthwise</div><div class="ph-r"><button class="zb" onclick="Z('mth','Monthwise','table','TB-mth')">&#10146;</button></div></div>
+          <div class="tsc" style="max-height:280px"><table><thead>
+            <tr><th rowspan="2">Month</th><th colspan="5" class="r" style="background:var(--hd3)">2024-25</th><th colspan="5" class="r" style="background:var(--hd3)">2025-26</th></tr>
+            <tr><th class="r">Target</th><th class="r">Sales</th><th class="r">Ach%</th><th class="r">Exp</th><th class="r">Exp%</th><th class="r">Target</th><th class="r">Sales</th><th class="r">Ach%</th><th class="r">Exp</th><th class="r">Exp%</th></tr>
+          </thead><tbody id="TB-mth"></tbody></table></div></div>
+        <div class="panel"><div class="ph"><div class="ph-tit">Regionwise</div><div class="ph-r"><button class="zb" onclick="Z('reg','Regionwise','table','TB-reg')">&#10146;</button></div></div>
+          <div class="tsc"><table><thead>
+            <tr><th rowspan="2">Region</th><th colspan="5" class="r" style="background:var(--hd3)">2024-25</th><th colspan="4" class="r" style="background:var(--hd3)">2025-26</th></tr>
+            <tr><th class="r">Target</th><th class="r">Sales</th><th class="r">Ach%</th><th class="r">Exp</th><th class="r">Exp%</th><th class="r">Target</th><th class="r">Sales</th><th class="r">Ach%</th><th class="r">Exp</th></tr>
+          </thead><tbody id="TB-reg"></tbody></table></div></div>
+      </div>
+      <div class="g2">
+        <div class="panel"><div class="ph"><div class="ph-tit">Sales Personwise</div><div class="ph-r"><button class="zb" onclick="Z('sp','Sales Personwise','table','TB-sp')">&#10146;</button></div></div>
+          <div class="tsc" style="max-height:280px"><table><thead>
+            <tr><th rowspan="2">Status / Person</th><th colspan="5" class="r" style="background:var(--hd3)">2024-25</th><th colspan="5" class="r" style="background:var(--hd3)">2025-26</th></tr>
+            <tr><th class="r">Target</th><th class="r">Sales</th><th class="r">Ach%</th><th class="r">Exp</th><th class="r">Exp%</th><th class="r">Target</th><th class="r">Sales</th><th class="r">Ach%</th><th class="r">Exp</th><th class="r">Exp%</th></tr>
+          </thead><tbody id="TB-sp"></tbody></table></div></div>
+        <div class="panel"><div class="ph"><div class="ph-tit">Sales Personwise Contribution</div><div class="ph-r"><button class="zb" onclick="Z('spc','SP Contribution','table','TB-spc')">&#10146;</button></div></div>
+          <div class="tsc"><table><thead><tr><th>Sales Person</th><th class="r">2024-25</th><th class="r">2025-26</th></tr></thead>
+          <tbody id="TB-spc"></tbody></table></div></div>
+      </div>
+      <div class="g2">
+        <div class="panel"><div class="ph"><div class="ph-tit">Partywise Contribution</div><div class="ph-r"><span class="ph-badge" id="B-party"></span><button class="zb" onclick="Z('party','Partywise Contribution','table','TB-party')">&#10146;</button></div></div>
+          <div class="tsc" style="max-height:280px"><table><thead>
+            <tr><th rowspan="2">Party Name</th><th colspan="2" class="r" style="background:var(--hd3)">2024-25</th><th colspan="2" class="r" style="background:var(--hd3)">2025-26</th></tr>
+            <tr><th class="r">Sq.Mtr</th><th class="r">Sales</th><th class="r">Sq.Mtr</th><th class="r">Sales</th></tr>
+          </thead><tbody id="TB-party"></tbody></table></div></div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div class="panel"><div class="ph"><div class="ph-tit">Area wise Category</div><div class="ph-r"><button class="zb" onclick="Z('acat','Area wise Category','table','TB-acat')">&#10146;</button></div></div>
+            <div class="tsc" style="max-height:130px"><table><thead>
+              <tr><th rowspan="2">Region</th><th colspan="2" class="r" style="background:var(--hd3)">2024-25</th><th colspan="2" class="r" style="background:var(--hd3)">2025-26</th></tr>
+              <tr><th class="r">Sales</th><th class="r">%</th><th class="r">Sales</th><th class="r">%</th></tr>
+            </thead><tbody id="TB-acat"></tbody></table></div></div>
+          <div class="panel"><div class="ph"><div class="ph-tit">Regionwise Contribution</div><div class="ph-r"><button class="zb" onclick="Z('regc','Regionwise GW%','table','TB-regc')">&#10146;</button></div></div>
+            <div class="tsc" style="max-height:130px"><table><thead><tr><th>Region</th><th class="r">2024-25</th><th class="r">2025-26</th><th class="r">GW%</th></tr></thead>
+            <tbody id="TB-regc"></tbody></table></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOUR PAGE -->
+    <div class="pg" id="pg-tour">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px">
+        <div class="panel"><div class="ph"><div class="ph-tit">Total Area Visits</div></div>
+          <div class="pb" style="text-align:center;padding:14px 8px">
+            <div style="font-size:28px;font-weight:800;color:#1b6ec2" id="tk-ttc">&#8212;</div>
+            <div style="font-size:10px;color:#8896b0;margin-top:3px">Visits</div></div></div>
+        <div class="panel"><div class="ph"><div class="ph-tit">Ex Station</div></div>
+          <div class="pb" style="text-align:center;padding:14px 8px">
+            <div style="font-size:28px;font-weight:800;color:#107c10" id="tk-ex">&#8212;</div>
+            <div style="font-size:10px;color:#8896b0;margin-top:3px">Tour Count</div></div></div>
+        <div class="panel"><div class="ph"><div class="ph-tit">Out-Station</div></div>
+          <div class="pb" style="text-align:center;padding:14px 8px">
+            <div style="font-size:28px;font-weight:800;color:#d83b01" id="tk-out">&#8212;</div>
+            <div style="font-size:10px;color:#8896b0;margin-top:3px">Tour Count</div></div></div>
+        <div class="panel"><div class="ph"><div class="ph-tit">Unique Areas</div></div>
+          <div class="pb" style="text-align:center;padding:14px 8px">
+            <div style="font-size:28px;font-weight:800;color:#8764b8" id="tk-ac">&#8212;</div>
+            <div style="font-size:10px;color:#8896b0;margin-top:3px">Areas Visited</div></div></div>
+      </div>
+      <div class="g2">
+        <div class="panel"><div class="ph"><div class="ph-tit">Monthwise Tour</div><div class="ph-r"><button class="zb" onclick="Z('tmth','Monthwise Tour','chart')">&#10146;</button></div></div>
+          <div class="pb"><div class="ch ch-200"><canvas id="C-tmth"></canvas></div></div></div>
+        <div class="panel"><div class="ph"><div class="ph-tit">Tour Contribution</div><div class="ph-r"><button class="zb" onclick="Z('tcat','Tour Contribution','chart')">&#10146;</button></div></div>
+          <div class="pb"><div class="ch ch-200"><canvas id="C-tcat"></canvas></div></div></div>
+      </div>
+      <div class="g2">
+        <div class="panel"><div class="ph"><div class="ph-tit">Monthwise Tour Details</div><div class="ph-r"><button class="zb" onclick="Z('tmtht','Monthwise Tour Table','table','TB-tmth')">&#10146;</button></div></div>
+          <div class="tsc" style="max-height:260px"><table><thead>
+            <tr><th>Month</th><th class="r">Ex Station</th><th class="r">Out-Station</th><th class="r">Tour Count</th><th class="r">%</th></tr>
+          </thead><tbody id="TB-tmth"></tbody></table></div></div>
+        <div class="panel"><div class="ph"><div class="ph-tit">Areawise Tour Count</div><div class="ph-r"><button class="zb" onclick="Z('tarea','Areawise Tour Count','table','TB-tarea')">&#10146;</button></div></div>
+          <div class="tsc" style="max-height:260px"><table><thead id="TH-tarea"></thead><tbody id="TB-tarea"></tbody></table></div></div>
+      </div>
+      <div class="panel" style="margin-bottom:10px"><div class="ph"><div class="ph-tit">Sales Personwise Tour</div><div class="ph-r"><button class="zb" onclick="Z('tsp','Sales Personwise Tour','table','TB-tsp')">&#10146;</button></div></div>
+        <div class="tsc"><table><thead>
+          <tr><th>Sales Commandos</th><th class="r">Ex Station</th><th class="r">Out-Station</th><th class="r">Total Visits</th><th class="r">Unique Areas</th><th class="r">%</th></tr>
+        </thead><tbody id="TB-tsp"></tbody></table></div></div>
+    </div>
+    <!-- ENQUIRY PAGE -->
+    <div class="pg" id="pg-enq">
+      <div class="panel"><div class="ph"><div class="ph-tit">Summary</div><div class="ph-r"><span class="ph-badge" id="B-enq"></span><button class="zb" onclick="Z('enqs','Enquiry Summary','table','TB-enq')">&#10146;</button></div></div>
+        <div class="tsc" style="max-height:600px"><table><thead id="TH-enq"></thead><tbody id="TB-enq"></tbody></table></div></div>
+      <div class="panel" style="margin-top:10px"><div class="ph"><div class="ph-tit">Enquiry Details</div><div class="ph-r"><button class="zb" onclick="Z('enqd','Enquiry Details','table','TB-enqd')">&#10146;</button></div></div>
+        <div class="tsc" style="max-height:500px"><table>
+          <thead><tr><th>#</th><th>Month</th><th>Lead From</th><th>State</th><th>Area</th><th>Contact Person</th><th>Pass To</th><th class="r">Amount</th><th>Generated</th></tr></thead>
+          <tbody id="TB-enqd"></tbody>
+        </table></div></div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<!-- ZOOM MODAL -->
+<div class="mbg" id="modal" onclick="if(event.target===this)MZ()">
+  <div class="mbox">
+    <div class="mhd"><div class="mhd-t" id="m-t"></div><button class="mhd-x" onclick="MZ()">&#10005;</button></div>
+    <div class="mbd" id="m-bd"></div>
+  </div>
+</div>
+
+<script>
+/* ── Live data: loaded from server / uploaded Excel (data stripped from static build) ── */
+let DB=blankDB();
+function blankDB(){return {sp:[],r:[],b:[],c:[],e:['Active','Resigned'],pa:[],co:[],gr:[],sg:[],tg:[],ta:[],tr:[],ty:[],t:[],lf:[],pt:[],est:[],ear:[],eq_r:[],yrs:['2024-25','2025-26']};}
+const MO=['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
+const CL=['#1b6ec2','#0078d4','#107c10','#d83b01','#8764b8','#038387','#ca5010','#e879f9','#00b4d8'];
+const CH={};let _ZC=[];
+
+// sg row indices: [Y,Q,M,B,C,P,R,E,PA,CO,GR,S,Sq,Tgt,Exp]
+const I={Y:0,Q:1,M:2,B:3,C:4,P:5,R:6,E:7,PA:8,CO:9,GR:10,S:11,SQ:12,TG:13,EX:14};
+// tour row: [Y,M,Cat(0=Ex,1=Out),Grp,Area,Region]
+// enq row: [M,LeadFrom,PassTo,Amt]
+
+// ── Filter state ──
+const F={tab:'sales',Y:new Set(),Q:new Set(),M:new Set(),B:new Set(),C:new Set(),R:new Set(),P:-1};
+const TF={Y:new Set(),M:new Set()};
+const EF={M:new Set()};
+
+// ── Helpers ──
+function fmtC(n,d=2){if(n===undefined||isNaN(+n))return'&#8212;';n=+n;if(!n)return'00.00 Cr';return(n/1e7).toFixed(d)+' Cr';}
+function pct(a,b,d=2){if(!b)return'&#8212;';return(a/b*100).toFixed(d)+'%';}
+function pctN(a,b){return b?a/b*100:0;}
+function achCl(a,b){const v=pctN(a,b);return v>=100?'hi':v>=75?'md':'lo';}
+function gwCl(v){return v>0?'hi':v<0?'lo':'md';}
+function sm(arr,i){let s=0;for(const r of arr)s+=r[i]||0;return s;}
+function has(s,v){return s.size===0||s.has(v);}
+
+// ── Filters ──
+function fSG(){return DB.sg.filter(r=>has(F.Y,r[I.Y])&&has(F.Q,r[I.Q])&&has(F.M,r[I.M])&&has(F.B,r[I.B])&&has(F.C,r[I.C])&&has(F.R,r[I.R])&&(F.P<0||r[I.P]===F.P));}
+function fTour(){return DB.t.filter(r=>has(TF.Y,r[0])&&has(TF.M,r[1])&&(F.P<0||r[3]===F.P));}
+function fEnq(){return DB.eq_r.filter(r=>has(EF.M,r[0])&&(F.P<0||r[2]===F.P));}
+
+// ── Navigation ──
+function goTab(t){F.tab=t;F.P=-1;['sales','tour','enq'].forEach(n=>{document.getElementById('n-'+n).classList.toggle('on',n===t);document.getElementById('pg-'+n).classList.toggle('on',n===t);});buildFB();buildSPbar();render();}
+
+// ── Multi-select dropdown ──
+let _openDrop=null;
+document.addEventListener('click',e=>{if(!e.target.closest('.fd'))closeDrop();});
+function closeDrop(){if(_openDrop){_openDrop.classList.remove('open');const b=document.getElementById(_openDrop.dataset.btn);if(b)b.classList.remove('open');_openDrop=null;}}
+
+function mkDrop(lbl,key,opts,sel,tab){
+  const uid=`fd-${key}-${tab}`;
+  const n=sel.size;
+  const btnLbl=n===0?'All':n===1?opts.find(o=>sel.has(o.v))?.lbl||'?':`${n} selected`;
+  const act=n>0;
+  let oh=`<div class="fd-opt fd-all" onclick="tAll('${key}','${tab}')"><input type="checkbox" ${n===0?'checked':''}> All</div>`;
+  opts.forEach(o=>{const ch=sel.has(o.v);oh+=`<div class="fd-opt${ch?' checked':''}" data-v="${o.v}" onclick="tOpt('${key}','${tab}',${o.v},event)"><input type="checkbox" ${ch?'checked':''}> ${o.lbl}</div>`;});
+  return `<div class="fd" id="${uid}"><div class="fd-lbl">${lbl}</div>
+    <div class="fd-btn${act?' active':''}" id="btn-${uid}" onclick="oDrop('${uid}')">${btnLbl}${act?`<span class="cnt">${n}</span>`:''}<span class="arr">&#9660;</span></div>
+    <div class="fd-drop" id="drop-${uid}" data-btn="btn-${uid}" data-key="${key}" data-tab="${tab}">${oh}</div></div>`;
+}
+
+function oDrop(uid){const d=document.getElementById('drop-'+uid);const b=document.getElementById('btn-'+uid);if(_openDrop&&_openDrop!==d)closeDrop();if(d.classList.toggle('open'))_openDrop=d;else _openDrop=null;if(b)b.classList.toggle('open',d.classList.contains('open'));}
+
+function getFS(key,tab){if(tab==='tour')return TF[key]||F[key];if(tab==='enq')return EF[key]||F[key];return F[key];}
+
+function tAll(key,tab){getFS(key,tab).clear();F.P=-1;buildFB();buildSPbar();render();}
+function tOpt(key,tab,v,e){e.stopPropagation();const fs=getFS(key,tab);fs.has(v)?fs.delete(v):fs.add(v);F.P=-1;buildFB();buildSPbar();render();}
+
+function buildFB(){
+  const t=F.tab;
+  const icons={'sales':'&#128202; Sales Review','tour':'&#128506; Tour','enq':'&#128203; Enquiry'};
+  let h=`<div class="ftit">${icons[t]}</div>`;
+  if(t==='sales'){
+    h+=mkDrop('Year','Y',(DB.yrs||['2024-25','2025-26']).map((y,i)=>({v:i,lbl:y})),F.Y,t);
+    h+=mkDrop('Brand','B',DB.b.map((b,i)=>({v:i,lbl:b})),F.B,t);
+    h+=mkDrop('QTR','Q',[{v:0,lbl:'Q1'},{v:1,lbl:'Q2'},{v:2,lbl:'Q3'},{v:3,lbl:'Q4'}],F.Q,t);
+    h+=mkDrop('Month','M',MO.map((m,i)=>({v:i,lbl:m})),F.M,t);
+    h+=mkDrop('Region','R',DB.r.map((r,i)=>({v:i,lbl:r})),F.R,t);
+  }else if(t==='tour'){
+    h+=mkDrop('Year','Y',DB.ty.map((y,i)=>({v:i,lbl:y})),TF.Y,t);
+    h+=mkDrop('Month','M',MO.map((m,i)=>({v:i,lbl:m})),TF.M,t);
+  }else{
+    h+=mkDrop('Month','M',MO.map((m,i)=>({v:i,lbl:m})),EF.M,t);
+  }
+  h+=`<div class="fgap"></div><button class="xbtn" onclick="clrF()">&#10005; Reset</button>`;
+  document.getElementById('fbr').innerHTML=h;
+}
+
+function clrF(){F.Y.clear();F.Q.clear();F.M.clear();F.B.clear();F.C.clear();F.R.clear();F.P=-1;TF.Y.clear();TF.M.clear();EF.M.clear();buildFB();buildSPbar();render();}
+
+// ── SP pills ──
+function buildSPbar(){
+  const t=F.tab;
+  const savedP=F.P;F.P=-1;
+  const base=t==='sales'?fSG():t==='tour'?fTour():fEnq();
+  F.P=savedP;
+  let h='';
+
+  if(t==='sales'){
+    const spS={};for(const r of base)spS[r[I.P]]=(spS[r[I.P]]||0)+r[I.S];
+    Object.keys(spS).map(Number).sort((a,b)=>a-b).forEach((pi,i)=>{
+      const on=F.P===pi;const nm=DB.sp[pi]||'?';const sh=nm.split(' ').slice(0,2).join(' ');
+      h+=`<div class="pill${on?' on':''}" onclick="selSP(${pi})"><div class="pill-dot" style="background:${on?'#fff':CL[i%CL.length]}"></div>${sh}<small style="opacity:.7;font-size:9px"> (${fmtC(spS[pi])})</small></div>`;
+    });
+    const rows=fSG();const y4=rows.filter(r=>r[I.Y]===0),y5=rows.filter(r=>r[I.Y]===1);
+    const s4=sm(y4,I.S),s5=sm(y5,I.S),tAll=s4+s5;
+    const tg4=sm(y4,I.TG),tg5=sm(y5,I.TG),tTgt=tg4+tg5;
+    const gw=s4?((s5-s4)/s4*100):0;const sf=tTgt-tAll;
+    document.getElementById('kv-tgt').previousElementSibling.textContent='Target';
+    document.getElementById('kv-sls').previousElementSibling.textContent='Sales';
+    document.getElementById('kv-sf').previousElementSibling.textContent='Shortfall';
+    document.getElementById('kv-gw').previousElementSibling.textContent='GW %';
+    document.getElementById('kv-tgt').textContent=fmtC(tTgt);
+    document.getElementById('kv-sls').textContent=fmtC(tAll);
+    document.getElementById('kv-sf').innerHTML=sf>0?fmtC(sf):'On Target';
+    document.getElementById('kv-sf').className='val '+(sf>0?'lo':'hi');
+    document.getElementById('kv-gw').textContent=gw.toFixed(2)+'%';
+    document.getElementById('kv-gw').className='val '+(gw>=0?'hi':'lo');
+    document.getElementById('sb-v').textContent=rows.length.toLocaleString();
+    document.getElementById('sb-s').textContent='Sales records';
+    buildGW(gw);
+  }else if(t==='tour'){
+    const rows=fTour();const grpS={};for(const r of rows)grpS[r[3]]=(grpS[r[3]]||0)+1;
+    Object.keys(grpS).map(Number).sort((a,b)=>a-b).forEach((gi,i)=>{
+      const on=F.P===gi;const nm=DB.tg[gi]||'?';const sh=nm.split(' ').slice(0,2).join(' ');
+      h+=`<div class="pill${on?' on':''}" onclick="selSP(${gi})"><div class="pill-dot" style="background:${on?'#fff':CL[i%CL.length]}"></div>${sh}<small style="opacity:.7;font-size:9px"> (${grpS[gi]})</small></div>`;
+    });
+    document.getElementById('kv-tgt').textContent='&#8212;';document.getElementById('kv-sls').textContent=rows.length+' tours';
+    document.getElementById('kv-sf').textContent='&#8212;';document.getElementById('kv-gw').textContent='&#8212;';
+    document.getElementById('sb-v').textContent=rows.length;document.getElementById('sb-s').textContent='Tour records';
+  }else{
+    const rows=fEnq();const ptS={};for(const r of rows)ptS[r[2]]=(ptS[r[2]]||0)+1;
+    Object.keys(ptS).map(Number).sort((a,b)=>a-b).forEach((pi,i)=>{
+      const on=F.P===pi;const nm=DB.pt[pi]||'?';const sh=nm.split(' ').slice(0,2).join(' ');
+      h+=`<div class="pill${on?' on':''}" onclick="selSP(${pi})"><div class="pill-dot" style="background:${on?'#fff':CL[i%CL.length]}"></div>${sh}<small style="opacity:.7;font-size:9px"> (${ptS[pi]})</small></div>`;
+    });
+    const e_total=rows.length,e_gen=rows.filter(r=>r[4]===1).length,e_notgen=e_total-e_gen,e_amt=rows.reduce((s,r)=>s+r[3],0);
+    document.getElementById('kv-tgt').previousElementSibling.textContent='Total Enquiries';
+    document.getElementById('kv-sls').previousElementSibling.textContent='Sales Generated';
+    document.getElementById('kv-sf').previousElementSibling.textContent='Not Generated';
+    document.getElementById('kv-gw').previousElementSibling.textContent='&#8212;';
+    document.getElementById('kv-tgt').textContent=e_total+' Enq';
+    document.getElementById('kv-sls').textContent=e_gen+' Generated';
+    document.getElementById('kv-sf').textContent=e_notgen+' Not Gen';
+    document.getElementById('kv-gw').textContent=e_amt.toLocaleString('en-IN');
+    document.getElementById('sb-v').textContent=e_total;document.getElementById('sb-s').textContent='Enquiry records';
+  }
+  document.getElementById('sp-pills').innerHTML=h;
+}
+
+function selSP(p){F.P=F.P===p?-1:p;buildSPbar();render();}
+
+function buildGW(gw){
+  const fill=Math.min(Math.max(50+gw*1.5,5),90);
+  const col=gw>=0?'linear-gradient(180deg,#3a9e3a,#107c10)':'linear-gradient(180deg,#f06030,#c84020)';
+  const cl=gw>=0?'#107c10':'#d83b01';
+  document.getElementById('gw-gauge').innerHTML=`<div style="text-align:center">
+    <div style="width:88px;height:98px;margin:0 auto 7px;border:2px solid #aac8e8;border-radius:50%/15px;background:linear-gradient(180deg,#cce0f5,#a0c4e8);overflow:hidden;position:relative">
+      <div style="position:absolute;top:0;left:0;right:0;height:13px;border-radius:50%;background:linear-gradient(135deg,#d4e9f7,#a8cceb);z-index:2"></div>
+      <div style="position:absolute;bottom:0;left:0;right:0;height:${fill}%;background:${col};display:flex;align-items:flex-start;justify-content:center;padding-top:4px">
+        <span style="color:#fff;font-size:11px;font-weight:800">${gw.toFixed(2)}%</span>
+      </div>
+    </div>
+    <div style="font-size:16px;font-weight:800;color:${cl}">${gw.toFixed(2)}%</div>
+  </div>`;
+}
+
+function render(){const t=F.tab;if(t==='sales')rS();else if(t==='tour')rT();else rE();}
+
+// ════════ SALES ════════
+function rS(){
+  const YA=(DB.yrs&&DB.yrs[0])||'2024-25',YB=(DB.yrs&&DB.yrs[1])||'2025-26';
+  const rows=fSG();
+  const y4=rows.filter(r=>r[I.Y]===0),y5=rows.filter(r=>r[I.Y]===1);
+  const s4=sm(y4,I.S),s5=sm(y5,I.S),tAll=s4+s5;
+  const tg4=sm(y4,I.TG),tg5=sm(y5,I.TG),ex4=sm(y4,I.EX),ex5=sm(y5,I.EX);
+  const sq4=sm(y4,I.SQ),sq5=sm(y5,I.SQ);
+  const BRANDS=DB.b,CATS=DB.c,QS=['Q1','Q2','Q3','Q4'];
+
+  // FY Ach% bar
+  dc('C-fyach','bar',{
+    labels:[YA,YB],
+    datasets:[{data:[+(s4/1e7).toFixed(3),+(s5/1e7).toFixed(3)],
+      backgroundColor:['rgba(27,110,194,.9)','rgba(26,58,107,.85)'],barThickness:36,borderRadius:5,borderSkipped:false}]
+  },{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const tg=c.dataIndex===0?tg4:tg5;return[c.raw+' Cr','Ach: '+(tg?pct(c.raw*1e7,tg):'&#8212;')];  }}}},
+    scales:{y:{ticks:{callback:v=>v+'Cr'},grid:{color:'rgba(0,0,0,.06)'}},x:{grid:{display:false}}}});
+
+  // EXP% donut
+  const ep4=s4?ex4/s4*100:0,ep5=s5?ex5/s5*100:0;
+  dc('C-exp','doughnut',{
+    labels:[YA,YB],
+    datasets:[{data:[+ep4.toFixed(2),+ep5.toFixed(2)],backgroundColor:['#1b6ec2','rgba(26,58,107,.55)'],borderWidth:3,borderColor:'#fff'}]
+  },{cutout:'52%',plugins:{legend:{display:true,position:'top',labels:{color:'#333',font:{size:9},boxWidth:8,padding:5}},
+    tooltip:{callbacks:{label:c=>c.label+': '+c.raw.toFixed(2)+'%'}}}});
+
+  // Brandwise bar
+  dc('C-brndb','bar',{
+    labels:BRANDS,
+    datasets:[
+      {label:YA,data:BRANDS.map((_,i)=>+(sm(y4.filter(r=>r[I.B]===i),I.S)/1e7).toFixed(3)),backgroundColor:'rgba(27,110,194,.9)',barThickness:16,borderRadius:3},
+      {label:YB,data:BRANDS.map((_,i)=>+(sm(y5.filter(r=>r[I.B]===i),I.S)/1e7).toFixed(3)),backgroundColor:'rgba(26,58,107,.75)',barThickness:16,borderRadius:3}
+    ]
+  },{indexAxis:'y',plugins:{legend:{display:true,position:'top',labels:{color:'#333',font:{size:9},boxWidth:8,padding:4}}},
+    scales:{x:{ticks:{callback:v=>v+'Cr'},grid:{color:'rgba(0,0,0,.06)'}},y:{grid:{display:false}}}});
+
+  // Brand table
+  let bH='';
+  BRANDS.forEach((b,i)=>{
+    const s4b=sm(y4.filter(r=>r[I.B]===i),I.S),s5b=sm(y5.filter(r=>r[I.B]===i),I.S);
+    bH+=`<tr><td><b>${b}</b></td><td class="r">${fmtC(s4b)}</td><td class="r dim">${pct(s4b,s4)}</td><td class="r">${fmtC(s5b)}</td><td class="r dim">${pct(s5b,s5)}</td><td class="r hi">${fmtC(s4b+s5b)}</td><td class="r">${pct(s4b+s5b,tAll)}</td></tr>`;
+  });
+  bH+=`<tr class="tot"><td>Total</td><td class="r">${fmtC(s4)}</td><td class="r">100%</td><td class="r">${fmtC(s5)}</td><td class="r">100%</td><td class="r">${fmtC(tAll)}</td><td class="r">100%</td></tr>`;
+  document.getElementById('TB-brnd').innerHTML=bH;
+
+  // QTR bar
+  dc('C-qtr','bar',{
+    labels:QS,
+    datasets:[
+      {label:YA,data:[0,1,2,3].map(q=>{const r=y4.filter(x=>x[I.Q]===q);const s=sm(r,I.S);const tg=sm(r,I.TG);return tg?+pctN(s,tg).toFixed(1):0;}),backgroundColor:'rgba(27,110,194,.9)',barThickness:24,borderRadius:5,borderSkipped:false},
+      {label:YB,data:[0,1,2,3].map(q=>{const r=y5.filter(x=>x[I.Q]===q);const s=sm(r,I.S);const tg=sm(r,I.TG);return tg?+pctN(s,tg).toFixed(1):0;}),backgroundColor:'rgba(26,58,107,.8)',barThickness:24,borderRadius:5,borderSkipped:false}
+    ]
+  },{plugins:{legend:{display:true,position:'top',labels:{color:'#333',font:{size:9},boxWidth:8,padding:5}},
+    tooltip:{callbacks:{label:c=>c.dataset.label+': '+c.raw+'%'}}},
+    scales:{y:{ticks:{callback:v=>v+'%'},grid:{color:'rgba(0,0,0,.06)'}},x:{grid:{display:false}}}});
+
+  // Category bar
+  dc('C-cat','bar',{
+    labels:CATS,
+    datasets:[
+      {label:YA,data:CATS.map((_,i)=>+(sm(y4.filter(r=>r[I.C]===i),I.S)/1e7).toFixed(3)),backgroundColor:'rgba(27,110,194,.9)',barThickness:22,borderRadius:4},
+      {label:YB,data:CATS.map((_,i)=>+(sm(y5.filter(r=>r[I.C]===i),I.S)/1e7).toFixed(3)),backgroundColor:'rgba(26,58,107,.8)',barThickness:22,borderRadius:4}
+    ]
+  },{indexAxis:'y',plugins:{legend:{display:true,position:'top',labels:{color:'#333',font:{size:9},boxWidth:8,padding:5}}},
+    scales:{x:{ticks:{callback:v=>v+'Cr'},grid:{color:'rgba(0,0,0,.06)'}},y:{grid:{display:false}}}});
+
+  // Category table
+  let cH='';
+  CATS.forEach((c,i)=>{
+    const s4c=sm(y4.filter(r=>r[I.C]===i),I.S),s5c=sm(y5.filter(r=>r[I.C]===i),I.S);
+    cH+=`<tr><td><b>${c}</b></td><td class="r">${fmtC(s4c)}</td><td class="r dim">${pct(s4c,s4)}</td><td class="r">${fmtC(s5c)}</td><td class="r dim">${pct(s5c,s5)}</td><td class="r hi">${fmtC(s4c+s5c)}</td></tr>`;
+  });
+  cH+=`<tr class="tot"><td>Total</td><td class="r">${fmtC(s4)}</td><td class="r">100%</td><td class="r">${fmtC(s5)}</td><td class="r">100%</td><td class="r">${fmtC(tAll)}</td></tr>`;
+  document.getElementById('TB-catt').innerHTML=cH;
+
+  // Cat Ach%
+  let caH='';
+  [{Y:YA,s:s4,tg:tg4},{Y:YB,s:s5,tg:tg5}].forEach(yd=>{
+    caH+=`<tr class="shd"><td>&#x2295; ${yd.Y}</td><td class="r">${fmtC(yd.tg)}</td><td class="r">${fmtC(yd.s)}</td><td class="r ${yd.tg?achCl(yd.s,yd.tg):''}">${yd.tg?pct(yd.s,yd.tg):'&#8212;'}</td></tr>`;
+  });
+  caH+=`<tr class="tot"><td>Total</td><td class="r">${fmtC(tg4+tg5)}</td><td class="r">${fmtC(tAll)}</td><td class="r ${achCl(tAll,tg4+tg5)}">${(tg4+tg5)?pct(tAll,tg4+tg5):'&#8212;'}</td></tr>`;
+  document.getElementById('TB-catach').innerHTML=caH;
+
+  // Code table (no chart)
+  const CODES=DB.co;
+  const s4_total=s4,s5_total=s5;
+  document.getElementById('B-code').textContent=CODES.length+' codes';
+  let coH='';
+  CODES.forEach((co,i)=>{
+    const sq4c=sm(y4.filter(r=>r[I.CO]===i),I.SQ),s4c=sm(y4.filter(r=>r[I.CO]===i),I.S);
+    const sq5c=sm(y5.filter(r=>r[I.CO]===i),I.SQ),s5c=sm(y5.filter(r=>r[I.CO]===i),I.S);
+    if(!s4c&&!s5c&&!sq4c&&!sq5c)return;
+    coH+=`<tr><td class="dim">${co}</td><td class="r">${sq4c?sq4c.toFixed(2):''}</td><td class="r">${fmtC(s4c)}</td><td class="r dim">${pct(s4c,s4)}</td><td class="r">${sq5c?sq5c.toFixed(2):''}</td><td class="r">${fmtC(s5c)}</td><td class="r dim">${pct(s5c,s5)}</td></tr>`;
+  });
+  coH+=`<tr class="tot"><td>Total</td><td class="r">${sq4.toFixed(2)}</td><td class="r">${fmtC(s4)}</td><td class="r">100%</td><td class="r">${sq5.toFixed(2)}</td><td class="r">${fmtC(s5)}</td><td class="r">100%</td></tr>`;
+  document.getElementById('TB-code').innerHTML=coH;
+
+  // Grade table (no chart)
+  const GRADES=DB.gr;
+  document.getElementById('B-grade').textContent=GRADES.length+' grades';
+  let grH='';
+  GRADES.forEach((gr,i)=>{
+    const sq4g=sm(y4.filter(r=>r[I.GR]===i),I.SQ),s4g=sm(y4.filter(r=>r[I.GR]===i),I.S);
+    const sq5g=sm(y5.filter(r=>r[I.GR]===i),I.SQ),s5g=sm(y5.filter(r=>r[I.GR]===i),I.S);
+    if(!s4g&&!s5g&&!sq4g&&!sq5g)return;
+    grH+=`<tr><td class="dim">${gr}</td><td class="r">${sq4g?sq4g.toFixed(2):''}</td><td class="r">${fmtC(s4g)}</td><td class="r dim">${pct(s4g,s4)}</td><td class="r">${sq5g?sq5g.toFixed(2):''}</td><td class="r">${fmtC(s5g)}</td><td class="r dim">${pct(s5g,s5)}</td></tr>`;
+  });
+  grH+=`<tr class="tot"><td>Total</td><td class="r">${sq4.toFixed(2)}</td><td class="r">${fmtC(s4)}</td><td class="r">100%</td><td class="r">${sq5.toFixed(2)}</td><td class="r">${fmtC(s5)}</td><td class="r">100%</td></tr>`;
+  document.getElementById('TB-grade').innerHTML=grH;
+
+  // Monthwise
+  let mH='';
+  MO.forEach((m,mi)=>{
+    const r4=y4.filter(r=>r[I.M]===mi),r5=y5.filter(r=>r[I.M]===mi);
+    const s4m=sm(r4,I.S),s5m=sm(r5,I.S),tg4m=sm(r4,I.TG),tg5m=sm(r5,I.TG),e4m=sm(r4,I.EX),e5m=sm(r5,I.EX);
+    if(!s4m&&!s5m)return;
+    mH+=`<tr><td><b>${m}</b></td>
+      <td class="r">${tg4m?fmtC(tg4m):'&#8212;'}</td><td class="r">${fmtC(s4m)}</td>
+      <td class="r ${tg4m?achCl(s4m,tg4m):''}">${tg4m?pct(s4m,tg4m):'&#8212;'}</td>
+      <td class="r">${e4m?fmtC(e4m):'&#8212;'}</td><td class="r dim">${e4m&&s4m?pct(e4m,s4m):'&#8212;'}</td>
+      <td class="r">${tg5m?fmtC(tg5m):'&#8212;'}</td><td class="r">${fmtC(s5m)}</td>
+      <td class="r ${tg5m?achCl(s5m,tg5m):''}">${tg5m?pct(s5m,tg5m):'&#8212;'}</td>
+      <td class="r">${e5m?fmtC(e5m):'&#8212;'}</td><td class="r dim">${e5m&&s5m?pct(e5m,s5m):'&#8212;'}</td></tr>`;
+  });
+  mH+=`<tr class="tot"><td>Total</td><td class="r">${fmtC(tg4)}</td><td class="r">${fmtC(s4)}</td><td class="r ${achCl(s4,tg4)}">${tg4?pct(s4,tg4):'&#8212;'}</td><td class="r">${fmtC(ex4)}</td><td class="r">${ex4&&s4?pct(ex4,s4):'&#8212;'}</td><td class="r">${fmtC(tg5)}</td><td class="r">${fmtC(s5)}</td><td class="r ${achCl(s5,tg5)}">${tg5?pct(s5,tg5):'&#8212;'}</td><td class="r">${fmtC(ex5)}</td><td class="r">${ex5&&s5?pct(ex5,s5):'&#8212;'}</td></tr>`;
+  document.getElementById('TB-mth').innerHTML=mH;
+
+  // Regionwise
+  const REGS=DB.r;let rH='';
+  REGS.forEach((rg,ri)=>{
+    const r4=y4.filter(r=>r[I.R]===ri),r5=y5.filter(r=>r[I.R]===ri);
+    const s4r=sm(r4,I.S),s5r=sm(r5,I.S),tg4r=sm(r4,I.TG),tg5r=sm(r5,I.TG),e4r=sm(r4,I.EX),e5r=sm(r5,I.EX);
+    if(!s4r&&!s5r)return;
+    rH+=`<tr><td class="dim"><b>${rg}</b></td>
+      <td class="r">${tg4r?fmtC(tg4r):'&#8212;'}</td><td class="r">${fmtC(s4r)}</td>
+      <td class="r ${tg4r?achCl(s4r,tg4r):''}">${tg4r?pct(s4r,tg4r):'&#8212;'}</td>
+      <td class="r">${e4r?fmtC(e4r):'&#8212;'}</td><td class="r dim">${e4r&&s4r?pct(e4r,s4r):'&#8212;'}</td>
+      <td class="r">${tg5r?fmtC(tg5r):'&#8212;'}</td><td class="r">${fmtC(s5r)}</td>
+      <td class="r ${tg5r?achCl(s5r,tg5r):''}">${tg5r?pct(s5r,tg5r):'&#8212;'}</td>
+      <td class="r">${e5r?fmtC(e5r):'&#8212;'}</td></tr>`;
+  });
+  rH+=`<tr class="tot"><td>Total</td><td class="r">${fmtC(tg4)}</td><td class="r">${fmtC(s4)}</td><td class="r ${achCl(s4,tg4)}">${tg4?pct(s4,tg4):'&#8212;'}</td><td class="r">${fmtC(ex4)}</td><td class="r">${ex4&&s4?pct(ex4,s4):'&#8212;'}</td><td class="r">${fmtC(tg5)}</td><td class="r">${fmtC(s5)}</td><td class="r ${achCl(s5,tg5)}">${tg5?pct(s5,tg5):'&#8212;'}</td><td class="r">${fmtC(ex5)}</td></tr>`;
+  document.getElementById('TB-reg').innerHTML=rH;
+
+  // Sales Personwise
+  const SPS=DB.sp;let spH='';
+  ['Active','Resigned'].forEach((est,ei)=>{
+    const er4=y4.filter(r=>r[I.E]===ei),er5=y5.filter(r=>r[I.E]===ei);
+    const es4=sm(er4,I.S),es5=sm(er5,I.S),et4=sm(er4,I.TG),et5=sm(er5,I.TG),ee4=sm(er4,I.EX),ee5=sm(er5,I.EX);
+    if(!es4&&!es5)return;
+    spH+=`<tr class="shd"><td>&#x2295; ${est}</td><td class="r">${et4?fmtC(et4):'&#8212;'}</td><td class="r">${fmtC(es4)}</td><td class="r ${et4?achCl(es4,et4):''}">${et4?pct(es4,et4):'&#8212;'}</td><td class="r">${ee4?fmtC(ee4):'&#8212;'}</td><td class="r">${ee4&&es4?pct(ee4,es4):'&#8212;'}</td><td class="r">${et5?fmtC(et5):'&#8212;'}</td><td class="r">${fmtC(es5)}</td><td class="r ${et5?achCl(es5,et5):''}">${et5?pct(es5,et5):'&#8212;'}</td><td class="r">${ee5?fmtC(ee5):'&#8212;'}</td><td class="r">${ee5&&es5?pct(ee5,es5):'&#8212;'}</td></tr>`;
+    const pis=new Set();rows.forEach(r=>{if(r[I.E]===ei)pis.add(r[I.P]);});
+    [...pis].sort((a,b)=>a-b).forEach(pi=>{
+      const sr4=y4.filter(r=>r[I.P]===pi&&r[I.E]===ei),sr5=y5.filter(r=>r[I.P]===pi&&r[I.E]===ei);
+      const s4s=sm(sr4,I.S),s5s=sm(sr5,I.S),t4s=sm(sr4,I.TG),t5s=sm(sr5,I.TG),e4s=sm(sr4,I.EX),e5s=sm(sr5,I.EX);
+      if(!s4s&&!s5s)return;
+      const on=F.P===pi;
+      spH+=`<tr class="sub"${on?' style="background:#e8f0ff"':''}><td style="padding-left:16px">${SPS[pi]||'?'}</td><td class="r">${t4s?fmtC(t4s):'&#8212;'}</td><td class="r">${fmtC(s4s)}</td><td class="r ${t4s?achCl(s4s,t4s):''}">${t4s?pct(s4s,t4s):'&#8212;'}</td><td class="r">${e4s?fmtC(e4s):'&#8212;'}</td><td class="r dim">${e4s&&s4s?pct(e4s,s4s):'&#8212;'}</td><td class="r">${t5s?fmtC(t5s):'&#8212;'}</td><td class="r">${fmtC(s5s)}</td><td class="r ${t5s?achCl(s5s,t5s):''}">${t5s?pct(s5s,t5s):'&#8212;'}</td><td class="r">${e5s?fmtC(e5s):'&#8212;'}</td><td class="r dim">${e5s&&s5s?pct(e5s,s5s):'&#8212;'}</td></tr>`;
+    });
+  });
+  spH+=`<tr class="tot"><td>Total</td><td class="r">${fmtC(tg4)}</td><td class="r">${fmtC(s4)}</td><td class="r ${achCl(s4,tg4)}">${tg4?pct(s4,tg4):'&#8212;'}</td><td class="r">${fmtC(ex4)}</td><td class="r">${ex4&&s4?pct(ex4,s4):'&#8212;'}</td><td class="r">${fmtC(tg5)}</td><td class="r">${fmtC(s5)}</td><td class="r ${achCl(s5,tg5)}">${tg5?pct(s5,tg5):'&#8212;'}</td><td class="r">${fmtC(ex5)}</td><td class="r">${ex5&&s5?pct(ex5,s5):'&#8212;'}</td></tr>`;
+  document.getElementById('TB-sp').innerHTML=spH;
+
+  // SP Contribution
+  let spcH='';
+  SPS.forEach((sp,pi)=>{
+    const s4s=sm(y4.filter(r=>r[I.P]===pi),I.S),s5s=sm(y5.filter(r=>r[I.P]===pi),I.S);
+    if(!s4s&&!s5s)return;
+    const on=F.P===pi;
+    spcH+=`<tr${on?' style="background:#e8f0ff"':''}><td class="dim">${sp}</td><td class="r">${fmtC(s4s)}</td><td class="r">${fmtC(s5s)}</td></tr>`;
+  });
+  spcH+=`<tr class="tot"><td>Total</td><td class="r">${fmtC(s4)}</td><td class="r">${fmtC(s5)}</td></tr>`;
+  document.getElementById('TB-spc').innerHTML=spcH;
+
+  // Partywise
+  const PA=DB.pa;const pActive=PA.filter((_,i)=>{const s4p=sm(y4.filter(r=>r[I.PA]===i),I.S);const s5p=sm(y5.filter(r=>r[I.PA]===i),I.S);return s4p||s5p;}).length;
+  document.getElementById('B-party').textContent=pActive+' parties';
+  let ptH='';
+  PA.forEach((pa,i)=>{
+    const sq4p=sm(y4.filter(r=>r[I.PA]===i),I.SQ),s4p=sm(y4.filter(r=>r[I.PA]===i),I.S);
+    const sq5p=sm(y5.filter(r=>r[I.PA]===i),I.SQ),s5p=sm(y5.filter(r=>r[I.PA]===i),I.S);
+    if(!s4p&&!s5p&&!sq4p&&!sq5p)return;
+    ptH+=`<tr><td class="dim">${pa}</td><td class="r">${sq4p?sq4p.toFixed(2):''}</td><td class="r">${s4p?fmtC(s4p):''}</td><td class="r">${sq5p?sq5p.toFixed(2):''}</td><td class="r">${s5p?fmtC(s5p):''}</td></tr>`;
+  });
+  document.getElementById('TB-party').innerHTML=ptH;
+
+  // Area wise
+  let acH='';
+  REGS.forEach((rg,ri)=>{
+    const s4r=sm(y4.filter(r=>r[I.R]===ri),I.S),s5r=sm(y5.filter(r=>r[I.R]===ri),I.S);
+    if(!s4r&&!s5r)return;
+    acH+=`<tr><td class="dim">&#x2295; ${rg}</td><td class="r">${fmtC(s4r)}</td><td class="r dim">${pct(s4r,s4)}</td><td class="r">${fmtC(s5r)}</td><td class="r dim">${pct(s5r,s5)}</td></tr>`;
+  });
+  acH+=`<tr class="tot"><td>Total</td><td class="r">${fmtC(s4)}</td><td class="r">100%</td><td class="r">${fmtC(s5)}</td><td class="r">100%</td></tr>`;
+  document.getElementById('TB-acat').innerHTML=acH;
+
+  // Regionwise GW%
+  let rcH='';
+  REGS.forEach((rg,ri)=>{
+    const s4r=sm(y4.filter(r=>r[I.R]===ri),I.S),s5r=sm(y5.filter(r=>r[I.R]===ri),I.S);
+    if(!s4r&&!s5r)return;
+    const gwr=s4r?((s5r-s4r)/s4r*100):null;
+    rcH+=`<tr><td class="dim">${rg}</td><td class="r">${fmtC(s4r)}</td><td class="r">${fmtC(s5r)}</td><td class="r ${gwr!=null?gwCl(gwr):''}">${gwr!=null?gwr.toFixed(2)+'%':'&#8212;'}</td></tr>`;
+  });
+  rcH+=`<tr class="tot"><td>Total</td><td class="r">${fmtC(s4)}</td><td class="r">${fmtC(s5)}</td><td class="r ${gwCl(s4?((s5-s4)/s4*100):0)}">${s4?((s5-s4)/s4*100).toFixed(2)+'%':'&#8212;'}</td></tr>`;
+  document.getElementById('TB-regc').innerHTML=rcH;
+}
+
+// ════════ TOUR ════════
+function rT(){
+  // t row: [Y,M,Cat(0=Ex,1=Out),Grp,Area,R, TC]
+  // TC = Excel Tour Count value (actual days toured)
+  const rows=fTour();
+  const tot_tc=rows.reduce((s,r)=>s+r[6],0);   // sum of TC column
+  const ex_tc=rows.filter(r=>r[2]===0).reduce((s,r)=>s+r[6],0);
+  const out_tc=rows.filter(r=>r[2]===1).reduce((s,r)=>s+r[6],0);
+  const uniq_areas=new Set(rows.map(r=>r[4])).size;
+
+  document.getElementById('tk-ttc').textContent=tot_tc;
+  document.getElementById('tk-ex').textContent=ex_tc;
+  document.getElementById('tk-out').textContent=out_tc;
+  document.getElementById('tk-ac').textContent=uniq_areas;
+  document.getElementById('sb-v').textContent=tot_tc;
+  document.getElementById('sb-s').textContent='Tour Count';
+
+  document.getElementById('kv-tgt').previousElementSibling.textContent='Total Tours';
+  document.getElementById('kv-sls').previousElementSibling.textContent='Ex Station';
+  document.getElementById('kv-sf').previousElementSibling.textContent='Out-Station';
+  document.getElementById('kv-gw').previousElementSibling.textContent='Unique Areas';
+  document.getElementById('kv-tgt').textContent=tot_tc+' Tours';
+  document.getElementById('kv-sls').textContent=ex_tc+' Ex';
+  document.getElementById('kv-sf').textContent=out_tc+' Out';
+  document.getElementById('kv-gw').textContent=uniq_areas+' Areas';
+
+  const MF=MO.filter((_,mi)=>rows.some(r=>r[1]===mi));
+
+  // Monthwise bar — use TC values
+  dc('C-tmth','bar',{labels:MF,datasets:[
+    {label:'Ex Station',data:MF.map(m=>rows.filter(r=>r[1]===MO.indexOf(m)&&r[2]===0).reduce((s,r)=>s+r[6],0)),backgroundColor:'rgba(27,110,194,.85)',barThickness:18,borderRadius:4},
+    {label:'Out-Station',data:MF.map(m=>rows.filter(r=>r[1]===MO.indexOf(m)&&r[2]===1).reduce((s,r)=>s+r[6],0)),backgroundColor:'rgba(27,110,194,.4)',barThickness:18,borderRadius:4}
+  ]},{plugins:{legend:{display:true,position:'top',labels:{color:'#333',font:{size:9},boxWidth:8}}},
+    scales:{y:{ticks:{color:'#888'},grid:{color:'rgba(0,0,0,.06)'}},x:{grid:{display:false}}}});
+
+  dc('C-tcat','doughnut',{labels:['Out-Station','Ex Station'],
+    datasets:[{data:[out_tc,ex_tc],backgroundColor:['#1b6ec2','rgba(26,58,107,.5)'],borderWidth:3,borderColor:'#fff'}]},
+    {cutout:'5%',plugins:{legend:{display:true,position:'top',labels:{color:'#333',font:{size:9},boxWidth:8}},
+    tooltip:{callbacks:{label:c=>c.label+': '+c.raw+' ('+pct(c.raw,tot_tc)+')'}}}});
+
+  // Monthwise table — TC only, no Unique Areas column
+  let tmH='';
+  MO.forEach((m,mi)=>{
+    const mr=rows.filter(r=>r[1]===mi); if(!mr.length)return;
+    const ex_m=mr.filter(r=>r[2]===0).length;   // Ex row count
+    const out_m=mr.filter(r=>r[2]===1).length;  // Out row count
+    const tc_m=mr.reduce((s,r)=>s+r[6],0);      // TC sum from Excel
+    tmH+=`<tr><td><b>${m}</b></td>
+      <td class="r hi">${ex_m||'&#8212;'}</td>
+      <td class="r md">${out_m||'&#8212;'}</td>
+      <td class="r">${tc_m}</td>
+      <td class="r">${tot_tc?((tc_m/tot_tc)*100).toFixed(1)+'%':'&#8212;'}</td></tr>`;
+  });
+  const ex_rows_tot=rows.filter(r=>r[2]===0).length;
+  const out_rows_tot=rows.filter(r=>r[2]===1).length;
+  tmH+=`<tr class="tot"><td>Total</td><td class="r">${ex_rows_tot}</td><td class="r">${out_rows_tot}</td><td class="r">${tot_tc}</td><td class="r">100%</td></tr>`;
+  document.getElementById('TB-tmth').innerHTML=tmH;
+
+  // Areawise — colour dots, show TC per area
+  const aidxs=[...new Set(rows.map(r=>r[4]))].sort((a,b)=>a-b);
+  document.getElementById('TH-tarea').innerHTML=`<tr><th>Area <span style="font-size:9px;font-weight:400;margin-left:4px"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#1b6ec2;vertical-align:middle"></span> Ex <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#d83b01;vertical-align:middle;margin-left:4px"></span> Out</span></th>${MF.map(m=>`<th class="r">${m}</th>`).join('')}<th class="r">Area Count</th></tr>`;
+  let aH='',gTC=0;
+  aidxs.forEach(ai=>{
+    const ar=rows.filter(r=>r[4]===ai);
+    const atc=ar.length; if(!atc)return;  // area count = visit rows
+    const hasEx=ar.some(r=>r[2]===0);
+    const hasOut=ar.some(r=>r[2]===1);
+    let dots='';
+    if(hasEx)dots+='<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#1b6ec2;margin-right:2px;vertical-align:middle" title="Ex Station"></span>';
+    if(hasOut)dots+='<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#d83b01;margin-right:2px;vertical-align:middle" title="Out-Station"></span>';
+    let row=`<tr><td class="dim">${dots}${DB.ta[ai]||'?'}</td>`;
+    MF.forEach(m=>{
+      const mi2=MO.indexOf(m);
+      const ex_c=ar.filter(r=>r[1]===mi2&&r[2]===0).length;
+      const out_c=ar.filter(r=>r[1]===mi2&&r[2]===1).length;
+      if(!ex_c&&!out_c){row+='<td class="r"></td>';return;}
+      let cell='';
+      if(ex_c)cell+=`<span style="color:#1b6ec2;font-weight:700">${ex_c}</span>`;
+      if(ex_c&&out_c)cell+='<span style="color:#aaa;font-size:9px">/</span>';
+      if(out_c)cell+=`<span style="color:#d83b01;font-weight:700">${out_c}</span>`;
+      row+=`<td class="r">${cell}</td>`;
+    });
+    gTC+=atc;
+    row+=`<td class="r hi">${atc}</td></tr>`; aH+=row;
+  });
+  aH+=`<tr class="tot"><td>Total</td>${MF.map(m=>{const mi2=MO.indexOf(m);const mr2=rows.filter(r=>r[1]===mi2);if(!mr2.length)return'<td></td>';const ex_t=mr2.filter(r=>r[2]===0).length;const out_t=mr2.filter(r=>r[2]===1).length;let c='';if(ex_t)c+=`<span style="color:#90c8f0;font-weight:700">${ex_t}</span>`;if(ex_t&&out_t)c+='<span style="color:#888;font-size:9px">/</span>';if(out_t)c+=`<span style="color:#f4a07a;font-weight:700">${out_t}</span>`;return`<td class="r">${c}</td>`;}).join('')}<td class="r">${gTC}</td></tr>`;
+  document.getElementById('TB-tarea').innerHTML=aH;
+
+  // SP table
+  const grps=[...new Set(DB.t.map(r=>r[3]))].sort((a,b)=>a-b);
+  let spH='';
+  grps.forEach(gi=>{
+    const sr=rows.filter(r=>r[3]===gi); if(!sr.length)return;
+    const ex_s=sr.filter(r=>r[2]===0).reduce((s,r)=>s+r[6],0);
+    const out_s=sr.filter(r=>r[2]===1).reduce((s,r)=>s+r[6],0);
+    const tc_s=ex_s+out_s; if(!tc_s)return;
+    const areas_s=new Set(sr.map(r=>r[4])).size;
+    const on=F.P===gi;
+    spH+=`<tr${on?' style="background:#eef3ff"':''}><td class="dim">${DB.tg[gi]||'?'}</td>
+      <td class="r hi">${ex_s||'&#8212;'}</td>
+      <td class="r md">${out_s||'&#8212;'}</td>
+      <td class="r">${tc_s}</td>
+      <td class="r">${areas_s}</td>
+      <td class="r">${tot_tc?((tc_s/tot_tc)*100).toFixed(1)+'%':'&#8212;'}</td></tr>`;
+  });
+  spH+=`<tr class="tot"><td>Total</td><td class="r">${ex_tc}</td><td class="r">${out_tc}</td><td class="r">${tot_tc}</td><td class="r">${uniq_areas}</td><td class="r">100%</td></tr>`;
+  document.getElementById('TB-tsp').innerHTML=spH;
+}
+
+// ════════ ENQUIRY ════════
+function rE(){
+  // eq_r row: [M, LeadFrom, PassTo, Amt, Gen, State, Area, Contact]
+  const rows=fEnq();const tot=rows.length;
+  document.getElementById('B-enq').textContent=tot+' records';
+  const LEADS=DB.lf,PT=DB.pt;
+
+  // ── Summary table (PASS TO × LEAD FROM) ──
+  document.getElementById('TH-enq').innerHTML=`
+    <tr><th>LEAD FROM</th>${LEADS.map(l=>`<th colspan="2" class="r" style="background:var(--hd3)">${l}</th>`).join('')}<th colspan="2" class="r">Total</th></tr>
+    <tr><th>PASS TO</th>${LEADS.map(()=>`<th class="r">Cnt</th><th class="r">Amt</th>`).join('')}<th class="r">Cnt</th><th class="r">Amt</th></tr>`;
+  let eH='';const gC=LEADS.map(()=>0),gA=LEADS.map(()=>0);let gTC=0,gTA=0;
+  PT.forEach((pt,pti)=>{
+    const ptr=rows.filter(r=>r[2]===pti);if(!ptr.length)return;
+    let pTC=0,pTA=0;let ptR=`<tr class="shd"><td>${pt}</td>`;
+    LEADS.forEach((_,li)=>{const lr=ptr.filter(r=>r[1]===li),c=lr.length,a=lr.reduce((s,r)=>s+r[3],0);gC[li]+=c;gA[li]+=a;pTC+=c;pTA+=a;ptR+=`<td class="r">${c||''}</td><td class="r">${a?'&#x20B9;'+a.toLocaleString('en-IN'):''}</td>`;});
+    gTC+=pTC;gTA+=pTA;ptR+=`<td class="r hi">${pTC}</td><td class="r">${pTA?'&#x20B9;'+pTA.toLocaleString('en-IN'):''}</td></tr>`;eH+=ptR;
+    const months=[...new Set(ptr.map(r=>r[0]))].sort((a,b)=>ptr.filter(r=>r[0]===b).length-ptr.filter(r=>r[0]===a).length);
+    months.forEach(mi=>{
+      const mr=ptr.filter(r=>r[0]===mi);let mTC=0,mTA=0;
+      let mR=`<tr class="sub"><td style="padding-left:14px">${MO[mi]||mi}</td>`;
+      LEADS.forEach((_,li)=>{const lr=mr.filter(r=>r[1]===li),c=lr.length,a=lr.reduce((s,r)=>s+r[3],0);mTC+=c;mTA+=a;mR+=`<td class="r">${c||''}</td><td class="r">${a?'&#x20B9;'+a.toLocaleString('en-IN'):''}</td>`;});
+      mR+=`<td class="r">${mTC}</td><td class="r">${mTA?'&#x20B9;'+mTA.toLocaleString('en-IN'):''}</td></tr>`;eH+=mR;
+    });
+  });
+  eH+=`<tr class="tot"><td>Total</td>${LEADS.map((_,i)=>`<td class="r">${gC[i]||''}</td><td class="r">${gA[i]?'&#x20B9;'+gA[i].toLocaleString('en-IN'):''}</td>`).join('')}<td class="r">${gTC}</td><td class="r">${gTA?'&#x20B9;'+gTA.toLocaleString('en-IN'):''}</td></tr>`;
+  document.getElementById('TB-enq').innerHTML=eH;
+
+  // ── Details table (every row with State, Area, Contact) ──
+  let dH='';
+  rows.forEach((r,idx)=>{
+    const st=DB.est?DB.est[r[5]]||'':'';
+    const ar=DB.ear?DB.ear[r[6]]||'':'';
+    const cn=r[7]||'';
+    const isGen=r[4]===1;
+    dH+=`<tr>
+      <td class="dim">${idx+1}</td>
+      <td><b>${MO[r[0]]||''}</b></td>
+      <td>${DB.lf[r[1]]||''}</td>
+      <td class="dim">${st}</td>
+      <td class="dim">${ar}</td>
+      <td>${cn}</td>
+      <td class="dim">${DB.pt[r[2]]||''}</td>
+      <td class="r">${r[3]?'&#x20B9;'+r[3].toLocaleString('en-IN'):''}</td>
+      <td style="text-align:center">${isGen?'<span style="color:#107c10;font-weight:700">&#x2714; Yes</span>':'<span style="color:#8896b0">&#x2716;</span>'}</td>
+    </tr>`;
+  });
+  document.getElementById('TB-enqd').innerHTML=dH;
+}
+
+
+// ── Chart helper ──
+function dc(id,type,data,extra={}){
+  if(CH[id])CH[id].destroy();
+  const cv=document.getElementById(id);if(!cv)return;
+  const sc=extra.scales||{};
+  const opts={responsive:true,maintainAspectRatio:false,animation:{duration:150},
+    plugins:{legend:{display:false,labels:{color:'#333',font:{size:9},boxWidth:8}},...(extra.plugins||{})},
+    scales:{x:{grid:{color:'rgba(0,0,0,.05)'},ticks:{color:'#888',font:{size:8}},...(sc.x||{})},
+            y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{color:'#888',font:{size:8}},...(sc.y||{})}}};
+  if(type==='doughnut'||type==='pie')delete opts.scales;
+  if(extra.indexAxis==='y')opts.indexAxis='y';
+  if(extra.cutout)opts.cutout=extra.cutout;
+  CH[id]=new Chart(cv.getContext('2d'),{type,data,options:opts});
+}
+
+// ── Zoom ──
+function Z(id,title,mode,tbId){
+  document.getElementById('m-t').textContent=title;
+  const mb=document.getElementById('m-bd');mb.innerHTML='';
+  _ZC.forEach(c=>c.destroy());_ZC=[];
+  if(mode==='chart'){
+    const orig=CH['C-'+id];
+    const d=document.createElement('div');d.style.cssText='height:440px;padding:4px';
+    const cv=document.createElement('canvas');d.appendChild(cv);mb.appendChild(d);
+    document.getElementById('modal').classList.add('show');
+    if(orig)setTimeout(()=>{try{const nc=new Chart(cv.getContext('2d'),{type:orig.config.type,data:JSON.parse(JSON.stringify(orig.config.data)),options:{...orig.config.options,responsive:true,maintainAspectRatio:false,animation:{duration:80}}});_ZC.push(nc);}catch(e){}},80);
+    return;
+  }
+  if(mode==='table'&&tbId){
+    const tb=document.getElementById(tbId);
+    if(tb){const t=tb.closest('table');if(t)mb.innerHTML=`<div class="tsc" style="max-height:510px">${t.outerHTML}</div>`;}
+  }
+  if(mode==='split'&&tbId){
+    const orig=CH['C-'+id];
+    const g=document.createElement('div');g.style.cssText='display:grid;grid-template-columns:55% 45%;gap:12px;height:440px';
+    const ld=document.createElement('div');const cv=document.createElement('canvas');ld.appendChild(cv);g.appendChild(ld);
+    const td=document.createElement('div');td.style.overflow='auto';
+    const tb=document.getElementById(tbId);
+    if(tb){const t=tb.closest('table');if(t)td.innerHTML=`<div class="tsc" style="max-height:440px">${t.outerHTML}</div>`;}
+    g.appendChild(td);mb.appendChild(g);
+    if(orig)setTimeout(()=>{try{const nc=new Chart(cv.getContext('2d'),{type:orig.config.type,data:JSON.parse(JSON.stringify(orig.config.data)),options:{...orig.config.options,responsive:true,maintainAspectRatio:false,animation:{duration:80}}});_ZC.push(nc);}catch(e){}},80);
+  }
+  document.getElementById('modal').classList.add('show');
+}
+function MZ(){document.getElementById('modal').classList.remove('show');_ZC.forEach(c=>c.destroy());_ZC=[];document.getElementById('m-bd').innerHTML='';}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')MZ();});
+
+// ── Excel import + server sync ──
+const PB_BASE='https://salesforce.eurobond.co.in/crm-api';
+function pbToken(){try{return localStorage.getItem('eb_token')||'';}catch(e){return '';}}
+function pbHeaders(json){const h={};const t=pbToken();if(t)h.Authorization='Bearer '+t;if(json)h['Content-Type']='application/json';return h;}
+function pbNum(v){if(v==null||v==='')return 0;const n=+String(v).replace(/[^0-9.\-]/g,'');return isNaN(n)?0:n;}
+/* case-insensitive dedup: 'EURO' and 'Euro' become one entry (first spelling kept) */
+function pbIdxM(arr,map,v){v=(v==null?'':String(v)).trim();if(v==='')return -1;const k=v.toLowerCase();let i=map.get(k);if(i==null){arr.push(v);i=arr.length-1;map.set(k,i);}return i;}
+
+function pbBuildFromAOA(aoa){
+  const head=(aoa[0]||[]).map(h=>String(h==null?'':h).trim());
+  const col={};head.forEach((h,i)=>{if(!(h in col))col[h]=i;});
+  const need=['Year','Month','Brand','Category','Sales person','Region','SALES G'];
+  const miss=need.filter(k=>!(k in col));
+  if(miss.length)throw new Error('Missing columns: '+miss.join(', '));
+  const QS={Q1:0,Q2:1,Q3:2,Q4:3};
+  const d=blankDB();
+  const yseen=[];
+  const mb=new Map(),mc=new Map(),msp=new Map(),mr=new Map(),mpa=new Map(),mco=new Map(),mgr=new Map();
+  const g=(row,k)=>col[k]==null?'':row[col[k]];
+  for(let ri=1;ri<aoa.length;ri++){
+    const row=aoa[ri];if(!row||row.length===0)continue;
+    const ys=String(g(row,'Year')||'').trim();if(!ys)continue;
+    let yi=yseen.indexOf(ys);if(yi<0){yseen.push(ys);yi=yseen.length-1;}
+    let q=QS[String(g(row,'QTR')||'').trim()];if(q==null)q=-1;
+    d.sg.push([
+      yi, q,
+      MO.indexOf(String(g(row,'Month')||'').trim()),
+      pbIdxM(d.b,mb,g(row,'Brand')),
+      pbIdxM(d.c,mc,g(row,'Category')),
+      pbIdxM(d.sp,msp,g(row,'Sales person')),
+      pbIdxM(d.r,mr,g(row,'Region')),
+      (String(g(row,'Employee Status')||'').trim().toLowerCase()==='resigned'?1:0),
+      pbIdxM(d.pa,mpa,g(row,'Party Name')),
+      pbIdxM(d.co,mco,g(row,'Code')),
+      pbIdxM(d.gr,mgr,g(row,'Grade')),
+      pbNum(g(row,'SALES G')),
+      pbNum(g(row,'Sq.Mtr')),
+      pbNum(g(row,'Target D')),
+      pbNum(g(row,'Expenses'))
+    ]);
+  }
+  /* sort FY ascending so column 0 = older year, column 1 = newer (2024-25 / 2025-26 layout) */
+  const sorted=[...yseen].sort();
+  const remap=yseen.map(y=>sorted.indexOf(y));
+  d.sg.forEach(r=>{r[0]=remap[r[0]];});
+  d.yrs=sorted.length?sorted:['2024-25','2025-26'];
+  return d;
+}
+
+async function pbLoad(){
+  try{
+    const res=await fetch(PB_BASE+'/powerbi.php',{headers:pbHeaders(false)});
+    const j=await res.json();
+    if(j&&Array.isArray(j.sg)){DB=Object.assign(blankDB(),j);}
+  }catch(e){/* no data yet — stay blank */}
+}
+async function pbSave(){
+  const res=await fetch(PB_BASE+'/powerbi.php',{method:'POST',headers:pbHeaders(true),body:JSON.stringify(DB)});
+  const j=await res.json();
+  if(!res.ok||j.error)throw new Error(j.error||('HTTP '+res.status));
+  return j;
+}
+
+function pbUploadUI(){
+  const bar=document.createElement('div');
+  bar.style.cssText='position:fixed;top:8px;right:12px;z-index:9999;display:flex;gap:8px;align-items:center';
+  bar.innerHTML='<input type="file" id="pb-file" accept=".xlsx,.xls" style="display:none">'
+    +'<button id="pb-up" style="background:#1b6ec2;color:#fff;border:none;border-radius:7px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2)">&#128228; Upload Excel</button>'
+    +'<span id="pb-msg" style="font-size:11px;color:#1a3a6b;font-weight:600"></span>';
+  document.body.appendChild(bar);
+  const msg=(t,c)=>{const e=document.getElementById('pb-msg');if(e){e.textContent=t;e.style.color=c||'#1a3a6b';}};
+  document.getElementById('pb-up').onclick=()=>document.getElementById('pb-file').click();
+  document.getElementById('pb-file').onchange=async(ev)=>{
+    const f=ev.target.files[0];if(!f)return;
+    msg('Reading '+f.name+' …');
+    try{
+      const buf=await f.arrayBuffer();
+      const wb=XLSX.read(buf,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
+      msg('Parsing '+(aoa.length-1).toLocaleString()+' rows …');
+      DB=pbBuildFromAOA(aoa);
+      msg('Saving to server …');
+      const r=await pbSave();
+      msg('Saved '+Number(r.rows).toLocaleString()+' rows ✓','#107c10');
+      pbFixYearHeaders();
+      clrF();
+    }catch(e){msg('Error: '+e.message,'#d83b01');alert('Upload failed: '+e.message);}
+    ev.target.value='';
+  };
+}
+
+/* the two-year column headers in the static tables are hardcoded; rewrite them
+   from the actual financial years in the data (idempotent + re-upload safe) */
+function pbFixYearHeaders(){
+  const a=(DB.yrs&&DB.yrs[0])||'2024-25', b=(DB.yrs&&DB.yrs[1])||'2025-26';
+  document.querySelectorAll('th,td').forEach(el=>{
+    if(el.children.length)return;
+    if(el.dataset.pbOrig===undefined){
+      const t=el.textContent.trim();
+      if(t==='2024-25'||t==='2025-26')el.dataset.pbOrig=t; else return;
+    }
+    el.textContent=el.dataset.pbOrig==='2024-25'?a:b;
+  });
+}
+
+// ── INIT ──
+(async function(){
+  pbUploadUI();
+  await pbLoad();
+  pbFixYearHeaders();
+  buildFB();buildSPbar();render();
+})();
+</script></body></html>
