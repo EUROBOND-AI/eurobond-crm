@@ -15,7 +15,6 @@ const UserReportCard = lazy(() => import("./admin/UserReportCard.jsx"));
 const EnquiryDashboard = lazy(() => import("./admin/EnquiryDashboard.jsx"));
 const ModulePage = lazy(() => import("./admin/ModulePage.jsx"));
 const CheckinPage = lazy(() => import("./admin/CheckinPage.jsx"));
-const SalesReview = lazy(() => import("./admin/SalesReview.jsx"));
 const TourReport = lazy(() => import("./admin/TourReport.jsx"));
 const ApiKeysPage = lazy(() => import("./admin/ApiKeysPage.jsx"));
 const HealthPage = lazy(() => import("./admin/HealthPage.jsx"));
@@ -107,7 +106,6 @@ export default function App() {
         <Route path="dashboards/target" element={<TargetDashboard />} />
         <Route path="dashboards/project" element={<ProjectDashboard />} />
         <Route path="dashboards/task" element={<TaskDashboard />} />
-        <Route path="dashboards/sales-review" element={<SalesReview />} />
         <Route path="sfa/biltrax" element={<BiltraxPage />} />
         <Route path="dashboards/biltrax" element={<BiltraxDashboard />} />
         <Route path="master/logs" element={<ActivityLogs />} />

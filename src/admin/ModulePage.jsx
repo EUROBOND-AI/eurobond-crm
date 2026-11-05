@@ -752,6 +752,17 @@ export default function ModulePage({ cfgKey }) {
           />
         }
       />
+      {/* Targets module: Sales Review data is uploaded here (combined Pan-India
+          Excel). The dashboard view of it lives in Target Dashboard. */}
+      {cfgKey === "target" && (
+        <div style={{ margin: "0 0 14px" }}>
+          <iframe
+            src="/powerbi.html?view=upload"
+            title="Sales Data Import"
+            style={{ width: "100%", height: 175, border: "1px solid var(--line)", borderRadius: 12, background: "#fff" }}
+          />
+        </div>
+      )}
       {/* On the modules that wait for Show, the page is laid out straight away
           with the totals reading zero, so the filters are there to use the
           moment it opens. Nothing is counted until Show is pressed. */}

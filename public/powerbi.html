@@ -985,7 +985,7 @@ function pbUploadUI(){
       const r=await pbSave();
       msg('Saved '+Number(r.rows).toLocaleString()+' rows ✓','#107c10');
       pbFixYearHeaders();
-      clrF();
+      if(document.getElementById('fbr'))clrF();   /* dashboard present → refresh; upload-only view has no charts */
     }catch(e){msg('Error: '+e.message,'#d83b01');alert('Import failed: '+e.message);}
     ev.target.value='';
   };
@@ -1007,9 +1007,22 @@ function pbFixYearHeaders(){
 
 // ── INIT ──
 (async function(){
+  /* view=upload  → only the Import toolbar (used inside the Targets module)
+     view=dash    → only the dashboard, no Import/Format (used in Target Dashboard) */
+  const VIEW=new URLSearchParams(location.search).get('view')||'dash';
+  if(VIEW==='upload'){
+    ['.fbar','.kpi-hdr','.content'].forEach(s=>{const e=document.querySelector(s);if(e)e.remove();});
+    const sh=document.getElementById('pb-show');if(sh)sh.remove();
+    const info=document.createElement('div');
+    info.style.cssText='padding:16px;font-size:12.5px;color:#4a5878;line-height:1.6;max-width:860px';
+    info.innerHTML='<b style="color:#1a3a6b;font-size:14px">Sales Data Import</b><br>Combined Pan-India Excel ni <b>Import Excel</b> tho upload cheyyandi. Prathi upload mottham replace chestundi. Dashboard: <b>Target Dashboard</b> lo chudandi.<br><br>Columns: Year, QTR, Month, Brand, Category, Sales person, Region, Party Name, Code, Grade, SALES G, Sq.Mtr, Target D, Expenses, Employee Status.';
+    const mn=document.querySelector('.main');if(mn)mn.appendChild(info);
+  }else{
+    ['pb-import','pb-format'].forEach(id=>{const e=document.getElementById(id);if(e)e.remove();});
+  }
   pbUploadUI();
   await pbLoad();
   pbFixYearHeaders();
-  buildFB();buildSPbar();render();
+  if(VIEW!=='upload'){buildFB();buildSPbar();render();}
 })();
 </script></body></html>
