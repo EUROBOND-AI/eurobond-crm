@@ -19,18 +19,25 @@ export default function CheckinPage() {
   const [loading, setLoading] = useState(false);
   const [show, setShow] = useState("login");   // login | pending | leave | total
   const [loaded, setLoaded] = useState(false);
+  /* #19b — names already unlocked for this date, so the button stays "Unlocked"
+     even after the list re-renders or the page is reloaded */
+  const [unlocked, setUnlocked] = useState(new Set());
 
   const loadData = () => {
     setLoaded(true);
     setLoading(true);
-    Promise.all([api.attList(date), api.listUsers(), api.list("leave", false)])
-      .then(([d, u, l]) => {
+    Promise.all([api.attList(date), api.listUsers(), api.list("leave", false), api.list("attUnlock", false)])
+      .then(([d, u, l, un]) => {
         /* a HOD sees only their own team here as well */
         const allowed = visibleUsers(u.users || []);
         const allow = new Set(allowed.map((x) => x.name));
         setSessions((d.sessions || []).filter((s2) => allow.has(s2.name)));
         setAllUsers(allowed.filter((x) => Number(x.status) !== 0 && x.role !== "Admin"));
         setLeaves((l.records || []).map((r) => r.data));
+        const uset = new Set((un.records || [])
+          .map((r) => r.data).filter((x) => String(x.date || "").slice(0, 10) === date)
+          .map((x) => String(x.name || "").trim().toLowerCase()));
+        setUnlocked(uset);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -83,7 +90,7 @@ export default function CheckinPage() {
   const cards = [
     { key: "total", label: "Total Users", value: inScope.length, color: "#4a7bff" },
     { key: "login", label: "Login", value: loginUsers.length, color: "#10b981" },
-    { key: "pending", label: "Pending", value: pendingUsers.length, color: "#ef4444", note: appliedNames.size ? "leave excluded" : "" },
+    { key: "pending", label: "Pending", value: pendingUsers.length, color: "#ef4444" },
     /* #24 — Leave card counts everyone who applied (approved + pending), so the
        people excluded from Pending are visible here; the list shows each one's
        status. */
@@ -170,16 +177,24 @@ export default function CheckinPage() {
                   {/* #19 — unlock late attendance for this person so they can still
                       mark it after the 10:30 cut-off */}
                   {show === "pending" && (
-                    <button
-                      onClick={async (e) => {
-                        const btn = e.currentTarget; btn.disabled = true; btn.textContent = "…";
-                        try { await api.attUnlock(r.name, date); btn.textContent = "✓ Unlocked"; }
-                        catch (err) { alert(err.message); btn.disabled = false; btn.textContent = "Unlock"; }
-                      }}
-                      title="Let this person mark attendance after the cut-off"
-                      style={{ border: "none", cursor: "pointer", fontWeight: 800, fontSize: 11, padding: "5px 10px", borderRadius: 8, background: "#e8f0ff", color: "#2563eb", flexShrink: 0 }}>
-                      Unlock
-                    </button>
+                    unlocked.has(String(r.name || "").trim().toLowerCase()) ? (
+                      <span style={{ fontWeight: 800, fontSize: 11, padding: "5px 10px", borderRadius: 8, background: "#dcfce7", color: "#16a34a", flexShrink: 0 }}>
+                        ✓ Unlocked
+                      </span>
+                    ) : (
+                      <button
+                        onClick={async (e) => {
+                          const btn = e.currentTarget; btn.disabled = true; btn.textContent = "…";
+                          try {
+                            await api.attUnlock(r.name, date);
+                            setUnlocked((s) => new Set(s).add(String(r.name || "").trim().toLowerCase()));
+                          } catch (err) { alert(err.message); btn.disabled = false; btn.textContent = "Unlock"; }
+                        }}
+                        title="Let this person mark attendance after the cut-off"
+                        style={{ border: "none", cursor: "pointer", fontWeight: 800, fontSize: 11, padding: "5px 10px", borderRadius: 8, background: "#e8f0ff", color: "#2563eb", flexShrink: 0 }}>
+                        Unlock
+                      </button>
+                    )
                   )}
                 </div>
               ))}
