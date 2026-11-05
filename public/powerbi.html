@@ -6,15 +6,19 @@
 <title>EUROBOND · Pandiyan Chandraraj Team Dashboard</title>
 <script src="vendor/chart.umd.js"></script>
 <script src="vendor/xlsx.full.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Bricolage+Grotesque:wght@700;800&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#f0f2f5;--w:#fff;--bd:#dde1ea;--bd2:#c5cbda;
-  --tx:#1a2035;--t2:#4a5878;--t3:#8896b0;
-  --hd:#1a3a6b;--hd2:#0f2850;--hd3:#16305a;--ac:#1b6ec2;
-  --sh:0 2px 8px rgba(0,0,0,.1);--sh2:0 6px 24px rgba(0,0,0,.16)
+  /* matched to the CRM admin dashboard theme */
+  --bg:#eef1fb;--w:#fff;--bd:#e4e8f4;--bd2:#d3d9ec;
+  --tx:#1c2340;--t2:#4a5876;--t3:#6b7394;
+  --hd:#0b3c8c;--hd2:#072a63;--hd3:#0b3c8c;--ac:#6c5ce7;
+  --sh:0 4px 18px rgba(28,35,64,.07);--sh2:0 10px 24px rgba(40,50,100,.13)
 }
-body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--tx);font-size:12px}
+body{font-family:"Manrope",system-ui,sans-serif;background:var(--bg);color:var(--tx);font-size:12px}
 .app{display:flex;height:100vh;overflow:hidden}
 /* SIDEBAR */
 .sb{width:155px;min-width:155px;background:var(--w);border-right:1px solid var(--bd);display:flex;flex-direction:column}
@@ -304,7 +308,7 @@ tr.sub td{padding-left:16px;color:var(--t2)}
 let DB=blankDB();
 function blankDB(){return {sp:[],r:[],b:[],c:[],e:['Active','Resigned'],pa:[],co:[],gr:[],sg:[],tg:[],ta:[],tr:[],ty:[],t:[],lf:[],pt:[],est:[],ear:[],eq_r:[],yrs:['2024-25','2025-26']};}
 const MO=['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
-const CL=['#1b6ec2','#0078d4','#107c10','#d83b01','#8764b8','#038387','#ca5010','#e879f9','#00b4d8'];
+const CL=['#4a7bff','#6c5ce7','#10b981','#f59e0b','#ec4899','#06b6d4','#6366f1','#e74c3c','#00b894'];
 const CH={};let _ZC=[];
 
 // sg row indices: [Y,Q,M,B,C,P,R,E,PA,CO,GR,S,Sq,Tgt,Exp]
@@ -473,7 +477,7 @@ function rS(){
   dc('C-fyach','bar',{
     labels:[YA,YB],
     datasets:[{data:[+(s4/1e7).toFixed(3),+(s5/1e7).toFixed(3)],
-      backgroundColor:['rgba(27,110,194,.9)','rgba(26,58,107,.85)'],barThickness:36,borderRadius:5,borderSkipped:false}]
+      backgroundColor:['rgba(74,123,255,.92)','rgba(11,60,140,.9)'],barThickness:36,borderRadius:5,borderSkipped:false}]
   },{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const tg=c.dataIndex===0?tg4:tg5;return[c.raw+' Cr','Ach: '+(tg?pct(c.raw*1e7,tg):'&#8212;')];  }}}},
     scales:{y:{ticks:{callback:v=>v+'Cr'},grid:{color:'rgba(0,0,0,.06)'}},x:{grid:{display:false}}}});
 
@@ -481,7 +485,7 @@ function rS(){
   const ep4=s4?ex4/s4*100:0,ep5=s5?ex5/s5*100:0;
   dc('C-exp','doughnut',{
     labels:[YA,YB],
-    datasets:[{data:[+ep4.toFixed(2),+ep5.toFixed(2)],backgroundColor:['#1b6ec2','rgba(26,58,107,.55)'],borderWidth:3,borderColor:'#fff'}]
+    datasets:[{data:[+ep4.toFixed(2),+ep5.toFixed(2)],backgroundColor:['#4a7bff','rgba(11,60,140,.55)'],borderWidth:3,borderColor:'#fff'}]
   },{cutout:'52%',plugins:{legend:{display:true,position:'top',labels:{color:'#333',font:{size:9},boxWidth:8,padding:5}},
     tooltip:{callbacks:{label:c=>c.label+': '+c.raw.toFixed(2)+'%'}}}});
 
@@ -489,8 +493,8 @@ function rS(){
   dc('C-brndb','bar',{
     labels:BRANDS,
     datasets:[
-      {label:YA,data:BRANDS.map((_,i)=>+(sm(y4.filter(r=>r[I.B]===i),I.S)/1e7).toFixed(3)),backgroundColor:'rgba(27,110,194,.9)',barThickness:16,borderRadius:3},
-      {label:YB,data:BRANDS.map((_,i)=>+(sm(y5.filter(r=>r[I.B]===i),I.S)/1e7).toFixed(3)),backgroundColor:'rgba(26,58,107,.75)',barThickness:16,borderRadius:3}
+      {label:YA,data:BRANDS.map((_,i)=>+(sm(y4.filter(r=>r[I.B]===i),I.S)/1e7).toFixed(3)),backgroundColor:'rgba(74,123,255,.92)',barThickness:16,borderRadius:3},
+      {label:YB,data:BRANDS.map((_,i)=>+(sm(y5.filter(r=>r[I.B]===i),I.S)/1e7).toFixed(3)),backgroundColor:'rgba(11,60,140,.8)',barThickness:16,borderRadius:3}
     ]
   },{indexAxis:'y',plugins:{legend:{display:true,position:'top',labels:{color:'#333',font:{size:9},boxWidth:8,padding:4}}},
     scales:{x:{ticks:{callback:v=>v+'Cr'},grid:{color:'rgba(0,0,0,.06)'}},y:{grid:{display:false}}}});
@@ -508,8 +512,8 @@ function rS(){
   dc('C-qtr','bar',{
     labels:QS,
     datasets:[
-      {label:YA,data:[0,1,2,3].map(q=>{const r=y4.filter(x=>x[I.Q]===q);const s=sm(r,I.S);const tg=sm(r,I.TG);return tg?+pctN(s,tg).toFixed(1):0;}),backgroundColor:'rgba(27,110,194,.9)',barThickness:24,borderRadius:5,borderSkipped:false},
-      {label:YB,data:[0,1,2,3].map(q=>{const r=y5.filter(x=>x[I.Q]===q);const s=sm(r,I.S);const tg=sm(r,I.TG);return tg?+pctN(s,tg).toFixed(1):0;}),backgroundColor:'rgba(26,58,107,.8)',barThickness:24,borderRadius:5,borderSkipped:false}
+      {label:YA,data:[0,1,2,3].map(q=>{const r=y4.filter(x=>x[I.Q]===q);const s=sm(r,I.S);const tg=sm(r,I.TG);return tg?+pctN(s,tg).toFixed(1):0;}),backgroundColor:'rgba(74,123,255,.92)',barThickness:24,borderRadius:5,borderSkipped:false},
+      {label:YB,data:[0,1,2,3].map(q=>{const r=y5.filter(x=>x[I.Q]===q);const s=sm(r,I.S);const tg=sm(r,I.TG);return tg?+pctN(s,tg).toFixed(1):0;}),backgroundColor:'rgba(11,60,140,.85)',barThickness:24,borderRadius:5,borderSkipped:false}
     ]
   },{plugins:{legend:{display:true,position:'top',labels:{color:'#333',font:{size:9},boxWidth:8,padding:5}},
     tooltip:{callbacks:{label:c=>c.dataset.label+': '+c.raw+'%'}}},
@@ -519,8 +523,8 @@ function rS(){
   dc('C-cat','bar',{
     labels:CATS,
     datasets:[
-      {label:YA,data:CATS.map((_,i)=>+(sm(y4.filter(r=>r[I.C]===i),I.S)/1e7).toFixed(3)),backgroundColor:'rgba(27,110,194,.9)',barThickness:22,borderRadius:4},
-      {label:YB,data:CATS.map((_,i)=>+(sm(y5.filter(r=>r[I.C]===i),I.S)/1e7).toFixed(3)),backgroundColor:'rgba(26,58,107,.8)',barThickness:22,borderRadius:4}
+      {label:YA,data:CATS.map((_,i)=>+(sm(y4.filter(r=>r[I.C]===i),I.S)/1e7).toFixed(3)),backgroundColor:'rgba(74,123,255,.92)',barThickness:22,borderRadius:4},
+      {label:YB,data:CATS.map((_,i)=>+(sm(y5.filter(r=>r[I.C]===i),I.S)/1e7).toFixed(3)),backgroundColor:'rgba(11,60,140,.85)',barThickness:22,borderRadius:4}
     ]
   },{indexAxis:'y',plugins:{legend:{display:true,position:'top',labels:{color:'#333',font:{size:9},boxWidth:8,padding:5}}},
     scales:{x:{ticks:{callback:v=>v+'Cr'},grid:{color:'rgba(0,0,0,.06)'}},y:{grid:{display:false}}}});
@@ -963,6 +967,23 @@ function pbExport(){
   XLSX.writeFile(wb,'sales-review-export.xlsx');
 }
 
+/* the uploaded sales data, as a table — shown under the Import panel in the
+   Targets module so you can confirm what reflected */
+function pbUploadTable(){
+  const host=document.getElementById('pb-datatable');if(!host)return;
+  if(!DB.sg||!DB.sg.length){host.innerHTML='<div style="padding:18px;color:var(--t3);font-size:13px">No data yet — Import an Excel above.</div>';return;}
+  const QN=['Q1','Q2','Q3','Q4'];const H=pbCols();const N=DB.sg.length;const lim=Math.min(N,500);
+  let h='<div style="font-size:12px;color:var(--t2);font-weight:600;margin:4px 2px 8px">Showing '+lim.toLocaleString()+' of '+N.toLocaleString()+' rows</div>';
+  h+='<div style="overflow:auto;max-height:calc(100vh - 150px);border:1px solid var(--bd);border-radius:12px;background:var(--w)"><table style="border-collapse:collapse;font-size:11.5px;width:100%;white-space:nowrap">';
+  h+='<thead><tr>'+H.map(c=>'<th style="position:sticky;top:0;background:var(--hd);color:#fff;padding:7px 9px;text-align:left;font-weight:700">'+c+'</th>').join('')+'</tr></thead><tbody>';
+  for(let i=0;i<lim;i++){const r=DB.sg[i];
+    const cells=[(DB.yrs&&DB.yrs[r[0]])||'',(r[1]>=0?QN[r[1]]:''),MO[r[2]]||'',DB.b[r[3]]||'',DB.c[r[4]]||'',DB.sp[r[5]]||'',DB.r[r[6]]||'',(r[7]===1?'Resigned':'Active'),DB.pa[r[8]]||'',DB.co[r[9]]||'',DB.gr[r[10]]||'',r[11],r[12],r[13],r[14]];
+    h+='<tr style="border-bottom:1px solid var(--bd)">'+cells.map((c,ci)=>'<td style="padding:6px 9px'+(ci>=11?';text-align:right':'')+'">'+(c===''||c==null?'':(typeof c==='number'?c.toLocaleString('en-IN'):c))+'</td>').join('')+'</tr>';
+  }
+  h+='</tbody></table></div>';
+  host.innerHTML=h;
+}
+
 function pbUploadUI(){
   const msg=(t,c)=>{const e=document.getElementById('pb-msg');if(e){e.textContent=t;e.style.color=c||'#1a3a6b';}};
   const fileEl=document.getElementById('pb-file');
@@ -986,6 +1007,7 @@ function pbUploadUI(){
       msg('Saved '+Number(r.rows).toLocaleString()+' rows ✓','#107c10');
       pbFixYearHeaders();
       if(document.getElementById('fbr'))clrF();   /* dashboard present → refresh; upload-only view has no charts */
+      if(document.getElementById('pb-datatable'))pbUploadTable();   /* upload view → refresh the data table */
     }catch(e){msg('Error: '+e.message,'#d83b01');alert('Import failed: '+e.message);}
     ev.target.value='';
   };
@@ -1015,8 +1037,9 @@ function pbFixYearHeaders(){
     const sh=document.getElementById('pb-show');if(sh)sh.remove();
     const info=document.createElement('div');
     info.style.cssText='padding:16px;font-size:12.5px;color:#4a5878;line-height:1.6;max-width:860px';
-    info.innerHTML='<b style="color:#1a3a6b;font-size:14px">Sales Data Import</b><br>Combined Pan-India Excel ni <b>Import Excel</b> tho upload cheyyandi. Prathi upload mottham replace chestundi. Dashboard: <b>Target Dashboard</b> lo chudandi.<br><br>Columns: Year, QTR, Month, Brand, Category, Sales person, Region, Party Name, Code, Grade, SALES G, Sq.Mtr, Target D, Expenses, Employee Status.';
+    info.innerHTML='<b style="color:var(--hd);font-size:14px">Sales Data Import</b><br>Combined Pan-India Excel ni <b>Import Excel</b> tho upload cheyyandi. Prathi upload mottham replace chestundi. Full dashboard: <b>Target Dashboard</b> lo chudandi.';
     const mn=document.querySelector('.main');if(mn)mn.appendChild(info);
+    const dt=document.createElement('div');dt.id='pb-datatable';dt.style.cssText='padding:4px 12px 12px';mn.appendChild(dt);
   }else{
     ['pb-import','pb-format'].forEach(id=>{const e=document.getElementById(id);if(e)e.remove();});
   }
@@ -1024,5 +1047,6 @@ function pbFixYearHeaders(){
   await pbLoad();
   pbFixYearHeaders();
   if(VIEW!=='upload'){buildFB();buildSPbar();render();}
+  else{pbUploadTable();}
 })();
 </script></body></html>

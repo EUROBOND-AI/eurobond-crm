@@ -759,7 +759,7 @@ export default function ModulePage({ cfgKey }) {
           <iframe
             src="/powerbi.html?view=upload"
             title="Sales Data Import"
-            style={{ width: "100%", height: 175, border: "1px solid var(--line)", borderRadius: 12, background: "#fff" }}
+            style={{ width: "100%", height: "min(66vh, 540px)", border: "1px solid var(--line)", borderRadius: 12, background: "#fff" }}
           />
         </div>
       )}
