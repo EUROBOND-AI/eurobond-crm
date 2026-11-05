@@ -128,23 +128,16 @@ tr.sub td{padding-left:16px;color:var(--t2)}
 </head>
 <body>
 <div class="app">
-<div class="sb">
-  <div class="sb-hd"><div class="sb-row">
-    <div class="sb-ico">EB</div>
-    <div><div class="sb-nm">EUROBOND</div><div class="sb-tg">Pandiyan Team</div></div>
-  </div></div>
-  <div class="sb-nav">
-    <div class="nit on" onclick="goTab('sales')" id="n-sales"><span>&#128202;</span> Sales Review</div>
-    <div class="nit" onclick="goTab('tour')" id="n-tour"><span>&#128506;</span> Tour</div>
-    <div class="nit" onclick="goTab('enq')" id="n-enq"><span>&#128203;</span> Enquiry</div>
+<div class="main" style="width:100%">
+  <div style="display:flex;gap:8px;align-items:center;padding:9px 12px;flex-wrap:wrap;background:#fff;border-bottom:1px solid var(--bd)">
+    <button id="pb-import" style="background:#1b6ec2;color:#fff;border:none;border-radius:7px;padding:8px 13px;font-size:12px;font-weight:700;cursor:pointer">&#128228; Import Excel</button>
+    <button id="pb-format" style="background:#fff;color:#1b6ec2;border:1px solid #1b6ec2;border-radius:7px;padding:8px 13px;font-size:12px;font-weight:700;cursor:pointer">&#11015; Download Format</button>
+    <button id="pb-export" style="background:#fff;color:#1b6ec2;border:1px solid #1b6ec2;border-radius:7px;padding:8px 13px;font-size:12px;font-weight:700;cursor:pointer">&#11014; Export</button>
+    <button id="pb-show" style="background:#107c10;color:#fff;border:none;border-radius:7px;padding:8px 13px;font-size:12px;font-weight:700;cursor:pointer">&#128269; Show</button>
+    <span id="pb-msg" style="font-size:11px;font-weight:600;color:#1a3a6b"></span>
   </div>
-  <div class="sb-ft"><div class="sb-box">
-    <div class="sb-bl">Records</div>
-    <div class="sb-bv" id="sb-v">&#8212;</div>
-    <div class="sb-bs" id="sb-s">loading&#8230;</div>
-  </div></div>
-</div>
-<div class="main">
+  <input type="file" id="pb-file" accept=".xlsx,.xls" style="display:none">
+  <span id="sb-v" style="display:none"></span><span id="sb-s" style="display:none"></span>
   <div class="fbar" id="fbr"></div>
   <div class="kpi-hdr">
     <div class="kbox tgt"><div class="lbl">Target</div><div class="val" id="kv-tgt">&#8212;</div></div>
@@ -944,16 +937,41 @@ async function pbSave(){
   return j;
 }
 
+/* the column order the dashboard expects — used for both the blank format
+   template and the Export of the current data */
+function pbCols(){return ['Year','QTR','Month','Brand','Category','Sales person','Region','Employee Status','Party Name','Code','Grade','SALES G','Sq.Mtr','Target D','Expenses'];}
+
+function pbDownloadFormat(){
+  const ws=XLSX.utils.aoa_to_sheet([pbCols()]);
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Sales');
+  XLSX.writeFile(wb,'sales-review-format.xlsx');
+}
+
+function pbExport(){
+  const QN=['Q1','Q2','Q3','Q4'];
+  const out=[pbCols()];
+  DB.sg.forEach(r=>{
+    out.push([
+      (DB.yrs&&DB.yrs[r[0]])||'', (r[1]>=0?QN[r[1]]:''), MO[r[2]]||'',
+      DB.b[r[3]]||'', DB.c[r[4]]||'', DB.sp[r[5]]||'', DB.r[r[6]]||'',
+      (r[7]===1?'Resigned':'Active'), DB.pa[r[8]]||'', DB.co[r[9]]||'', DB.gr[r[10]]||'',
+      r[11], r[12], r[13], r[14]
+    ]);
+  });
+  const ws=XLSX.utils.aoa_to_sheet(out);
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Sales');
+  XLSX.writeFile(wb,'sales-review-export.xlsx');
+}
+
 function pbUploadUI(){
-  const bar=document.createElement('div');
-  bar.style.cssText='position:fixed;top:8px;right:12px;z-index:9999;display:flex;gap:8px;align-items:center';
-  bar.innerHTML='<input type="file" id="pb-file" accept=".xlsx,.xls" style="display:none">'
-    +'<button id="pb-up" style="background:#1b6ec2;color:#fff;border:none;border-radius:7px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2)">&#128228; Upload Excel</button>'
-    +'<span id="pb-msg" style="font-size:11px;color:#1a3a6b;font-weight:600"></span>';
-  document.body.appendChild(bar);
   const msg=(t,c)=>{const e=document.getElementById('pb-msg');if(e){e.textContent=t;e.style.color=c||'#1a3a6b';}};
-  document.getElementById('pb-up').onclick=()=>document.getElementById('pb-file').click();
-  document.getElementById('pb-file').onchange=async(ev)=>{
+  const fileEl=document.getElementById('pb-file');
+  const on=(id,fn)=>{const el=document.getElementById(id);if(el)el.onclick=fn;};
+  on('pb-import',()=>fileEl&&fileEl.click());
+  on('pb-format',()=>pbDownloadFormat());
+  on('pb-export',()=>{if(!DB.sg||!DB.sg.length){alert('No data to export — Import an Excel first.');return;}pbExport();});
+  on('pb-show',()=>{buildFB();buildSPbar();render();});
+  if(fileEl)fileEl.onchange=async(ev)=>{
     const f=ev.target.files[0];if(!f)return;
     msg('Reading '+f.name+' …');
     try{
@@ -968,7 +986,7 @@ function pbUploadUI(){
       msg('Saved '+Number(r.rows).toLocaleString()+' rows ✓','#107c10');
       pbFixYearHeaders();
       clrF();
-    }catch(e){msg('Error: '+e.message,'#d83b01');alert('Upload failed: '+e.message);}
+    }catch(e){msg('Error: '+e.message,'#d83b01');alert('Import failed: '+e.message);}
     ev.target.value='';
   };
 }

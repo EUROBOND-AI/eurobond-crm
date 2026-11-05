@@ -4343,9 +4343,10 @@ function TargetView({ targets, filter, setFilter, isSpec, title }) {
 
   const Summary = ({ s, unit }) => (
     <div style={{ marginBottom: 16 }}>
+      {/* phone shows only Target + Achievement — the Achieved amount and the
+         per-period breakdown live in the admin panel only */}
       <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
         <Box label="Target" value={(unit === "₹" ? "₹" : "") + s.tgt.toLocaleString("en-IN") + (unit === "Sq.Mtr" ? " Sq.Mtr" : "")} />
-        <Box label="Achieved" value={(unit === "₹" ? "₹" : "") + s.ach.toLocaleString("en-IN") + (unit === "Sq.Mtr" ? " Sq.Mtr" : "")} />
         <Box label="Achievement" value={s.pc + "%"} color={pcColor(s.pc)} />
       </div>
       <div className="bar"><i style={{ width: Math.min(100, s.pc) + "%", background: pcColor(s.pc) }} /></div>
@@ -4374,28 +4375,6 @@ function TargetView({ targets, filter, setFilter, isSpec, title }) {
           <>
             {showSales && salesSum.count > 0 && (<><div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 8, color: "var(--navy)" }}>Sales (₹)</div><Summary s={salesSum} unit="₹" /></>)}
             {showSpecs && specsSum.count > 0 && (<><div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 8, color: "var(--navy)" }}>Specs (Sq.Mtr)</div><Summary s={specsSum} unit="Sq.Mtr" /></>)}
-
-            {/* per-period breakdown */}
-            <div style={{ fontWeight: 800, fontSize: 13, margin: "6px 0 8px", color: "var(--muted)" }}>Breakdown</div>
-            {filtered.map((t, i) => {
-              const isSalesT = String(t.targetType || "").toLowerCase() === "sales";
-              const tgt = Number(t.target || 0), ach = Number(t.achieved || 0);
-              const pc = tgt > 0 ? Math.round((ach / tgt) * 100) : 0;
-              const u = isSalesT ? "₹" : "";
-              return (
-                <div key={i} className="card-3d" style={{ marginBottom: 10, borderLeft: `5px solid ${pcColor(pc)}`, background: "#fff", borderRadius: 12, padding: "11px 13px", boxShadow: "var(--shadow)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontWeight: 800, fontSize: 13 }}>{t.period} · {isSalesT ? "Sales" : "Specs"}</span>
-                    <span style={{ background: pcColor(pc), color: "#fff", padding: "2px 9px", borderRadius: 8, fontSize: 12, fontWeight: 800 }}>{pc}%</span>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 700, marginTop: 6 }}>
-                    <span style={{ color: pcColor(pc) }}>{u}{ach.toLocaleString("en-IN")} / {u}{tgt.toLocaleString("en-IN")}{isSalesT ? "" : " Sq.Mtr"}</span>
-                  </div>
-                  <div className="bar"><i style={{ width: Math.min(100, pc) + "%", background: pcColor(pc) }} /></div>
-                  {t.note && <small style={{ color: "var(--muted)" }}>{t.note}</small>}
-                </div>
-              );
-            })}
           </>
         )}
       </div>
