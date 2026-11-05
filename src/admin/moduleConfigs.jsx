@@ -235,6 +235,14 @@ export const MODULES = {
     idPrefix: "LV", app: true, appLabel: "Leave", approveFlow: ["Approved", "Rejected"],
     /* From/To filter the day the leave is for, not the moment it was applied */
     dateKey: "from",
+    /* Status filter — All / Pending / Approved / Rejected, same as Task */
+    tabs: [
+      { key: "All", label: "All", all: true },
+      { key: "Pending", label: "Pending" },
+      { key: "Approved", label: "Approved" },
+      { key: "Rejected", label: "Rejected" },
+    ],
+    tabField: "status",
     columns: [
       { key: "createdBy", label: "Applied By" }, { key: "type", label: "Leave Type" },
       { key: "mode", label: "Mode" }, { key: "from", label: "From" }, { key: "to", label: "To" },
