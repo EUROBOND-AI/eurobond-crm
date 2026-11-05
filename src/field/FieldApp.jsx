@@ -5165,6 +5165,14 @@ function FieldProfile({ onLogout }) {
             </div>
           </div>
         </div>
+        {/* #6 — open the side currently showing at full size: the photo to view,
+            or the QR big enough to scan */}
+        <div>
+          <button onClick={() => openAppPhoto(flip ? u.qr : u.photo)}
+            style={{ border: "none", background: "transparent", color: "var(--accent)", fontWeight: 700, fontSize: 12, cursor: "pointer", padding: "2px 8px" }}>
+            {flip ? "⛶ Enlarge QR to scan" : (u.qr ? "⛶ View photo full" : "")}
+          </button>
+        </div>
         <div style={{ fontFamily: "Bricolage Grotesque", fontWeight: 800, fontSize: 18 }}>{u.name || "—"}</div>
         <div style={{ color: "var(--muted)", fontSize: 12.5, fontWeight: 700 }}>{u.code} · {u.role}</div>
         <div style={{ margin: "12px auto 0", maxWidth: 260 }}>

@@ -35,23 +35,33 @@ export default function AreasPage() {
     return theirs.includes(low(sel)) && isSales;
   }).map((u) => u.name));
 
-  const assignFor = (area) => {
+  /* #1 — a selection is staged locally (keyed by area name; "" = state default);
+     nothing is written until "Save Assignments" is pressed. */
+  const [pending, setPending] = useState({});
+  const [savingAssign, setSavingAssign] = useState(false);
+  useEffect(() => { setPending({}); }, [sel]);   // switching state clears unsaved picks
+  const savedFor = (area) => {
     const a = assigns.find((x) => low(x.state) === low(sel) && low(x.area || "") === low(area || ""));
     return a ? a.person : "";
   };
-  const setAssign = async (area, person) => {
-    const existing = assigns.find((x) => low(x.state) === low(sel) && low(x.area || "") === low(area || ""));
-    /* reflect on screen at once */
-    setAssigns((list) => {
-      const rest = list.filter((x) => !(low(x.state) === low(sel) && low(x.area || "") === low(area || "")));
-      return person ? [...rest, { _id: existing?._id, state: sel, area: area || "", person }] : rest;
-    });
+  const assignFor = (area) => (Object.prototype.hasOwnProperty.call(pending, area || "") ? pending[area || ""] : savedFor(area));
+  const stageAssign = (area, person) => setPending((p) => ({ ...p, [area || ""]: person }));
+  const dirtyCount = Object.keys(pending).filter((a) => (pending[a] || "") !== savedFor(a)).length;
+  const saveAssignments = async () => {
+    setSavingAssign(true);
     try {
-      if (!person && existing?._id) { await api.remove("areaAssign", existing._id); }
-      else if (existing?._id) { await api.update("areaAssign", existing._id, { state: sel, area: area || "", person }); }
-      else { await api.create("areaAssign", { state: sel, area: area || "", person }); }
-      loadAssigns();
-    } catch (e) { alert(e.message); loadAssigns(); }
+      for (const area of Object.keys(pending)) {
+        const person = pending[area] || "";
+        const existing = assigns.find((x) => low(x.state) === low(sel) && low(x.area || "") === low(area || ""));
+        if (!person && existing?._id) await api.remove("areaAssign", existing._id);
+        else if (existing?._id) await api.update("areaAssign", existing._id, { state: sel, area, person });
+        else if (person) await api.create("areaAssign", { state: sel, area, person });
+      }
+      await loadAssigns();
+      setPending({});
+      alert("Assignments saved.");
+    } catch (e) { alert(e.message); }
+    setSavingAssign(false);
   };
   useEffect(() => {
     if (!sel) { setAreas([]); return; }
@@ -161,12 +171,17 @@ export default function AreasPage() {
         {sel && (
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", background: "#eef5ff", border: "1px solid #d6e4ff", borderRadius: 10, padding: "10px 12px", marginBottom: 14 }}>
             <span style={{ fontSize: 12.5, fontWeight: 800, color: "var(--navy)" }}>State default person (auto-assign):</span>
-            <select value={assignFor("")} onChange={(e) => setAssign("", e.target.value)}
+            <select value={assignFor("")} onChange={(e) => stageAssign("", e.target.value)}
               style={{ padding: "7px 10px", borderRadius: 8, border: "1px solid var(--line)", fontSize: 12.5, minWidth: 200, background: "#fff" }}>
               <option value="">— None —</option>
               {statePeople.map((n) => <option key={n}>{n}</option>)}
             </select>
             <span style={{ fontSize: 11.5, color: "var(--muted)" }}>New enquiries in {sel} with no area match go to this person.</span>
+            {/* #1 — save the staged picks */}
+            <button className="btn btn-primary" style={{ marginLeft: "auto", padding: "7px 18px", opacity: dirtyCount ? 1 : 0.5 }}
+              disabled={!dirtyCount || savingAssign} onClick={saveAssignments}>
+              {savingAssign ? "Saving…" : dirtyCount ? `💾 Save Assignments (${dirtyCount})` : "💾 Saved"}
+            </button>
           </div>
         )}
 
@@ -205,8 +220,8 @@ export default function AreasPage() {
                   {/* #1 — assign this area to a sales person; enquiries here auto-assign to them */}
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
                     <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)" }}>👤</span>
-                    <select value={assignFor(nm)} onChange={(e) => setAssign(nm, e.target.value)}
-                      style={{ flex: 1, border: "1px solid var(--line)", borderRadius: 7, padding: "4px 6px", fontSize: 11.5, background: "#fff", color: assignFor(nm) ? "var(--navy)" : "var(--muted)" }}>
+                    <select value={assignFor(nm)} onChange={(e) => stageAssign(nm, e.target.value)}
+                      style={{ flex: 1, border: assignFor(nm) !== savedFor(nm) ? "1.5px solid #f59e0b" : "1px solid var(--line)", borderRadius: 7, padding: "4px 6px", fontSize: 11.5, background: "#fff", color: assignFor(nm) ? "var(--navy)" : "var(--muted)" }}>
                       <option value="">— Assign person —</option>
                       {statePeople.map((n) => <option key={n}>{n}</option>)}
                     </select>
