@@ -1,6 +1,30 @@
 import { useEffect, useState } from "react";
 import { Pill, LongText } from "../components/ui.jsx";
 
+/* #4 — a long answer shown short with a "more" link; expanded it reads
+   line-by-line (each line on its own row), not as one run-on blob. */
+function ExpandText({ text }) {
+  const [open, setOpen] = useState(false);
+  const s = String(text || "");
+  if (!s) return "";
+  const lines = s.split(/\r?\n/).filter((l) => l.trim() !== "");
+  const short = s.length > 110;
+  if (!open) {
+    return (
+      <span>
+        {short ? s.slice(0, 110) + "… " : s}
+        {short && <span onClick={() => setOpen(true)} style={{ color: "var(--accent)", cursor: "pointer", fontWeight: 700 }}> more</span>}
+      </span>
+    );
+  }
+  return (
+    <div style={{ whiteSpace: "normal" }}>
+      {lines.map((l, i) => <div key={i} style={{ marginBottom: 3, lineHeight: 1.5 }}>{l}</div>)}
+      <span onClick={() => setOpen(false)} style={{ color: "var(--accent)", cursor: "pointer", fontWeight: 700 }}>less</span>
+    </div>
+  );
+}
+const expandText = (v) => <ExpandText text={v} />;
 const pill = (v) => <Pill status={v} />;
 const link = (v) => <span className="link">{v}</span>;
 const money = (v) => (v != null && v !== "" ? "₹" + Number(v).toLocaleString("en-IN") : "—");
@@ -435,8 +459,8 @@ export const MODULES = {
       { key: "createdAt", label: "When" },
       { key: "user", label: "User" },
       { key: "role", label: "Role" },
-      { key: "question", label: "Question" },
-      { key: "answer", label: "EUVA's answer", render: (v) => (v ? String(v).slice(0, 120) + (String(v).length > 120 ? "…" : "") : "") },
+      { key: "question", label: "Question", render: expandText },
+      { key: "answer", label: "EUVA's answer", render: expandText },
     ],
   },
 

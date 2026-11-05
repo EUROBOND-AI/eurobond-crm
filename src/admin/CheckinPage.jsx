@@ -84,14 +84,17 @@ export default function CheckinPage() {
     { key: "total", label: "Total Users", value: inScope.length, color: "#4a7bff" },
     { key: "login", label: "Login", value: loginUsers.length, color: "#10b981" },
     { key: "pending", label: "Pending", value: pendingUsers.length, color: "#ef4444", note: appliedNames.size ? "leave excluded" : "" },
-    { key: "leave", label: "Leave", value: onLeave.length, color: "#f59e0b" },
+    /* #24 — Leave card counts everyone who applied (approved + pending), so the
+       people excluded from Pending are visible here; the list shows each one's
+       status. */
+    { key: "leave", label: "Leave", value: appliedLeave.length, color: "#f59e0b", note: appliedLeave.length > onLeave.length ? `${appliedLeave.length - onLeave.length} pending approval` : "" },
   ];
 
   const listFor = () => {
     const photoOf = (nm) => { const u = (allUsers || []).find((x) => String(x.name).trim().toLowerCase() === String(nm).trim().toLowerCase()); return u ? u.photo : ""; };
     if (show === "login") return loginUsers.map((u) => ({ name: u.name, sub: sessionInfo(u.id), photo: u.photo }));
     if (show === "pending") return pendingUsers.map((u) => ({ name: u.name, sub: u.city || "—", photo: u.photo }));
-    if (show === "leave") return onLeave.map((l) => { const nm = l.createdBy || l.appliedBy || l.user || "—"; return { name: nm, sub: `${l.from} → ${l.to || l.from}`, photo: photoOf(nm) }; });
+    if (show === "leave") return appliedLeave.map((l) => { const nm = l.createdBy || l.appliedBy || l.user || "—"; const st = String(l.status || "Pending"); const stLabel = /^appr/i.test(st) ? "✓ Approved" : "⏳ Pending approval"; return { name: nm, sub: `${l.from} → ${l.to || l.from} · ${stLabel}`, photo: photoOf(nm) }; });
     return inScope.map((u) => ({ name: u.name, sub: checkedIds.has(String(u.id)) ? "Logged in" : "Not logged in", photo: u.photo }));
   };
   const sessionInfo = (uid) => {

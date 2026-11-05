@@ -76,6 +76,7 @@ export default function BiltraxPage() {
   /* Draft = nobody on it yet · Assigned = given to someone · Processing = they
      have added a remark · Win = closed */
   const stageOf = (r) => {
+    if (r.status === "Loss") return "Loss";   // #5 — lost projects
     if (r.status === "Win") return "Win";
     /* a list row carries the count, not the trail itself */
     const worked = (r.followupsCount ?? (Array.isArray(r.followups) ? r.followups.length : 0)) || r.lastRemark;
@@ -260,7 +261,7 @@ export default function BiltraxPage() {
 
       {/* status tabs */}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
-        {(fullAccess ? ["Draft", "Assigned", "Processing", "Win"] : ["Assigned", "Processing", "Win"]).map((t) => {
+        {(fullAccess ? ["Draft", "Assigned", "Processing", "Win", "Loss"] : ["Assigned", "Processing", "Win", "Loss"]).map((t) => {
           const on = tab === t;
           return <button key={t} onClick={() => { setTab(t); setSelected(new Set()); }}
             style={{ padding: "8px 14px", borderRadius: 10, fontSize: 12.5, fontWeight: 700, cursor: "pointer", border: "1px solid " + (on ? "#2b6fb8" : "#ccd2e6"), background: on ? "linear-gradient(135deg,#1f3a68,#2b6fb8)" : "#fff", color: on ? "#fff" : "#5a6484" }}>

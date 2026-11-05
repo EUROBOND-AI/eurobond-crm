@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { PageHead, StatCard, ToolButtons } from "../components/ui.jsx";
-import { api } from "../lib/api.js";
+import { api, auth } from "../lib/api.js";
 import { buildExpensePdf } from "../lib/expensePdf.js";
 import { scopeRows, visibleUsers } from "../lib/scope.js";
 import { HEADER_COLS, LINE_COLS, NUMATCARD_START, depoKey, headerRow, lineRows, downloadSheet, LOCATION, FIXED } from "../lib/sapExport.js";
@@ -520,7 +520,7 @@ function ExpenseReview({ r, onClose, onDone }) {
     if (!window.confirm(`Approve this statement for ₹${sum.toLocaleString("en-IN")}?`)) return;
     setBusy(true);
     try {
-      await api.update("expense", r._id, { ...r, items: newItems, status: "Approved", approvedAmount: sum, approvedAt: new Date().toLocaleString("en-IN"), rejectRemark: "", rejectAttachment: "" });
+      await api.update("expense", r._id, { ...r, items: newItems, status: "Approved", approvedAmount: sum, approvedBy: (auth.user?.name || auth.user?.username || "Admin"), approvedAt: new Date().toLocaleString("en-IN"), rejectRemark: "", rejectAttachment: "" });
       try { await api.create("notification", { title: "Expense Approved ✓", message: `Your expense statement (₹${sum.toLocaleString("en-IN")}) has been approved.`, to: r.user || r.createdBy || "", forUser: r.createdById, link: "/app/expense", at: new Date().toISOString() }); } catch {}
       onDone();
     } catch (e) { alert(e.message); setBusy(false); }
@@ -563,7 +563,7 @@ function ExpenseReview({ r, onClose, onDone }) {
 
   return (
     <div className="modal-mask" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640 }}>
+      <div className="modal" onClick={(e) => e.stopPropagation()} style={{ width: "min(96vw, 920px)", maxWidth: "96vw", maxHeight: "92vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <h3 style={{ margin: 0 }}>Expense Statement — {r.user}</h3>
           <div style={{ display: "flex", gap: 8 }}>
@@ -581,7 +581,7 @@ function ExpenseReview({ r, onClose, onDone }) {
           <div><b>Period:</b> {r.periodFrom} → {r.periodTo}</div>
         </div>
 
-        <div style={{ maxHeight: "42vh", overflowY: "auto", border: "1px solid #eef1f8", borderRadius: 10 }}>
+        <div style={{ maxHeight: "56vh", overflow: "auto", border: "1px solid #eef1f8", borderRadius: 10 }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
             <thead><tr style={{ background: "#f4f6fc", position: "sticky", top: 0 }}>
               {["SI No", "Date", "Ex/Out-station", "Origin to Destination", "Description", "KM", "Category", "Amount", "Approved Amount", "Bill"]
@@ -655,6 +655,12 @@ function ExpenseReview({ r, onClose, onDone }) {
         ) : (
           <div style={{ marginTop: 10, textAlign: "center", fontWeight: 700, color: r.status === "Approved" ? "#0f7a44" : "#c03636" }}>
             {r.status === "Approved" ? `✓ Approved · ₹${Number(r.approvedAmount || total).toLocaleString("en-IN")}` : `Rejected: ${r.rejectRemark || ""}`}
+            {/* #3 — who approved/rejected it, and when */}
+            {(r.approvedBy || r.approvedAt) && (
+              <div style={{ fontSize: 11.5, fontWeight: 600, color: "var(--muted)", marginTop: 3 }}>
+                {r.status === "Approved" ? "by" : "actioned by"} {r.approvedBy || "Admin"}{r.approvedAt ? ` · ${r.approvedAt}` : ""}
+              </div>
+            )}
           </div>
         )}
       </div>

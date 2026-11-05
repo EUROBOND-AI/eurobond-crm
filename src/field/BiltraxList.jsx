@@ -24,6 +24,7 @@ export default function BiltraxList() {
   const [tab, setTab] = useState("All");
   const [view, setView] = useState(null);
   const [winFor, setWinFor] = useState(null);
+  const [lossFor, setLossFor] = useState(null);   // #5 — mark a project Loss with a reason
   const [fupFor, setFupFor] = useState(null);
   const [mentionFor, setMentionFor] = useState(null);
 
@@ -96,7 +97,7 @@ export default function BiltraxList() {
           <div key={r._id} style={card} onClick={() => setView(r)}>
             <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 13 }}>
               <span>{r.projectName || "Project"}</span>
-              <span style={{ color: r.status === "Win" ? "#059669" : "#c99400", fontSize: 10.5 }}>{r.status || "Assigned"}</span>
+              <span style={{ color: r.status === "Win" ? "#059669" : r.status === "Loss" ? "#c0392b" : "#c99400", fontSize: 10.5 }}>{r.status || "Assigned"}</span>
             </div>
             <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
               {r.biltraxType || "Requested"}{r.buildingUse ? " · " + r.buildingUse : ""}
@@ -108,7 +109,8 @@ export default function BiltraxList() {
             {/* action buttons */}
             <div style={{ display: "flex", gap: 5, marginTop: 8, flexWrap: "wrap" }} onClick={(e) => e.stopPropagation()}>
               <button onClick={() => setView(r)} style={btn("#3949ab", "#eef1ff")}>👁 View</button>
-              {r.status !== "Win" && <button onClick={() => setWinFor(r)} style={btn("#0f7a44", "#e5f9f1")}>🏆 Win</button>}
+              {r.status !== "Win" && r.status !== "Loss" && <button onClick={() => setWinFor(r)} style={btn("#0f7a44", "#e5f9f1")}>🏆 Win</button>}
+              {r.status !== "Win" && r.status !== "Loss" && <button onClick={() => setLossFor(r)} style={btn("#c0392b", "#fdecec")}>❌ Loss</button>}
               <button onClick={() => convert(r)} style={btn("#0f7a44", "#e7f7ef")}>👤 Customer</button>
               <button onClick={() => setFupFor(r)} style={btn("#6c5ce7", "#efeaff")}>📝 Follow-up</button>
               <button onClick={() => setMentionFor(r)} style={btn("#0b6cb0", "#e4f3ff")}>🔗 Mention</button>
@@ -119,6 +121,7 @@ export default function BiltraxList() {
       </div>
 
       {winFor && <BiltraxWin r={winFor} onClose={() => setWinFor(null)} onDone={reload} />}
+      {lossFor && <BiltraxLoss r={lossFor} onClose={() => setLossFor(null)} onDone={reload} />}
       {fupFor && <BiltraxFollowUp r={fupFor} onClose={() => setFupFor(null)} onDone={reload} />}
       {mentionFor && <BiltraxMention r={mentionFor} onClose={() => setMentionFor(null)} onDone={reload} />}
 
@@ -274,6 +277,31 @@ function BiltraxWin({ r, onClose, onDone }) {
         }} />
       {file && <div style={{ fontSize: 12, color: "#1f9d55", marginBottom: 8 }}>✓ Attached</div>}
       <button className="f-submit" style={{ width: "100%" }} disabled={busy} onClick={save}>{busy ? "Saving…" : "Mark Win"}</button>
+    </Sheet>
+  );
+}
+
+/* #5 — Loss: record why the project was lost. Shows in admin under the Loss tab. */
+function BiltraxLoss({ r, onClose, onDone }) {
+  const me = CU();
+  const [remark, setRemark] = useState("");
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    if (!remark.trim()) { alert("Please write why this project was lost."); return; }
+    setBusy(true);
+    try {
+      await api.update("biltrax", r._id, {
+        ...r, status: "Loss", lossRemark: remark.trim(),
+        lossBy: me.name, lossAt: new Date().toLocaleString("en-IN"),
+      });
+      onDone(); onClose();
+    } catch (e) { alert(e.message); setBusy(false); }
+  };
+  return (
+    <Sheet title="❌ Mark as Loss" onClose={onClose}>
+      <label style={lbl}>Reason for loss *</label>
+      <textarea value={remark} onChange={(e) => setRemark(e.target.value)} rows={4} placeholder="Why was this project lost? (price, competitor, on hold…)" style={{ ...inp, resize: "vertical" }} />
+      <button className="f-submit" style={{ width: "100%", marginTop: 10, background: "#c0392b" }} disabled={busy} onClick={save}>{busy ? "Saving…" : "Mark Loss"}</button>
     </Sheet>
   );
 }
