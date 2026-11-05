@@ -302,6 +302,7 @@ export const api = {
   /* Sales Review (Power BI) dataset — stored compact, replaced on each upload */
   pbLoad: () => req("/powerbi.php"),
   pbSave: (db) => req("/powerbi.php", { method: "POST", body: db }),
+  pbDelete: () => req("/powerbi.php?action=delete", { method: "POST", body: {} }),
   attList: (from, to) => req(`/attendance.php?action=list&from=${from}&to=${to || from}`),
   areasAll: () => req("/areas.php?action=all"),
   areaStates: () => req("/areas.php?action=states"),

@@ -5,13 +5,13 @@
    the server (powerbi.php). Each upload replaces the whole dataset. */
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
-import { Upload, Download, FileDown, Maximize2, X } from "lucide-react";
+import { Upload, Download, FileDown, Maximize2, X, Trash2 } from "lucide-react";
 import { api, auth, API_BASE } from "../lib/api.js";
 import { DxPage, KpiCard, Panel, ShowGate, RankBars, WeekBars, HalfDonut } from "../components/dash.jsx";
 
 const MO = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
 const QS = ["Q1", "Q2", "Q3", "Q4"];
-const IX = { Y: 0, Q: 1, M: 2, B: 3, C: 4, P: 5, R: 6, E: 7, PA: 8, CO: 9, GR: 10, S: 11, SQ: 12, TG: 13, EX: 14 };
+const IX = { Y: 0, Q: 1, M: 2, B: 3, C: 4, P: 5, R: 6, E: 7, PA: 8, CO: 9, GR: 10, S: 11, SQ: 12, TG: 13, EX: 14, ST: 15, HD: 16 };
 
 /* the full format the ERP exports — used only for the blank Download Format */
 const FULL_COLS = ["Year", "QTR", "MTH", "Month", "Date", "Voucher Type", "Voucher No", "Party Name", "Item Description", "Item Group", "Item Group Description", "Code", "Grade", "#", "Category", "Brand", "QTY", "Sq.Mtr", "CO", "SALES G", "HOD", "Area", "STATE", "Region", "Sales person", "Target D", "Sales D", "Expenses", "Company", "Category CAT", "Target CAT", "Sales CAT", "# Brand", "# Category", "# Year", "Employee Code", "Employee Status", "DOJ", "DOR", "SL -2025-26 SALES G", "SL -2026-27 SALES G", "Expenses-I", "Inc", "# Category Cat", "SL -2025-26 SALES G (Nw)", "SL -2026-27 SALES G (Nw)"];
@@ -23,7 +23,7 @@ const pcStr = (a, b) => (b ? (a / b * 100).toFixed(1) + "%" : "—");
 const pcColor = (p) => (p >= 100 ? "#10b981" : p >= 75 ? "#f59e0b" : "#ef4444");
 const sm = (arr, i) => arr.reduce((s, r) => s + (r[i] || 0), 0);
 
-function blankDB() { return { sp: [], r: [], b: [], c: [], pa: [], co: [], gr: [], sg: [], yrs: [] }; }
+function blankDB() { return { sp: [], r: [], b: [], c: [], pa: [], co: [], gr: [], st: [], hd: [], sg: [], yrs: [] }; }
 
 function buildFromAOA(aoa) {
   const head = (aoa[0] || []).map((h) => String(h == null ? "" : h).trim());
@@ -34,7 +34,7 @@ function buildFromAOA(aoa) {
   const Q = { Q1: 0, Q2: 1, Q3: 2, Q4: 3 };
   const d = blankDB();
   const num = (v) => { if (v == null || v === "") return 0; const n = +String(v).replace(/[^0-9.\-]/g, ""); return isNaN(n) ? 0 : n; };
-  const maps = { b: new Map(), c: new Map(), sp: new Map(), r: new Map(), pa: new Map(), co: new Map(), gr: new Map() };
+  const maps = { b: new Map(), c: new Map(), sp: new Map(), r: new Map(), pa: new Map(), co: new Map(), gr: new Map(), st: new Map(), hd: new Map() };
   const idx = (key, v) => { v = (v == null ? "" : String(v)).trim(); if (v === "") return -1; const k = v.toLowerCase(); let i = maps[key].get(k); if (i == null) { d[key].push(v); i = d[key].length - 1; maps[key].set(k, i); } return i; };
   const g = (row, k) => (col[k] == null ? "" : row[col[k]]);
   const yseen = [];
@@ -47,7 +47,8 @@ function buildFromAOA(aoa) {
       idx("b", g(row, "Brand")), idx("c", g(row, "Category")), idx("sp", g(row, "Sales person")),
       idx("r", g(row, "Region")), (String(g(row, "Employee Status") || "").trim().toLowerCase() === "resigned" ? 1 : 0),
       idx("pa", g(row, "Party Name")), idx("co", g(row, "Code")), idx("gr", g(row, "Grade")),
-      num(g(row, "SALES G")), num(g(row, "Sq.Mtr")), num(g(row, "Target D")), num(g(row, "Expenses"))]);
+      num(g(row, "SALES G")), num(g(row, "Sq.Mtr")), num(g(row, "Target D")), num(g(row, "Expenses")),
+      idx("st", g(row, "STATE")), idx("hd", g(row, "HOD"))]);
   }
   const sorted = [...yseen].sort();
   const remap = yseen.map((y) => sorted.indexOf(y));
@@ -121,23 +122,22 @@ function ZPanel({ title, sub, children }) {
 
 export default function SalesReview() {
   const [db, setDb] = useState(null);
-  const [users, setUsers] = useState([]);
   const [busy, setBusy] = useState(false);
   const [shown, setShown] = useState(false);
   const [msg, setMsg] = useState("");
   const [prog, setProg] = useState(null);   // upload %  (null = not uploading)
   const fileRef = useRef(null);
 
-  // filters — standard Zone/State/HOD/Person, exactly like every dashboard
-  const [zone, setZone] = useState(""), [state, setState] = useState(""), [hod, setHod] = useState(""), [person, setPerson] = useState("");
-  const low = (x) => String(x || "").trim().toLowerCase();
-
-  useEffect(() => { api.listUsers().then((d) => setUsers(d.users || [])).catch(() => {}); }, []);
+  // filters — all built from the uploaded DATA itself (not the users table):
+  // the previous set (Year/Brand/QTR/Month/Region) + State/HOD/Person
+  const [fy, setFy] = useState(""), [fb, setFb] = useState(""), [fq, setFq] = useState(""), [fm, setFm] = useState("");
+  const [fr, setFr] = useState(""), [fst, setFst] = useState(""), [fhd, setFhd] = useState(""), [fp, setFp] = useState("");
+  const resetF = () => { setFy(""); setFb(""); setFq(""); setFm(""); setFr(""); setFst(""); setFhd(""); setFp(""); };
 
   const load = () => {
     setShown(true); setBusy(true);
-    Promise.all([api.pbLoad(), api.listUsers().catch(() => ({ users: [] }))])
-      .then(([j, uu]) => { setUsers(uu.users || []); setDb(j && Array.isArray(j.sg) ? Object.assign(blankDB(), j) : blankDB()); })
+    api.pbLoad()
+      .then((j) => setDb(j && Array.isArray(j.sg) ? Object.assign(blankDB(), j) : blankDB()))
       .catch(() => setDb(blankDB()))
       .finally(() => setBusy(false));
   };
@@ -156,7 +156,7 @@ export default function SalesReview() {
       const r = await uploadWithProgress(nd, setProg);
       setDb(nd); setShown(true);
       setMsg("Saved " + Number(r.rows).toLocaleString() + " rows ✓");
-      setZone(""); setState(""); setHod(""); setPerson("");
+      resetF();
     } catch (err) { setMsg("Error: " + err.message); alert("Import failed: " + err.message); }
     setProg(null);
     e.target.value = "";
@@ -173,29 +173,24 @@ export default function SalesReview() {
     const ws = XLSX.utils.aoa_to_sheet([FULL_COLS]);
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Sales"); XLSX.writeFile(wb, "sales-review-format.xlsx");
   };
-
-  /* Zone → State → HOD → Person cascade from the users table */
-  const vis = useMemo(() => (users || []).filter((u) => u.status == null || u.status == 1 || u.status === "1"), [users]);
-  const inZone = useMemo(() => (zone ? vis.filter((u) => low(u.zone) === low(zone)) : vis), [vis, zone]);
-  const inState = useMemo(() => (state ? inZone.filter((u) => [u.state, ...String(u.states || "").split(",")].map(low).includes(low(state))) : inZone), [inZone, state]);
-  const inHod = useMemo(() => (hod ? inState.filter((u) => low(u.manager) === low(hod) || low(u.name) === low(hod)) : inState), [inState, hod]);
-  const zones = useMemo(() => [...new Set(vis.map((u) => String(u.zone || "").trim()).filter(Boolean))].sort(), [vis]);
-  const states = useMemo(() => [...new Set(inZone.flatMap((u) => [u.state, ...String(u.states || "").split(",")]).map((x) => String(x || "").trim()).filter(Boolean))].sort(), [inZone]);
-  const hods = useMemo(() => [...new Set(inState.map((u) => String(u.manager || "").trim()).filter(Boolean))].sort(), [inState]);
-  const persons = useMemo(() => [...inHod].map((u) => u.name).filter(Boolean).sort(), [inHod]);
-
-  /* the set of sales-person names the current place filter allows */
-  const allowSp = useMemo(() => {
-    if (!(zone || state || hod || person)) return null;        // null = everyone
-    if (person) return new Set([low(person)]);
-    return new Set(inHod.map((u) => low(u.name)));
-  }, [zone, state, hod, person, inHod]);
+  const onDelete = async () => {
+    if (!db || !db.sg.length) { alert("No data to delete."); return; }
+    if (!window.confirm("Delete all uploaded Sales Review data? This cannot be undone.")) return;
+    try { await api.pbDelete(); setDb(blankDB()); resetF(); setMsg("All data deleted."); }
+    catch (e) { alert("Delete failed: " + e.message); }
+  };
 
   const rows = useMemo(() => {
     if (!db) return [];
-    if (!allowSp) return db.sg;
-    return db.sg.filter((r) => allowSp.has(low(db.sp[r[IX.P]])));
-  }, [db, allowSp]);
+    return db.sg.filter((r) =>
+      (fy === "" || r[IX.Y] === +fy) && (fb === "" || r[IX.B] === +fb) &&
+      (fq === "" || r[IX.Q] === +fq) && (fm === "" || r[IX.M] === +fm) &&
+      (fr === "" || r[IX.R] === +fr) && (fst === "" || r[IX.ST] === +fst) &&
+      (fhd === "" || r[IX.HD] === +fhd) && (fp === "" || r[IX.P] === +fp));
+  }, [db, fy, fb, fq, fm, fr, fst, fhd, fp]);
+
+  /* alphabetically-sorted option lists, straight from the uploaded data */
+  const optsOf = (arr) => (arr || []).map((v, i) => ({ v: i, lbl: v })).sort((a, b) => String(a.lbl).localeCompare(String(b.lbl)));
 
   const A = useMemo(() => {
     const yrs = (db && db.yrs) || [];
@@ -247,15 +242,20 @@ export default function SalesReview() {
         <button className="dx-btn dx-btn-p" onClick={() => fileRef.current && fileRef.current.click()}><Upload size={15} /> Import Excel</button>
         <button className="dx-btn" onClick={onFormat}><FileDown size={15} /> Download Format</button>
         <button className="dx-btn" onClick={onExport}><Download size={15} /> Export</button>
+        <button className="dx-btn" style={{ color: "#ef4444", borderColor: "#f3b4b0" }} onClick={onDelete}><Trash2 size={15} /> Delete</button>
         {msg && <span style={{ fontSize: 12, color: "var(--muted)", alignSelf: "center", fontWeight: 600 }}>{msg}</span>}
       </>}>
 
       <div className="dx-filters">
-        <Sel label="Zone" value={zone} set={(v) => { setZone(v); setState(""); setHod(""); setPerson(""); }} allLabel="All zones" opts={zones.map((z) => ({ v: z, lbl: z }))} />
-        <Sel label="State" value={state} set={(v) => { setState(v); setHod(""); setPerson(""); }} allLabel="All states" opts={states.map((z) => ({ v: z, lbl: z }))} />
-        <Sel label="HOD" value={hod} set={(v) => { setHod(v); setPerson(""); }} allLabel="All HODs" opts={hods.map((z) => ({ v: z, lbl: z }))} />
-        <Sel label="Person" value={person} set={setPerson} allLabel="Everyone" opts={persons.map((z) => ({ v: z, lbl: z }))} />
-        {(zone || state || hod || person) && <button className="dx-btn" style={{ alignSelf: "flex-end" }} onClick={() => { setZone(""); setState(""); setHod(""); setPerson(""); }}>Reset</button>}
+        {db && <Sel label="State" value={fst} set={setFst} allLabel="All states" opts={optsOf(db.st)} />}
+        {db && <Sel label="HOD" value={fhd} set={setFhd} allLabel="All HODs" opts={optsOf(db.hd)} />}
+        {db && <Sel label="Region" value={fr} set={setFr} allLabel="All regions" opts={optsOf(db.r)} />}
+        {db && <Sel label="Person" value={fp} set={setFp} allLabel="Everyone" opts={optsOf(db.sp)} />}
+        {db && <Sel label="Year" value={fy} set={setFy} allLabel="All years" opts={db.yrs.map((y, i) => ({ v: i, lbl: y }))} />}
+        {db && <Sel label="Brand" value={fb} set={setFb} allLabel="All brands" opts={optsOf(db.b)} />}
+        <Sel label="QTR" value={fq} set={setFq} allLabel="All quarters" opts={QS.map((y, i) => ({ v: i, lbl: y }))} />
+        <Sel label="Month" value={fm} set={setFm} allLabel="All months" opts={MO.map((y, i) => ({ v: i, lbl: y }))} />
+        {(fy || fb || fq || fm || fr || fst || fhd || fp) && <button className="dx-btn" style={{ alignSelf: "flex-end" }} onClick={resetF}>Reset</button>}
       </div>
 
       {!shown || (busy && !db) ? <ShowGate onShow={load} busy={busy} what="Sales Review" /> : !hasData ? (
@@ -319,16 +319,16 @@ export default function SalesReview() {
 
           <div className="dx-grid dx-row" style={{ marginTop: 16 }}>
             <ZPanel title="Codewise" sub={db.co.length + " codes"}>
-              <T head={["Code", YA, "%", YB, "%", "Total"]} rows={dimTable(db.co, IX.CO)} maxH={300} />
+              <T head={["Code", YA, "%", YB, "%", "Total"]} rows={dimTable(db.co, IX.CO)} maxH={230} />
             </ZPanel>
             <ZPanel title="Gradewise" sub={db.gr.length + " grades"}>
-              <T head={["Grade", YA, "%", YB, "%", "Total"]} rows={dimTable(db.gr, IX.GR)} maxH={300} />
+              <T head={["Grade", YA, "%", YB, "%", "Total"]} rows={dimTable(db.gr, IX.GR)} maxH={230} />
             </ZPanel>
           </div>
 
           <div style={{ marginTop: 16 }}>
             <ZPanel title="Partywise" sub={db.pa.length + " parties"}>
-              <T head={["Party", YA, "%", YB, "%", "Total"]} rows={dimTable(db.pa, IX.PA)} maxH={300} />
+              <T head={["Party", YA, "%", YB, "%", "Total"]} rows={dimTable(db.pa, IX.PA)} maxH={230} />
             </ZPanel>
           </div>
         </>
