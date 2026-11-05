@@ -2,12 +2,12 @@ import { useEffect, useState } from "react";
 import { UserPlus, KeyRound, Trash2, Search, Download, Upload } from "lucide-react";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
-import { Avatar } from "../lib/avatar.jsx";
+import { Avatar, fileUrl } from "../lib/avatar.jsx";
 import { visibleUsers } from "../lib/scope.js";
 
 const ROLES = ["Admin", "HOD (Sales)", "HOD (Specs)", "Sub HOD (Sales)", "Sub HOD (Specs)", "Sales Person", "Specs Person", "Sales Collection"];
 const GRADES = ["S1", "S2", "S3", "S4", "S5", "M1", "M2", "M3"];
-const empty = { name: "", mobile: "", code: "", email: "", role: "Sales Person", grade: "", designation: "", doj: "", dob: "", state: "", zone: "", city: "", manager: "", password: "", photo: "", states: "", nearby_range_m: 500 };
+const empty = { name: "", mobile: "", code: "", email: "", role: "Sales Person", grade: "", designation: "", doj: "", dob: "", state: "", zone: "", city: "", manager: "", password: "", photo: "", qr: "", states: "", nearby_range_m: 500 };
 
 const selStyle = { background: "#fff", border: "1px solid var(--line)", borderRadius: 10, padding: "9px 11px", fontSize: 13 };
 
@@ -163,6 +163,11 @@ export default function UsersPage() {
   const [fHod, setFHod] = useState("");     // #7 — cascade HOD
   const [fStatus, setFStatus] = useState("");
   const [shown, setShown] = useState(false);
+  /* #7/#8 — app-version config: minimum allowed build + Play Store link */
+  const [appCfg, setAppCfg] = useState({ minVersionCode: 0, latestVersion: "", playUrl: "" });
+  const [verOpen, setVerOpen] = useState(false);
+  useEffect(() => { api.appInfo().then((c) => setAppCfg(c || {})).catch(() => {}); }, []);
+  const minCode = Number(appCfg.minVersionCode) || 0;
   const [importing, setImporting] = useState(false);
   const [picked, setPicked] = useState(new Set());
   const lowU = (x) => String(x || "").trim().toLowerCase();
@@ -181,6 +186,8 @@ export default function UsersPage() {
         crumb="Masters / App Users"
         title="App Users & Team"
         actions={<div style={{ display: "flex", gap: 8 }}>
+          {/* #8 — set the minimum app build; phones below it are forced to update */}
+          <button className="btn btn-ghost" onClick={() => setVerOpen(true)}>⬆️ Update Settings</button>
           <button className="btn btn-ghost" onClick={exportUsers}><Download size={14} /> Export</button>
           <button className="btn btn-ghost" onClick={() => {
             /* every field on the Add User form, in the same order */
@@ -262,7 +269,7 @@ export default function UsersPage() {
                   <input type="checkbox" checked={filtered.length > 0 && filtered.every((u) => picked.has(u.id))}
                     onChange={(e) => setPicked(e.target.checked ? new Set(filtered.map((u) => u.id)) : new Set())} />
                 </th>
-                <th>S.No</th><th>Photo</th><th>Name</th><th>Mobile</th><th>Code</th><th>Email</th><th>Role</th><th>Designation</th><th>Grade</th><th>State</th><th>Zone</th><th>Depo</th><th>City</th><th>Manager</th><th>DOJ</th><th>Status</th><th>Actions</th></tr>
+                <th>S.No</th><th>Photo</th><th>Name</th><th>Mobile</th><th>Code</th><th>Email</th><th>Role</th><th>Designation</th><th>Grade</th><th>State</th><th>Zone</th><th>Depo</th><th>City</th><th>Manager</th><th>DOJ</th><th>App Version</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody>
               {!shown ? (
@@ -292,6 +299,14 @@ export default function UsersPage() {
                   <td>{u.city || "—"}</td>
                   <td>{u.manager || "—"}</td>
                   <td>{u.doj ? String(u.doj).slice(0, 10) : "—"}</td>
+                  {/* #7 — which app build this person is on (red if behind the min) */}
+                  <td style={{ whiteSpace: "nowrap" }}>
+                    {u.app_version
+                      ? <span style={{ fontWeight: 700, color: (minCode && Number(u.app_version_code) && Number(u.app_version_code) < minCode) ? "#c0392b" : "#1f7a44" }}>
+                          v{u.app_version}{u.app_version_code ? ` (${u.app_version_code})` : ""}
+                        </span>
+                      : <span style={{ color: "var(--muted)" }}>—</span>}
+                  </td>
                   <td>
                     {/* Active/Inactive toggle — click to switch */}
                     <button
@@ -355,6 +370,7 @@ export default function UsersPage() {
             <h3>{form.id ? "Edit User" : form.isHod ? "Add HOD" : form.isSubHod ? "Add Sub HOD" : "Add User"}</h3>
             <div className="form-grid">
               <PhotoField form={form} setForm={setForm} />
+              <QrField form={form} setForm={setForm} />
               <Field label="Full Name" req val={form.name} on={(v) => setForm({ ...form, name: v })} />
               <Field label="Mobile (login id)" req val={form.mobile} on={(v) => setForm({ ...form, mobile: v.replace(/\D/g, "") })} />
               <Field label="Employee Code" val={form.code} on={(v) => setForm({ ...form, code: v })} />
@@ -395,6 +411,35 @@ export default function UsersPage() {
             <div className="modal-foot">
               <button className="btn btn-danger" onClick={() => setForm(null)}>Cancel</button>
               <button className="btn btn-primary" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* #8 — Force-update settings */}
+      {verOpen && (
+        <div className="modal-mask" onClick={() => setVerOpen(false)}>
+          <div className="modal" style={{ maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0 }}>App Update Settings</h3>
+            <p style={{ fontSize: 12.5, color: "var(--muted)", margin: "0 0 14px" }}>
+              Phones on a build <b>below</b> the minimum are forced to update before they can use the app.
+              Set this to the new build's <b>versionCode</b> when you publish an update to the Play Store.
+            </p>
+            <label style={{ fontSize: 12.5, fontWeight: 700 }}>Minimum allowed versionCode</label>
+            <input type="number" value={appCfg.minVersionCode || ""} onChange={(e) => setAppCfg({ ...appCfg, minVersionCode: e.target.value })}
+              placeholder="e.g. 10811" style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid var(--line)", margin: "6px 0 12px" }} />
+            <label style={{ fontSize: 12.5, fontWeight: 700 }}>Latest version name (shown to users)</label>
+            <input value={appCfg.latestVersion || ""} onChange={(e) => setAppCfg({ ...appCfg, latestVersion: e.target.value })}
+              placeholder="e.g. 1.9.0" style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid var(--line)", margin: "6px 0 12px" }} />
+            <label style={{ fontSize: 12.5, fontWeight: 700 }}>Play Store URL</label>
+            <input value={appCfg.playUrl || ""} onChange={(e) => setAppCfg({ ...appCfg, playUrl: e.target.value })}
+              placeholder="https://play.google.com/store/apps/details?id=com.eurobond.crm" style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid var(--line)", margin: "6px 0 16px" }} />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={async () => {
+                try { await api.setAppConfig({ minVersionCode: Number(appCfg.minVersionCode) || 0, latestVersion: appCfg.latestVersion || "", playUrl: appCfg.playUrl || "" }); setVerOpen(false); alert("Saved. Phones below this build will be asked to update."); }
+                catch (e) { alert(e.message); }
+              }}>Save</button>
+              <button className="btn btn-soft" onClick={() => setVerOpen(false)}>Cancel</button>
             </div>
           </div>
         </div>
@@ -496,6 +541,40 @@ function PhotoField({ form, setForm }) {
           </label>
           {form.photo && <button type="button" className="btn btn-danger" onClick={() => setForm((f) => ({ ...f, photo: "" }))}>Remove</button>}
           <span style={{ fontSize: 11.5, color: "var(--muted)" }}>Shown on the phone profile and on notifications they send.</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* #6 — visiting-card QR, shown on the back of the profile photo in the app */
+function QrField({ form, setForm }) {
+  const [busy, setBusy] = useState(false);
+  const pick = async (file) => {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const u = await api.uploadCompressed(file, "qr");
+      const url = u.url || u.path || "";
+      if (!url) throw new Error("Upload did not return a file");
+      setForm((f) => ({ ...f, qr: url }));
+    } catch (e) { alert("QR upload failed: " + (e && e.message ? e.message : e)); }
+    setBusy(false);
+  };
+  return (
+    <div className="field" style={{ gridColumn: "1 / -1" }}>
+      <label>Visiting Card QR</label>
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <div style={{ width: 64, height: 64, borderRadius: 10, border: "1px dashed #c7d0e8", display: "grid", placeItems: "center", background: "#f6f8fd", overflow: "hidden" }}>
+          {form.qr ? <img src={fileUrl(form.qr)} alt="QR" style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : <span style={{ fontSize: 22 }}>▦</span>}
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <label className="btn btn-ghost" style={{ cursor: "pointer" }}>
+            {busy ? "Uploading…" : form.qr ? "Change QR" : "Upload QR"}
+            <input type="file" accept="image/*" hidden onChange={(e) => pick(e.target.files && e.target.files[0])} />
+          </label>
+          {form.qr && <button type="button" className="btn btn-danger" onClick={() => setForm((f) => ({ ...f, qr: "" }))}>Remove</button>}
+          <span style={{ fontSize: 11.5, color: "var(--muted)" }}>Appears on the back when their profile photo is tapped.</span>
         </div>
       </div>
     </div>

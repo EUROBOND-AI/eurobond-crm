@@ -13,12 +13,46 @@ export default function AreasPage() {
   const [count, setCount] = useState({ areas: 0, states: 0 });
   const [busy, setBusy] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  /* #1 — area → sales-person mapping used to auto-assign incoming enquiries.
+     Kept in its own 'areaAssign' records module (state, area, person); a blank
+     area means the whole state's default person. */
+  const [users, setUsers] = useState([]);
+  const [assigns, setAssigns] = useState([]);
+  const loadAssigns = () => api.list("areaAssign", false).then((d) => setAssigns((d.records || []).map((r) => ({ _id: r.id, ...r.data })))).catch(() => {});
 
   const loadStates = () => {
     api.areaStates().then((d) => setStates(d.states || [])).catch(() => {});
     api.areaCount().then((d) => setCount(d)).catch(() => {});
   };
   useEffect(loadStates, []);
+  useEffect(() => { api.listUsers().then((d) => setUsers((d.users || []).filter((u) => u.status == 1))).catch(() => {}); loadAssigns(); }, []);
+
+  /* the sales people who cover the selected state (their own state or an extra one) */
+  const low = (x) => String(x || "").trim().toLowerCase();
+  const statePeople = (!sel ? [] : users.filter((u) => {
+    const theirs = [u.state, ...String(u.states || "").split(",")].map(low).filter(Boolean);
+    const isSales = /sales/i.test(`${u.role || ""} ${u.designation || ""}`) || !/hod|admin|spec/i.test(`${u.role || ""}`);
+    return theirs.includes(low(sel)) && isSales;
+  }).map((u) => u.name));
+
+  const assignFor = (area) => {
+    const a = assigns.find((x) => low(x.state) === low(sel) && low(x.area || "") === low(area || ""));
+    return a ? a.person : "";
+  };
+  const setAssign = async (area, person) => {
+    const existing = assigns.find((x) => low(x.state) === low(sel) && low(x.area || "") === low(area || ""));
+    /* reflect on screen at once */
+    setAssigns((list) => {
+      const rest = list.filter((x) => !(low(x.state) === low(sel) && low(x.area || "") === low(area || "")));
+      return person ? [...rest, { _id: existing?._id, state: sel, area: area || "", person }] : rest;
+    });
+    try {
+      if (!person && existing?._id) { await api.remove("areaAssign", existing._id); }
+      else if (existing?._id) { await api.update("areaAssign", existing._id, { state: sel, area: area || "", person }); }
+      else { await api.create("areaAssign", { state: sel, area: area || "", person }); }
+      loadAssigns();
+    } catch (e) { alert(e.message); loadAssigns(); }
+  };
   useEffect(() => {
     if (!sel) { setAreas([]); return; }
     api.areasByState(sel)
@@ -122,6 +156,20 @@ export default function AreasPage() {
           {sel && areas.length > 0 && <button className="btn btn-danger" style={{ marginLeft: "auto", padding: "7px 12px", fontSize: 12 }} onClick={delState}><Trash2 size={13} /> Delete State</button>}
         </div>
 
+        {/* #1 — state-level default: when an enquiry's area has no person of its
+            own, it auto-assigns to this person (whole-state fallback). */}
+        {sel && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", background: "#eef5ff", border: "1px solid #d6e4ff", borderRadius: 10, padding: "10px 12px", marginBottom: 14 }}>
+            <span style={{ fontSize: 12.5, fontWeight: 800, color: "var(--navy)" }}>State default person (auto-assign):</span>
+            <select value={assignFor("")} onChange={(e) => setAssign("", e.target.value)}
+              style={{ padding: "7px 10px", borderRadius: 8, border: "1px solid var(--line)", fontSize: 12.5, minWidth: 200, background: "#fff" }}>
+              <option value="">— None —</option>
+              {statePeople.map((n) => <option key={n}>{n}</option>)}
+            </select>
+            <span style={{ fontSize: 11.5, color: "var(--muted)" }}>New enquiries in {sel} with no area match go to this person.</span>
+          </div>
+        )}
+
         {!sel ? (
           <div style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>
             {count.areas === 0
@@ -131,27 +179,38 @@ export default function AreasPage() {
         ) : (
           <div>
           <BulkBar bulk={bulk} noun="area" onDelete={delMany} />
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 8 }}>
             {areas.map((a) => {
               const nm = a.name || a;
               const tr = a.tier || "A";
               return (
-                <div key={nm} style={{ display: "flex", alignItems: "center", gap: 6, background: bulk.has(nm) ? "#eef2ff" : "#f6f8fd", borderRadius: 9, padding: "8px 11px", fontSize: 13 }}>
-                  <input type="checkbox" checked={bulk.has(nm)} onChange={() => bulk.toggle(nm)}
-                    style={{ cursor: "pointer", width: 14, height: 14 }} />
-                  <MapPin size={13} color="var(--accent)" />
-                  <span style={{ flex: 1 }}>{nm}</span>
-                  {/* the tier is what the expense screen shows as Area (A)/(B)/(C) */}
-                  <select value={tr}
-                    onChange={async (e) => {
-                      const t = e.target.value;
-                      setAreas((list) => list.map((x) => ((x.name || x) === nm ? { name: nm, tier: t } : x)));
-                      try { await api.areaAdd(sel, nm, t); } catch (err) { alert(err.message); }
-                    }}
-                    style={{ border: "1px solid var(--line)", borderRadius: 7, padding: "2px 4px", fontSize: 11.5, fontWeight: 700, background: "#fff" }}>
-                    <option value="A">A</option><option value="B">B</option><option value="C">C</option>
-                  </select>
-                  <button onClick={() => delArea(nm)} title="Delete" style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", padding: 2, display: "grid", placeItems: "center" }}><Trash2 size={13} /></button>
+                <div key={nm} style={{ background: bulk.has(nm) ? "#eef2ff" : "#f6f8fd", borderRadius: 9, padding: "8px 11px", fontSize: 13 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <input type="checkbox" checked={bulk.has(nm)} onChange={() => bulk.toggle(nm)}
+                      style={{ cursor: "pointer", width: 14, height: 14 }} />
+                    <MapPin size={13} color="var(--accent)" />
+                    <span style={{ flex: 1 }}>{nm}</span>
+                    {/* the tier is what the expense screen shows as Area (A)/(B)/(C) */}
+                    <select value={tr}
+                      onChange={async (e) => {
+                        const t = e.target.value;
+                        setAreas((list) => list.map((x) => ((x.name || x) === nm ? { name: nm, tier: t } : x)));
+                        try { await api.areaAdd(sel, nm, t); } catch (err) { alert(err.message); }
+                      }}
+                      style={{ border: "1px solid var(--line)", borderRadius: 7, padding: "2px 4px", fontSize: 11.5, fontWeight: 700, background: "#fff" }}>
+                      <option value="A">A</option><option value="B">B</option><option value="C">C</option>
+                    </select>
+                    <button onClick={() => delArea(nm)} title="Delete" style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", padding: 2, display: "grid", placeItems: "center" }}><Trash2 size={13} /></button>
+                  </div>
+                  {/* #1 — assign this area to a sales person; enquiries here auto-assign to them */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)" }}>👤</span>
+                    <select value={assignFor(nm)} onChange={(e) => setAssign(nm, e.target.value)}
+                      style={{ flex: 1, border: "1px solid var(--line)", borderRadius: 7, padding: "4px 6px", fontSize: 11.5, background: "#fff", color: assignFor(nm) ? "var(--navy)" : "var(--muted)" }}>
+                      <option value="">— Assign person —</option>
+                      {statePeople.map((n) => <option key={n}>{n}</option>)}
+                    </select>
+                  </div>
                 </div>
               );
             })}

@@ -216,6 +216,10 @@ export const api = {
 
   /* ---------- Users ---------- */
   listUsers: () => memo("users", 60000, () => req("/users.php")),
+  /* #7/#8 — the phone reports its build; the app asks for the minimum allowed build */
+  setAppVersion: (version, code) => req("/users.php?action=setVersion", { method: "POST", body: { version, code } }),
+  appInfo: () => req("/users.php?action=appInfo"),
+  setAppConfig: (cfg) => { const r = req("/users.php?action=setAppConfig", { method: "POST", body: cfg }); clearApiCache(); return r; },
   createUser: async (u) => { const r = await req("/users.php", { method: "POST", body: u }); clearApiCache(); return r; },
   updateUser: async (id, u) => { const r = await req("/users.php?id=" + id + "&action=update", { method: "POST", body: u }); clearApiCache(); return r; },
   deleteUser: async (id) => { const r = await req("/users.php?id=" + id + "&action=delete", { method: "POST" }); clearApiCache(); return r; },

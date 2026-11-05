@@ -5123,6 +5123,7 @@ function FieldLeaveApproval() {
 }
 function FieldProfile({ onLogout }) {
   const [u, setU] = useState(() => CU() || {});
+  const [flip, setFlip] = useState(false);   // #6 — tap photo to flip to the QR
   /* refresh from server; keep showing cached data meanwhile so it never goes blank */
   useEffect(() => {
     let alive = true;
@@ -5148,12 +5149,21 @@ function FieldProfile({ onLogout }) {
     <>
       <ScreenHead title="Profile" refresh={false} />
       <div style={{ textAlign: "center", padding: "18px 18px 6px" }}>
-        {/* The photo the admin uploaded under App Users, in a round frame; the
-            initials stand in until there is one. Tapping it opens it full size,
-            the same way any other picture in the app does. */}
-        <div style={{ width: 78, margin: "0 auto 10px" }}
-          onClick={() => openAppPhoto(u.photo)}>
-          <Avatar name={u.name} photo={u.photo} size={78} ring="#fff" />
+        {/* #6 — a flip card: tap the photo and it turns to show the visiting-card
+            QR on the back (Instagram-style), if the admin uploaded one. With no
+            QR it just opens the photo full size as before. */}
+        <div style={{ width: 78, height: 78, margin: "0 auto 10px", perspective: 600, cursor: "pointer" }}
+          data-nozoom="1"
+          onClick={() => { if (u.qr) setFlip((f) => !f); else openAppPhoto(u.photo); }}>
+          <div style={{ position: "relative", width: "100%", height: "100%", transition: "transform .5s", transformStyle: "preserve-3d", transform: flip ? "rotateY(180deg)" : "none" }}>
+            <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden" }}>
+              <Avatar name={u.name} photo={u.photo} size={78} ring="#fff" />
+              {u.qr && <div style={{ position: "absolute", bottom: -2, right: -2, background: "#1b3a8f", color: "#fff", borderRadius: "50%", width: 22, height: 22, display: "grid", placeItems: "center", fontSize: 12, border: "2px solid #fff" }}>▦</div>}
+            </div>
+            <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden", transform: "rotateY(180deg)", borderRadius: "50%", overflow: "hidden", background: "#fff", border: "3px solid #fff", boxShadow: "0 0 0 2px #e3e9f5", display: "grid", placeItems: "center" }}>
+              {u.qr ? <img src={fileUrl(u.qr)} alt="QR" style={{ width: "100%", height: "100%", objectFit: "contain", background: "#fff" }} /> : null}
+            </div>
+          </div>
         </div>
         <div style={{ fontFamily: "Bricolage Grotesque", fontWeight: 800, fontSize: 18 }}>{u.name || "—"}</div>
         <div style={{ color: "var(--muted)", fontSize: 12.5, fontWeight: 700 }}>{u.code} · {u.role}</div>
@@ -8891,6 +8901,7 @@ export default function FieldApp() {
   useIdleReset(nav);                  // 15 minutes idle -> Home, with fresh data
   useNotifTapHandler();               // phone notification tap -> open screen + mark read
   const [authed, setAuthed] = useState(auth.isLoggedIn);
+  const [forceUpd, setForceUpd] = useState(null);   // #8 — force-update screen when build is too old
   const [menu, setMenu] = useState(false);
   const [visitPopup, setVisitPopup] = useState(false);
   const [beatCheck, setBeatCheck] = useState(false);
@@ -9063,6 +9074,19 @@ export default function FieldApp() {
     /* Capacitor native: fires when app returns to foreground */
     /* pick up any change an admin made to this profile since sign-in */
     api.me().then((usr) => { if (usr && (usr.name || usr.mobile)) auth.user = { ...auth.user, ...usr }; }).catch(() => {});
+    /* #7 — tell the server which app build this phone is on; #8 — if it is below
+       the minimum the admin set, show the forced-update screen. */
+    try {
+      const App2 = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+      if (App2 && App2.getInfo) App2.getInfo().then((info) => {
+        const code = Number(info.build) || 0;
+        api.setAppVersion(info.version || "", code).catch(() => {});
+        api.appInfo().then((cfg) => {
+          const min = Number(cfg && cfg.minVersionCode) || 0;
+          if (min && code && code < min) setForceUpd(cfg);
+        }).catch(() => {});
+      }).catch(() => {});
+    } catch {}
     let capListener = null;
     let backListener = null;
     try {
@@ -9599,6 +9623,28 @@ export default function FieldApp() {
         {/* #6 — EUVA assistant is hidden for a resigned employee too */}
         {Number(CU().resigned) !== 1 && <ChatAssistant accent="#1b3a8f" bottom={78} surface="app" side="left" />}
         <PhotoZoom />
+        {/* #8 — build too old: a blocking screen that only lets them go to the Play Store */}
+        {forceUpd && (
+          <div style={{ position: "fixed", inset: 0, zIndex: 2147483600, background: "#0b1a3a", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, textAlign: "center" }}>
+            <div style={{ fontSize: 52, marginBottom: 14 }}>⬆️</div>
+            <div style={{ fontSize: 22, fontWeight: 900, marginBottom: 10, fontFamily: "Bricolage Grotesque" }}>Update Required</div>
+            <div style={{ fontSize: 14, opacity: 0.9, lineHeight: 1.6, maxWidth: 340, marginBottom: 24 }}>
+              A newer version of the Eurobond CRM app is available{forceUpd.latestVersion ? ` (v${forceUpd.latestVersion})` : ""}. Please update to continue.
+            </div>
+            <button
+              onClick={() => {
+                const url = forceUpd.playUrl || "https://play.google.com/store/apps/details?id=com.eurobond.crm";
+                try {
+                  const opener = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AppLauncher;
+                  if (opener && opener.openUrl) opener.openUrl({ url: "market://details?id=com.eurobond.crm" }).catch(() => window.open(url, "_blank"));
+                  else window.open(url, "_blank");
+                } catch { window.open(url, "_blank"); }
+              }}
+              style={{ background: "#ffd400", color: "#0b1a3a", border: "none", borderRadius: 12, padding: "14px 34px", fontWeight: 900, fontSize: 16, cursor: "pointer" }}>
+              Update Now
+            </button>
+          </div>
+        )}
         {/* first open of the day only */}
         <BirthdayGreeter />
         {overlayWarn && (
