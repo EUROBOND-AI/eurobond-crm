@@ -1029,24 +1029,9 @@ function pbFixYearHeaders(){
 
 // ── INIT ──
 (async function(){
-  /* view=upload  → only the Import toolbar (used inside the Targets module)
-     view=dash    → only the dashboard, no Import/Format (used in Target Dashboard) */
-  const VIEW=new URLSearchParams(location.search).get('view')||'dash';
-  if(VIEW==='upload'){
-    ['.fbar','.kpi-hdr','.content'].forEach(s=>{const e=document.querySelector(s);if(e)e.remove();});
-    const sh=document.getElementById('pb-show');if(sh)sh.remove();
-    const info=document.createElement('div');
-    info.style.cssText='padding:16px;font-size:12.5px;color:#4a5878;line-height:1.6;max-width:860px';
-    info.innerHTML='<b style="color:var(--hd);font-size:14px">Sales Data Import</b><br>Combined Pan-India Excel ni <b>Import Excel</b> tho upload cheyyandi. Prathi upload mottham replace chestundi. Full dashboard: <b>Target Dashboard</b> lo chudandi.';
-    const mn=document.querySelector('.main');if(mn)mn.appendChild(info);
-    const dt=document.createElement('div');dt.id='pb-datatable';dt.style.cssText='padding:4px 12px 12px';mn.appendChild(dt);
-  }else{
-    ['pb-import','pb-format'].forEach(id=>{const e=document.getElementById(id);if(e)e.remove();});
-  }
   pbUploadUI();
   await pbLoad();
   pbFixYearHeaders();
-  if(VIEW!=='upload'){buildFB();buildSPbar();render();}
-  else{pbUploadTable();}
+  buildFB();buildSPbar();render();
 })();
 </script></body></html>
