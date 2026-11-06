@@ -10,8 +10,11 @@ import { auth } from "./api.js";
 export function scopeRows(rows, users, ownerFields) {
   const u = auth.user || {};
   const role = String(u.role || "").toUpperCase();
-  /* Admin & System always see all */
-  if (role === "ADMIN" || role === "SYSTEM") return rows;
+  /* Admin, System, and the panel owner/bootstrap account always see all —
+     the owner/bootstrap flags matter because that login's role may not be the
+     literal "ADMIN" (otherwise their lists get silently scoped to their own
+     team and other people's submissions never appear). */
+  if (u.bootstrap || u.owner || role === "ADMIN" || role === "SYSTEM") return rows;
 
   const me = u.name;
   const all = users || [];
@@ -43,7 +46,7 @@ export function visibleUsers(users) {
   const u = auth.user || {};
   const role = String(u.role || "").toUpperCase();
   const all = users || [];
-  if (role === "ADMIN" || role === "SYSTEM") return all;
+  if (u.bootstrap || u.owner || role === "ADMIN" || role === "SYSTEM") return all;
   const me = u.name;
   if (/^HOD /.test(role)) {
     const subHods = all.filter((x) => x.manager === me && /^sub hod/i.test(x.role || "")).map((x) => x.name);

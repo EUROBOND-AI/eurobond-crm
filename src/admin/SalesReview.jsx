@@ -211,6 +211,16 @@ export default function SalesReview() {
     });
     return out;
   };
+  /* compact 4-column version for the narrow Code/Grade/Party boxes */
+  const dimTableS = (arr, idxKey) => {
+    const out = [];
+    arr.forEach((name, i) => {
+      const a = sm(A.y0.filter((r) => r[idxKey] === i), IX.S), b = sm(A.y1.filter((r) => r[idxKey] === i), IX.S);
+      if (!a && !b) return;
+      out.push([name, cr(a), cr(b), { v: cr(a + b), c: "#0b3c8c" }]);
+    });
+    return out.sort((x, y) => parseFloat(y[3].v) - parseFloat(x[3].v));
+  };
   const perfTable = (arr, idxKey) => {
     const out = [];
     arr.forEach((name, i) => {
@@ -317,18 +327,17 @@ export default function SalesReview() {
             <T head={["Sales Person", "Target", "Sales", "Ach%", "GW%"]} rows={perfTable(db.sp, IX.P)} maxH={320} />
           </ZPanel>
 
-          <div className="dx-grid dx-row" style={{ marginTop: 16 }}>
+          {/* Code / Grade / Party — three compact boxes side by side (each shows
+              ~15 rows, then scrolls inside), so the screen stays filled */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, marginTop: 16 }}>
             <ZPanel title="Codewise" sub={db.co.length + " codes"}>
-              <T head={["Code", YA, "%", YB, "%", "Total"]} rows={dimTable(db.co, IX.CO)} maxH={230} />
+              <T head={["Code", YA, YB, "Total"]} rows={dimTableS(db.co, IX.CO)} maxH={470} />
             </ZPanel>
             <ZPanel title="Gradewise" sub={db.gr.length + " grades"}>
-              <T head={["Grade", YA, "%", YB, "%", "Total"]} rows={dimTable(db.gr, IX.GR)} maxH={230} />
+              <T head={["Grade", YA, YB, "Total"]} rows={dimTableS(db.gr, IX.GR)} maxH={470} />
             </ZPanel>
-          </div>
-
-          <div style={{ marginTop: 16 }}>
             <ZPanel title="Partywise" sub={db.pa.length + " parties"}>
-              <T head={["Party", YA, "%", YB, "%", "Total"]} rows={dimTable(db.pa, IX.PA)} maxH={230} />
+              <T head={["Party", YA, YB, "Total"]} rows={dimTableS(db.pa, IX.PA)} maxH={470} />
             </ZPanel>
           </div>
         </>

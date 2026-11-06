@@ -2801,8 +2801,9 @@ function FieldFollowUpQuick({ add }) {
 
         <NextMeetingFields value={nextMeet} onChange={setNextMeet} />
 
-        <button className="f-submit" style={{ width: "100%" }} disabled={busy}
+        <button className="f-submit" style={{ width: "100%" }} disabled={busy || !remark.trim()}
           onClick={async () => {
+            if (!remark.trim()) { alert("Please enter a remark before saving the follow-up."); return; }
             setBusy(true);
             try {
               await add({
