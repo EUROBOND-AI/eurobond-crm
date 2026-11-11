@@ -7,6 +7,7 @@ import { scopeRows, visibleUsers, isPanelAdmin, taskMatchesPlace, hodNamesOf, re
 import { AdminSearchSelect } from "./QuotationAdmin.jsx";
 import { canAdd, canDelete, canModify, canExport, canImport } from "../lib/perms.js";
 import { usePager, Pager } from "../components/Pager.jsx";
+import { SkeletonList } from "../components/Loaders.jsx";
 import { useVisiblePoll } from "../lib/poll.js";
 import { taskFlash } from "../lib/bgTask.js";
 
@@ -876,7 +877,7 @@ export default function ModulePage({ cfgKey }) {
       {gated && !shown ? (
         <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Set filters and click <b>Show</b> to view.</div>
       ) : loading ? (
-        <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Loading…</div>
+        <div style={{ padding: 16 }}><SkeletonList rows={7} /></div>
       ) : err ? (
         <div style={{ padding: 24, background: "#fdecec", color: "#c03636", borderRadius: 12, fontWeight: 600 }}>{err}</div>
       ) : (

@@ -1,6 +1,7 @@
 import logoImg from "./assets/logo.jpg";
 import { useEffect, useRef, lazy, Suspense } from "react";
 import { Routes, Route, Link, Navigate, useLocation } from "react-router-dom";
+import { FullScreenLoader } from "./components/Loaders.jsx";
 import { api, auth } from "./lib/api.js";
 import { Monitor, Smartphone } from "lucide-react";
 import AdminLogin from "./admin/AdminLogin.jsx";
@@ -91,7 +92,7 @@ export default function App() {
     <ErrorBoundary routeKey={location.pathname}>
     {/* one "Saving…" for the whole app, panel and phone alike */}
     <SavingOverlay />
-    <Suspense fallback={<div className="eb-loading" style={{ minHeight: "60vh" }}><div className="eb-spin" /></div>}>
+    <Suspense fallback={<FullScreenLoader fixed={false} label="Loading…" />}>
     <Routes>
       <Route path="/" element={isNative ? <Navigate to="/app" replace /> : <Portal />} />
       <Route path="/admin/login" element={<AdminLogin />} />

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { UserPlus, KeyRound, Trash2, Search, Download, Upload } from "lucide-react";
 import { PageHead } from "../components/ui.jsx";
+import { ButtonLoader } from "../components/Loaders.jsx";
 import { api } from "../lib/api.js";
 import { Avatar, fileUrl } from "../lib/avatar.jsx";
 import { visibleUsers } from "../lib/scope.js";
@@ -421,7 +422,7 @@ export default function UsersPage() {
             {form.id && <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>Use the key icon on the list to reset password.</p>}
             <div className="modal-foot">
               <button className="btn btn-danger" onClick={() => setForm(null)}>Cancel</button>
-              <button className="btn btn-primary" disabled={busy || dupMobile} onClick={save}>{busy ? "Saving…" : "Save"}</button>
+              <button className="btn btn-primary" disabled={busy || dupMobile} onClick={save}>{busy ? <ButtonLoader label="Saving…" /> : "Save"}</button>
             </div>
           </div>
         </div>
