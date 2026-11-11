@@ -203,7 +203,12 @@ export default function ExpenseApprovals() {
   useEffect(load, []);
   useEffect(() => { api.listUsers().then((d) => setUsers((d.users || []).filter((u) => u.status == 1))).catch(() => {}); }, []);
 
-  const statements = scopeRows(rows.filter((r) => r.isFormat), users, ["user", "createdBy", "createdByName"]);
+  /* show every statement that was built (isFormat) AND any expense that has
+     reached a processing status, even if its isFormat flag never got set — that
+     is how submitted ones were going missing from the admin. */
+  const statements = scopeRows(
+    rows.filter((r) => r.isFormat || ["Submitted", "Approved", "Coordination", "Uploader", "Rejected", "Reject"].includes(r.status)),
+    users, ["user", "createdBy", "createdByName"]);
   /* Approving an expense, moving it to accounts, pushing it to SAP — that is
      the office team's work. A field manager reading this screen needs to see
      what has been sent in and what has been cleared, and nothing else: the
@@ -211,7 +216,7 @@ export default function ExpenseApprovals() {
      a statement that is not theirs to act on. */
   const fullAccess = isPanelAdmin();
   const tabs = fullAccess
-    ? ["Submitted", "Not Submitted", "Approved", "Coordination To Accounts", "Uploaders", "Rejected"]
+    ? ["Submitted", "Approved", "Coordination To Accounts", "Uploaders", "Rejected", "Not Submitted"]
     : ["Submitted", "Approved"];
   /* a tab that is no longer offered must not stay selected */
   useEffect(() => { if (!tabs.includes(tab)) setTab(tabs[0]); /* eslint-disable-next-line */ }, [fullAccess]);

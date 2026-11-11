@@ -996,13 +996,17 @@ async function scheduleAttendanceReminders() {
       [10, 10, "⏳ 20 minutes left to mark your attendance (by 10:30 AM)."],
       [10, 20, "⏳ 10 minutes left — mark your attendance now (by 10:30 AM)."],
     ];
+    /* compare on the LOCAL calendar date, not the UTC one — toISOString shifts
+       the date across the IST day boundary, which let a holiday slip through and
+       a reminder fire on an off day */
+    const ymdLocal = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     const notifications = [];
     for (let day = 0; day < 7; day++) {
       const base = new Date();
       base.setDate(base.getDate() + day);
       if (day === 0 && doneToday) continue;                    // already marked today
       if (base.getDay() === 0) continue;                       // Sunday
-      if (off.has(base.toISOString().slice(0, 10))) continue;  // holiday / leave
+      if (off.has(ymdLocal(base))) continue;                   // holiday / leave
       times.forEach(([h, m, body], i) => {
         const at = new Date(base);
         at.setHours(h, m, 0, 0);
@@ -1294,7 +1298,7 @@ function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expense
              gone until an admin unlocks it from Check-in. */
           <div style={{ background: "#fdecec", border: "1.5px solid #f3a3a3", borderRadius: 16, padding: "16px", textAlign: "center" }}>
             <div style={{ fontWeight: 900, color: "#c0392b", fontSize: 18, letterSpacing: 0.5 }}>ABSENT</div>
-            <div style={{ fontWeight: 600, color: "#9b4a44", fontSize: 12.5, marginTop: 4 }}>Attendance was not started by 10:30 AM. Ask the admin to unlock it from Check-in.</div>
+            <div style={{ fontWeight: 600, color: "#9b4a44", fontSize: 12.5, marginTop: 4 }}>Attendance was not started by 10:30 AM.</div>
           </div>
         ) : !withinAttWindow() && !attendanceOn ? (
           <div style={{ background: "#f1f3f8", border: "1.5px solid #d7dcef", borderRadius: 16, padding: "16px", textAlign: "center", fontWeight: 700, color: "var(--muted)", fontSize: 13 }}>
@@ -2250,6 +2254,14 @@ function FieldExpenseNew({ add }) {
   };
 
   const saveDraft = async () => {
+    /* every important field must be filled before anything is saved — people
+       were leaving Origin-to-Destination / amount blank and the statement went
+       in half-filled */
+    if (!f.date) { alert("Please select the Date."); return; }
+    if (!String(f.station || "").trim()) { alert("Please select the Expense Type."); return; }
+    if (!String(f.category || "").trim()) { alert("Please select the Category."); return; }
+    if (!f.amount || Number(f.amount) <= 0) { alert("Please enter the Amount."); return; }
+    if (!String(f.desc || "").trim()) { alert("Please select Origin to Destination."); return; }
     const rec = {
       ...(ed && ed._id ? { _id: ed._id } : {}),
       createdAt: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
@@ -2291,7 +2303,7 @@ function FieldExpenseNew({ add }) {
         <label>Amount (₹) <b>*</b></label>
         <input inputMode="numeric" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value.replace(/\D/g, "") })} style={{ width: "100%", marginBottom: 12 }} />
 
-        <label>Origin to Destination</label>
+        <label style={{ color: String(f.desc || "").trim() ? undefined : "#c0392b" }}>Origin to Destination <b style={{ color: "#c0392b" }}>*</b></label>
         {/* searchable list — a state can have hundreds of areas */}
         <SearchSelect
           value={f.desc}
@@ -2310,7 +2322,7 @@ function FieldExpenseNew({ add }) {
         {busy && <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>Uploading…</div>}
         {doc && <div style={{ fontSize: 12, color: "#1f9d55", marginBottom: 8 }}>✓ Bill attached <span onClick={() => openAppPhoto(doc)} style={{ color: "var(--accent)", cursor: "pointer", marginLeft: 6 }}>View</span></div>}
 
-        <button className="f-submit" style={{ width: "100%" }} disabled={!f.amount || busy} onClick={saveDraft}>
+        <button className="f-submit" style={{ width: "100%" }} disabled={!f.date || !f.amount || Number(f.amount) <= 0 || !String(f.desc || "").trim() || busy} onClick={saveDraft}>
           {ed ? "Update Draft" : "Save as Draft"}
         </button>
       </div>
@@ -5154,9 +5166,14 @@ function FieldProfile({ onLogout }) {
         {/* #6 — a flip card: tap the photo and it turns to show the visiting-card
             QR on the back (Instagram-style), if the admin uploaded one. With no
             QR it just opens the photo full size as before. */}
-        <div style={{ width: 78, height: 78, margin: "0 auto 10px", perspective: 600, cursor: "pointer" }}
+        {/* tap flips to the QR; press & hold opens the side showing at full size */}
+        <div style={{ width: 78, height: 78, margin: "0 auto 12px", perspective: 600, cursor: "pointer", WebkitTouchCallout: "none" }}
           data-nozoom="1"
-          onClick={() => { if (u.qr) setFlip((f) => !f); else openAppPhoto(u.photo); }}>
+          onClick={() => { if (photoHeld.current) { photoHeld.current = false; return; } if (u.qr) setFlip((f) => !f); else openAppPhoto(u.photo); }}
+          onPointerDown={() => { photoHeld.current = false; clearTimeout(photoTimer.current); photoTimer.current = setTimeout(() => { photoHeld.current = true; openAppPhoto(flip ? u.qr : u.photo); }, 450); }}
+          onPointerUp={() => clearTimeout(photoTimer.current)}
+          onPointerLeave={() => clearTimeout(photoTimer.current)}
+          onContextMenu={(e) => e.preventDefault()}>
           <div style={{ position: "relative", width: "100%", height: "100%", transition: "transform .5s", transformStyle: "preserve-3d", transform: flip ? "rotateY(180deg)" : "none" }}>
             <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden" }}>
               <Avatar name={u.name} photo={u.photo} size={78} ring="#fff" />
@@ -5166,14 +5183,6 @@ function FieldProfile({ onLogout }) {
               {u.qr ? <img src={fileUrl(u.qr)} alt="QR" style={{ width: "100%", height: "100%", objectFit: "contain", background: "#fff" }} /> : null}
             </div>
           </div>
-        </div>
-        {/* #6 — open the side currently showing at full size: the photo to view,
-            or the QR big enough to scan */}
-        <div>
-          <button onClick={() => openAppPhoto(flip ? u.qr : u.photo)}
-            style={{ border: "none", background: "transparent", color: "var(--accent)", fontWeight: 700, fontSize: 12, cursor: "pointer", padding: "2px 8px" }}>
-            {flip ? "⛶ Enlarge QR to scan" : (u.qr ? "⛶ View photo full" : "")}
-          </button>
         </div>
         <div style={{ fontFamily: "Bricolage Grotesque", fontWeight: 800, fontSize: 18 }}>{u.name || "—"}</div>
         <div style={{ color: "var(--muted)", fontSize: 12.5, fontWeight: 700 }}>{u.code} · {u.role}</div>
