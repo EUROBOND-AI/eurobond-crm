@@ -24,6 +24,7 @@ import { snapToRoads } from "../lib/roadline.js";
 import { useVisiblePoll } from "../lib/poll.js";
 import { MultiPeople, MultiFiles } from "../components/FormBits.jsx";
 import ScreenHead, { parentOf } from "../components/ScreenHead.jsx";
+import { Spinner, SkeletonList } from "../components/Loaders.jsx";
 import { MODULES } from "../admin/moduleConfigs.jsx";
 
 /* logged-in field user (from auth) with safe fallbacks */
@@ -1895,7 +1896,7 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
               <b style={{ fontSize: 14 }}>{new Date(histDate).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short" })}</b>
               <span onClick={() => { setHistDate(null); setHistSess(null); }} style={{ cursor: "pointer", color: "var(--accent)", fontWeight: 700, fontSize: 12.5 }}>← Today</span>
             </div>
-            {histLoading ? <div className="eb-loading"><div className="eb-spin" /></div>
+            {histLoading ? <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
               : histSess === false ? <div style={{ color: "var(--muted)", fontSize: 13, padding: 10, textAlign: "center" }}>No attendance record for this day.</div>
                 : histSess ? (
                   <div style={{ display: "grid", gap: 7, fontSize: 13 }}>
@@ -3198,7 +3199,7 @@ function FieldProjectList() {
           ))}
         </div>
         {rows === null ? (
-          <div className="eb-loading"><div className="eb-spin" /></div>
+          <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>No projects yet. Tap + Add.</div>
         ) : pager.slice.map((r, i) => (
@@ -3587,7 +3588,7 @@ function FieldResources() {
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" style={{ width: "100%", padding: "9px 12px 9px 33px", borderRadius: 11, border: "1.5px solid #d7dcef", fontSize: 13, background: "#fff" }} />
         </div>
         {rows === null ? (
-          <div className="eb-loading"><div className="eb-spin" /></div>
+          <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>No resources yet.</div>
         ) : filtered.map((r, i) => (
@@ -3833,7 +3834,7 @@ function FieldHelp() {
 
         <div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 8, fontFamily: "Bricolage Grotesque" }}>My Tickets</div>
         {mine === null ? (
-          <div className="eb-loading"><div className="eb-spin" /></div>
+          <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
         ) : mine.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 24, fontSize: 13 }}>You have not raised any tickets.</div>
         ) : mine.slice(0, 20).map((t, i) => (
@@ -4365,7 +4366,7 @@ function TargetView({ targets, filter, setFilter, isSpec, title }) {
         </div>
 
         {targets === null ? (
-          <div className="eb-loading"><div className="eb-spin" /></div>
+          <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 26, fontSize: 13 }}>
             <Target size={32} style={{ opacity: 0.4, marginBottom: 8 }} />
@@ -4614,7 +4615,7 @@ function FieldTeamTracking() {
       <div style={{ padding: "8px 16px", fontSize: 12, color: "var(--muted)" }}>Live location of your team — today only.</div>
       <div className="f-list-pad">
         {sessions === null ? (
-          <div className="eb-loading"><div className="eb-spin" /></div>
+          <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
         ) : sessions.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 30 }}>No team members have started tracking today.</div>
         ) : sessions.map((s) => (
@@ -4891,7 +4892,7 @@ function FieldTeamCustomers() {
       <div style={{ padding: "8px 16px", fontSize: 12, color: "var(--muted)" }}>Customers added by each team member.</div>
       <div className="f-list-pad">
         {data === null ? (
-          <div className="eb-loading"><div className="eb-spin" /></div>
+          <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
         ) : data.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 30 }}>No team members found.</div>
         ) : data.map((m, i) => (
@@ -4990,7 +4991,7 @@ function FieldTeamPerformance() {
           </select>
         </div>
         {rows === null ? (
-          <div className="eb-loading"><div className="eb-spin" /></div>
+          <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
         ) : rows.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>
             <Users size={32} style={{ opacity: 0.4, marginBottom: 8 }} />
@@ -5099,7 +5100,7 @@ function FieldLeaveApproval() {
       <ScreenHead title="Leave Approval" />
       <div className="f-list-pad" style={{ paddingTop: 14 }}>
         {rows === null ? (
-          <div className="eb-loading"><div className="eb-spin" /></div>
+          <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
         ) : (
           <>
             <div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 8, fontFamily: "Bricolage Grotesque" }}>Pending ({pending.length})</div>
@@ -5496,7 +5497,7 @@ function FieldSpecThreadList({ mod }) {
             <button key={s} onClick={() => setFilter(s)} style={{ padding: "7px 13px", borderRadius: 8, border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer", background: filter === s ? "var(--navy)" : "#eef1ff", color: filter === s ? "#fff" : "var(--navy)" }}>{s}</button>
           ))}
         </div>
-        {rows === null ? <div className="eb-loading"><div className="eb-spin" /></div>
+        {rows === null ? <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
         : filtered.length === 0 ? <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>Nothing here yet.</div>
         : pager.slice.map((r, i) => {
           const iAmReceiver = isS2S ? (r.specPerson === me) : (r.salesPerson === me);
@@ -5732,7 +5733,7 @@ function FieldModule({ mod }) {
       <ScreenHead title={cfg.appLabel || cfg.crumb} right={(cfg.appReadOnly || mod === "salesToSpec" || mod === "specToSales" || mod === "projectProjection") ? null : <button className="f-submit" style={{ padding: "8px 14px", fontSize: 12.5 }} onClick={() => nav(`/app/m/${mod}/new`)}>+ Add</button>} />
       <div className="f-list-pad" style={{ paddingTop: 14 }}>
         {rows === null ? (
-          <div className="eb-loading"><div className="eb-spin" /></div>
+          <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
         ) : rows.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>No records yet. Tap + Add to create one.</div>
         ) : pager.slice.map((r, i) => (
@@ -6166,7 +6167,7 @@ function FieldNotifications() {
       )}
       <div className="f-list-pad" style={{ paddingTop: 14 }}>
         {rows === null ? (
-          <div className="eb-loading"><div className="eb-spin" /></div>
+          <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
         ) : visible.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>
             <Bell size={34} style={{ opacity: 0.4, marginBottom: 10 }} />
@@ -6582,7 +6583,7 @@ function FieldSpecThread({ id }) {
     setBusy(false);
   };
 
-  if (!rec) return <><ScreenHead title="Spec Approval" /><div className="eb-loading"><div className="eb-spin" /></div></>;
+  if (!rec) return <><ScreenHead title="Spec Approval" /><div style={{ padding: 10 }}><SkeletonList rows={5} /></div></>;
   const thread = rec.thread || [];
 
   return (
@@ -6646,7 +6647,7 @@ function FieldProjectDetail({ id }) {
     setBusy(false);
   };
 
-  if (!rec) return <><ScreenHead title="Project" /><div className="eb-loading"><div className="eb-spin" /></div></>;
+  if (!rec) return <><ScreenHead title="Project" /><div style={{ padding: 10 }}><SkeletonList rows={5} /></div></>;
   const visits = rec.visits || [];
 
   return (
@@ -6733,7 +6734,7 @@ function FieldEnquiry() {
         </div>
       </div>
       <div className="f-list-pad" style={{ paddingTop: 8 }}>
-        {rows === null ? <div className="eb-loading"><div className="eb-spin" /></div>
+        {rows === null ? <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
         : filtered.length === 0 ? <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>No enquiries assigned yet.</div>
         : pager.slice.map((r, i) => (
           <div key={i} style={{ background: "#fff", borderRadius: 10, padding: "10px 12px", marginBottom: 7, boxShadow: "var(--shadow)" }}>
@@ -7232,7 +7233,7 @@ function FieldQuotationList() {
     <>
       <ScreenHead title="Quotation" right={<button onClick={() => { QUOTE_PREFILL.data = null; nav("/app/m/quotation/new"); }} style={{ background: "var(--navy)", color: "#fff", border: "none", borderRadius: 20, padding: "7px 14px", fontWeight: 800, fontSize: 13 }}>+ Add</button>} />
       <div className="f-list-pad" style={{ paddingTop: 12 }}>
-        {rows === null ? <div className="eb-loading"><div className="eb-spin" /></div>
+        {rows === null ? <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
           : rows.length === 0 ? <div style={{ color: "var(--muted)", padding: 30, textAlign: "center" }}>No quotations yet.</div>
             : rows.map((q) => (
               <div key={q._id} style={{ background: "#fff", borderRadius: 10, padding: "10px 12px", marginBottom: 7, boxShadow: "var(--shadow)" }}>
@@ -7806,7 +7807,7 @@ function FieldNearbyProjects() {
           </div>
         )}
         {list === null ? (
-          <div className="eb-loading"><div className="eb-spin" /></div>
+          <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
         ) : list.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>
             <Building2 size={32} style={{ opacity: 0.4, marginBottom: 8 }} />
@@ -7971,7 +7972,7 @@ function FieldCustomers({ nearbyOnly = false }) {
         )}
 
         {list === null ? (
-          <div className="eb-loading"><div className="eb-spin" /></div>
+          <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
         ) : list.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>
             <Users size={32} style={{ opacity: 0.4, marginBottom: 8 }} />
@@ -8165,7 +8166,7 @@ function FieldGenericThread({ mod, id }) {
     setBusy(false);
   };
 
-  if (!rec) return <><ScreenHead title="Details" /><div className="eb-loading"><div className="eb-spin" /></div></>;
+  if (!rec) return <><ScreenHead title="Details" /><div style={{ padding: 10 }}><SkeletonList rows={5} /></div></>;
   const thread = rec.thread || [];
 
   return (

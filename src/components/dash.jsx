@@ -14,6 +14,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, RefreshCw } from "lucide-react";
 import { Avatar } from "../lib/avatar.jsx";
 import { visibleUsers, hodNamesOf, taskMatchesPlace, isUnderHod } from "../lib/scope.js";
+import { Spinner, Skeleton } from "./Loaders.jsx";
 
 /* ---------------------------------------------------------------- numbers */
 export const fmtInt = (n) => {
@@ -299,16 +300,41 @@ export function RefreshBtn({ onClick, busy }) {
 
 /* Before anything is fetched: one card that says what pressing Show will do. */
 export function ShowGate({ onShow, busy, what = "the dashboard" }) {
+  /* while loading, show a skeleton shaped like a dashboard (KPI row + two
+     panels) rather than a bare spinner — it reads as the page filling in */
+  if (busy) {
+    return (
+      <div>
+        <div className="dx-grid dx-kpis" style={{ marginBottom: 16 }}>
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="dx-card" style={{ padding: 18 }}>
+              <Skeleton w="55%" h={11} />
+              <Skeleton w="72%" h={26} style={{ marginTop: 14 }} />
+              <Skeleton w="40%" h={9} style={{ marginTop: 12 }} />
+            </div>
+          ))}
+        </div>
+        <div className="dx-grid dx-row">
+          {[0, 1].map((i) => (
+            <div key={i} className="dx-card" style={{ padding: 18 }}>
+              <Skeleton w="42%" h={14} />
+              <Skeleton h={190} r={12} style={{ marginTop: 14 }} />
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "center", marginTop: 18, color: "var(--dx-mute)", fontSize: 12.5, fontWeight: 600 }}>
+          <Spinner size={16} stroke={2} /> Loading {what}…
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="dx-card" style={{ textAlign: "center", padding: "56px 20px" }}>
       <div style={{ width: 64, height: 64, margin: "0 auto 16px", borderRadius: 18, display: "grid", placeItems: "center",
         background: "var(--dx-info-bg)", color: "var(--dx-accent-ink)", fontSize: 28 }} aria-hidden="true">◔</div>
-      <div style={{ fontWeight: 800, fontSize: 16, color: "var(--dx-ink)" }}>{busy ? "Loading " + what + "…" : "Choose your filters, then press Show"}</div>
-      <div style={{ fontSize: 12.5, color: "var(--dx-mute)", marginTop: 6 }}>
-        {busy ? "Reading the latest figures from the server" : "Nothing is downloaded until you ask — the panel stays quick for everyone."}
-      </div>
-      {!busy && <button className="dx-btn dx-btn-p" style={{ marginTop: 18, padding: "10px 34px" }} onClick={onShow}>Show</button>}
-      {busy && <div className="eb-spin" style={{ margin: "18px auto 0" }} />}
+      <div style={{ fontWeight: 800, fontSize: 16, color: "var(--dx-ink)" }}>Choose your filters, then press Show</div>
+      <div style={{ fontSize: 12.5, color: "var(--dx-mute)", marginTop: 6 }}>Nothing is downloaded until you ask — the panel stays quick for everyone.</div>
+      <button className="dx-btn dx-btn-p" style={{ marginTop: 18, padding: "10px 34px" }} onClick={onShow}>Show</button>
     </div>
   );
 }

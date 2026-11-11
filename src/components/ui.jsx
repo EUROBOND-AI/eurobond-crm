@@ -349,27 +349,11 @@ export function FormModal({ title, fields, onClose, onSave, initial }) {
   );
 }
 
-/* Glassy "liquid glass" footer — frosted translucent bar that sticks to the
-   bottom of the panel, with a glossy top highlight and a soft floating shadow,
-   in the style of the newer iOS glass surfaces. */
 export function FooterNote() {
-  let ver = "";
-  try { ver = (typeof __APP_VERSION__ !== "undefined" && __APP_VERSION__) ? String(__APP_VERSION__) : ""; } catch { ver = ""; }
   return (
-    <div style={{
-      position: "sticky", bottom: 10, zIndex: 20, margin: "22px auto 10px", maxWidth: 680, width: "calc(100% - 24px)",
-      display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-      padding: "11px 20px", borderRadius: 999,
-      /* the glass: translucent fill + blur, a bright top edge, a soft shadow */
-      background: "linear-gradient(180deg, rgba(255,255,255,.72), rgba(255,255,255,.42))",
-      backdropFilter: "blur(20px) saturate(180%)", WebkitBackdropFilter: "blur(20px) saturate(180%)",
-      border: "1px solid rgba(255,255,255,.7)",
-      boxShadow: "0 10px 30px rgba(20,30,70,.12), inset 0 1px 0 rgba(255,255,255,.9), inset 0 -1px 0 rgba(140,150,180,.12)",
-      fontSize: 12.5, color: "#51607f", fontWeight: 600, textAlign: "center", lineHeight: 1.4,
-    }}>
-      <span style={{ width: 7, height: 7, borderRadius: "50%", background: "linear-gradient(135deg,#6c5ce7,#4a7bff)", boxShadow: "0 0 8px rgba(108,92,231,.6)", flexShrink: 0 }} />
-      <span>©2026 <b style={{ color: "#2b3756" }}>Eurobond CRM</b>{ver ? " · v" + ver : ""} · Designed by <b style={{ color: "#2b3756" }}>Karthik G</b></span>
-    </div>
+    <p className="footer-note">
+      Copyright ©2026 <b>Eurobond CRM</b> · Developed and Designed by <b>Karthik G</b>
+    </p>
   );
 }
 
