@@ -760,7 +760,9 @@ export default function ModulePage({ cfgKey }) {
           {/* counted from what the filters actually leave, not the whole table —
               filtering to twenty rows used to still read the full total */}
           <StatCard label="Total" value={statShown.length} sub="Matching records" color="#4a7bff" />
-          {cfg.tabs.slice(0, 4).map((t, i) => (
+          {/* skip the "All" tab here — the Total card already is the all-count;
+              counting status === "All" gave a wrong little number */}
+          {cfg.tabs.filter((t) => !t.all).slice(0, 4).map((t, i) => (
             <StatCard key={t.key} label={t.label} value={statShown.filter((r) => String(r[cfg.tabField]) === t.key).length} sub={t.label + " records"} color={["#8b5cf6", "#10b981", "#f59e0b", "#ec4899"][i % 4]} />
           ))}
         </div>
@@ -860,7 +862,9 @@ export default function ModulePage({ cfgKey }) {
                Counting the raw fetch meant a manager whose team had no tasks
                still read "Pending 13" over an empty table — the whole
                company's tasks, which they are not allowed to open. */
-            count: (cfg.tabField && !cfg.noTabFilter && !["projectProjection", "salesToSpec", "specToSales", "target"].includes(cfgKey)) ? statShown.filter((r) => String(r[cfg.tabField]) === t.key).length : null,
+            count: (cfg.tabField && !cfg.noTabFilter && !["projectProjection", "salesToSpec", "specToSales", "target"].includes(cfgKey))
+              ? (t.all ? statShown.length : statShown.filter((r) => String(r[cfg.tabField]) === t.key).length)
+              : null,
           }))}
           active={tab}
           onChange={setTab}

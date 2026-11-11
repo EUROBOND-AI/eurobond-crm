@@ -118,8 +118,10 @@ function ZPanel({ title, sub, children }) {
               <div><div style={{ fontWeight: 800, fontSize: 17, color: "var(--navy)" }}>{title}</div>{sub && <div style={{ fontSize: 12.5, color: "var(--muted)" }}>{sub}</div>}</div>
               <button className="dx-btn" onClick={() => setZoom(false)}><X size={15} /> Close</button>
             </div>
-            {/* this body is the single scroller — the table header freezes at its top */}
-            <div style={{ overflow: "auto", padding: 20, flex: 1 }}>
+            {/* this body is the single scroller — padding-top is 0 so the table
+                header sits flush at the top and nothing shows above it when
+                scrolling (the gap the header seemed to leave) */}
+            <div style={{ overflow: "auto", padding: "0 20px 20px", flex: 1 }}>
               <ZoomCtx.Provider value={true}>{children}</ZoomCtx.Provider>
             </div>
           </div>

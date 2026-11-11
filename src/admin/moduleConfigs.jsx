@@ -47,21 +47,29 @@ const attach = (v) => v
    depending on where the task was raised from, so all of them are gathered. */
 const filesCell = (v, r) => {
   const row = r || {};
-  const list = [
+  const all = [
     ...(Array.isArray(row.attachments) ? row.attachments : []),
     ...(Array.isArray(row.photos) ? row.photos : []),
     row.photo, row.doc,
   ].filter(Boolean);
-  if (!list.length) return "—";
+  if (!all.length) return "—";
+  /* the list is loaded "slim" so a big base64 attachment comes back as the
+     placeholder "__heavy__" — it still counts, and the real file opens from the
+     task's View Attachment. A real (small) url is shown as a thumbnail. */
+  const real = all.filter((u) => String(u) !== "__heavy__");
   const pdf = (u) => /\.pdf(\?|$)/i.test(String(u)) || /^data:application\/pdf/i.test(String(u));
   return (
-    <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
-      {list.slice(0, 4).map((u, i) => (pdf(u)
+    <span style={{ display: "inline-flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
+      {real.slice(0, 3).map((u, i) => (pdf(u)
         ? <span key={i} onClick={() => openLightbox(u)} title={`Attachment ${i + 1}`}
             style={{ cursor: "pointer", color: "var(--accent)", fontWeight: 700, fontSize: 12 }}>📄</span>
         : <img key={i} src={u} alt={`Attachment ${i + 1}`} onClick={() => openLightbox(u)}
             style={{ width: 30, height: 30, objectFit: "cover", borderRadius: 6, border: "1px solid #dfe4f0", cursor: "pointer" }} />))}
-      {list.length > 4 && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", alignSelf: "center" }}>+{list.length - 4}</span>}
+      <span onClick={real.length ? () => openLightbox(real[0]) : undefined}
+        title={real.length ? "View attachment" : "Open the task to view"}
+        style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "#eef1ff", color: "#1b3a8c", borderRadius: 8, padding: "2px 8px", fontWeight: 800, fontSize: 12, cursor: real.length ? "pointer" : "default" }}>
+        📎 {all.length}
+      </span>
     </span>
   );
 };
