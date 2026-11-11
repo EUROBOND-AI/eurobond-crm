@@ -543,16 +543,46 @@ Mumbai - 400092, Maharashtra, India`;
   const [draft, setDraft] = useState(defaultDraft);
   const [subject, setSubject] = useState(`Quotation ${q.quoteNo || q.id} - Eurobond`);
   const [busy, setBusy] = useState(false);
+  const [opening, setOpening] = useState(false);
+  /* a replacement PDF the user picked instead of the auto-generated quotation */
+  const [altFile, setAltFile] = useState(null);   // { name, base64 }
+  const defaultName = `Quotation-${(q.quoteNo || q.id).replace(/\//g, "-")}.pdf`;
+
+  /* open the attachment that will actually be sent, so the user can check it (and
+     send a different / corrected PDF) before mailing */
+  const openAttachment = async () => {
+    setOpening(true);
+    try {
+      const b64 = altFile ? altFile.base64 : await buildQuotePdfBase64(q);
+      const bin = atob(b64);
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      const url = URL.createObjectURL(new Blob([arr], { type: "application/pdf" }));
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) { alert("Could not open PDF: " + e.message); }
+    setOpening(false);
+  };
+
+  /* let the user replace the auto PDF with their own file before sending */
+  const pickFile = (file) => {
+    if (!file) return;
+    if (file.type !== "application/pdf" && !/\.pdf$/i.test(file.name)) { alert("Please choose a PDF file."); return; }
+    const reader = new FileReader();
+    reader.onload = () => { const s = String(reader.result || ""); setAltFile({ name: file.name, base64: s.split(",")[1] || "" }); };
+    reader.readAsDataURL(file);
+  };
 
   const send = async () => {
     if (!to) { alert("Client email required"); return; }
     setBusy(true);
     try {
-      /* quotation ni real PDF (letterhead) attachment ga build cheddam */
-      const pdfB64 = await buildQuotePdfBase64(q);
+      /* send the user's replacement PDF if they picked one, else build the
+         quotation as a real PDF (letterhead) attachment */
+      const pdfB64 = altFile ? altFile.base64 : await buildQuotePdfBase64(q);
       const res = await api.sendMail({
         to, cc, subject, body: draft, sender: "quote",
-        attachment: { name: `Quotation-${(q.quoteNo || q.id).replace(/\//g, "-")}.pdf`, mime: "application/pdf", base64: pdfB64 },
+        attachment: { name: altFile ? altFile.name : defaultName, mime: "application/pdf", base64: pdfB64 },
       });
       if (res && res.sent) {
         /* #21 — mail-sent status + who mailed (admin name) ni record meeda stamp cheddam,
@@ -580,7 +610,18 @@ Mumbai - 400092, Maharashtra, India`;
           <h3 style={{ margin: 0 }}>Mail Quotation — {q.quoteNo || q.id}</h3>
           <button className="btn btn-ghost" style={{ padding: 4 }} onClick={onClose}><X size={16} /></button>
         </div>
-        <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>From: {fromAddr || "…"} · 📎 Quotation PDF attached</div>
+        <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>From: {fromAddr || "…"}</div>
+        {/* the attachment that will be sent — openable, and replaceable with your own PDF */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", background: "#f5f8ff", border: "1px solid #e3e9f8", borderRadius: 10, padding: "9px 11px", marginBottom: 12 }}>
+          <span style={{ fontSize: 16 }}>📎</span>
+          <span style={{ fontSize: 12.5, fontWeight: 700, flex: 1, minWidth: 120, wordBreak: "break-all" }}>{altFile ? altFile.name : defaultName}{altFile && <span style={{ fontWeight: 600, color: "#0f7a44" }}> · your file</span>}</span>
+          <button type="button" className="btn btn-soft" style={{ padding: "5px 12px", fontSize: 12 }} disabled={opening} onClick={openAttachment}>{opening ? "Opening…" : "Open"}</button>
+          <label className="btn btn-ghost" style={{ padding: "5px 12px", fontSize: 12, cursor: "pointer", margin: 0 }}>
+            {altFile ? "Change" : "Replace PDF"}
+            <input type="file" accept="application/pdf" style={{ display: "none" }} onChange={(e) => pickFile(e.target.files[0])} />
+          </label>
+          {altFile && <button type="button" className="btn btn-ghost" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setAltFile(null)}>Use default</button>}
+        </div>
         <label style={{ fontSize: 12.5, fontWeight: 700 }}>To (Client Email)</label>
         <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="client@example.com" style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid var(--line)", margin: "6px 0 12px" }} />
         <label style={{ fontSize: 12.5, fontWeight: 700 }}>CC</label>

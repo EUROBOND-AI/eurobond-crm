@@ -324,19 +324,10 @@ export default function AdminLayout() {
       <ChatAssistant accent="#1b3a8f" surface="admin" side="right" />
       <PhotoZoom />
       <aside className="sidebar">
-        <div className="brand" style={{ padding: "14px 14px 12px" }}>
-          {/* full-width white card so it fills the blue strip, bigger logo, and a
-              soft glow + ring effect around it */}
-          <div style={{
-            position: "relative", display: "flex", alignItems: "center", justifyContent: "center",
-            background: "linear-gradient(180deg,#ffffff 0%,#f3f7ff 100%)", borderRadius: 14,
-            padding: "14px 12px", overflow: "hidden",
-            boxShadow: "0 0 0 1px rgba(255,255,255,.65), 0 10px 26px rgba(8,26,80,.38)",
-          }}>
-            {/* subtle radial glow behind the logo */}
-            <div style={{ position: "absolute", inset: 0, background: "radial-gradient(120px 60px at 50% 45%, rgba(43,111,184,.16), transparent 70%)", pointerEvents: "none" }} />
-            <img src={logoImg} alt="Eurobond" style={{ height: 42, display: "block", position: "relative", filter: "drop-shadow(0 3px 7px rgba(16,45,110,.22))" }} />
-          </div>
+        <div className="brand" style={{ padding: "14px 14px 10px" }}>
+          <span style={{ background: "#fff", borderRadius: 10, padding: "7px 10px", display: "inline-block" }}>
+            <img src={logoImg} alt="Eurobond" style={{ height: 26, display: "block" }} />
+          </span>
         </div>
         <ModuleSearch nav={nav} />
         <div className="side-scroll">

@@ -12,11 +12,11 @@ import { DxPage, KpiCard, Panel, ShowGate, RankBars, WeekBars, HalfDonut } from 
 
 const MO = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
 const QS = ["Q1", "Q2", "Q3", "Q4"];
-const IX = { Y: 0, Q: 1, M: 2, B: 3, C: 4, P: 5, R: 6, E: 7, PA: 8, CO: 9, GR: 10, S: 11, SQ: 12, TG: 13, EX: 14, ST: 15, HD: 16 };
+const IX = { Y: 0, Q: 1, M: 2, B: 3, C: 4, P: 5, R: 6, E: 7, PA: 8, CO: 9, GR: 10, S: 11, SQ: 12, TG: 13, EX: 14, ST: 15, HD: 16, EC: 17 };
 
 /* the full format the ERP exports — used only for the blank Download Format */
-const FULL_COLS = ["Year", "QTR", "MTH", "Month", "Date", "Voucher Type", "Voucher No", "Party Name", "Item Description", "Item Group", "Item Group Description", "Code", "Grade", "#", "Category", "Brand", "QTY", "Sq.Mtr", "CO", "SALES G", "HOD", "Area", "STATE", "Region", "Sales person", "Target D", "Sales D", "Expenses", "Company", "Category CAT", "Target CAT", "Sales CAT", "# Brand", "# Category", "# Year", "Employee Code", "Employee Status", "DOJ", "DOR", "SL -2025-26 SALES G", "SL -2026-27 SALES G", "Expenses-I", "Inc", "# Category Cat", "SL -2025-26 SALES G (Nw)", "SL -2026-27 SALES G (Nw)"];
-const EXPORT_COLS = ["Year", "QTR", "Month", "Brand", "Category", "Sales person", "Region", "Employee Status", "Party Name", "Code", "Grade", "SALES G", "Sq.Mtr", "Target D", "Expenses"];
+const FULL_COLS = ["Year", "QTR", "MTH", "Month", "Date", "Voucher Type", "Voucher No", "Party Name", "Item Description", "Item Group", "Item Group Description", "Code", "Grade", "#", "Category", "Brand", "QTY", "Sq.Mtr", "CO", "SALES G", "HOD", "Area", "STATE", "Region", "Sales person", "Employee Code", "Target D", "Sales D", "Expenses", "Company", "Category CAT", "Target CAT", "Sales CAT", "# Brand", "# Category", "# Year", "Employee Status", "DOJ", "DOR", "SL -2025-26 SALES G", "SL -2026-27 SALES G", "Expenses-I", "Inc", "# Category Cat", "SL -2025-26 SALES G (Nw)", "SL -2026-27 SALES G (Nw)"];
+const EXPORT_COLS = ["Year", "QTR", "Month", "Brand", "Category", "Sales person", "Employee Code", "Region", "Employee Status", "Party Name", "Code", "Grade", "SALES G", "Sq.Mtr", "Target D", "Expenses"];
 
 const cr = (n) => { n = Number(n) || 0; return (n / 1e7).toFixed(2) + " Cr"; };
 const pcN = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : 0);
@@ -24,7 +24,7 @@ const pcStr = (a, b) => (b ? (a / b * 100).toFixed(1) + "%" : "—");
 const pcColor = (p) => (p >= 100 ? "#10b981" : p >= 75 ? "#f59e0b" : "#ef4444");
 const sm = (arr, i) => arr.reduce((s, r) => s + (r[i] || 0), 0);
 
-function blankDB() { return { sp: [], r: [], b: [], c: [], pa: [], co: [], gr: [], st: [], hd: [], sg: [], yrs: [] }; }
+function blankDB() { return { sp: [], r: [], b: [], c: [], pa: [], co: [], gr: [], st: [], hd: [], ec: [], sg: [], yrs: [] }; }
 
 function buildFromAOA(aoa) {
   const head = (aoa[0] || []).map((h) => String(h == null ? "" : h).trim());
@@ -35,7 +35,7 @@ function buildFromAOA(aoa) {
   const Q = { Q1: 0, Q2: 1, Q3: 2, Q4: 3 };
   const d = blankDB();
   const num = (v) => { if (v == null || v === "") return 0; const n = +String(v).replace(/[^0-9.\-]/g, ""); return isNaN(n) ? 0 : n; };
-  const maps = { b: new Map(), c: new Map(), sp: new Map(), r: new Map(), pa: new Map(), co: new Map(), gr: new Map(), st: new Map(), hd: new Map() };
+  const maps = { b: new Map(), c: new Map(), sp: new Map(), r: new Map(), pa: new Map(), co: new Map(), gr: new Map(), st: new Map(), hd: new Map(), ec: new Map() };
   const idx = (key, v) => { v = (v == null ? "" : String(v)).trim(); if (v === "") return -1; const k = v.toLowerCase(); let i = maps[key].get(k); if (i == null) { d[key].push(v); i = d[key].length - 1; maps[key].set(k, i); } return i; };
   const g = (row, k) => (col[k] == null ? "" : row[col[k]]);
   const yseen = [];
@@ -49,7 +49,7 @@ function buildFromAOA(aoa) {
       idx("r", g(row, "Region")), (String(g(row, "Employee Status") || "").trim().toLowerCase() === "resigned" ? 1 : 0),
       idx("pa", g(row, "Party Name")), idx("co", g(row, "Code")), idx("gr", g(row, "Grade")),
       num(g(row, "SALES G")), num(g(row, "Sq.Mtr")), num(g(row, "Target D")), num(g(row, "Expenses")),
-      idx("st", g(row, "STATE")), idx("hd", g(row, "HOD"))]);
+      idx("st", g(row, "STATE")), idx("hd", g(row, "HOD")), idx("ec", g(row, "Employee Code"))]);
   }
   const sorted = [...yseen].sort();
   const remap = yseen.map((y) => sorted.indexOf(y));
@@ -146,13 +146,18 @@ export default function SalesReview() {
   const resetF = () => { setFy(""); setFb(""); setFq(""); setFm(""); setFr(""); setFst(""); setFhd(""); setFp(""); };
 
   /* Power BI is open to every login. Admin/owner see the whole company; an
-     individual (field) login sees ONLY their own sales rows — scoped by their
-     name in the Sales-person column — and the data-managing buttons are hidden. */
+     individual (field) login sees ONLY their own sales rows. We match on the
+     Employee Code first (the CRM name and the sales-sheet name are sometimes
+     spelled differently, the code is not), and fall back to the name only when
+     the user has no code or it is not in the data. */
   const admin = isPanelAdmin();
-  const myIdx = useMemo(() => {
-    if (admin || !db) return -1;
-    const me = String(auth.user?.name || "").trim().toLowerCase();
-    return (db.sp || []).findIndex((n) => String(n).trim().toLowerCase() === me);
+  const myScope = useMemo(() => {
+    if (admin || !db) return { ec: -1, sp: -1 };
+    const code = String(auth.user?.code || auth.user?.empCode || auth.user?.employeeCode || "").trim().toLowerCase();
+    const name = String(auth.user?.name || "").trim().toLowerCase();
+    const ec = code ? (db.ec || []).findIndex((c) => String(c).trim().toLowerCase() === code) : -1;
+    const sp = name ? (db.sp || []).findIndex((n) => String(n).trim().toLowerCase() === name) : -1;
+    return { ec, sp };
   }, [admin, db]);
 
   const load = () => {
@@ -186,7 +191,7 @@ export default function SalesReview() {
   const onExport = () => {
     if (!db || !db.sg.length) { alert("No data to export — Import an Excel first."); return; }
     const out = [EXPORT_COLS];
-    db.sg.forEach((r) => out.push([(db.yrs[r[0]]) || "", (r[1] >= 0 ? QS[r[1]] : ""), MO[r[2]] || "", db.b[r[3]] || "", db.c[r[4]] || "", db.sp[r[5]] || "", db.r[r[6]] || "", (r[7] === 1 ? "Resigned" : "Active"), db.pa[r[8]] || "", db.co[r[9]] || "", db.gr[r[10]] || "", r[11], r[12], r[13], r[14]]));
+    db.sg.forEach((r) => out.push([(db.yrs[r[0]]) || "", (r[1] >= 0 ? QS[r[1]] : ""), MO[r[2]] || "", db.b[r[3]] || "", db.c[r[4]] || "", db.sp[r[5]] || "", (db.ec && db.ec[r[IX.EC]]) || "", db.r[r[6]] || "", (r[7] === 1 ? "Resigned" : "Active"), db.pa[r[8]] || "", db.co[r[9]] || "", db.gr[r[10]] || "", r[11], r[12], r[13], r[14]]));
     const ws = XLSX.utils.aoa_to_sheet(out);
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Sales"); XLSX.writeFile(wb, "sales-review-export.xlsx");
   };
@@ -203,15 +208,16 @@ export default function SalesReview() {
 
   const rows = useMemo(() => {
     if (!db) return [];
-    /* a non-admin only ever sees their own rows (myIdx); if their name is not in
-       the data at all, myIdx is -1 and they correctly see nothing */
+    /* a non-admin only ever sees their own rows: by Employee Code when we could
+       match it, otherwise by name. If neither matched they correctly see nothing. */
+    const mine = (r) => admin || (myScope.ec >= 0 ? r[IX.EC] === myScope.ec : r[IX.P] === myScope.sp);
     return db.sg.filter((r) =>
-      (admin || r[IX.P] === myIdx) &&
+      mine(r) &&
       (fy === "" || r[IX.Y] === +fy) && (fb === "" || r[IX.B] === +fb) &&
       (fq === "" || r[IX.Q] === +fq) && (fm === "" || r[IX.M] === +fm) &&
       (fr === "" || r[IX.R] === +fr) && (fst === "" || r[IX.ST] === +fst) &&
       (fhd === "" || r[IX.HD] === +fhd) && (fp === "" || r[IX.P] === +fp));
-  }, [db, fy, fb, fq, fm, fr, fst, fhd, fp, admin, myIdx]);
+  }, [db, fy, fb, fq, fm, fr, fst, fhd, fp, admin, myScope]);
 
   /* alphabetically-sorted option lists, straight from the uploaded data */
   const optsOf = (arr) => (arr || []).map((v, i) => ({ v: i, lbl: v })).sort((a, b) => String(a.lbl).localeCompare(String(b.lbl)));
