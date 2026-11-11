@@ -844,7 +844,7 @@ export default function ModulePage({ cfgKey }) {
               ))}
             </div>
           )}
-          {["projectProjection", "salesToSpec", "specToSales", "target", "leave", "expense", "beatPlan"].includes(cfgKey) && (
+          {["projectProjection", "salesToSpec", "specToSales", "target", "leave", "expense", "beatPlan", "task"].includes(cfgKey) && (
             <button className="btn btn-primary" style={{ padding: "8px 20px", fontWeight: 700 }} onClick={() => setShown(true)}>Show</button>
           )}
         </div>

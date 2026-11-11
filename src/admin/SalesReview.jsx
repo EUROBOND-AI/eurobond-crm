@@ -3,7 +3,7 @@
    Panels with graphs + tables). Data = the combined Pan-India sales Excel (full
    49-column format, read by column name), uploaded here and stored compact on
    the server (powerbi.php). Each upload replaces the whole dataset. */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { Upload, Download, FileDown, Maximize2, X, Trash2 } from "lucide-react";
 import { api, auth, API_BASE } from "../lib/api.js";
@@ -82,10 +82,16 @@ function Sel({ label, value, set, opts, allLabel }) {
   );
 }
 
+/* true while a panel's content is rendered inside the full-screen modal, so a
+   table drops its own fixed height and lets the modal be the single scroller
+   (its header then freezes against the modal, not a tiny inner box) */
+const ZoomCtx = createContext(false);
+
 /* a plain table styled to sit inside a dx Panel */
 function T({ head, rows, foot, maxH }) {
+  const zoom = useContext(ZoomCtx);
   return (
-    <div style={{ overflow: "auto", maxHeight: maxH || "none", border: "1px solid var(--line)", borderRadius: 10 }}>
+    <div style={{ overflow: zoom ? "visible" : "auto", maxHeight: zoom ? "none" : (maxH || "none"), border: "1px solid var(--line)", borderRadius: 10 }}>
       <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12.5, whiteSpace: "nowrap" }}>
         <thead><tr>{head.map((h, i) => <th key={i} style={{ position: "sticky", top: 0, zIndex: 3, background: "var(--navy)", color: "#fff", fontWeight: 700, padding: "7px 10px", textAlign: i === 0 ? "left" : "right" }}>{h}</th>)}</tr></thead>
         <tbody>
@@ -107,12 +113,15 @@ function ZPanel({ title, sub, children }) {
       }>{children}</Panel>
       {zoom && (
         <div onClick={() => setZoom(false)} style={{ position: "fixed", inset: 0, background: "rgba(10,20,45,.55)", zIndex: 99999, display: "grid", placeItems: "center", padding: 24 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, width: "min(1100px, 96vw)", maxHeight: "92vh", overflow: "auto", padding: 20, boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, width: "min(1100px, 96vw)", maxHeight: "92vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: "1px solid var(--line)", flexShrink: 0 }}>
               <div><div style={{ fontWeight: 800, fontSize: 17, color: "var(--navy)" }}>{title}</div>{sub && <div style={{ fontSize: 12.5, color: "var(--muted)" }}>{sub}</div>}</div>
               <button className="dx-btn" onClick={() => setZoom(false)}><X size={15} /> Close</button>
             </div>
-            {children}
+            {/* this body is the single scroller — the table header freezes at its top */}
+            <div style={{ overflow: "auto", padding: 20, flex: 1 }}>
+              <ZoomCtx.Provider value={true}>{children}</ZoomCtx.Provider>
+            </div>
           </div>
         </div>
       )}
