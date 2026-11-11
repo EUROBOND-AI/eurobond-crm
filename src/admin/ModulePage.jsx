@@ -200,7 +200,7 @@ export default function ModulePage({ cfgKey }) {
      Declared here, above the read that uses it: a value read during render has
      to exist by then, and leaving it further down the file is what made other
      screens fail to open at all. */
-  const gated = ["projectProjection", "salesToSpec", "specToSales", "target", "leave", "expense", "beatPlan"].includes(cfgKey);
+  const gated = ["projectProjection", "salesToSpec", "specToSales", "target", "leave", "expense", "beatPlan", "task"].includes(cfgKey);
 
   useEffect(() => { setTab(cfg.tabs?.[0]?.key); setShown(false); }, [cfgKey]);
 
@@ -1152,7 +1152,27 @@ function AdminChatModal({ row, cfgKey, onClose, onSent }) {
             .filter(Boolean).filter((u) => String(u) !== "__heavy__")
             .filter((u, i, a) => a.indexOf(u) === i);
           if (!atts.length) return null;
-          const open = (u) => { try { const w = window.open(); if (w) { w.document.write(`<iframe src="${u}" style="position:fixed;inset:0;width:100%;height:100%;border:0"></iframe>`); } } catch {} };
+          /* admin attachments are stored inline as base64 data: URLs; Chrome
+             refuses to open a data: URL inside an iframe (shows about:blank), so
+             a data: URL is turned into a Blob URL and opened directly. A normal
+             http(s) URL (the phone's uploaded files) keeps the iframe view. */
+          const open = (u) => {
+            try {
+              const s = String(u);
+              if (/^data:/i.test(s)) {
+                const comma = s.indexOf(",");
+                const mime = (s.slice(5, comma).split(";")[0]) || "application/octet-stream";
+                const bin = atob(s.slice(comma + 1));
+                const arr = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+                const blobUrl = URL.createObjectURL(new Blob([arr], { type: mime }));
+                window.open(blobUrl, "_blank");
+                return;
+              }
+              const w = window.open();
+              if (w) w.document.write(`<iframe src="${s}" style="position:fixed;inset:0;width:100%;height:100%;border:0"></iframe>`);
+            } catch { /* popup blocked */ }
+          };
           return (
             <div style={{ marginBottom: 10 }}>
               {!showAtt ? (

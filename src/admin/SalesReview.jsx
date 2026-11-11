@@ -87,7 +87,7 @@ function T({ head, rows, foot, maxH }) {
   return (
     <div style={{ overflow: "auto", maxHeight: maxH || "none", border: "1px solid var(--line)", borderRadius: 10 }}>
       <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12.5, whiteSpace: "nowrap" }}>
-        <thead><tr>{head.map((h, i) => <th key={i} style={{ position: "sticky", top: 0, background: "var(--navy)", color: "#fff", fontWeight: 700, padding: "7px 10px", textAlign: i === 0 ? "left" : "right" }}>{h}</th>)}</tr></thead>
+        <thead><tr>{head.map((h, i) => <th key={i} style={{ position: "sticky", top: 0, zIndex: 3, background: "var(--navy)", color: "#fff", fontWeight: 700, padding: "7px 10px", textAlign: i === 0 ? "left" : "right" }}>{h}</th>)}</tr></thead>
         <tbody>
           {rows.map((r, ri) => <tr key={ri} style={{ borderBottom: "1px solid var(--line)" }}>{r.map((c, ci) => <td key={ci} style={{ padding: "6px 10px", textAlign: ci === 0 ? "left" : "right", fontWeight: ci === 0 ? 700 : 500, color: c && c.c ? c.c : "var(--ink)" }}>{c && c.v !== undefined ? c.v : c}</td>)}</tr>)}
           {foot && <tr style={{ background: "var(--accent-soft)", fontWeight: 800 }}>{foot.map((c, ci) => <td key={ci} style={{ padding: "7px 10px", textAlign: ci === 0 ? "left" : "right" }}>{c && c.v !== undefined ? c.v : c}</td>)}</tr>}
@@ -284,38 +284,48 @@ export default function SalesReview() {
             <KpiCard label="GW %" value={A.gw.toFixed(1) + "%"} sub={YA + " → " + YB} />
           </div>
 
-          {/* every panel side by side in one responsive grid — 3 across on a
-              wide screen, each table sorted high→low with a Total row, and the
-              long ones (Region/SP/Code/Grade/Party) show ~15 rows then scroll */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 16, alignItems: "start" }}>
+          {/* exact layout — 3 panels per row, six rows, in the order asked */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16, alignItems: "start" }}>
+            {/* Row 1 */}
             <ZPanel title="Achievement by Financial Year" sub="sales vs target">
               <WeekBars days={[{ label: YA, value: A.s0, note: pcStr(A.s0, A.tg0) }, { label: YB, value: A.s1, note: pcStr(A.s1, A.tg1), isToday: true }]} height={230} fmt={cr} />
+            </ZPanel>
+            <ZPanel title="Monthwise Sales" sub="Apr → Mar"><WeekBars days={monthBars} height={230} fmt={cr} /></ZPanel>
+            <ZPanel title="Quarterwise Achievement" sub={YB + " — ach% on each bar"}><WeekBars days={qtrBars} height={230} fmt={cr} /></ZPanel>
+
+            {/* Row 2 */}
+            <ZPanel title="Brandwise Contribution" sub="by sales value"><RankBars items={bars(db.b, IX.B)} fmt={cr} limit={8} /></ZPanel>
+            <ZPanel title="Brandwise" sub={YA + " vs " + YB}>
+              {(() => { const t = dimTable(db.b, IX.B); return <T head={["Brand", YA, "%", YB, "%", "Total"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
+            </ZPanel>
+            <ZPanel title="Categorywise Contribution" sub="by sales value"><RankBars items={bars(db.c, IX.C)} fmt={cr} limit={8} /></ZPanel>
+
+            {/* Row 3 */}
+            <ZPanel title="Regionwise Contribution" sub="by sales value"><RankBars items={bars(db.r, IX.R)} fmt={cr} limit={10} /></ZPanel>
+            <ZPanel title="Regionwise" sub="target · sales · achievement · growth">
+              {(() => { const t = perfTable(db.r, IX.R); return <T head={["Region", "Target", "Sales", "Ach%", "GW%"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
             </ZPanel>
             <ZPanel title="Expense %" sub={YA + " vs " + YB}>
               <HalfDonut segments={[{ label: YA, value: A.ex0 }, { label: YB, value: A.ex1 }]} center={pcStr(A.ex0 + A.ex1, A.sAll)} centerLabel="of sales" fmt={cr} />
             </ZPanel>
-            <ZPanel title="Monthwise Sales" sub="Apr → Mar"><WeekBars days={monthBars} height={230} fmt={cr} /></ZPanel>
-            <ZPanel title="Quarterwise Achievement" sub={YB + " — ach% on each bar"}><WeekBars days={qtrBars} height={230} fmt={cr} /></ZPanel>
-            <ZPanel title="Brandwise Contribution" sub="by sales value"><RankBars items={bars(db.b, IX.B)} fmt={cr} limit={8} /></ZPanel>
-            <ZPanel title="Categorywise Contribution" sub="by sales value"><RankBars items={bars(db.c, IX.C)} fmt={cr} limit={8} /></ZPanel>
-            <ZPanel title="Regionwise Contribution" sub="by sales value"><RankBars items={bars(db.r, IX.R)} fmt={cr} limit={10} /></ZPanel>
-            <ZPanel title="Sales Personwise Contribution" sub="by sales value"><RankBars items={bars(db.sp, IX.P)} fmt={cr} limit={10} /></ZPanel>
 
-            <ZPanel title="Brandwise" sub={YA + " vs " + YB}>
-              {(() => { const t = dimTable(db.b, IX.B); return <T head={["Brand", YA, "%", YB, "%", "Total"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
-            </ZPanel>
-            <ZPanel title="Categorywise" sub={YA + " vs " + YB}>
-              {(() => { const t = dimTable(db.c, IX.C); return <T head={["Category", YA, "%", YB, "%", "Total"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
-            </ZPanel>
-            <ZPanel title="Regionwise" sub="target · sales · achievement · growth">
-              {(() => { const t = perfTable(db.r, IX.R); return <T head={["Region", "Target", "Sales", "Ach%", "GW%"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
-            </ZPanel>
+            {/* Row 4 */}
+            <ZPanel title="Sales Personwise Contribution" sub="by sales value"><RankBars items={bars(db.sp, IX.P)} fmt={cr} limit={10} /></ZPanel>
             <ZPanel title="Monthwise" sub="Apr → Mar">
               <T head={["Month", YA, YB, "Total"]} rows={MO.map((m, mi) => { const a = sm(A.y0.filter((r) => r[IX.M] === mi), IX.S), b = sm(A.y1.filter((r) => r[IX.M] === mi), IX.S); return (!a && !b) ? null : [m, cr(a), cr(b), { v: cr(a + b), c: "#0b3c8c" }]; }).filter(Boolean)} foot={["Total", cr(A.s0), cr(A.s1), cr(A.sAll)]} maxH={470} />
             </ZPanel>
             <ZPanel title="Sales Personwise" sub="target · sales · achievement · growth">
               {(() => { const t = perfTable(db.sp, IX.P); return <T head={["Sales Person", "Target", "Sales", "Ach%", "GW%"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
             </ZPanel>
+
+            {/* Row 5 */}
+            <ZPanel title="Categorywise" sub={YA + " vs " + YB}>
+              {(() => { const t = dimTable(db.c, IX.C); return <T head={["Category", YA, "%", YB, "%", "Total"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
+            </ZPanel>
+            <ZPanel title="Partywise Contribution" sub="by sales value"><RankBars items={bars(db.pa, IX.PA)} fmt={cr} limit={10} /></ZPanel>
+            <ZPanel title="Gradewise Contribution" sub="by sales value"><RankBars items={bars(db.gr, IX.GR)} fmt={cr} limit={10} /></ZPanel>
+
+            {/* Row 6 */}
             <ZPanel title="Codewise" sub={db.co.length + " codes"}>
               {(() => { const t = dimTableS(db.co, IX.CO); return <T head={["Code", YA, YB, "Total"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
             </ZPanel>
