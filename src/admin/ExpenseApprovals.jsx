@@ -204,17 +204,13 @@ export default function ExpenseApprovals() {
   useEffect(load, []);
   useEffect(() => { api.listUsers().then((d) => setUsers((d.users || []).filter((u) => u.status == 1))).catch(() => {}); }, []);
 
-  /* A real statement always carries its expense lines (items). Single raw
-     expense entries that happen to have a "Submitted" status have NO items and
-     were leaking in as empty ₹0 / 0-entry rows (Debsikha, Dilip, Geetartha …).
-     So a row is a statement ONLY if it actually has items; among those we show
-     every built one (isFormat) and any that reached a processing status even if
-     its isFormat flag never got set — that is how real submitted ones were
-     going missing from the admin. */
-  const hasLines = (r) => Array.isArray(r.items) && r.items.length > 0;
+  /* show every statement that was built (isFormat) AND any expense that reached
+     a processing status, even if its isFormat flag never got set — that is how
+     submitted ones were going missing from the admin. No further filtering: if a
+     person entered a statement incompletely, it still shows here as-is so the
+     office can see it and follow up with them directly. */
   const statements = scopeRows(
-    rows.filter((r) => hasLines(r) &&
-      (r.isFormat || ["Submitted", "Approved", "Coordination", "Uploader", "Rejected", "Reject"].includes(r.status))),
+    rows.filter((r) => r.isFormat || ["Submitted", "Approved", "Coordination", "Uploader", "Rejected", "Reject"].includes(r.status)),
     users, ["user", "createdBy", "createdByName"]);
   /* Approving an expense, moving it to accounts, pushing it to SAP — that is
      the office team's work. A field manager reading this screen needs to see
@@ -363,7 +359,8 @@ export default function ExpenseApprovals() {
       )}
 
       <div style={{ background: "#fff", borderRadius: 14, boxShadow: "var(--shadow)", overflow: "hidden" }}>
-        {loading ? <div style={{ padding: 16 }}><SkeletonList rows={6} /></div>
+        {!applied ? <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Set filters and click <b>Show</b> to view.</div>
+        : loading ? <div style={{ padding: 16 }}><SkeletonList rows={6} /></div>
         : list.length === 0 ? <div style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No {tab.toLowerCase()} statements.</div>
         : (
           <div style={{ overflowX: "auto" }}>

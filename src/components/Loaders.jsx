@@ -65,6 +65,25 @@ export function SkeletonList({ rows = 6, style }) {
   );
 }
 
+/* table-shaped skeleton: real <tr><td> cells matching the column count, so it
+   lines up with the exact table it is loading into (drop straight inside a
+   <tbody>). Use this for data tables; SkeletonList is for card/list screens. */
+export function SkeletonRows({ cols = 6, rows = 8 }) {
+  return (
+    <>
+      {Array.from({ length: rows }).map((_, r) => (
+        <tr key={r} style={{ borderTop: "1px solid #eef1f8" }}>
+          {Array.from({ length: cols }).map((_, c) => (
+            <td key={c} style={{ padding: "10px 12px" }}>
+              <Skeleton h={12} w={c === 0 ? "55%" : c === cols - 1 ? "45%" : "85%"} />
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
+  );
+}
+
 /* 3 — ProgressBar: determinate (value 0–100) or indeterminate (value undefined) */
 export function ProgressBar({ value, height = 10, color = "var(--navy, #0b3c8c)", track = "rgba(120,130,160,.18)", style }) {
   useLoaderCss();

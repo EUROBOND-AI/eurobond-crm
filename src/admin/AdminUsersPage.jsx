@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { SkeletonList } from "../components/Loaders.jsx";
+import { SkeletonRows } from "../components/Loaders.jsx";
 import { UserPlus, Trash2, X, ShieldCheck } from "lucide-react";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
@@ -109,7 +109,7 @@ export default function AdminUsersPage() {
             </tr></thead>
             <tbody>
               {rows === null ? (
-                <tr><td colSpan={8} style={{ padding: 16 }}><SkeletonList rows={6} /></td></tr>
+                <SkeletonRows cols={8} rows={8} />
               ) : !shown ? (
                 <tr><td colSpan={8} style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Set your filters and click <b>Show</b>.</td></tr>
               ) : visible.length === 0 ? (
