@@ -983,7 +983,16 @@ function AdminQuoteForm({ onClose, onSaved }) {
       await api.create("quotation", {
         ...f, items, tc, quoteNo, baseNo: quoteNo, editCount: 0,
         grade: items[0]?.grade, colour: items[0]?.colour, rate: items[0]?.rate, ratePerSqm: items[0]?.ratePerSqm,
-        status: "Pending", createdBy: "Admin", createdAt: new Date().toLocaleDateString("en-GB"),
+        status: "Pending",
+        /* the quotation is created by whoever is logged in — the panel owner
+           shows as their own login name, an individual shows as themselves,
+           instead of everyone showing "Admin" */
+        createdBy: auth.user?.name || "Admin",
+        createdById: auth.user?.id || null,
+        createdByDesignation: auth.user?.designation || "",
+        createdByEmail: auth.user?.email || "",
+        createdByMobile: auth.user?.mobile || "",
+        createdAt: new Date().toLocaleDateString("en-GB"),
         updatedAt: new Date().toISOString(),
       });
       onSaved();

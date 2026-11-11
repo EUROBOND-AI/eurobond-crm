@@ -107,7 +107,13 @@ export default function UsersPage() {
   };
 
 
+  /* a mobile number is the login id, so it must be unique — flag a clash the
+     moment it is typed and block the save */
+  const dupMobile = !!(form && String(form.mobile || "").trim() &&
+    users.some((u) => String(u.mobile || "").trim() === String(form.mobile).trim() && u.id !== form.id));
+
   const save = async () => {
+    if (dupMobile) { alert("This mobile number is already used by another user. Please enter a different number."); return; }
     setBusy(true);
     try {
       if (form.id) {
@@ -372,7 +378,12 @@ export default function UsersPage() {
               <PhotoField form={form} setForm={setForm} />
               <QrField form={form} setForm={setForm} />
               <Field label="Full Name" req val={form.name} on={(v) => setForm({ ...form, name: v })} />
-              <Field label="Mobile (login id)" req val={form.mobile} on={(v) => setForm({ ...form, mobile: v.replace(/\D/g, "") })} />
+              <div className="field">
+                <label>Mobile (login id) <span style={{ color: "#ef4444" }}>*</span></label>
+                <input value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value.replace(/\D/g, "") })}
+                  style={dupMobile ? { borderColor: "#ef4444", background: "#fff5f5", color: "#b91c1c" } : undefined} />
+                {dupMobile && <div style={{ color: "#ef4444", fontSize: 11.5, fontWeight: 800, marginTop: 3 }}>⚠ This number already exists — used by another user</div>}
+              </div>
               <Field label="Employee Code" val={form.code} on={(v) => setForm({ ...form, code: v })} />
               <Field label="Email" val={form.email} on={(v) => setForm({ ...form, email: v })} />
               <div className="field">
@@ -410,7 +421,7 @@ export default function UsersPage() {
             {form.id && <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>Use the key icon on the list to reset password.</p>}
             <div className="modal-foot">
               <button className="btn btn-danger" onClick={() => setForm(null)}>Cancel</button>
-              <button className="btn btn-primary" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save"}</button>
+              <button className="btn btn-primary" disabled={busy || dupMobile} onClick={save}>{busy ? "Saving…" : "Save"}</button>
             </div>
           </div>
         </div>

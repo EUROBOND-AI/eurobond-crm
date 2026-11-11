@@ -28,7 +28,7 @@ const NAV = [
           { label: "Project Dashboard", to: "/admin/dashboards/project" },
           { label: "Biltrax Dashboard", to: "/admin/dashboards/biltrax" },
           { label: "Task Dashboard", to: "/admin/dashboards/task" },
-          { label: "Sales Review (Power BI)", to: "/admin/dashboards/sales-review" },
+          { label: "Power BI", to: "/admin/dashboards/sales-review" },
         ],
       },
       { label: "Task", icon: <Megaphone size={17} />, to: "/admin/sfa/task" },
@@ -147,7 +147,7 @@ function ModuleSearch({ nav }) {
     { title: "Target Dashboard", path: "dashboards/target" },
     { title: "Project Dashboard", path: "dashboards/project" },
     { title: "Task Dashboard", path: "dashboards/task" },
-    { title: "Sales Review (Power BI)", path: "dashboards/sales-review" },
+    { title: "Power BI", path: "dashboards/sales-review" },
   ];
   const all = [...Object.values(MODULES).map((m) => ({ title: m.title, path: m.path })), ...extra];
   const ql = q.trim().toLowerCase();
@@ -386,7 +386,7 @@ export default function AdminLayout() {
             }}><Moon size={16} /></button>
             <button className="icon-btn" title="Fullscreen" onClick={() => { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }}><Maximize size={16} /></button>
             <FreezeIconBtn />
-            <button className="icon-btn" title="Logout" onClick={() => { api.logout(); nav("/"); }}><LogOut size={16} /></button>
+            <button className="icon-btn" title="Logout" onClick={() => { if (window.confirm("Log out of the admin panel?")) { api.logout(); nav("/"); } }}><LogOut size={16} /></button>
           </div>
         </header>
         {lightbox && (

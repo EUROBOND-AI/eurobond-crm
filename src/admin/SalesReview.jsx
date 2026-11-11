@@ -202,35 +202,40 @@ export default function SalesReview() {
 
   const YA = (A.yrs[0]) || "FY1", YB = (A.yrs[1]) || "FY2";
 
+  /* 6-col dimension table (Brand/Category): sorted high→low, with a Total foot */
   const dimTable = (arr, idxKey) => {
-    const out = [];
+    const raw = [];
     arr.forEach((name, i) => {
       const a = sm(A.y0.filter((r) => r[idxKey] === i), IX.S), b = sm(A.y1.filter((r) => r[idxKey] === i), IX.S);
-      if (!a && !b) return;
-      out.push([name, cr(a), pcStr(a, A.s0), cr(b), pcStr(b, A.s1), { v: cr(a + b), c: "#0b3c8c" }]);
+      if (!a && !b) return; raw.push({ name, a, b });
     });
-    return out;
+    raw.sort((x, y) => (y.a + y.b) - (x.a + x.b));
+    const rows = raw.map((o) => [o.name, cr(o.a), pcStr(o.a, A.s0), cr(o.b), pcStr(o.b, A.s1), { v: cr(o.a + o.b), c: "#0b3c8c" }]);
+    return { rows, foot: ["Total", cr(A.s0), "100%", cr(A.s1), "100%", cr(A.sAll)] };
   };
-  /* compact 4-column version for the narrow Code/Grade/Party boxes */
+  /* compact 4-col version for the narrow Code/Grade/Party boxes */
   const dimTableS = (arr, idxKey) => {
-    const out = [];
+    let ta = 0, tb = 0; const raw = [];
     arr.forEach((name, i) => {
       const a = sm(A.y0.filter((r) => r[idxKey] === i), IX.S), b = sm(A.y1.filter((r) => r[idxKey] === i), IX.S);
-      if (!a && !b) return;
-      out.push([name, cr(a), cr(b), { v: cr(a + b), c: "#0b3c8c" }]);
+      if (!a && !b) return; ta += a; tb += b; raw.push({ name, a, b });
     });
-    return out.sort((x, y) => parseFloat(y[3].v) - parseFloat(x[3].v));
+    raw.sort((x, y) => (y.a + y.b) - (x.a + x.b));
+    const rows = raw.map((o) => [o.name, cr(o.a), cr(o.b), { v: cr(o.a + o.b), c: "#0b3c8c" }]);
+    return { rows, foot: ["Total", cr(ta), cr(tb), cr(ta + tb)] };
   };
+  /* target/sales/ach%/growth table (Region/Sales Person): sorted high→low by
+     sales, with a Total foot */
   const perfTable = (arr, idxKey) => {
-    const out = [];
+    let tt = 0, ts = 0; const raw = [];
     arr.forEach((name, i) => {
       const a = sm(A.y0.filter((r) => r[idxKey] === i), IX.S), b = sm(A.y1.filter((r) => r[idxKey] === i), IX.S);
       const tg = sm(A.y0.filter((r) => r[idxKey] === i), IX.TG) + sm(A.y1.filter((r) => r[idxKey] === i), IX.TG);
-      const s = a + b; if (!s && !tg) return;
-      const gw = a ? ((b - a) / a * 100) : null;
-      out.push([name, cr(tg), cr(s), { v: pcStr(s, tg), c: pcColor(pcN(s, tg)) }, { v: gw == null ? "—" : gw.toFixed(1) + "%", c: gw == null ? "var(--muted)" : (gw >= 0 ? "#10b981" : "#ef4444") }]);
+      const s = a + b; if (!s && !tg) return; tt += tg; ts += s; raw.push({ name, a, b, s, tg });
     });
-    return out;
+    raw.sort((x, y) => y.s - x.s);
+    const rows = raw.map((o) => { const gw = o.a ? ((o.b - o.a) / o.a * 100) : null; return [o.name, cr(o.tg), cr(o.s), { v: pcStr(o.s, o.tg), c: pcColor(pcN(o.s, o.tg)) }, { v: gw == null ? "—" : gw.toFixed(1) + "%", c: gw == null ? "var(--muted)" : (gw >= 0 ? "#10b981" : "#ef4444") }]; });
+    return { rows, foot: ["Total", cr(tt), cr(ts), { v: pcStr(ts, tt), c: pcColor(pcN(ts, tt)) }, ""] };
   };
   const bars = (arr, idxKey, lim) => (db ? arr.map((name, i) => ({ label: name, value: sm(rows.filter((r) => r[idxKey] === i), IX.S) })).filter((x) => x.value).sort((a, b) => b.value - a.value).slice(0, lim || 99) : []);
 
@@ -246,7 +251,7 @@ export default function SalesReview() {
   const hasData = db && db.sg.length > 0;
 
   return (
-    <DxPage title="Sales Review" sub="Pan-India sales — target, achievement and contribution"
+    <DxPage title="Power BI" sub="Pan-India sales — target, achievement and contribution"
       actions={<>
         <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={onFile} />
         <button className="dx-btn dx-btn-p" onClick={() => fileRef.current && fileRef.current.click()}><Upload size={15} /> Import Excel</button>
@@ -279,65 +284,46 @@ export default function SalesReview() {
             <KpiCard label="GW %" value={A.gw.toFixed(1) + "%"} sub={YA + " → " + YB} />
           </div>
 
-          <div className="dx-grid dx-row" style={{ marginBottom: 16 }}>
+          {/* every panel side by side in one responsive grid — 3 across on a
+              wide screen, each table sorted high→low with a Total row, and the
+              long ones (Region/SP/Code/Grade/Party) show ~15 rows then scroll */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 16, alignItems: "start" }}>
             <ZPanel title="Achievement by Financial Year" sub="sales vs target">
               <WeekBars days={[{ label: YA, value: A.s0, note: pcStr(A.s0, A.tg0) }, { label: YB, value: A.s1, note: pcStr(A.s1, A.tg1), isToday: true }]} height={230} fmt={cr} />
             </ZPanel>
             <ZPanel title="Expense %" sub={YA + " vs " + YB}>
               <HalfDonut segments={[{ label: YA, value: A.ex0 }, { label: YB, value: A.ex1 }]} center={pcStr(A.ex0 + A.ex1, A.sAll)} centerLabel="of sales" fmt={cr} />
             </ZPanel>
-          </div>
-
-          <div className="dx-grid dx-row" style={{ marginBottom: 16 }}>
-            <ZPanel title="Quarterwise Achievement" sub={YB + " — achievement % on each bar"}>
-              <WeekBars days={qtrBars} height={230} fmt={cr} />
-            </ZPanel>
             <ZPanel title="Monthwise Sales" sub="Apr → Mar"><WeekBars days={monthBars} height={230} fmt={cr} /></ZPanel>
-          </div>
-
-          <div className="dx-grid dx-row" style={{ marginBottom: 16 }}>
+            <ZPanel title="Quarterwise Achievement" sub={YB + " — ach% on each bar"}><WeekBars days={qtrBars} height={230} fmt={cr} /></ZPanel>
             <ZPanel title="Brandwise Contribution" sub="by sales value"><RankBars items={bars(db.b, IX.B)} fmt={cr} limit={8} /></ZPanel>
             <ZPanel title="Categorywise Contribution" sub="by sales value"><RankBars items={bars(db.c, IX.C)} fmt={cr} limit={8} /></ZPanel>
-          </div>
-
-          <div className="dx-grid dx-row" style={{ marginBottom: 16 }}>
             <ZPanel title="Regionwise Contribution" sub="by sales value"><RankBars items={bars(db.r, IX.R)} fmt={cr} limit={10} /></ZPanel>
             <ZPanel title="Sales Personwise Contribution" sub="by sales value"><RankBars items={bars(db.sp, IX.P)} fmt={cr} limit={10} /></ZPanel>
-          </div>
 
-          <div className="dx-grid dx-row" style={{ marginBottom: 16 }}>
             <ZPanel title="Brandwise" sub={YA + " vs " + YB}>
-              <T head={["Brand", YA, "%", YB, "%", "Total"]} rows={dimTable(db.b, IX.B)} foot={["Total", cr(A.s0), "100%", cr(A.s1), "100%", cr(A.sAll)]} />
+              {(() => { const t = dimTable(db.b, IX.B); return <T head={["Brand", YA, "%", YB, "%", "Total"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
             </ZPanel>
             <ZPanel title="Categorywise" sub={YA + " vs " + YB}>
-              <T head={["Category", YA, "%", YB, "%", "Total"]} rows={dimTable(db.c, IX.C)} foot={["Total", cr(A.s0), "100%", cr(A.s1), "100%", cr(A.sAll)]} />
+              {(() => { const t = dimTable(db.c, IX.C); return <T head={["Category", YA, "%", YB, "%", "Total"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
             </ZPanel>
-          </div>
-
-          <div className="dx-grid dx-row" style={{ marginBottom: 16 }}>
             <ZPanel title="Regionwise" sub="target · sales · achievement · growth">
-              <T head={["Region", "Target", "Sales", "Ach%", "GW%"]} rows={perfTable(db.r, IX.R)} maxH={320} />
+              {(() => { const t = perfTable(db.r, IX.R); return <T head={["Region", "Target", "Sales", "Ach%", "GW%"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
             </ZPanel>
             <ZPanel title="Monthwise" sub="Apr → Mar">
-              <T head={["Month", YA, YB, "Total"]} rows={MO.map((m, mi) => { const a = sm(A.y0.filter((r) => r[IX.M] === mi), IX.S), b = sm(A.y1.filter((r) => r[IX.M] === mi), IX.S); return (!a && !b) ? null : [m, cr(a), cr(b), { v: cr(a + b), c: "#0b3c8c" }]; }).filter(Boolean)} foot={["Total", cr(A.s0), cr(A.s1), cr(A.sAll)]} maxH={320} />
+              <T head={["Month", YA, YB, "Total"]} rows={MO.map((m, mi) => { const a = sm(A.y0.filter((r) => r[IX.M] === mi), IX.S), b = sm(A.y1.filter((r) => r[IX.M] === mi), IX.S); return (!a && !b) ? null : [m, cr(a), cr(b), { v: cr(a + b), c: "#0b3c8c" }]; }).filter(Boolean)} foot={["Total", cr(A.s0), cr(A.s1), cr(A.sAll)]} maxH={470} />
             </ZPanel>
-          </div>
-
-          <ZPanel title="Sales Personwise" sub="target · sales · achievement · growth">
-            <T head={["Sales Person", "Target", "Sales", "Ach%", "GW%"]} rows={perfTable(db.sp, IX.P)} maxH={320} />
-          </ZPanel>
-
-          {/* Code / Grade / Party — three compact boxes side by side (each shows
-              ~15 rows, then scrolls inside), so the screen stays filled */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, marginTop: 16 }}>
+            <ZPanel title="Sales Personwise" sub="target · sales · achievement · growth">
+              {(() => { const t = perfTable(db.sp, IX.P); return <T head={["Sales Person", "Target", "Sales", "Ach%", "GW%"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
+            </ZPanel>
             <ZPanel title="Codewise" sub={db.co.length + " codes"}>
-              <T head={["Code", YA, YB, "Total"]} rows={dimTableS(db.co, IX.CO)} maxH={470} />
+              {(() => { const t = dimTableS(db.co, IX.CO); return <T head={["Code", YA, YB, "Total"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
             </ZPanel>
             <ZPanel title="Gradewise" sub={db.gr.length + " grades"}>
-              <T head={["Grade", YA, YB, "Total"]} rows={dimTableS(db.gr, IX.GR)} maxH={470} />
+              {(() => { const t = dimTableS(db.gr, IX.GR); return <T head={["Grade", YA, YB, "Total"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
             </ZPanel>
             <ZPanel title="Partywise" sub={db.pa.length + " parties"}>
-              <T head={["Party", YA, YB, "Total"]} rows={dimTableS(db.pa, IX.PA)} maxH={470} />
+              {(() => { const t = dimTableS(db.pa, IX.PA); return <T head={["Party", YA, YB, "Total"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
             </ZPanel>
           </div>
         </>
