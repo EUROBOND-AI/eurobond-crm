@@ -211,7 +211,7 @@ export default function ExpenseApprovals() {
      a statement that is not theirs to act on. */
   const fullAccess = isPanelAdmin();
   const tabs = fullAccess
-    ? ["Submitted", "Approved", "Coordination To Accounts", "Uploaders", "Rejected"]
+    ? ["Submitted", "Not Submitted", "Approved", "Coordination To Accounts", "Uploaders", "Rejected"]
     : ["Submitted", "Approved"];
   /* a tab that is no longer offered must not stay selected */
   useEffect(() => { if (!tabs.includes(tab)) setTab(tabs[0]); /* eslint-disable-next-line */ }, [fullAccess]);
@@ -219,6 +219,9 @@ export default function ExpenseApprovals() {
   const list = !applied ? [] : statements.filter((r) => {
     let ok = false;
     if (tab === "Submitted") ok = r.status === "Submitted";
+    /* statements a person BUILT on the phone but has not yet submitted — so the
+       office can see who has entered expenses and still owes a submit */
+    else if (tab === "Not Submitted") ok = !["Submitted", "Approved", "Coordination", "Uploader", "Rejected", "Reject"].includes(r.status);
     else if (tab === "Approved") ok = r.status === "Approved";
     else if (tab === "Coordination To Accounts") ok = r.status === "Coordination";
     else if (tab === "Uploaders") ok = r.status === "Uploader";
