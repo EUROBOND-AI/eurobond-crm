@@ -87,11 +87,14 @@ function Sel({ label, value, set, opts, allLabel }) {
    (its header then freezes against the modal, not a tiny inner box) */
 const ZoomCtx = createContext(false);
 
-/* a plain table styled to sit inside a dx Panel */
+/* a plain table styled to sit inside a dx Panel. Outside the full-screen modal
+   the scroll box is a FIXED height, so every table box is exactly the same size
+   no matter how many rows the data has (~15 rows visible, the rest scroll inside
+   the box). In the modal it grows to the full data with a frozen header. */
 function T({ head, rows, foot, maxH }) {
   const zoom = useContext(ZoomCtx);
   return (
-    <div style={{ overflow: zoom ? "visible" : "auto", maxHeight: zoom ? "none" : (maxH || "none"), border: "1px solid var(--line)", borderRadius: 10 }}>
+    <div style={{ overflow: zoom ? "visible" : "auto", height: zoom ? "auto" : (maxH || 470), border: "1px solid var(--line)", borderRadius: 10 }}>
       <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12.5, whiteSpace: "nowrap" }}>
         <thead><tr>{head.map((h, i) => <th key={i} style={{ position: "sticky", top: 0, zIndex: 3, background: "var(--navy)", color: "#fff", fontWeight: 700, padding: "7px 10px", textAlign: i === 0 ? "left" : "right" }}>{h}</th>)}</tr></thead>
         <tbody>
@@ -304,15 +307,15 @@ export default function SalesReview() {
             <ZPanel title="Monthwise Sales" sub="Apr → Mar"><WeekBars days={monthBars} height={230} fmt={cr} /></ZPanel>
             <ZPanel title="Quarterwise Achievement" sub={YB + " — ach% on each bar"}><WeekBars days={qtrBars} height={230} fmt={cr} /></ZPanel>
 
-            {/* Row 2 */}
+            {/* Row 2 — the two contribution charts side by side */}
             <ZPanel title="Brandwise Contribution" sub="by sales value"><RankBars items={bars(db.b, IX.B)} fmt={cr} limit={8} /></ZPanel>
-            <ZPanel title="Brandwise" sub={YA + " vs " + YB}>
-              {(() => { const t = dimTable(db.b, IX.B); return <T head={["Brand", YA, "%", YB, "%", "Total"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
-            </ZPanel>
+            <ZPanel title="Regionwise Contribution" sub="by sales value"><RankBars items={bars(db.r, IX.R)} fmt={cr} limit={10} /></ZPanel>
             <ZPanel title="Categorywise Contribution" sub="by sales value"><RankBars items={bars(db.c, IX.C)} fmt={cr} limit={8} /></ZPanel>
 
             {/* Row 3 */}
-            <ZPanel title="Regionwise Contribution" sub="by sales value"><RankBars items={bars(db.r, IX.R)} fmt={cr} limit={10} /></ZPanel>
+            <ZPanel title="Brandwise" sub={YA + " vs " + YB}>
+              {(() => { const t = dimTable(db.b, IX.B); return <T head={["Brand", YA, "%", YB, "%", "Total"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
+            </ZPanel>
             <ZPanel title="Regionwise" sub="target · sales · achievement · growth">
               {(() => { const t = perfTable(db.r, IX.R); return <T head={["Region", "Target", "Sales", "Ach%", "GW%"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
             </ZPanel>
