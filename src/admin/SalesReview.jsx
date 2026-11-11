@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { Upload, Download, FileDown, Maximize2, X, Trash2 } from "lucide-react";
 import { api, auth, API_BASE } from "../lib/api.js";
+import { isPanelAdmin } from "../lib/scope.js";
 import { DxPage, KpiCard, Panel, ShowGate, RankBars, WeekBars, HalfDonut } from "../components/dash.jsx";
 
 const MO = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
@@ -144,6 +145,16 @@ export default function SalesReview() {
   const [fr, setFr] = useState(""), [fst, setFst] = useState(""), [fhd, setFhd] = useState(""), [fp, setFp] = useState("");
   const resetF = () => { setFy(""); setFb(""); setFq(""); setFm(""); setFr(""); setFst(""); setFhd(""); setFp(""); };
 
+  /* Power BI is open to every login. Admin/owner see the whole company; an
+     individual (field) login sees ONLY their own sales rows — scoped by their
+     name in the Sales-person column — and the data-managing buttons are hidden. */
+  const admin = isPanelAdmin();
+  const myIdx = useMemo(() => {
+    if (admin || !db) return -1;
+    const me = String(auth.user?.name || "").trim().toLowerCase();
+    return (db.sp || []).findIndex((n) => String(n).trim().toLowerCase() === me);
+  }, [admin, db]);
+
   const load = () => {
     setShown(true); setBusy(true);
     api.pbLoad()
@@ -192,12 +203,15 @@ export default function SalesReview() {
 
   const rows = useMemo(() => {
     if (!db) return [];
+    /* a non-admin only ever sees their own rows (myIdx); if their name is not in
+       the data at all, myIdx is -1 and they correctly see nothing */
     return db.sg.filter((r) =>
+      (admin || r[IX.P] === myIdx) &&
       (fy === "" || r[IX.Y] === +fy) && (fb === "" || r[IX.B] === +fb) &&
       (fq === "" || r[IX.Q] === +fq) && (fm === "" || r[IX.M] === +fm) &&
       (fr === "" || r[IX.R] === +fr) && (fst === "" || r[IX.ST] === +fst) &&
       (fhd === "" || r[IX.HD] === +fhd) && (fp === "" || r[IX.P] === +fp));
-  }, [db, fy, fb, fq, fm, fr, fst, fhd, fp]);
+  }, [db, fy, fb, fq, fm, fr, fst, fhd, fp, admin, myIdx]);
 
   /* alphabetically-sorted option lists, straight from the uploaded data */
   const optsOf = (arr) => (arr || []).map((v, i) => ({ v: i, lbl: v })).sort((a, b) => String(a.lbl).localeCompare(String(b.lbl)));
@@ -263,11 +277,13 @@ export default function SalesReview() {
   return (
     <DxPage title="Power BI" sub="Pan-India sales — target, achievement and contribution"
       actions={<>
-        <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={onFile} />
-        <button className="dx-btn dx-btn-p" onClick={() => fileRef.current && fileRef.current.click()}><Upload size={15} /> Import Excel</button>
-        <button className="dx-btn" onClick={onFormat}><FileDown size={15} /> Download Format</button>
+        {admin && <>
+          <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={onFile} />
+          <button className="dx-btn dx-btn-p" onClick={() => fileRef.current && fileRef.current.click()}><Upload size={15} /> Import Excel</button>
+          <button className="dx-btn" onClick={onFormat}><FileDown size={15} /> Download Format</button>
+        </>}
         <button className="dx-btn" onClick={onExport}><Download size={15} /> Export</button>
-        <button className="dx-btn" style={{ color: "#ef4444", borderColor: "#f3b4b0" }} onClick={onDelete}><Trash2 size={15} /> Delete</button>
+        {admin && <button className="dx-btn" style={{ color: "#ef4444", borderColor: "#f3b4b0" }} onClick={onDelete}><Trash2 size={15} /> Delete</button>}
         {msg && <span style={{ fontSize: 12, color: "var(--muted)", alignSelf: "center", fontWeight: 600 }}>{msg}</span>}
       </>}>
 
@@ -275,7 +291,7 @@ export default function SalesReview() {
         {db && <Sel label="State" value={fst} set={setFst} allLabel="All states" opts={optsOf(db.st)} />}
         {db && <Sel label="HOD" value={fhd} set={setFhd} allLabel="All HODs" opts={optsOf(db.hd)} />}
         {db && <Sel label="Region" value={fr} set={setFr} allLabel="All regions" opts={optsOf(db.r)} />}
-        {db && <Sel label="Person" value={fp} set={setFp} allLabel="Everyone" opts={optsOf(db.sp)} />}
+        {db && admin && <Sel label="Person" value={fp} set={setFp} allLabel="Everyone" opts={optsOf(db.sp)} />}
         {db && <Sel label="Year" value={fy} set={setFy} allLabel="All years" opts={db.yrs.map((y, i) => ({ v: i, lbl: y }))} />}
         {db && <Sel label="Brand" value={fb} set={setFb} allLabel="All brands" opts={optsOf(db.b)} />}
         <Sel label="QTR" value={fq} set={setFq} allLabel="All quarters" opts={QS.map((y, i) => ({ v: i, lbl: y }))} />
@@ -284,7 +300,7 @@ export default function SalesReview() {
       </div>
 
       {!shown || (busy && !db) ? <ShowGate onShow={load} busy={busy} what="Sales Review" /> : !hasData ? (
-        <Panel><div style={{ textAlign: "center", padding: 40, color: "var(--muted)" }}>No data yet — press <b>Import Excel</b> above to upload the combined Pan-India file.</div></Panel>
+        <Panel><div style={{ textAlign: "center", padding: 40, color: "var(--muted)" }}>{admin ? <>No data yet — press <b>Import Excel</b> above to upload the combined Pan-India file.</> : "No sales data available for you yet."}</div></Panel>
       ) : (
         <>
           <div className="dx-grid dx-kpis" style={{ marginBottom: 16 }}>

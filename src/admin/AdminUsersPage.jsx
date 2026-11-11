@@ -108,10 +108,10 @@ export default function AdminUsersPage() {
               {["S.No", "Full Name", "Username", "Email ID", "Role", "Status", "Action"].map((h) => <th key={h} style={{ padding: "11px 14px", fontWeight: 800, fontSize: 12, color: "#4a5578" }}>{h}</th>)}
             </tr></thead>
             <tbody>
-              {rows === null ? (
-                <SkeletonRows cols={8} rows={8} />
-              ) : !shown ? (
+              {!shown ? (
                 <tr><td colSpan={8} style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Set your filters and click <b>Show</b>.</td></tr>
+              ) : rows === null ? (
+                <SkeletonRows cols={8} rows={8} />
               ) : visible.length === 0 ? (
                 <tr><td colSpan={8} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No admin users match these filters.</td></tr>
               ) : visible.map((r, idx) => (

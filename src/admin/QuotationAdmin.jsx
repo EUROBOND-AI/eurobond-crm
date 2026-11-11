@@ -328,7 +328,9 @@ export default function QuotationAdmin() {
             </thead>
             <tbody>
               {rows === null ? (
-                <SkeletonRows cols={14} rows={8} />
+                applied
+                  ? <SkeletonRows cols={14} rows={8} />
+                  : <tr><td colSpan={14} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>Use filters and click Show to load quotations.</td></tr>
               ) : list.length === 0 ? (
                 <tr><td colSpan={14} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>{applied ? "No quotations found for the selected filter." : "Use filters and click Show to load quotations."}</td></tr>
               ) : pager.slice.map((r, i) => (

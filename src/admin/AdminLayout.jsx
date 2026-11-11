@@ -268,6 +268,7 @@ export default function AdminLayout() {
   }, []);
   const [showPass, setShowPass] = useState(false);
   const [pw, setPw] = useState({ old: "", nw: "" });
+  const [logoutAsk, setLogoutAsk] = useState(false);   // centered logout confirm
   const [lightbox, setLightbox] = useState(null);
   const [allowedNav, setAllowedNav] = useState(null);   // null = admin/all; Set = allowed module labels
 
@@ -323,18 +324,30 @@ export default function AdminLayout() {
       <ChatAssistant accent="#1b3a8f" surface="admin" side="right" />
       <PhotoZoom />
       <aside className="sidebar">
-        <div className="brand" style={{ padding: "14px 14px 10px" }}>
-          <span style={{ background: "#fff", borderRadius: 10, padding: "7px 10px", display: "inline-block" }}>
-            <img src={logoImg} alt="Eurobond" style={{ height: 26, display: "block" }} />
-          </span>
+        <div className="brand" style={{ padding: "14px 14px 12px" }}>
+          {/* full-width white card so it fills the blue strip, bigger logo, and a
+              soft glow + ring effect around it */}
+          <div style={{
+            position: "relative", display: "flex", alignItems: "center", justifyContent: "center",
+            background: "linear-gradient(180deg,#ffffff 0%,#f3f7ff 100%)", borderRadius: 14,
+            padding: "14px 12px", overflow: "hidden",
+            boxShadow: "0 0 0 1px rgba(255,255,255,.65), 0 10px 26px rgba(8,26,80,.38)",
+          }}>
+            {/* subtle radial glow behind the logo */}
+            <div style={{ position: "absolute", inset: 0, background: "radial-gradient(120px 60px at 50% 45%, rgba(43,111,184,.16), transparent 70%)", pointerEvents: "none" }} />
+            <img src={logoImg} alt="Eurobond" style={{ height: 42, display: "block", position: "relative", filter: "drop-shadow(0 3px 7px rgba(16,45,110,.22))" }} />
+          </div>
         </div>
         <ModuleSearch nav={nav} />
         <div className="side-scroll">
         {NAV.map((g) => {
           /* filter children/items by role permission (Admin: allowedNav === null → show all) */
           const items = g.items.map((it) => {
-            /* a module with View switched off in Roles & Permission is hidden */
-            const viewable = (label) => (allowedNav === null || allowedNav.has(label)) && canView(label);
+            /* a module with View switched off in Roles & Permission is hidden,
+               EXCEPT Power BI which every login may open (it shows only their own
+               scoped sales data for non-admins) */
+            const ALWAYS = new Set(["Power BI"]);
+            const viewable = (label) => ALWAYS.has(label) || ((allowedNav === null || allowedNav.has(label)) && canView(label));
             if (it.children) {
               const kids = it.children.filter((c) => viewable(c.label));
               return kids.length ? { ...it, children: kids } : null;
@@ -386,7 +399,7 @@ export default function AdminLayout() {
             }}><Moon size={16} /></button>
             <button className="icon-btn" title="Fullscreen" onClick={() => { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }}><Maximize size={16} /></button>
             <FreezeIconBtn />
-            <button className="icon-btn" title="Logout" onClick={() => { if (window.confirm("Log out of the admin panel?")) { api.logout(); nav("/"); } }}><LogOut size={16} /></button>
+            <button className="icon-btn" title="Logout" onClick={() => setLogoutAsk(true)}><LogOut size={16} /></button>
           </div>
         </header>
         {lightbox && (
@@ -451,6 +464,23 @@ export default function AdminLayout() {
             </button>
           </div>
         </div>
+      )}
+      {/* logout confirm — a centred popup, same look as the Session Expired one,
+          instead of the browser's own "crm.eurobond.co.in says…" box */}
+      {logoutAsk && createPortal(
+        <div onClick={() => setLogoutAsk(false)} style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.38)", backdropFilter: "blur(3px)", zIndex: 2147483000, display: "grid", placeItems: "center", padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, maxWidth: 360, width: "100%", padding: 26, textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}>
+            <div style={{ fontSize: 38, marginBottom: 8 }}>👋</div>
+            <h2 style={{ margin: "0 0 6px" }}>Log out?</h2>
+            <p style={{ color: "#64708a", fontSize: 13.5, marginBottom: 20 }}>Are you sure you want to log out of the admin panel?</p>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button className="btn btn-soft" style={{ flex: 1, padding: "11px", fontWeight: 700 }} onClick={() => setLogoutAsk(false)}>Cancel</button>
+              <button className="btn btn-danger" style={{ flex: 1, padding: "11px", fontWeight: 800 }}
+                onClick={() => { setLogoutAsk(false); api.logout(); nav("/"); }}>Log out</button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

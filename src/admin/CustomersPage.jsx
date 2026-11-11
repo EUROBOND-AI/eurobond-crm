@@ -474,7 +474,9 @@ export default function CustomersPage() {
             </thead>
             <tbody>
               {rows === null ? (
-                <SkeletonRows cols={12} rows={8} />
+                (applied || q.trim())
+                  ? <SkeletonRows cols={12} rows={8} />
+                  : <tr><td colSpan={12} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>Use filters and click Show to load customers (or type in search).</td></tr>
               ) : list.length === 0 ? (
                 <tr><td colSpan={12} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>
                   {applied || q.trim() ? "No customers found for the selected filter." : "Use filters and click Show to load customers (or type in search)."}

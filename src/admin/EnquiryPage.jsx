@@ -589,7 +589,9 @@ export default function EnquiryPage() {
             </thead>
             <tbody>
               {rows === null ? (
-                <SkeletonRows cols={24} rows={8} />
+                applied.shown
+                  ? <SkeletonRows cols={24} rows={8} />
+                  : <tr><td colSpan={24} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>Select date & Enquiry From, then click Show to load enquiries.</td></tr>
               ) : pageRows.length === 0 ? (
                 <tr><td colSpan={24} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>{applied.shown ? "No enquiries found for the selected date / filter." : "Select date & Enquiry From, then click Show to load enquiries."}</td></tr>
               ) : pageRows.map((r, i) => (

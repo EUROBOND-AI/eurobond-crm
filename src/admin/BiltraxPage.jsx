@@ -286,12 +286,12 @@ export default function BiltraxPage() {
             </tr>
           </thead>
           <tbody>
-            {loading ? (
-              <SkeletonRows cols={23} rows={8} />
-            ) : !shown ? (
+            {!shown ? (
               <tr><td colSpan={23} style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>
                 Set your filters and click <b>Show</b> to load the list.
               </td></tr>
+            ) : loading ? (
+              <SkeletonRows cols={23} rows={8} />
             ) : list.length === 0 ? (
               <tr><td colSpan={23} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>No Biltrax projects match these filters.</td></tr>
             ) : pager.slice.map((r) => (
