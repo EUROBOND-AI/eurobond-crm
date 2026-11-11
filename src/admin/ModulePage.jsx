@@ -200,7 +200,7 @@ export default function ModulePage({ cfgKey }) {
      Declared here, above the read that uses it: a value read during render has
      to exist by then, and leaving it further down the file is what made other
      screens fail to open at all. */
-  const gated = ["projectProjection", "salesToSpec", "specToSales", "target", "leave", "expense", "beatPlan", "task"].includes(cfgKey);
+  const gated = ["projectProjection", "salesToSpec", "specToSales", "target", "leave", "expense", "beatPlan", "task", "euvaLog"].includes(cfgKey);
 
   useEffect(() => { setTab(cfg.tabs?.[0]?.key); setShown(false); }, [cfgKey]);
 
@@ -846,7 +846,7 @@ export default function ModulePage({ cfgKey }) {
               ))}
             </div>
           )}
-          {["projectProjection", "salesToSpec", "specToSales", "target", "leave", "expense", "beatPlan", "task"].includes(cfgKey) && (
+          {["projectProjection", "salesToSpec", "specToSales", "target", "leave", "expense", "beatPlan", "task", "euvaLog"].includes(cfgKey) && (
             <button className="btn btn-primary" style={{ padding: "8px 20px", fontWeight: 700 }} onClick={() => setShown(true)}>Show</button>
           )}
         </div>

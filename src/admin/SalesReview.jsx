@@ -3,7 +3,7 @@
    Panels with graphs + tables). Data = the combined Pan-India sales Excel (full
    49-column format, read by column name), uploaded here and stored compact on
    the server (powerbi.php). Each upload replaces the whole dataset. */
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { Upload, Download, FileDown, Maximize2, X, Trash2 } from "lucide-react";
 import { api, auth, API_BASE } from "../lib/api.js";
@@ -82,19 +82,12 @@ function Sel({ label, value, set, opts, allLabel }) {
   );
 }
 
-/* true while a panel's content is rendered inside the full-screen modal, so a
-   table drops its own fixed height and lets the modal be the single scroller
-   (its header then freezes against the modal, not a tiny inner box) */
-const ZoomCtx = createContext(false);
-
-/* a plain table styled to sit inside a dx Panel. Outside the full-screen modal
-   the scroll box is a FIXED height, so every table box is exactly the same size
-   no matter how many rows the data has (~15 rows visible, the rest scroll inside
-   the box). In the modal it grows to the full data with a frozen header. */
-function T({ head, rows, foot, maxH }) {
-  const zoom = useContext(ZoomCtx);
+/* a plain table. It does NOT scroll itself — its ZPanel gives every panel a
+   fixed-height body that is the single scroller, so the header (sticky) freezes
+   against that box and every panel ends up exactly the same size. */
+function T({ head, rows, foot }) {
   return (
-    <div style={{ overflow: zoom ? "visible" : "auto", height: zoom ? "auto" : (maxH || 470), border: "1px solid var(--line)", borderRadius: 10 }}>
+    <div>
       <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12.5, whiteSpace: "nowrap" }}>
         <thead><tr>{head.map((h, i) => <th key={i} style={{ position: "sticky", top: 0, zIndex: 3, background: "var(--navy)", color: "#fff", fontWeight: 700, padding: "7px 10px", textAlign: i === 0 ? "left" : "right" }}>{h}</th>)}</tr></thead>
         <tbody>
@@ -106,14 +99,19 @@ function T({ head, rows, foot, maxH }) {
   );
 }
 
-/* Panel + a corner "full screen" button that opens the same content in a modal */
+/* Panel + a corner "full screen" button. Every panel's body is the SAME fixed
+   height (PANEL_BODY) and is the single scroll area, so all boxes on a row line
+   up to one size whatever the data; the modal shows the full content. */
+const PANEL_BODY = 460;
 function ZPanel({ title, sub, children }) {
   const [zoom, setZoom] = useState(false);
   return (
     <>
       <Panel title={title} sub={sub} action={
         <button className="dx-btn" style={{ padding: "4px 8px" }} title="Full screen" onClick={() => setZoom(true)}><Maximize2 size={14} /></button>
-      }>{children}</Panel>
+      }>
+        <div style={{ height: PANEL_BODY, overflow: "auto", borderRadius: 10 }}>{children}</div>
+      </Panel>
       {zoom && (
         <div onClick={() => setZoom(false)} style={{ position: "fixed", inset: 0, background: "rgba(10,20,45,.55)", zIndex: 99999, display: "grid", placeItems: "center", padding: 24 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, width: "min(1100px, 96vw)", maxHeight: "92vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}>
@@ -124,9 +122,7 @@ function ZPanel({ title, sub, children }) {
             {/* this body is the single scroller — padding-top is 0 so the table
                 header sits flush at the top and nothing shows above it when
                 scrolling (the gap the header seemed to leave) */}
-            <div style={{ overflow: "auto", padding: "0 20px 20px", flex: 1 }}>
-              <ZoomCtx.Provider value={true}>{children}</ZoomCtx.Provider>
-            </div>
+            <div style={{ overflow: "auto", padding: "0 20px 20px", flex: 1 }}>{children}</div>
           </div>
         </div>
       )}
@@ -302,10 +298,10 @@ export default function SalesReview() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16, alignItems: "start" }}>
             {/* Row 1 */}
             <ZPanel title="Achievement by Financial Year" sub="sales vs target">
-              <WeekBars days={[{ label: YA, value: A.s0, note: pcStr(A.s0, A.tg0) }, { label: YB, value: A.s1, note: pcStr(A.s1, A.tg1), isToday: true }]} height={230} fmt={cr} />
+              <WeekBars days={[{ label: YA, value: A.s0, note: pcStr(A.s0, A.tg0) }, { label: YB, value: A.s1, note: pcStr(A.s1, A.tg1), isToday: true }]} height={400} fmt={cr} />
             </ZPanel>
-            <ZPanel title="Monthwise Sales" sub="Apr → Mar"><WeekBars days={monthBars} height={230} fmt={cr} /></ZPanel>
-            <ZPanel title="Quarterwise Achievement" sub={YB + " — ach% on each bar"}><WeekBars days={qtrBars} height={230} fmt={cr} /></ZPanel>
+            <ZPanel title="Monthwise Sales" sub="Apr → Mar"><WeekBars days={monthBars} height={400} fmt={cr} /></ZPanel>
+            <ZPanel title="Quarterwise Achievement" sub={YB + " — ach% on each bar"}><WeekBars days={qtrBars} height={400} fmt={cr} /></ZPanel>
 
             {/* Row 2 — the two contribution charts side by side */}
             <ZPanel title="Brandwise Contribution" sub="by sales value"><RankBars items={bars(db.b, IX.B)} fmt={cr} limit={8} /></ZPanel>
@@ -320,7 +316,7 @@ export default function SalesReview() {
               {(() => { const t = perfTable(db.r, IX.R); return <T head={["Region", "Target", "Sales", "Ach%", "GW%"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
             </ZPanel>
             <ZPanel title="Expense %" sub={YA + " vs " + YB}>
-              <HalfDonut segments={[{ label: YA, value: A.ex0 }, { label: YB, value: A.ex1 }]} center={pcStr(A.ex0 + A.ex1, A.sAll)} centerLabel="of sales" fmt={cr} />
+              <HalfDonut segments={[{ label: YA, value: A.ex0 }, { label: YB, value: A.ex1 }]} center={pcStr(A.ex0 + A.ex1, A.sAll)} centerLabel="of sales" size={320} fmt={cr} />
             </ZPanel>
 
             {/* Row 4 */}
