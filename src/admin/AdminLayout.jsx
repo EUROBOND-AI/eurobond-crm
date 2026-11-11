@@ -328,7 +328,7 @@ export default function AdminLayout() {
           {/* full-width white card (covers the blue gap on the right); logo stays
               the same size, with a small light that keeps running around it */}
           <style>{`@keyframes eb-logo-run{to{transform:rotate(360deg)}}`}</style>
-          <div style={{ position: "relative", borderRadius: 12, padding: 2, overflow: "hidden" }}>
+          <div style={{ position: "relative", flex: 1, width: "100%", borderRadius: 12, padding: 2, overflow: "hidden" }}>
             <div style={{ position: "absolute", top: "-60%", left: "-10%", width: "120%", height: "220%", background: "conic-gradient(from 0deg, transparent 0 68%, rgba(120,170,255,.9) 82%, #ffffff 90%, transparent 100%)", animation: "eb-logo-run 3.2s linear infinite", pointerEvents: "none" }} />
             <span style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", background: "#fff", borderRadius: 10, padding: "8px 10px" }}>
               <img src={logoImg} alt="Eurobond" style={{ height: 26, display: "block" }} />
