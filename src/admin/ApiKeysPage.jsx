@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { SkeletonList } from "../components/Loaders.jsx";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 
@@ -45,7 +46,7 @@ export default function ApiKeysPage() {
         Edit an API key here and click Save — it updates instantly everywhere. No code change needed.
       </p>
 
-      {rows === null ? <div style={{ padding: 30, color: "var(--muted)" }}>Loading…</div> : (
+      {rows === null ? <div style={{ padding: 16 }}><SkeletonList rows={6} /></div> : (
         <div style={{ display: "grid", gap: 12, maxWidth: 720 }}>
           {rows.map((r) => (
             <div key={r.skey} style={{ background: "#fff", borderRadius: 12, padding: 16, boxShadow: "var(--shadow)" }}>

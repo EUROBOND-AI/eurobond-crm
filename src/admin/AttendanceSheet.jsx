@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { SkeletonList } from "../components/Loaders.jsx";
 import { CalendarDays, Download, RefreshCw } from "lucide-react";
 import { api } from "../lib/api.js";
 import { visibleUsers } from "../lib/scope.js";
@@ -250,7 +251,7 @@ export default function AttendanceSheet() {
             </thead>
             <tbody>
               {grid === null ? (
-                <tr><td colSpan={daysInMonth + 9} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
+                <tr><td colSpan={daysInMonth + 9} style={{ padding: 16 }}><SkeletonList rows={6} /></td></tr>
               ) : grid.length === 0 ? (
                 <tr><td colSpan={daysInMonth + 9} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>No users</td></tr>
               ) : grid.map(({ u, cells, totals }) => (

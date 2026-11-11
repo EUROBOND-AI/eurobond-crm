@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { SkeletonList } from "../components/Loaders.jsx";
 import { Send, Paperclip, CheckCircle2, XCircle, FileText } from "lucide-react";
 import { PageHead, Pill } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
@@ -35,7 +36,7 @@ export default function SpecApprovalPage() {
         ))}
       </div>
 
-      {loading ? <div style={{ padding: 40, color: "var(--muted)" }}>Loading…</div>
+      {loading ? <div style={{ padding: 16 }}><SkeletonList rows={6} /></div>
       : filtered.length === 0 ? <div style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No {tab.toLowerCase()} spec requests.</div>
       : (
         <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 16 }}>

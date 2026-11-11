@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { SkeletonList } from "../components/Loaders.jsx";
 import { Plus, Trash2, Upload } from "lucide-react";
 import { PageHead, Tabs } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
@@ -66,7 +67,7 @@ export default function ContentMaster() {
       />
       <Tabs tabs={TABS} active={tab} onChange={(t) => { setTab(t); setForm(null); }} />
 
-      {loading ? <div style={{ padding: 40, color: "var(--muted)" }}>Loading…</div>
+      {loading ? <div style={{ padding: 16 }}><SkeletonList rows={6} /></div>
       : visible.length === 0 ? (
         <div style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>
           No {tab} content yet. Click <b>Add {tab}</b> to create.

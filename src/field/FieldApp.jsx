@@ -5137,7 +5137,10 @@ function FieldLeaveApproval() {
 }
 function FieldProfile({ onLogout }) {
   const [u, setU] = useState(() => CU() || {});
-  const [flip, setFlip] = useState(false);   // #6 — tap photo to flip to the QR
+  const [flip, setFlip] = useState(false);   // #6 — swipe photo sideways to flip to the QR
+  /* click = open full screen; a sideways swipe flips between photo and QR */
+  const touchStart = useRef(null);
+  const didSwipe = useRef(false);
   /* refresh from server; keep showing cached data meanwhile so it never goes blank */
   useEffect(() => {
     let alive = true;
@@ -5163,17 +5166,20 @@ function FieldProfile({ onLogout }) {
     <>
       <ScreenHead title="Profile" refresh={false} />
       <div style={{ textAlign: "center", padding: "18px 18px 6px" }}>
-        {/* #6 — a flip card: tap the photo and it turns to show the visiting-card
-            QR on the back (Instagram-style), if the admin uploaded one. With no
-            QR it just opens the photo full size as before. */}
-        {/* tap flips to the QR; press & hold opens the side showing at full size */}
+        {/* #6 — a flip card: SWIPE the photo sideways and it turns to show the
+            visiting-card QR on the back (Instagram-style), if the admin uploaded
+            one. A plain CLICK/tap opens whichever side is showing at full size. */}
         <div style={{ width: 78, height: 78, margin: "0 auto 12px", perspective: 600, cursor: "pointer", WebkitTouchCallout: "none" }}
           data-nozoom="1"
-          onClick={() => { if (photoHeld.current) { photoHeld.current = false; return; } if (u.qr) setFlip((f) => !f); else openAppPhoto(u.photo); }}
-          onPointerDown={() => { photoHeld.current = false; clearTimeout(photoTimer.current); photoTimer.current = setTimeout(() => { photoHeld.current = true; openAppPhoto(flip ? u.qr : u.photo); }, 450); }}
-          onPointerUp={() => clearTimeout(photoTimer.current)}
-          onPointerLeave={() => clearTimeout(photoTimer.current)}
-          onContextMenu={(e) => e.preventDefault()}>
+          onClick={() => { if (didSwipe.current) { didSwipe.current = false; return; } openAppPhoto(flip ? u.qr : u.photo); }}
+          onTouchStart={(e) => { const t = e.touches[0]; touchStart.current = { x: t.clientX, y: t.clientY }; didSwipe.current = false; }}
+          onTouchEnd={(e) => {
+            const s = touchStart.current; if (!s) return;
+            const t = e.changedTouches[0];
+            const dx = t.clientX - s.x, dy = t.clientY - s.y;
+            if (u.qr && Math.abs(dx) > 30 && Math.abs(dx) > Math.abs(dy)) { setFlip((f) => !f); didSwipe.current = true; }
+            touchStart.current = null;
+          }}>
           <div style={{ position: "relative", width: "100%", height: "100%", transition: "transform .5s", transformStyle: "preserve-3d", transform: flip ? "rotateY(180deg)" : "none" }}>
             <div style={{ position: "absolute", inset: 0, backfaceVisibility: "hidden" }}>
               <Avatar name={u.name} photo={u.photo} size={78} ring="#fff" />

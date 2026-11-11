@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { SkeletonList } from "../components/Loaders.jsx";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { PageHead, StatCard } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
@@ -51,7 +52,7 @@ export default function ExpenseDashboard() {
   return (
     <>
       <PageHead crumb="Analytics / Expense" title="Expense Dashboard" />
-      {loading ? <div style={{ padding: 40, color: "var(--muted)" }}>Loading…</div>
+      {loading ? <div style={{ padding: 16 }}><SkeletonList rows={6} /></div>
       : err ? <div style={{ padding: 20, background: "#fdecec", color: "#c03636", borderRadius: 10 }}>{err}</div>
       : rows.length === 0 ? (
         <div style={{ padding: 50, textAlign: "center", color: "var(--muted)" }}>

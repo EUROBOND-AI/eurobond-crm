@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { SkeletonList } from "../components/Loaders.jsx";
 import { Edit3, UserPlus, Trash2, Share2, X, Search, Ban, RefreshCw, MessageSquare, Copy, Send } from "lucide-react";
 import { PageHead } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
@@ -588,7 +589,7 @@ export default function EnquiryPage() {
             </thead>
             <tbody>
               {rows === null ? (
-                <tr><td colSpan={24} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
+                <tr><td colSpan={24} style={{ padding: 16 }}><SkeletonList rows={6} /></td></tr>
               ) : pageRows.length === 0 ? (
                 <tr><td colSpan={24} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>{applied.shown ? "No enquiries found for the selected date / filter." : "Select date & Enquiry From, then click Show to load enquiries."}</td></tr>
               ) : pageRows.map((r, i) => (

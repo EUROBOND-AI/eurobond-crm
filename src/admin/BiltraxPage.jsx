@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { SkeletonList } from "../components/Loaders.jsx";
 import { Eye, Share2, Trash2, MessageSquare, Pencil, UserPlus, RefreshCw } from "lucide-react";
 import { PageHead, StatCard, ToolButtons } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
@@ -286,7 +287,7 @@ export default function BiltraxPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={23} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
+              <tr><td colSpan={23} style={{ padding: 16 }}><SkeletonList rows={6} /></td></tr>
             ) : !shown ? (
               <tr><td colSpan={23} style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>
                 Set your filters and click <b>Show</b> to load the list.

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { SkeletonList } from "../components/Loaders.jsx";
 import { Plus, RefreshCw, Save, Trash2 } from "lucide-react";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
@@ -74,7 +75,7 @@ export default function RolePermission() {
         <b>Admin</b> always has full access to every module — no configuration needed. Set below what each other role can see.
       </div>
 
-      {loading ? <div style={{ padding: 40, color: "var(--muted)" }}>Loading…</div>
+      {loading ? <div style={{ padding: 16 }}><SkeletonList rows={6} /></div>
       : roles.length === 0 ? (
         <div style={{ padding: 50, textAlign: "center", color: "var(--muted)" }}>
           <h3 style={{ marginBottom: 8 }}>No roles yet</h3>

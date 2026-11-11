@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { SkeletonList } from "../components/Loaders.jsx";
 import { PageHead, StatCard } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { visibleUsers } from "../lib/scope.js";
@@ -166,7 +167,7 @@ export default function TourReport() {
       {!shown ? (
         <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Set filters and click <b>Show</b>.</div>
       ) : sessions === null ? (
-        <div style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>Loading…</div>
+        <div style={{ padding: 16 }}><SkeletonList rows={6} /></div>
       ) : (
         <>
 

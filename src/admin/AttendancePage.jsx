@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { SkeletonList } from "../components/Loaders.jsx";
 import L from "leaflet";
 import { FileText, X } from "lucide-react";
 import { PageHead, Pill } from "../components/ui.jsx";
@@ -693,7 +694,7 @@ export default function AttendancePage() {
       </div>
 
       {!shown ? <div style={{ padding: 50, textAlign: "center", color: "var(--muted)" }}>Select date range and filters, then click <b>Show</b> to load attendance.</div>
-      : loading ? <div style={{ padding: 40, color: "var(--muted)" }}>Loading…</div>
+      : loading ? <div style={{ padding: 16 }}><SkeletonList rows={6} /></div>
       : filtered.length === 0 ? <div style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No attendance found for the selected filters.</div>
       : (
         <div className="table-wrap"><table className="grid">

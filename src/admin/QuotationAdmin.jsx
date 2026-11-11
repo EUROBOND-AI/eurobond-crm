@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { SkeletonList } from "../components/Loaders.jsx";
 import { X } from "lucide-react";
 import { PageHead, StatCard, ToolButtons } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
@@ -327,7 +328,7 @@ export default function QuotationAdmin() {
             </thead>
             <tbody>
               {rows === null ? (
-                <tr><td colSpan={14} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
+                <tr><td colSpan={14} style={{ padding: 16 }}><SkeletonList rows={6} /></td></tr>
               ) : list.length === 0 ? (
                 <tr><td colSpan={14} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>{applied ? "No quotations found for the selected filter." : "Use filters and click Show to load quotations."}</td></tr>
               ) : pager.slice.map((r, i) => (

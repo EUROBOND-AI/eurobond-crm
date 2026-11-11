@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { SkeletonList } from "../components/Loaders.jsx";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { visibleUsers, visibleNameSet, isUnderHod } from "../lib/scope.js";
@@ -164,7 +165,7 @@ export default function CheckinPage() {
 
       <div style={{ background: "#fff", borderRadius: 16, padding: 18, boxShadow: "var(--shadow-3d)" }}>
         <h3 style={{ margin: "0 0 14px", fontSize: 15, textTransform: "capitalize" }}>{show} — {listFor().length}</h3>
-        {loading ? <div style={{ color: "var(--muted)", padding: 20 }}>Loading…</div> :
+        {loading ? <div style={{ padding: 16 }}><SkeletonList rows={6} /></div> :
           listFor().length === 0 ? <div style={{ color: "var(--muted)", padding: 20, textAlign: "center" }}>No records.</div> :
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10 }}>
               {listFor().map((r, i) => (

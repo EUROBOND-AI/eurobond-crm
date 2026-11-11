@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { SkeletonList } from "../components/Loaders.jsx";
 import { Save, Clock, Navigation, Database, MessageCircle, CheckCircle2 } from "lucide-react";
 import { api } from "../lib/api.js";
 
@@ -59,7 +60,7 @@ export default function AppSettings() {
     setBusy(false);
   };
 
-  if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>Loading…</div>;
+  if (loading) return <div style={{ padding: 16 }}><SkeletonList rows={6} /></div>;
 
   const idleMin = Math.round((Number(f.idleMaxMs) || 300000) / 60000);
 

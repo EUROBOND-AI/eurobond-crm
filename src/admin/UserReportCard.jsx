@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { SkeletonList } from "../components/Loaders.jsx";
 import { PageHead, StatCard, Pill } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { fmtKm } from "../lib/geo.js";
@@ -57,7 +58,7 @@ export default function UserReportCard() {
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13 }} />
       </div>
 
-      {loading ? <div style={{ padding: 40, color: "var(--muted)" }}>Loading…</div>
+      {loading ? <div style={{ padding: 16 }}><SkeletonList rows={6} /></div>
       : !u ? <div style={{ padding: 50, textAlign: "center", color: "var(--muted)" }}>Select a team member to see their report card.</div>
       : (
         <>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { SkeletonList } from "../components/Loaders.jsx";
 import { Phone, MapPin, Eye, X } from "lucide-react";
 import { PageHead, StatCard, ToolButtons } from "../components/ui.jsx";
 import { scopeRows, visibleUsers, recordMatchesPlace, isUnderHod } from "../lib/scope.js";
@@ -473,7 +474,7 @@ export default function CustomersPage() {
             </thead>
             <tbody>
               {rows === null ? (
-                <tr><td colSpan={12} style={{ padding: 30, textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>
+                <tr><td colSpan={12} style={{ padding: 16 }}><SkeletonList rows={6} /></td></tr>
               ) : list.length === 0 ? (
                 <tr><td colSpan={12} style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>
                   {applied || q.trim() ? "No customers found for the selected filter." : "Use filters and click Show to load customers (or type in search)."}

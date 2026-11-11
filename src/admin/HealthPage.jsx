@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { SkeletonList } from "../components/Loaders.jsx";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 
@@ -50,7 +51,7 @@ export default function HealthPage() {
         </div>
       )}
 
-      {data === null ? <div style={{ padding: 30, color: "var(--muted)" }}>Loading…</div>
+      {data === null ? <div style={{ padding: 16 }}><SkeletonList rows={6} /></div>
       : data.error ? <div style={{ padding: 20, background: "#fdecec", color: "#c03636", borderRadius: 12, fontWeight: 600 }}>Error: {data.error}</div>
       : (
         <div style={{ display: "grid", gap: 8, maxWidth: 720 }}>

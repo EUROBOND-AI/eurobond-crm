@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { SkeletonList } from "../components/Loaders.jsx";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { scopeRows } from "../lib/scope.js";
@@ -37,7 +38,7 @@ export default function DealPipeline() {
   return (
     <div>
       <PageHead crumb="SFA / Pipeline" title="Deal Pipeline" actions={<button className="btn btn-soft" onClick={load}>Refresh</button>} />
-      {loading ? <div style={{ padding: 40, color: "var(--muted)" }}>Loading…</div> : (
+      {loading ? <div style={{ padding: 16 }}><SkeletonList rows={6} /></div> : (
         <div style={{ display: "grid", gridTemplateColumns: `repeat(${STAGES.length}, minmax(210px, 1fr))`, gap: 14, overflowX: "auto", paddingBottom: 10 }}>
           {STAGES.map((st) => {
             const items = byStage(st.key);

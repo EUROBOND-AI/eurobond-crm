@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { SkeletonList } from "../components/Loaders.jsx";
 import { PageHead, StatCard, ToolButtons } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
 import { buildExpensePdf } from "../lib/expensePdf.js";
@@ -203,11 +204,17 @@ export default function ExpenseApprovals() {
   useEffect(load, []);
   useEffect(() => { api.listUsers().then((d) => setUsers((d.users || []).filter((u) => u.status == 1))).catch(() => {}); }, []);
 
-  /* show every statement that was built (isFormat) AND any expense that has
-     reached a processing status, even if its isFormat flag never got set — that
-     is how submitted ones were going missing from the admin. */
+  /* A real statement always carries its expense lines (items). Single raw
+     expense entries that happen to have a "Submitted" status have NO items and
+     were leaking in as empty ₹0 / 0-entry rows (Debsikha, Dilip, Geetartha …).
+     So a row is a statement ONLY if it actually has items; among those we show
+     every built one (isFormat) and any that reached a processing status even if
+     its isFormat flag never got set — that is how real submitted ones were
+     going missing from the admin. */
+  const hasLines = (r) => Array.isArray(r.items) && r.items.length > 0;
   const statements = scopeRows(
-    rows.filter((r) => r.isFormat || ["Submitted", "Approved", "Coordination", "Uploader", "Rejected", "Reject"].includes(r.status)),
+    rows.filter((r) => hasLines(r) &&
+      (r.isFormat || ["Submitted", "Approved", "Coordination", "Uploader", "Rejected", "Reject"].includes(r.status))),
     users, ["user", "createdBy", "createdByName"]);
   /* Approving an expense, moving it to accounts, pushing it to SAP — that is
      the office team's work. A field manager reading this screen needs to see
@@ -356,7 +363,7 @@ export default function ExpenseApprovals() {
       )}
 
       <div style={{ background: "#fff", borderRadius: 14, boxShadow: "var(--shadow)", overflow: "hidden" }}>
-        {loading ? <div style={{ padding: 40, color: "var(--muted)" }}>Loading…</div>
+        {loading ? <div style={{ padding: 16 }}><SkeletonList rows={6} /></div>
         : list.length === 0 ? <div style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No {tab.toLowerCase()} statements.</div>
         : (
           <div style={{ overflowX: "auto" }}>
@@ -507,6 +514,29 @@ function ExpenseReview({ r, onClose, onDone }) {
   const toggleReject = (i) => setRejectedIdx((s) => { const n = new Set(s); n.has(i) ? n.delete(i) : n.add(i); return n; });
   const approvedTotal = items.filter((_, i) => !rejectedIdx.has(i)).reduce((s, x) => s + (Number(x.amount) || 0), 0);
 
+  /* admin-side edit of the submitted entries — users often forget to fill a
+     field fully, so the office can correct Date / Origin→Dest / Description /
+     KM / Category / Amount here and save it back to the same statement. */
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(items);
+  const num = (v) => Number(String(v ?? "").replace(/[^\d.]/g, "")) || 0;
+  const startEdit = () => { setDraft(items.map((x) => ({ ...x }))); setEditing(true); };
+  const cancelEdit = () => { setEditing(false); setDraft(items); };
+  const setCell = (i, k, v) => setDraft((d) => d.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+  const rowsView = editing ? draft : items;
+  const shownTotal = editing ? draft.reduce((s, x) => s + num(x.amount), 0) : total;
+  const saveEdit = async () => {
+    const clean = draft.map((x) => ({ ...x, amount: num(x.amount), km: String(x.km ?? "").trim() }));
+    const sum = clean.reduce((a, b) => a + num(b.amount), 0);
+    if (!window.confirm(`Save these changes? New statement total ₹${sum.toLocaleString("en-IN")}`)) return;
+    setBusy(true);
+    try {
+      await api.update("expense", r._id, { ...r, items: clean, amount: sum, editedBy: (auth.user?.name || auth.user?.username || "Admin"), editedAt: new Date().toLocaleString("en-IN") });
+      onDone();
+    } catch (e) { alert(e.message); setBusy(false); }
+  };
+  const edInput = { width: "100%", minWidth: 70, padding: "5px 7px", borderRadius: 7, border: "1px solid var(--line)", fontSize: 12, boxSizing: "border-box" };
+
   const downloadPdf = async () => {
     setBusy(true);
     try { await buildExpensePdf(r, true, { adminSummary: true }); } catch (e) { alert("PDF failed: " + e.message); }
@@ -575,6 +605,15 @@ function ExpenseReview({ r, onClose, onDone }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <h3 style={{ margin: 0 }}>Expense Statement — {r.user}</h3>
           <div style={{ display: "flex", gap: 8 }}>
+            {canDecide && !editing && (
+              <button className="btn btn-soft" disabled={busy} onClick={startEdit}>✎ Edit</button>
+            )}
+            {editing && (
+              <>
+                <button className="btn" style={{ background: "#0f7a44", color: "#fff", borderColor: "transparent" }} disabled={busy} onClick={saveEdit}>💾 Save</button>
+                <button className="btn btn-ghost" disabled={busy} onClick={cancelEdit}>Cancel</button>
+              </>
+            )}
             <button className="btn btn-soft" disabled={busy} onClick={downloadPdf}>⬇ PDF</button>
             <button className="btn btn-ghost" style={{ padding: 4 }} onClick={onClose}>✕</button>
           </div>
@@ -594,27 +633,47 @@ function ExpenseReview({ r, onClose, onDone }) {
             <thead><tr style={{ background: "#f4f6fc", position: "sticky", top: 0 }}>
               {["SI No", "Date", "Ex/Out-station", "Origin to Destination", "Description", "KM", "Category", "Amount", "Approved Amount", "Bill"]
                 .map((h) => <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontWeight: 800, fontSize: 11.5, whiteSpace: "nowrap" }}>{h}</th>)}
-              {r.status === "Submitted" && canDecide && <th style={{ padding: "8px 10px", textAlign: "center", fontWeight: 800, fontSize: 11.5, color: "#c03636" }}>Action</th>}
+              {r.status === "Submitted" && canDecide && !editing && <th style={{ padding: "8px 10px", textAlign: "center", fontWeight: 800, fontSize: 11.5, color: "#c03636" }}>Action</th>}
             </tr></thead>
             <tbody>
-              {items.map((it, i) => (
+              {rowsView.map((it, i) => (
                 <tr key={i} style={{ borderTop: "1px solid #eef1f8", background: rejectedIdx.has(i) ? "#fdecec" : undefined }}>
                   <td style={{ padding: "8px 10px" }}>{i + 1}</td>
-                  <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{it.date}</td>
-                  <td style={{ padding: "8px 10px" }}>{it.station || "—"}</td>
-                  <td style={{ padding: "8px 10px" }}>{it.desc || "—"}</td>
-                  <td style={{ padding: "8px 10px" }}>{it.description || "—"}</td>
-                  <td style={{ padding: "8px 10px" }}>{it.km || "—"}</td>
-                  <td style={{ padding: "8px 10px" }}>{it.category}</td>
-                  <td style={{ padding: "8px 10px", fontWeight: 700, textDecoration: rejectedIdx.has(i) ? "line-through" : undefined }}>₹{(Number(it.amount) || 0).toLocaleString("en-IN")}</td>
+                  {editing ? (
+                    <>
+                      <td style={{ padding: "6px 8px" }}><input type="date" value={it.date || ""} onChange={(e) => setCell(i, "date", e.target.value)} style={edInput} /></td>
+                      <td style={{ padding: "6px 8px" }}>
+                        <select value={it.station || ""} onChange={(e) => setCell(i, "station", e.target.value)} style={edInput}>
+                          <option value="">—</option><option>Outstation</option><option>Exstation</option>
+                        </select>
+                      </td>
+                      <td style={{ padding: "6px 8px", minWidth: 150 }}><input value={it.desc || ""} onChange={(e) => setCell(i, "desc", e.target.value)} placeholder="Origin to Destination" style={edInput} /></td>
+                      <td style={{ padding: "6px 8px", minWidth: 130 }}><input value={it.description || ""} onChange={(e) => setCell(i, "description", e.target.value)} placeholder="Description" style={edInput} /></td>
+                      <td style={{ padding: "6px 8px" }}><input value={it.km || ""} onChange={(e) => setCell(i, "km", e.target.value.replace(/[^\d.]/g, ""))} style={{ ...edInput, width: 70 }} /></td>
+                      <td style={{ padding: "6px 8px", minWidth: 130 }}><input value={it.category || ""} onChange={(e) => setCell(i, "category", e.target.value)} placeholder="Category" style={edInput} /></td>
+                      <td style={{ padding: "6px 8px" }}><input value={it.amount ?? ""} onChange={(e) => setCell(i, "amount", e.target.value.replace(/[^\d.]/g, ""))} style={{ ...edInput, width: 90 }} /></td>
+                    </>
+                  ) : (
+                    <>
+                      <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{it.date}</td>
+                      <td style={{ padding: "8px 10px" }}>{it.station || "—"}</td>
+                      <td style={{ padding: "8px 10px" }}>{it.desc || "—"}</td>
+                      <td style={{ padding: "8px 10px" }}>{it.description || "—"}</td>
+                      <td style={{ padding: "8px 10px" }}>{it.km || "—"}</td>
+                      <td style={{ padding: "8px 10px" }}>{it.category}</td>
+                      <td style={{ padding: "8px 10px", fontWeight: 700, textDecoration: rejectedIdx.has(i) ? "line-through" : undefined }}>₹{(Number(it.amount) || 0).toLocaleString("en-IN")}</td>
+                    </>
+                  )}
                   <td style={{ padding: "6px 8px" }}>
-                    {/* pre-filled with the claimed amount; admin can change it */}
-                    <input value={itemApproved[i] ?? (it.approvedAmount ?? it.amount ?? "")}
-                      onChange={(e) => setItemApproved((m) => ({ ...m, [i]: e.target.value.replace(/[^\d.]/g, "") }))}
-                      style={{ width: 92, padding: "5px 7px", borderRadius: 7, border: "1px solid var(--line)", fontSize: 12 }} />
+                    {editing ? <span style={{ color: "var(--muted)", fontSize: 11.5 }}>—</span> : (
+                      /* pre-filled with the claimed amount; admin can change it */
+                      <input value={itemApproved[i] ?? (it.approvedAmount ?? it.amount ?? "")}
+                        onChange={(e) => setItemApproved((m) => ({ ...m, [i]: e.target.value.replace(/[^\d.]/g, "") }))}
+                        style={{ width: 92, padding: "5px 7px", borderRadius: 7, border: "1px solid var(--line)", fontSize: 12 }} />
+                    )}
                   </td>
                   <td style={{ padding: "8px 10px" }}>{it.photo ? <span onClick={() => openLightbox(it.photo)} style={{ color: "var(--accent)", cursor: "pointer", fontWeight: 700 }}>View</span> : "—"}</td>
-                  {r.status === "Submitted" && canDecide && (
+                  {r.status === "Submitted" && canDecide && !editing && (
                     <td style={{ padding: "8px 10px", textAlign: "center" }}>
                       <button onClick={() => toggleReject(i)} style={{ padding: "4px 10px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 700, background: rejectedIdx.has(i) ? "#c03636" : "#fdecec", color: rejectedIdx.has(i) ? "#fff" : "#c03636" }}>
                         {rejectedIdx.has(i) ? "✓ Rejected" : "Reject"}
@@ -628,10 +687,17 @@ function ExpenseReview({ r, onClose, onDone }) {
         </div>
 
         <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 4px", fontWeight: 800, fontSize: 15 }}>
-          <span>TOTAL</span><span>₹{total.toLocaleString("en-IN")}</span>
+          <span>TOTAL</span><span>₹{shownTotal.toLocaleString("en-IN")}</span>
         </div>
 
-        {r.status === "Submitted" && canDecide ? (
+        {editing ? (
+          <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
+            <div style={{ fontSize: 12, color: "var(--muted)" }}>Editing entries — change any field above, then Save.</div>
+            <div style={{ flex: 1 }} />
+            <button className="btn btn-ghost" disabled={busy} onClick={cancelEdit}>Cancel</button>
+            <button className="btn" style={{ background: "#0f7a44", color: "#fff", borderColor: "transparent" }} disabled={busy} onClick={saveEdit}>💾 Save Changes</button>
+          </div>
+        ) : r.status === "Submitted" && canDecide ? (
           rejectedIdx.size > 0 ? (
             <div style={{ marginTop: 10, background: "#fdf1f1", borderRadius: 10, padding: 12 }}>
               <div style={{ fontSize: 12.5, color: "#7a2323", marginBottom: 8, fontWeight: 700 }}>
@@ -660,17 +726,27 @@ function ExpenseReview({ r, onClose, onDone }) {
               <button className="btn" style={{ background: "#0f7a44", color: "#fff", borderColor: "transparent" }} disabled={busy} onClick={approve}>Approve</button>
             </div>
           )
-        ) : (
-          <div style={{ marginTop: 10, textAlign: "center", fontWeight: 700, color: r.status === "Approved" ? "#0f7a44" : "#c03636" }}>
-            {r.status === "Approved" ? `✓ Approved · ₹${Number(r.approvedAmount || total).toLocaleString("en-IN")}` : `Rejected: ${r.rejectRemark || ""}`}
-            {/* #3 — who approved/rejected it, and when */}
-            {(r.approvedBy || r.approvedAt) && (
-              <div style={{ fontSize: 11.5, fontWeight: 600, color: "var(--muted)", marginTop: 3 }}>
-                {r.status === "Approved" ? "by" : "actioned by"} {r.approvedBy || "Admin"}{r.approvedAt ? ` · ${r.approvedAt}` : ""}
-              </div>
-            )}
-          </div>
-        )}
+        ) : (() => {
+          /* Approved, Coordination and Uploader are all APPROVED-and-moved-forward
+             states — only a real Rejected/Reject status is a rejection. Before,
+             anything that was not exactly "Approved" showed as "Rejected", so a
+             statement pushed on to Coordination/Accounts wrongly read "Rejected". */
+          const isRej = r.status === "Rejected" || r.status === "Reject";
+          const label = r.status === "Coordination" ? "Approved · sent to Accounts"
+            : r.status === "Uploader" ? "Approved · with Uploaders"
+            : "Approved";
+          return (
+            <div style={{ marginTop: 10, textAlign: "center", fontWeight: 700, color: isRej ? "#c03636" : "#0f7a44" }}>
+              {isRej ? `Rejected: ${r.rejectRemark || ""}` : `✓ ${label} · ₹${Number(r.approvedAmount || total).toLocaleString("en-IN")}`}
+              {/* #3 — who approved/rejected it, and when */}
+              {(r.approvedBy || r.approvedAt) && (
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: "var(--muted)", marginTop: 3 }}>
+                  {isRej ? "actioned by" : "by"} {r.approvedBy || "Admin"}{r.approvedAt ? ` · ${r.approvedAt}` : ""}
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

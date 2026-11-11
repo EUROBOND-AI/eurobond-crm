@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { SkeletonList } from "../components/Loaders.jsx";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { MODULES as ALL_MODULES } from "./moduleConfigs.jsx";
@@ -77,7 +78,7 @@ export default function TeamAccess() {
       <p style={{ color: "var(--muted)", fontSize: 13.5, marginBottom: 14 }}>
         Choose which app modules each role can see in the mobile app. Sales, Specification and HOD roles can each have a different set.
       </p>
-      {loading ? <div style={{ padding: 40, color: "var(--muted)" }}>Loading…</div> : (
+      {loading ? <div style={{ padding: 16 }}><SkeletonList rows={6} /></div> : (
         <div className="chart-card" style={{ overflowX: "auto" }}>
           <table className="tbl" style={{ minWidth: 600 }}>
             <thead>
