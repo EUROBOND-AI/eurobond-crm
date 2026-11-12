@@ -325,8 +325,8 @@ function SpecView({ rec, onClose }) {
       <Head title="Specification" onBack={onClose} right={<Chip s={rec.salesStatus || rec.status} />} />
       <div style={{ padding: 16, maxWidth: 640, margin: "0 auto" }}>
         <div style={{ background: "#fff", borderRadius: 14, padding: "4px 16px", border: "1px solid #e6ecf7" }}>
-          <Row k="Approval Date" v={rec.approvalDate} /><Row k="Category" v={rec.category} /><Row k="Project / Brand" v={rec.projectName} />
-          <Row k="Location" v={rec.location} /><Row k="Colour Code" v={rec.colourCode} /><Row k="Grade" v={rec.grade} /><Row k="Tier" v={rec.tier} />
+          <Row k="Approval Date" v={rec.approvalDate} /><Row k="Project / Brand" v={rec.projectName} />
+          <Row k="Location" v={rec.location} /><Row k="Colour Code" v={rec.colourCode} /><Row k="Grade" v={rec.grade} />
           <Row k="Approved By" v={[rec.approvedByType, rec.firmName].filter(Boolean).join(" — ")} />
           <Row k="Contact" v={[rec.contactPerson, rec.contactNumber, rec.mailId].filter(Boolean).join(" · ")} />
           <Row k="Approved Qty" v={rec.approvedQty ? rec.approvedQty + " Sq.Mtr" : ""} /><Row k="Sales Person" v={rec.salesPerson} /><Row k="Specs Person" v={rec.specPerson} />
@@ -354,7 +354,7 @@ function RowCard({ rec, actions }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 800, fontSize: 15.5 }}>{rec.projectName || "Untitled"}</div>
-          <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 2 }}>{[rec.location, rec.colourCode, rec.category].filter(Boolean).join(" · ")}</div>
+          <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 2 }}>{[rec.location, rec.colourCode, rec.grade].filter(Boolean).join(" · ")}</div>
           <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{rec.salesPerson ? "Sales: " + rec.salesPerson : ""}{rec.specPerson ? " · Spec: " + rec.specPerson : ""}</div>
         </div>
         <div style={{ textAlign: "right", flexShrink: 0 }}>
@@ -366,9 +366,13 @@ function RowCard({ rec, actions }) {
     </div>
   );
 }
-const ActBtn = ({ icon, label, onClick, tone }) => (
-  <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 13px", borderRadius: 10, border: "1px solid #dbe2f0", background: tone === "p" ? "#1b3a8f" : "#fff", color: tone === "p" ? "#fff" : "#1b3a8f", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>{icon} {label}</button>
-);
+/* buttons match the Enquiries list style: no border, light-tinted background,
+   bold coloured text, filling the row evenly */
+const TONE = { v: ["#3949ab", "#eef1ff"], e: ["#c99400", "#fff7e0"], p: ["#0f7a44", "#e7f7ef"], m: ["#6c5ce7", "#efeaff"], d: ["#c0392b", "#fdecec"] };
+const ActBtn = ({ icon, label, onClick, tone = "v" }) => {
+  const [c, b] = TONE[tone] || TONE.v;
+  return <button onClick={onClick} style={{ flex: "1 1 auto", minWidth: 58, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "7px 6px", borderRadius: 8, border: "none", background: b, color: c, fontWeight: 700, fontSize: 11.5, cursor: "pointer" }}>{icon} {label}</button>;
+};
 
 /* ================= SPECS-HUB SCREEN (specs side) ================= */
 export function SpecsHubScreen() {
@@ -376,12 +380,13 @@ export function SpecsHubScreen() {
   const [view, setView] = useState(null);   // {type, rec}
   const users = useUsers();
   const load = () => api.list("specsHub", false, isAdmin() ? {} : { involved: 1 }).then((d) => {
-    const me = CU().name;
-    let rs = d.records || [];
-    if (!isAdmin()) rs = rs.filter((r) => low(r.specPerson) === low(me) || low(r.createdByName) === low(me) || low(r.createdBy) === low(me));
+    const me = low(CU().name);
+    let rs = (d.records || []).map((r) => ({ ...(r.data || {}), id: r.id, _id: r.id, createdByName: r.created_by_name || (r.data || {}).createdByName, createdAt: r.created_at }));
+    if (!isAdmin()) rs = rs.filter((r) => low(r.specPerson) === me || low(r.createdByName) === me);
     setRows(rs.sort((a, b) => rid(b) - rid(a)));
   }).catch(() => setRows([]));
   useEffect(() => { load(); }, []);
+  useEffect(() => { const h = () => load(); window.addEventListener("eb-refresh-pressed", h); window.addEventListener("eb-app-resumed", h); return () => { window.removeEventListener("eb-refresh-pressed", h); window.removeEventListener("eb-app-resumed", h); }; }, []);
   const upd = (r) => { setRows((rs) => (rs || []).map((x) => rid(x) === rid(r) ? r : x)); setView((v) => v && rid(v.rec) === rid(r) ? { ...v, rec: r } : v); };
   const add = (r) => { setRows((rs) => [r, ...(rs || [])]); };
 
@@ -399,9 +404,9 @@ export function SpecsHubScreen() {
         ) : rows.map((rec) => (
           <RowCard key={rid(rec)} rec={rec} actions={<>
             <ActBtn icon={<Eye size={14} />} label="View" onClick={() => setView({ type: "view", rec })} />
-            <ActBtn icon={<Pencil size={14} />} label="Edit" onClick={() => setView({ type: "form", rec })} />
+            <ActBtn icon={<Pencil size={14} />} label="Edit" tone="e" onClick={() => setView({ type: "form", rec })} />
             <ActBtn icon={<Mail size={14} />} label={rec.mailTick ? "Re-mail" : "Mail"} tone="p" onClick={() => setView({ type: "mail", rec })} />
-            <ActBtn icon={<MessageSquare size={14} />} label="Message" onClick={() => setView({ type: "chat", rec })} />
+            <ActBtn icon={<MessageSquare size={14} />} label="Message" tone="m" onClick={() => setView({ type: "chat", rec })} />
           </>} />
         ))}
       </div>
@@ -480,12 +485,14 @@ export function SalesHubScreen() {
   const [rows, setRows] = useState(null);
   const [view, setView] = useState(null);
   const load = () => api.list("specsHub", false, isAdmin() ? {} : { involved: 1 }).then((d) => {
-    const me = CU().name;
-    let rs = (d.records || []);
-    if (!isAdmin()) rs = rs.filter((r) => low(r.salesPerson) === low(me));
+    const me = low(CU().name);
+    let rs = (d.records || []).map((r) => ({ ...(r.data || {}), id: r.id, _id: r.id, createdByName: r.created_by_name || (r.data || {}).createdByName, createdAt: r.created_at }));
+    // sales side: only records that are mailed/submitted (approved & sent), where I'm the sales person
+    if (!isAdmin()) rs = rs.filter((r) => low(r.salesPerson) === me);
     setRows(rs.sort((a, b) => rid(b) - rid(a)));
   }).catch(() => setRows([]));
   useEffect(() => { load(); }, []);
+  useEffect(() => { const h = () => load(); window.addEventListener("eb-refresh-pressed", h); window.addEventListener("eb-app-resumed", h); return () => { window.removeEventListener("eb-refresh-pressed", h); window.removeEventListener("eb-app-resumed", h); }; }, []);
   const upd = (r) => { setRows((rs) => (rs || []).map((x) => rid(x) === rid(r) ? r : x)); setView((v) => v && rid(v.rec) === rid(r) ? { ...v, rec: r } : v); };
 
   if (view?.type === "view") return <SpecView rec={view.rec} onClose={() => setView(null)} />;
@@ -501,7 +508,7 @@ export function SalesHubScreen() {
         ) : rows.map((rec) => (
           <RowCard key={rid(rec)} rec={rec} actions={<>
             <ActBtn icon={<Eye size={14} />} label="View" onClick={() => setView({ type: "view", rec })} />
-            <ActBtn icon={<MessageSquare size={14} />} label="Message" onClick={() => setView({ type: "chat", rec })} />
+            <ActBtn icon={<MessageSquare size={14} />} label="Message" tone="m" onClick={() => setView({ type: "chat", rec })} />
             <ActBtn icon={rec.salesStatus === "Win" ? <Trophy size={14} /> : rec.salesStatus === "Loss" ? <XCircle size={14} /> : <Check size={14} />} label={rec.salesStatus ? rec.salesStatus : "Status"} tone="p" onClick={() => setView({ type: "status", rec })} />
           </>} />
         ))}

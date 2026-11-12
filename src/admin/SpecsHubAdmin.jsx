@@ -153,8 +153,9 @@ export default function SpecsHubAdmin() {
   const [showMasters, setShowMasters] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadMasters = () => api.list("specsHubMaster").then((r) => { const rec = (r.records || [])[0]; if (rec) { setMasterId(rid(rec)); if (rec.categories?.length) setCats(rec.categories); if (rec.tiers?.length) setTiers(rec.tiers); } }).catch(() => {});
-  const loadRows = () => api.list("specsHub").then((r) => setAll((r.records || []).map((x) => ({ ...x, _id: rid(x) })).sort((a, b) => rid(b) - rid(a)))).catch(() => setAll([]));
+  const loadMasters = () => api.list("specsHubMaster").then((r) => { const rec = (r.records || [])[0]; const d = rec?.data || {}; if (rec) { setMasterId(rid(rec)); if (d.categories?.length) setCats(d.categories); if (d.tiers?.length) setTiers(d.tiers); } }).catch(() => {});
+  // records store all fields inside .data — flatten it onto the row so columns read
+  const loadRows = () => api.list("specsHub").then((r) => setAll((r.records || []).map((x) => ({ ...(x.data || {}), id: x.id, _id: rid(x), createdByName: x.created_by_name || (x.data || {}).createdByName, createdAt: x.created_at })).sort((a, b) => rid(b) - rid(a)))).catch(() => setAll([]));
   useEffect(() => { loadMasters(); loadRows(); }, []);
 
   const refresh = async () => { setRefreshing(true); await Promise.all([loadMasters(), loadRows()]); setRefreshing(false); };
@@ -163,6 +164,11 @@ export default function SpecsHubAdmin() {
     try { if (masterId) await api.update("specsHubMaster", masterId, data); else { const r = await api.create("specsHubMaster", data); setMasterId(r.id); } setShowMasters(false); } catch (e) { alert(e.message); }
   };
   const updRow = (r) => setAll((rs) => (rs || []).map((x) => rid(x) === rid(r) ? { ...r, _id: rid(r) } : x));
+  const delRow = async (r) => {
+    if (!window.confirm(`Delete "${r.projectName || "this specification"}"? This cannot be undone.`)) return;
+    try { await api.remove("specsHub", rid(r)); setAll((rs) => (rs || []).filter((x) => rid(x) !== rid(r))); }
+    catch (e) { alert(e.message); }
+  };
 
   const base = useMemo(() => {
     let rs = all || [];
@@ -238,7 +244,7 @@ export default function SpecsHubAdmin() {
       ) : all === null ? <SkeletonList rows={6} /> : (
         <>
           <Tabs tabs={tabs} active={tab} onChange={setTab} />
-          <DataTable columns={columns} rows={tabbed} onView={(r) => setView(r)} onChat={(r) => setChat(r)} />
+          <DataTable columns={columns} rows={tabbed} onView={(r) => setView(r)} onChat={(r) => setChat(r)} onDelete={delRow} />
         </>
       )}
 
