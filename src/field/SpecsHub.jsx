@@ -128,16 +128,16 @@ function Chat({ rec, onChange, onClose }) {
     try {
       await api.update("specsHub", rid(rec), { ...rec, messages: nm });
       onChange && onChange({ ...rec, messages: nm });
-      const others = [rec.specPerson, rec.salesPerson].filter((n) => n && low(n) !== low(me));
+      const others = [rec.specPerson, ...(rec.salesPersons && rec.salesPersons.length ? rec.salesPersons : [rec.salesPerson])].filter((n) => n && low(n) !== low(me));
       for (const to of others) { try { await api.notify({ to, title: "Specs-Hub message", message: `${me}: ${t}`, link: isSpec() ? "/app/specs-hub" : "/app/sales-hub", createdAt: now() }); } catch {} }
     } catch (e) { alert(e.message); }
     setBusy(false);
   };
   const mine = (m) => low(m.by) === low(CU().name);
   return (
-    <div style={{ position: "fixed", inset: 0, background: "#f6f8fd", zIndex: 80, display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "100%", background: "#f6f8fd", display: "flex", flexDirection: "column" }}>
       <Head title={`Chat · ${rec.projectName || "Specs"}`} onBack={onClose} />
-      <div ref={boxRef} style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+      <div ref={boxRef} style={{ flex: 1, minHeight: "48vh", overflowY: "auto", padding: 16 }}>
         {msgs.length === 0 && <div style={{ textAlign: "center", color: "var(--muted)", marginTop: 40 }}>No messages yet. Say hello 👋</div>}
         {msgs.map((m, i) => (
           <div key={i} style={{ display: "flex", justifyContent: mine(m) ? "flex-end" : "flex-start", marginBottom: 10 }}>
@@ -162,8 +162,10 @@ function MailModal({ rec, users, onSent, onClose }) {
   const [pick, setPick] = useState("");
   const [busy, setBusy] = useState(false);
   const specHod = hodEmailOf(users, rec.specPerson);
-  /* fixed CC (sales + Rahul) + the specs person's HOD, all REMOVABLE, and add more */
-  const [cc, setCc] = useState(() => [...new Set([CC_SALES, CC_RAHUL])]);
+  /* fixed CC (sales + Rahul) + my own email (mail goes from projects@, so the
+     creator is CC'd to keep their own copy) + the specs person's HOD, all
+     REMOVABLE, and add more */
+  const [cc, setCc] = useState(() => [...new Set([CC_SALES, CC_RAHUL, CU().email].filter(Boolean))]);
   useEffect(() => { if (specHod) setCc((c) => c.includes(specHod) ? c : [...c, specHod]); }, [specHod]);
   const rmCc = (e) => setCc((c) => c.filter((x) => x !== e));
   const addPerson = () => { if (!pick) return; const e = emailOf(users, pick) || pick; if (e && !cc.includes(e)) setCc((c) => [...c, e]); setPick(""); };
@@ -173,12 +175,13 @@ function MailModal({ rec, users, onSent, onClose }) {
     const row = (k, v) => v ? `<tr><td style="padding:4px 10px;color:#6b7694;font-weight:600">${k}</td><td style="padding:4px 10px;font-weight:700">${v}</td></tr>` : "";
     return `Dear Sir/Madam,<br>Good Day!<br><br>Please find the approved specification details below:<br><br>
 <table style="border-collapse:collapse;font-size:14px">
-${row("Approval Date", rec.approvalDate)}${row("Category", rec.category)}${row("Project / Brand", rec.projectName)}${row("Location", rec.location)}
+${row("Approval Date", rec.approvalDate)}${row("Category", rec.category)}${row("Project / Brand", rec.projectName)}${row("Project Location", rec.location)}
 ${row("Colour Code", rec.colourCode)}${row("Grade", rec.grade)}${row("Grade Tier", rec.tier)}
 ${row("Approved By", [rec.approvedByType, rec.firmName].filter(Boolean).join(" — "))}
 ${row("Contact Person", [rec.contactPerson, rec.contactNumber, rec.mailId].filter(Boolean).join(" · "))}
 ${row("Approved Qty", rec.approvedQty ? rec.approvedQty + " Sq.Mtr" : "")}
-${row("Sales Person", rec.salesPerson)}
+${row("Sales Person", rec.salesPersons ? rec.salesPersons.join(", ") : rec.salesPerson)}
+${row("Remark", rec.remark)}
 </table><br>
 Regards,<br><b>${CU().name || ""}</b>${CU().mobile ? "<br>" + CU().mobile : ""}`;
   };
@@ -200,7 +203,7 @@ Regards,<br><b>${CU().name || ""}</b>${CU().mobile ? "<br>" + CU().mobile : ""}`
 
   const salesPeople = users.filter((u) => /sales/i.test(u.role || "")).map((u) => u.name);
   return (
-    <div style={{ position: "fixed", inset: 0, background: "#f6f8fd", zIndex: 80, overflowY: "auto" }}>
+    <div style={{ minHeight: "100%", background: "#f6f8fd" }}>
       <Head title="Mail Specification" onBack={onClose} />
       <div style={{ padding: 16, maxWidth: 640, margin: "0 auto" }}>
         <div style={{ background: "#fff", borderRadius: 14, padding: 16, border: "1px solid #e6ecf7" }}>
@@ -232,7 +235,12 @@ Regards,<br><b>${CU().name || ""}</b>${CU().mobile ? "<br>" + CU().mobile : ""}`
 /* ================= FORM (create / edit) ================= */
 function SpecForm({ edit, onSaved, onClose }) {
   const users = useUsers();
-  const [f, setF] = useState(edit || { approvalDate: "", category: "", projectName: "", location: "", colourCode: "", grade: "", tier: "", approvedByType: "", firmName: "", contactPerson: "", contactNumber: "", mailId: "", approvedQty: "", attachments: [], salesPerson: "" });
+  const [f, setF] = useState(() => {
+    const base = { approvalDate: "", projectName: "", location: "", colourCode: "", grade: "", approvedByType: "", firmName: "", contactPerson: "", contactNumber: "", mailId: "", approvedQty: "", attachments: [], salesPersons: [], remark: "" };
+    if (!edit) return base;
+    const sp = edit.salesPersons && edit.salesPersons.length ? edit.salesPersons : (edit.salesPerson ? String(edit.salesPerson).split(/,\s*/).filter(Boolean) : []);
+    return { ...base, ...edit, salesPersons: sp };
+  });
   const [busy, setBusy] = useState(false);
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
   const salesPeople = users.filter((u) => /sales/i.test(u.role || "")).map((u) => u.name);
@@ -240,16 +248,13 @@ function SpecForm({ edit, onSaved, onClose }) {
   const addFiles = (fl) => filesToAtts(fl, (atts) => setF((p) => ({ ...p, attachments: [...(p.attachments || []), ...atts] })));
   const rmAtt = (i) => setF((p) => ({ ...p, attachments: p.attachments.filter((_, j) => j !== i) }));
 
-  const save = async (asDraft) => {
-    if (!asDraft) {
-      const need = [["approvalDate", "Approval date"], ["projectName", "Project / Brand name"], ["location", "Location"], ["colourCode", "Colour code"], ["grade", "Grade"], ["approvedByType", "Approved by"], ["firmName", "Firm name"], ["contactPerson", "Contact person name"], ["salesPerson", "Sales person"]];
-      for (const [k, label] of need) if (!String(f[k] || "").trim()) { alert(`Please fill: ${label}`); return; }
-      if (!(f.attachments || []).length) { alert("Please add at least one attachment (photo / PDF)."); return; }
-    } else {
-      if (!String(f.projectName || "").trim()) { alert("Add at least the Project / Brand name to save a draft."); return; }
-    }
+  const save = async () => {
+    const need = [["approvalDate", "Approval date"], ["projectName", "Project / Brand name"], ["location", "Project Location"], ["colourCode", "Colour code"], ["grade", "Grade"], ["approvedByType", "Approved by"], ["firmName", "Firm name"], ["contactPerson", "Contact person name"]];
+    for (const [k, label] of need) if (!String(f[k] || "").trim()) { alert(`Please fill: ${label}`); return; }
+    if (!(f.salesPersons || []).length) { alert("Please add at least one Sales Person."); return; }
+    if (!(f.attachments || []).length) { alert("Please add at least one attachment (photo / PDF)."); return; }
     setBusy(true);
-    const data = { ...f, status: asDraft ? "Draft" : (f.status === "Mailed" || f.mailTick ? f.status : "Submitted"), specPerson: edit?.specPerson || CU().name };
+    const data = { ...f, salesPerson: (f.salesPersons || []).join(", "), status: (f.status === "Mailed" || f.mailTick ? f.status : "Submitted"), specPerson: edit?.specPerson || CU().name };
     if (edit && edit.mailTick) data.mailTick = false; // changed after mail -> needs re-mail
     try {
       let r;
@@ -257,20 +262,20 @@ function SpecForm({ edit, onSaved, onClose }) {
       else {
         r = await api.create("specsHub", data);
         onSaved({ id: r.id, ...data });
-        if (f.salesPerson) { try { await api.notify({ to: f.salesPerson, title: "New Specification approved", message: `${CU().name} mentioned you on "${f.projectName}"`, link: "/app/sales-hub", createdAt: now() }); } catch {} }
+        for (const sp of (f.salesPersons || [])) { try { await api.notify({ to: sp, title: "New Specification approved", message: `${CU().name} mentioned you on "${f.projectName}"`, link: "/app/sales-hub", createdAt: now() }); } catch {} }
       }
     } catch (e) { alert(e.message); setBusy(false); }
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "#f6f8fd", zIndex: 70, overflowY: "auto" }}>
+    <div style={{ minHeight: "100%", background: "#f6f8fd" }}>
       <Head title={edit ? "Edit Specification" : "New Specification"} onBack={onClose} />
       <div style={{ padding: 16, maxWidth: 640, margin: "0 auto" }}>
         <label style={lbl}>Approval Date{req}</label>
         <input type="date" value={f.approvalDate} onChange={(e) => set("approvalDate", e.target.value)} style={inp} />
         <label style={lbl}>Project / Brand Name{req}</label>
         <input value={f.projectName} onChange={(e) => set("projectName", e.target.value)} style={inp} placeholder="Project or brand name" />
-        <label style={lbl}>Location{req}</label>
+        <label style={lbl}>Project Location{req}</label>
         <input value={f.location} onChange={(e) => set("location", e.target.value)} style={inp} />
         <label style={lbl}>Colour Code{req}</label>
         <input value={f.colourCode} onChange={(e) => set("colourCode", e.target.value)} style={inp} />
@@ -305,12 +310,19 @@ function SpecForm({ edit, onSaved, onClose }) {
             ))}
           </div>
         )}
-        <label style={lbl}>Sales Person (mention){req}</label>
-        <select value={f.salesPerson} onChange={(e) => set("salesPerson", e.target.value)} style={inp}><option value="">Select sales person…</option>{salesPeople.map((n) => <option key={n}>{n}</option>)}</select>
+        <label style={lbl}>Sales Persons (mention){req}</label>
+        {(f.salesPersons || []).length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+            {f.salesPersons.map((n) => <span key={n} style={{ background: "#e7edfb", color: "#1b3a8f", padding: "5px 10px", borderRadius: 16, fontSize: 12.5, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 5 }}>{n} <X size={13} style={{ cursor: "pointer" }} onClick={() => set("salesPersons", f.salesPersons.filter((x) => x !== n))} /></span>)}
+          </div>
+        )}
+        <select value="" onChange={(e) => { const n = e.target.value; if (n && !f.salesPersons.includes(n)) set("salesPersons", [...f.salesPersons, n]); }} style={inp}><option value="">+ Add sales person…</option>{salesPeople.filter((n) => !f.salesPersons.includes(n)).map((n) => <option key={n}>{n}</option>)}</select>
 
-        <div style={{ display: "flex", gap: 10, margin: "22px 0 40px" }}>
-          <button onClick={() => save(true)} disabled={busy} style={{ flex: 1, padding: 13, borderRadius: 12, border: "1px solid #c9d2ea", background: "#fff", color: "#1b3a8f", fontWeight: 800, cursor: "pointer" }}>Save Draft</button>
-          <button onClick={() => save(false)} disabled={busy} className="f-submit" style={{ flex: 1, padding: 13, fontSize: 15 }}>{busy ? "Saving…" : "Save"}</button>
+        <label style={lbl}>Remark</label>
+        <textarea value={f.remark} onChange={(e) => set("remark", e.target.value)} style={{ ...inp, minHeight: 80 }} placeholder="Any note / remark (optional)" />
+
+        <div style={{ margin: "22px 0 40px" }}>
+          <button onClick={() => save()} disabled={busy} className="f-submit" style={{ width: "100%", padding: 14, fontSize: 15 }}>{busy ? "Saving…" : "Save"}</button>
         </div>
       </div>
     </div>
@@ -321,7 +333,7 @@ function SpecForm({ edit, onSaved, onClose }) {
 function SpecView({ rec, onClose }) {
   const Row = ({ k, v }) => <div style={{ display: "flex", justifyContent: "space-between", padding: "11px 0", borderBottom: "1px solid #eef1f8", fontSize: 14 }}><span style={{ color: "var(--muted)", fontWeight: 600 }}>{k}</span><b style={{ textAlign: "right", maxWidth: "60%" }}>{v || "—"}</b></div>;
   return (
-    <div style={{ position: "fixed", inset: 0, background: "#f6f8fd", zIndex: 70, overflowY: "auto" }}>
+    <div style={{ minHeight: "100%", background: "#f6f8fd" }}>
       <Head title="Specification" onBack={onClose} right={<Chip s={rec.salesStatus || rec.status} />} />
       <div style={{ padding: 16, maxWidth: 640, margin: "0 auto" }}>
         <div style={{ background: "#fff", borderRadius: 14, padding: "4px 16px", border: "1px solid #e6ecf7" }}>
@@ -329,7 +341,8 @@ function SpecView({ rec, onClose }) {
           <Row k="Location" v={rec.location} /><Row k="Colour Code" v={rec.colourCode} /><Row k="Grade" v={rec.grade} />
           <Row k="Approved By" v={[rec.approvedByType, rec.firmName].filter(Boolean).join(" — ")} />
           <Row k="Contact" v={[rec.contactPerson, rec.contactNumber, rec.mailId].filter(Boolean).join(" · ")} />
-          <Row k="Approved Qty" v={rec.approvedQty ? rec.approvedQty + " Sq.Mtr" : ""} /><Row k="Sales Person" v={rec.salesPerson} /><Row k="Specs Person" v={rec.specPerson} />
+          <Row k="Approved Qty" v={rec.approvedQty ? rec.approvedQty + " Sq.Mtr" : ""} /><Row k="Sales Persons" v={rec.salesPersons ? rec.salesPersons.join(", ") : rec.salesPerson} /><Row k="Specs Person" v={rec.specPerson} />
+          {rec.remark && <Row k="Remark" v={rec.remark} />}
           {rec.mailedAt && <Row k="Mailed" v={rec.mailedAt} />}
         </div>
         <div style={{ marginTop: 14 }}><div style={lbl}>ATTACHMENTS</div><AttView atts={rec.attachments} /></div>
@@ -437,7 +450,7 @@ function StatusModal({ rec, onSaved, onClose }) {
     } catch (e) { alert(e.message); setBusy(false); }
   };
   return (
-    <div style={{ position: "fixed", inset: 0, background: "#f6f8fd", zIndex: 70, overflowY: "auto" }}>
+    <div style={{ minHeight: "100%", background: "#f6f8fd" }}>
       <Head title="Update Status" onBack={onClose} />
       <div style={{ padding: 16, maxWidth: 640, margin: "0 auto" }}>
         <div style={{ display: "flex", gap: 10 }}>
@@ -487,8 +500,8 @@ export function SalesHubScreen() {
   const load = () => api.list("specsHub", false, isAdmin() ? {} : { involved: 1 }).then((d) => {
     const me = low(CU().name);
     let rs = (d.records || []).map((r) => ({ ...(r.data || {}), id: r.id, _id: r.id, createdByName: r.created_by_name || (r.data || {}).createdByName, createdAt: r.created_at }));
-    // sales side: only records that are mailed/submitted (approved & sent), where I'm the sales person
-    if (!isAdmin()) rs = rs.filter((r) => low(r.salesPerson) === me);
+    // sales side: records where I'm one of the sales persons (single or multi)
+    if (!isAdmin()) rs = rs.filter((r) => (r.salesPersons || []).map(low).includes(me) || String(r.salesPerson || "").split(/,\s*/).map(low).includes(me));
     setRows(rs.sort((a, b) => rid(b) - rid(a)));
   }).catch(() => setRows([]));
   useEffect(() => { load(); }, []);

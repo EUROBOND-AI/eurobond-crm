@@ -447,7 +447,7 @@ export const MODULES = {
      policies, technical notes, FAQs or PDF text here; EUVA answers from it.
      Nothing in code changes — add matter here and it reflects in EUVA at once. */
   aiTraining: {
-    path: "master/ai-training", title: "EUVA AI Training", crumb: "EUVA AI Training", addLabel: "Add Knowledge",
+    path: "master/ai-training", title: "Chitra AI Training", crumb: "Chitra AI Training", addLabel: "Add Knowledge",
     idPrefix: "AIT",
     tabs: [{ key: "Active", label: "Active" }, { key: "Inactive", label: "Inactive" }],
     tabField: "status",
@@ -462,7 +462,7 @@ export const MODULES = {
       { name: "title", label: "Title (what this is about)", required: true, full: true },
       { name: "topic", label: "Topic / Category (e.g. Product, Policy, Warranty, Technical)" },
       { name: "pdfText", label: "Read a PDF (optional — its text is pulled into Matter below)", type: "pdfextract", target: "content", full: true },
-      { name: "content", label: "Matter (paste the information EUVA should learn — or it fills from the PDF)", type: "textarea", required: true, full: true },
+      { name: "content", label: "Matter (paste the information Chitra should learn — or it fills from the PDF)", type: "textarea", required: true, full: true },
       { name: "status", label: "Status", type: "select", options: ["Active", "Inactive"] },
     ],
   },
@@ -470,13 +470,13 @@ export const MODULES = {
   /* EUVA Chat History — what staff asked EUVA (read-only). Use it to see the
      common questions and add answers to AI Training. No add form. */
   euvaLog: {
-    path: "master/euva-history", title: "EUVA Chat History", crumb: "EUVA History",
+    path: "master/euva-history", title: "Chitra Chat History", crumb: "Chitra History",
     columns: [
       { key: "createdAt", label: "When" },
       { key: "user", label: "User" },
       { key: "role", label: "Role" },
       { key: "question", label: "Question", render: expandText },
-      { key: "answer", label: "EUVA's answer", render: expandText },
+      { key: "answer", label: "Chitra's answer", render: expandText },
     ],
   },
 

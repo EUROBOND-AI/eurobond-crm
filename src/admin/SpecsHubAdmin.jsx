@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, auth } from "../lib/api.js";
 import { PageHead, Tabs, StatCard, DataTable, ToolButtons, Pill } from "../components/ui.jsx";
 import { SkeletonList } from "../components/Loaders.jsx";
+import { recordMatchesPlace, recordPeople, hodNamesOf, visibleUsers } from "../lib/scope.js";
 
 /* Admin Specs-Hub — same look as every other module (stat boxes, filters, Show,
    tabs, table, export, refresh). Admin also sets each record's Category and
@@ -69,7 +70,8 @@ function AdminChat({ rec, onClose, onChange }) {
     try {
       await api.update("specsHub", rid(rec), { ...rec, messages: nm });
       onChange && onChange({ ...rec, messages: nm });
-      for (const to of [rec.specPerson, rec.salesPerson].filter(Boolean)) { try { await api.notify({ to, title: "Specs-Hub message (Admin)", message: `${me}: ${t}`, link: "/app/specs-hub", createdAt: now() }); } catch {} }
+      const parties = [rec.specPerson, ...(rec.salesPersons && rec.salesPersons.length ? rec.salesPersons : String(rec.salesPerson || "").split(/,\s*/))].filter(Boolean);
+      for (const to of [...new Set(parties)]) { try { await api.notify({ to, title: "Specs-Hub message (Admin)", message: `${me}: ${t}`, link: "/app/specs-hub", createdAt: now() }); } catch {} }
     } catch (e) { alert(e.message); }
     setBusy(false);
   };
@@ -117,11 +119,28 @@ function ViewModal({ rec, cats, tiers, onSaved, onClose }) {
           <button className="btn btn-ghost" onClick={onClose}>✕</button>
         </div>
         <div style={{ background: "#f6f8fd", border: "1px solid #e6ecf7", borderRadius: 12, padding: "4px 14px", marginBottom: 14 }}>
-          <Row k="Approval Date" v={rec.approvalDate} /><Row k="Location" v={rec.location} /><Row k="Colour Code" v={rec.colourCode} /><Row k="Grade" v={rec.grade} />
-          <Row k="Approved By" v={[rec.approvedByType, rec.firmName].filter(Boolean).join(" — ")} /><Row k="Contact" v={[rec.contactPerson, rec.contactNumber, rec.mailId].filter(Boolean).join(" · ")} />
-          <Row k="Approved Qty" v={rec.approvedQty ? rec.approvedQty + " Sq.Mtr" : ""} /><Row k="Specs Person" v={rec.specPerson} /><Row k="Sales Person" v={rec.salesPerson} />
+          <Row k="Approval Date" v={rec.approvalDate} />
+          <Row k="Project / Brand" v={rec.projectName} />
+          <Row k="Project Location" v={rec.location} />
+          <Row k="Colour Code" v={rec.colourCode} />
+          <Row k="Grade" v={rec.grade} />
+          <Row k="Approved By" v={[rec.approvedByType, rec.firmName].filter(Boolean).join(" — ")} />
+          <Row k="Contact Person" v={rec.contactPerson} />
+          <Row k="Contact Number" v={rec.contactNumber} />
+          <Row k="Mail ID" v={rec.mailId} />
+          <Row k="Approved Qty" v={rec.approvedQty ? rec.approvedQty + " Sq.Mtr" : ""} />
+          <Row k="Specs Person" v={rec.specPerson} />
+          <Row k="Sales Persons" v={rec.salesPersons ? rec.salesPersons.join(", ") : rec.salesPerson} />
+          <Row k="Category" v={rec.category} />
+          <Row k="Tier" v={rec.tier} />
           <Row k="Status" v={statusOf(rec)} />{rec.mailedAt && <Row k="Mailed" v={rec.mailedAt} />}
         </div>
+        {rec.remark && (
+          <div style={{ background: "#fff7e6", border: "1px solid #f3e2b8", borderRadius: 12, padding: "10px 14px", marginBottom: 14 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 800, color: "#9a6b00", marginBottom: 4 }}>REMARK</div>
+            <div style={{ fontSize: 14, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{rec.remark}</div>
+          </div>
+        )}
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
           <div style={{ flex: 1, minWidth: 180 }}><div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--muted)", marginBottom: 4 }}>Category (admin)</div>
             <select value={cat} onChange={(e) => setCat(e.target.value)} style={{ ...sel, width: "100%" }}><option value="">Select…</option>{cats.map((c) => <option key={c}>{c}</option>)}</select></div>
@@ -146,7 +165,10 @@ export default function SpecsHubAdmin() {
   const [all, setAll] = useState(null);
   const [tab, setTab] = useState("all");
   const [from, setFrom] = useState(""); const [to, setTo] = useState("");
-  const [fStatus, setFStatus] = useState(""); const [fPerson, setFPerson] = useState("");
+  const [fStatus, setFStatus] = useState("");
+  const [fZone, setFZone] = useState(""); const [fState, setFState] = useState("");
+  const [fHod, setFHod] = useState(""); const [fUser, setFUser] = useState("");
+  const [users, setUsers] = useState([]);
   const [shown, setShown] = useState(false);
   const [view, setView] = useState(null);
   const [chat, setChat] = useState(null);
@@ -156,7 +178,12 @@ export default function SpecsHubAdmin() {
   const loadMasters = () => api.list("specsHubMaster").then((r) => { const rec = (r.records || [])[0]; const d = rec?.data || {}; if (rec) { setMasterId(rid(rec)); if (d.categories?.length) setCats(d.categories); if (d.tiers?.length) setTiers(d.tiers); } }).catch(() => {});
   // records store all fields inside .data — flatten it onto the row so columns read
   const loadRows = () => api.list("specsHub").then((r) => setAll((r.records || []).map((x) => ({ ...(x.data || {}), id: x.id, _id: rid(x), createdByName: x.created_by_name || (x.data || {}).createdByName, createdAt: x.created_at })).sort((a, b) => rid(b) - rid(a)))).catch(() => setAll([]));
-  useEffect(() => { loadMasters(); loadRows(); }, []);
+  useEffect(() => { loadMasters(); loadRows(); api.listUsers().then((d) => setUsers(d.users || [])).catch(() => {}); }, []);
+
+  const zones = useMemo(() => [...new Set(users.map((u) => u.zone).filter(Boolean))].sort(), [users]);
+  const states = useMemo(() => [...new Set(users.flatMap((u) => [u.state, ...String(u.states || "").split(",")]).map((s) => String(s || "").trim()).filter(Boolean))].sort(), [users]);
+  const hods = useMemo(() => hodNamesOf(users), [users]);
+  const userNames = useMemo(() => visibleUsers(users).map((u) => u.name).filter(Boolean).sort(), [users]);
 
   const refresh = async () => { setRefreshing(true); await Promise.all([loadMasters(), loadRows()]); setRefreshing(false); };
   const saveMasters = async () => {
@@ -174,10 +201,11 @@ export default function SpecsHubAdmin() {
     let rs = all || [];
     if (from) rs = rs.filter((r) => (r.approvalDate || "") >= from);
     if (to) rs = rs.filter((r) => (r.approvalDate || "") <= to);
+    if (fZone || fState || fHod) rs = rs.filter((r) => recordMatchesPlace(r, users, { zone: fZone, state: fState, hod: fHod }));
+    if (fUser) rs = rs.filter((r) => recordPeople(r).map(low).includes(low(fUser)));
     if (fStatus) rs = rs.filter((r) => statusOf(r) === fStatus);
-    if (fPerson) rs = rs.filter((r) => r.specPerson === fPerson || r.salesPerson === fPerson);
     return rs;
-  }, [all, from, to, fStatus, fPerson]);
+  }, [all, from, to, fZone, fState, fHod, fUser, fStatus, users]);
 
   const tabbed = useMemo(() => {
     if (tab === "all") return base;
@@ -189,8 +217,8 @@ export default function SpecsHubAdmin() {
   const cnt = (s) => base.filter((r) => statusOf(r) === s).length;
 
   const exportCsv = () => {
-    const cols = ["projectName", "location", "category", "grade", "tier", "approvedByType", "firmName", "specPerson", "salesPerson", "approvedQty"];
-    const head = ["Project", "Location", "Category", "Grade", "Tier", "Approved By", "Firm", "Spec Person", "Sales Person", "Qty", "Status"];
+    const cols = ["projectName", "location", "category", "grade", "tier", "approvedByType", "firmName", "specPerson", "salesPerson", "approvedQty", "remark"];
+    const head = ["Project", "Project Location", "Category", "Grade", "Tier", "Approved By", "Firm", "Spec Person", "Sales Persons", "Qty", "Remark", "Status"];
     const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const lines = [head.join(",")].concat(tabbed.map((r) => cols.map((c) => esc(r[c])).concat(esc(statusOf(r))).join(",")));
     const url = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
@@ -203,10 +231,15 @@ export default function SpecsHubAdmin() {
     { key: "category", label: "Category", render: (v) => v || "—" },
     { key: "grade", label: "Grade" },
     { key: "specPerson", label: "Spec Person" },
-    { key: "salesPerson", label: "Sales Person" },
+    { key: "salesPerson", label: "Sales Persons", render: (v, r) => (r.salesPersons ? r.salesPersons.join(", ") : v) || "—" },
     { key: "status", label: "Status", filter: false, render: (_v, r) => <Pill status={statusOf(r)} /> },
     { key: "mailTick", label: "Mailed", filter: false, render: (v) => v ? "✓" : "—" },
     { key: "createdByName", label: "Created By", render: (v, r) => v || r.specPerson || "—" },
+    { key: "remark", label: "Remark", filter: false, render: (v, r) => {
+      const t = String(v || ""); if (!t) return "—";
+      if (t.length <= 40) return t;
+      return <span>{t.slice(0, 40)}… <a onClick={(e) => { e.stopPropagation(); setView(r); }} style={{ color: "#1b3a8f", fontWeight: 700, cursor: "pointer" }}>read more</a></span>;
+    } },
   ];
   const tabs = [
     { key: "all", label: "All", count: base.length },
@@ -231,9 +264,12 @@ export default function SpecsHubAdmin() {
 
       <div className="card" style={{ padding: 14, marginBottom: 16 }}>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <select value={fZone} onChange={(e) => setFZone(e.target.value)} style={sel}><option value="">All Zones</option>{zones.map((z) => <option key={z}>{z}</option>)}</select>
+          <select value={fState} onChange={(e) => setFState(e.target.value)} style={sel}><option value="">All States</option>{states.map((s) => <option key={s}>{s}</option>)}</select>
+          <select value={fHod} onChange={(e) => setFHod(e.target.value)} style={sel}><option value="">All HODs</option>{hods.map((h) => <option key={h}>{h}</option>)}</select>
+          <select value={fUser} onChange={(e) => setFUser(e.target.value)} style={sel}><option value="">All Users</option>{userNames.map((p) => <option key={p}>{p}</option>)}</select>
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={sel} />
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={sel} />
-          <select value={fPerson} onChange={(e) => setFPerson(e.target.value)} style={sel}><option value="">All Persons</option>{people.map((p) => <option key={p}>{p}</option>)}</select>
           <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} style={sel}><option value="">All Status</option>{["Draft", "Submitted", "Mailed", "Win", "Loss"].map((s) => <option key={s}>{s}</option>)}</select>
           <button className="btn btn-primary" style={{ padding: "8px 22px" }} onClick={() => setShown(true)}>Show</button>
         </div>

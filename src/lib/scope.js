@@ -151,8 +151,9 @@ export function recordPeople(r) {
   const out = [];
   if (Array.isArray(row.assigneeList) && row.assigneeList.length) out.push(...row.assigneeList);
   else if (row.assignee) out.push(...String(row.assignee).split(","));
+  if (Array.isArray(row.salesPersons) && row.salesPersons.length) out.push(...row.salesPersons);
   for (const k of ["assignedTo", "createdBy", "salesPerson", "specPerson", "passto"]) {
-    if (row[k]) out.push(row[k]);
+    if (row[k]) out.push(...String(row[k]).split(",")); // split handles multi-person joined strings
   }
   return [...new Set(out.map((x) => String(x).trim()).filter(Boolean))];
 }

@@ -25,7 +25,7 @@ function EubotIcon({ size = 40 }) {
   const spin = (s, rev) => ({ transformBox: "view-box", transformOrigin: "128px 128px", animation: `eubotspin ${s}s linear infinite${rev ? " reverse" : ""}` });
   return (
     <span style={{ position: "relative", display: "inline-block", width: size, height: size, flexShrink: 0, animation: "eubotpulse 3.2s ease-in-out infinite alternate" }}>
-      <svg viewBox="0 0 256 256" width={size} height={size} style={{ display: "block", overflow: "visible" }} aria-label="EUVA">
+      <svg viewBox="0 0 256 256" width={size} height={size} style={{ display: "block", overflow: "visible" }} aria-label="Chitra">
         <defs>
           <filter id={fid} x="-30%" y="-30%" width="160%" height="160%">
             <feTurbulence type="fractalNoise" baseFrequency="0.009" numOctaves="1" seed="7" result="n">
@@ -112,7 +112,7 @@ const NAV_LABEL = {
   target: "Target", attendance: "Attendance", attendance_sheet: "Attendance Sheet", checkin: "Check-in", tour_report: "Tour Report",
   task: "Task", add_task: "Task", beat_plan: "Beat Plan", biltrax: "Biltrax", resources: "Resources & Links", calendar: "Calendar", profile: "Profile",
   team: "Team Performance", team_tracking: "Team Tracking", team_customers: "Team Customers", leave_approval: "Leave Approval", notifications: "Notifications",
-  help: "Support & Help", settings: "Settings", announcement: "Announcements", products: "Products", users: "Users", ai_training: "EUVA AI Training", euva_history: "EUVA Chat History", dashboards: "Dashboards",
+  help: "Support & Help", settings: "Settings", announcement: "Announcements", products: "Products", users: "Users", ai_training: "Chitra AI Training", euva_history: "Chitra Chat History", dashboards: "Dashboards",
 };
 
 /* words that mean a screen, so a plain "open X" is handled on the device at
@@ -714,9 +714,9 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
       if (av && av.available === false) { setMsgs((m) => [...m, { role: "note", text: "Voice input isn't available on this phone — please install/enable Google voice typing, or type instead." }]); return; }
       let perm = await P.checkPermissions().catch(() => null);
       if (!perm || perm.speechRecognition !== "granted") perm = await P.requestPermissions().catch(() => null);
-      if (!perm || perm.speechRecognition !== "granted") { setMsgs((m) => [...m, { role: "note", text: "Please allow the microphone for Eurobond CRM to talk to EUVA." }]); return; }
+      if (!perm || perm.speechRecognition !== "granted") { setMsgs((m) => [...m, { role: "note", text: "Please allow the microphone for Eurobond CRM to talk to Chitra." }]); return; }
       setListening(true);
-      const res = await P.start({ language: lang, maxResults: 1, prompt: "Speak to EUVA…", partialResults: false, popup: false });
+      const res = await P.start({ language: lang, maxResults: 1, prompt: "Speak to Chitra…", partialResults: false, popup: false });
       setListening(false);
       const said = res && Array.isArray(res.matches) ? res.matches[0] : "";
       if (said) send(said, true);
@@ -791,7 +791,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
     <>
       <style>{`@keyframes eubotwave{0%,100%{height:5px}50%{height:18px}}@keyframes eubotspin{to{transform:rotate(360deg)}}@keyframes eubotpulse{from{transform:scale(.96)}to{transform:scale(1.05)}}@media (prefers-reduced-motion:reduce){[style*="eubotspin"],[style*="eubotpulse"]{animation:none!important}}.euva-sign{font-weight:800;font-size:13.5px;letter-spacing:.3px;background:linear-gradient(90deg,#1b3a8f,#6c5ce7,#00b894,#1b3a8f);background-size:300% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:euvashine 6s linear infinite}@keyframes euvashine{to{background-position:300% 0}}@keyframes eubotdot{0%,100%{transform:translateY(0);opacity:.45}50%{transform:translateY(-6px);opacity:1}}`}</style>
       {!open && pos && !agent && (
-        <button style={fab} data-euva="1" title="EUVA — drag to move, tap to chat" aria-label="EUVA" onPointerDown={onFabDown}>
+        <button style={fab} data-euva="1" title="Chitra — drag to move, tap to chat" aria-label="Chitra" onPointerDown={onFabDown}>
           <EubotIcon size={FABSZ} />
         </button>
       )}
@@ -802,7 +802,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
             <div style={head}>
               <EubotIcon size={36} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 800, fontSize: 16, letterSpacing: .5 }}>EUVA</div>
+                <div style={{ fontWeight: 800, fontSize: 16, letterSpacing: .5 }}>Chitra</div>
                 <div style={{ fontSize: 11, opacity: .85 }}>{name ? "Hi " + name.split(" ")[0] + " · " : ""}ask or speak</div>
               </div>
               <select value={lang} onChange={(e) => setLang(e.target.value)} title="Speaking language (for the mic)"
@@ -832,7 +832,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
               {msgs.length === 0 && (
                 <div style={{ color: "#6b7694", fontSize: 13.5, textAlign: "center", margin: "auto", padding: 16, lineHeight: 1.6 }}>
                   <div style={{ marginBottom: 10 }}><EubotIcon size={80} /></div>
-                  <div style={{ fontWeight: 800, color: "#2a3450", fontSize: 16, marginBottom: 6 }}>Meet EUVA</div>
+                  <div style={{ fontWeight: 800, color: "#2a3450", fontSize: 16, marginBottom: 6 }}>Meet Chitra</div>
                   <div className="euva-sign" style={{ marginBottom: 10 }}>Trained &amp; Developed by Karthik G</div>
                   Ask me anything, in any language — I can find, calculate, explain any screen, give product &amp; contact details, and make entries for you.<br />
                   <span style={{ fontSize: 12, opacity: .8 }}>Tap the mic to talk.</span>
