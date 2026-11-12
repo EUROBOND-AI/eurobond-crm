@@ -1,26 +1,50 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, auth } from "../lib/api.js";
+import { PageHead, Tabs, StatCard, DataTable, ToolButtons, Pill } from "../components/ui.jsx";
 import { SkeletonList } from "../components/Loaders.jsx";
 
-/* Admin side of Specs-Hub:
-   1) manage the two dropdown masters (Category, Standard/Premium tier)
-   2) see every specification and join the specs↔sales chat. */
+/* Admin Specs-Hub — same look as every other module (stat boxes, filters, Show,
+   tabs, table, export, refresh). Admin also sets each record's Category and
+   Standard/Premium tier here (not in the app), manages the dropdown options,
+   and can join the specs↔sales chat. */
 
 const now = () => new Date().toLocaleString("en-IN");
 const rid = (r) => r.id || r._id;
 const low = (s) => String(s || "").trim().toLowerCase();
 const DEF_CATS = ["Project", "Govt", "Corporate"];
 const DEF_TIERS = ["Standard", "Premium", "Premium Plus"];
+const sel = { padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" };
+const statusOf = (r) => r.salesStatus || (r.mailTick ? "Mailed" : r.status) || "Draft";
 
+/* ---- in-app attachment zoom (admin) ---- */
+function Lightbox({ src, onClose }) {
+  if (!src) return null;
+  const isImg = /^data:image\//.test(src) || /\.(png|jpe?g|webp|gif)$/i.test(src);
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(5,8,20,.92)", zIndex: 2000, display: "grid", placeItems: "center", padding: 20 }}>
+      {isImg ? <img src={src} style={{ maxWidth: "95%", maxHeight: "95%", borderRadius: 8 }} />
+        : <iframe src={src} title="doc" style={{ width: "92%", height: "92%", border: "none", borderRadius: 8, background: "#fff" }} />}
+      <button onClick={onClose} style={{ position: "absolute", top: 20, right: 24, background: "#fff", border: "none", borderRadius: "50%", width: 44, height: 44, fontSize: 20, cursor: "pointer" }}>✕</button>
+    </div>
+  );
+}
+function Atts({ atts, onZoom }) {
+  if (!atts || !atts.length) return <span style={{ color: "var(--muted)" }}>No attachments</span>;
+  return <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>{atts.map((a, i) => /^image\//.test(a.mime)
+    ? <img key={i} src={a.base64} onClick={() => onZoom(a.base64)} style={{ width: 92, height: 92, objectFit: "cover", borderRadius: 10, border: "1px solid var(--line)", cursor: "zoom-in" }} />
+    : <div key={i} onClick={() => onZoom(a.base64)} style={{ background: "#eef1f8", padding: "10px 14px", borderRadius: 10, fontWeight: 700, color: "#1b3a8f", cursor: "pointer", fontSize: 13 }}>📎 {a.name}</div>)}</div>;
+}
+
+/* ---- list editor for the two masters ---- */
 function ListEditor({ title, items, setItems }) {
   const [v, setV] = useState("");
   return (
-    <div style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 12, padding: 16, flex: 1, minWidth: 260 }}>
+    <div style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 12, padding: 16, flex: 1, minWidth: 240 }}>
       <div style={{ fontWeight: 800, marginBottom: 10 }}>{title}</div>
       {items.map((it, i) => (
         <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid #f0f3fa" }}>
           <input value={it} onChange={(e) => setItems(items.map((x, j) => j === i ? e.target.value : x))} style={{ flex: 1, padding: "7px 10px", borderRadius: 8, border: "1px solid var(--line)" }} />
-          <button className="btn btn-ghost" style={{ color: "#c03636", padding: "4px 10px" }} onClick={() => setItems(items.filter((_, j) => j !== i))}>Remove</button>
+          <button className="btn btn-ghost" style={{ color: "#c03636" }} onClick={() => setItems(items.filter((_, j) => j !== i))}>Remove</button>
         </div>
       ))}
       <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
@@ -77,69 +101,161 @@ function AdminChat({ rec, onClose, onChange }) {
   );
 }
 
+/* record view — admin assigns Category + tier here */
+function ViewModal({ rec, cats, tiers, onSaved, onClose }) {
+  const [cat, setCat] = useState(rec.category || "");
+  const [tier, setTier] = useState(rec.tier || "");
+  const [busy, setBusy] = useState(false);
+  const [zoom, setZoom] = useState(null);
+  const Row = ({ k, v }) => <div style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", borderBottom: "1px solid #eef1f8", fontSize: 14 }}><span style={{ color: "var(--muted)", fontWeight: 600 }}>{k}</span><b style={{ textAlign: "right", maxWidth: "62%" }}>{v || "—"}</b></div>;
+  const save = async () => { setBusy(true); try { const d = { ...rec, category: cat, tier }; await api.update("specsHub", rid(rec), d); onSaved(d); } catch (e) { alert(e.message); setBusy(false); } };
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.4)", zIndex: 1000, display: "grid", placeItems: "center", padding: 20 }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", width: 620, maxWidth: "100%", maxHeight: "90vh", overflowY: "auto", borderRadius: 16, padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <h3 style={{ margin: 0 }}>{rec.projectName}</h3>
+          <button className="btn btn-ghost" onClick={onClose}>✕</button>
+        </div>
+        <div style={{ background: "#f6f8fd", border: "1px solid #e6ecf7", borderRadius: 12, padding: "4px 14px", marginBottom: 14 }}>
+          <Row k="Approval Date" v={rec.approvalDate} /><Row k="Location" v={rec.location} /><Row k="Colour Code" v={rec.colourCode} /><Row k="Grade" v={rec.grade} />
+          <Row k="Approved By" v={[rec.approvedByType, rec.firmName].filter(Boolean).join(" — ")} /><Row k="Contact" v={[rec.contactPerson, rec.contactNumber, rec.mailId].filter(Boolean).join(" · ")} />
+          <Row k="Approved Qty" v={rec.approvedQty ? rec.approvedQty + " Sq.Mtr" : ""} /><Row k="Specs Person" v={rec.specPerson} /><Row k="Sales Person" v={rec.salesPerson} />
+          <Row k="Status" v={statusOf(rec)} />{rec.mailedAt && <Row k="Mailed" v={rec.mailedAt} />}
+        </div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+          <div style={{ flex: 1, minWidth: 180 }}><div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--muted)", marginBottom: 4 }}>Category (admin)</div>
+            <select value={cat} onChange={(e) => setCat(e.target.value)} style={{ ...sel, width: "100%" }}><option value="">Select…</option>{cats.map((c) => <option key={c}>{c}</option>)}</select></div>
+          <div style={{ flex: 1, minWidth: 180 }}><div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--muted)", marginBottom: 4 }}>Standard / Premium / Premium Plus</div>
+            <select value={tier} onChange={(e) => setTier(e.target.value)} style={{ ...sel, width: "100%" }}><option value="">Select…</option>{tiers.map((c) => <option key={c}>{c}</option>)}</select></div>
+        </div>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--muted)", marginBottom: 6 }}>ATTACHMENTS</div>
+        <Atts atts={rec.attachments} onZoom={setZoom} />
+        {rec.salesStatus === "Win" && <div style={{ marginTop: 14, background: "#e3f5ec", borderRadius: 12, padding: 14 }}><b style={{ color: "#0f7a44" }}>🏆 WON</b> — {rec.winSqm} Sq.Mtr {rec.winRemark ? "· " + rec.winRemark : ""}{(rec.invoices || []).length ? <div style={{ marginTop: 6, fontSize: 13 }}>Invoices: {(rec.invoices || []).map((x, i) => <span key={i}>{x.no} ₹{x.amount}; </span>)}</div> : null}</div>}
+        {rec.salesStatus === "Loss" && <div style={{ marginTop: 14, background: "#fdecec", borderRadius: 12, padding: 14 }}><b style={{ color: "#c03636" }}>✗ LOST</b> — {rec.lossRemark}</div>}
+        <button className="btn btn-primary" disabled={busy} onClick={save} style={{ width: "100%", marginTop: 16 }}>{busy ? "Saving…" : "Save Category / Tier"}</button>
+        <Lightbox src={zoom} onClose={() => setZoom(null)} />
+      </div>
+    </div>
+  );
+}
+
 export default function SpecsHubAdmin() {
   const [cats, setCats] = useState(DEF_CATS);
   const [tiers, setTiers] = useState(DEF_TIERS);
   const [masterId, setMasterId] = useState(null);
-  const [rows, setRows] = useState(null);
+  const [all, setAll] = useState(null);
+  const [tab, setTab] = useState("all");
+  const [from, setFrom] = useState(""); const [to, setTo] = useState("");
+  const [fStatus, setFStatus] = useState(""); const [fPerson, setFPerson] = useState("");
+  const [shown, setShown] = useState(false);
+  const [view, setView] = useState(null);
   const [chat, setChat] = useState(null);
-  const [savingM, setSavingM] = useState(false);
-  const [msg, setMsg] = useState("");
+  const [showMasters, setShowMasters] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    api.list("specsHubMaster").then((r) => { const rec = (r.records || [])[0]; if (rec) { setMasterId(rid(rec)); if (rec.categories?.length) setCats(rec.categories); if (rec.tiers?.length) setTiers(rec.tiers); } }).catch(() => {});
-    api.list("specsHub").then((r) => setRows((r.records || []).sort((a, b) => rid(b) - rid(a)))).catch(() => setRows([]));
-  }, []);
+  const loadMasters = () => api.list("specsHubMaster").then((r) => { const rec = (r.records || [])[0]; if (rec) { setMasterId(rid(rec)); if (rec.categories?.length) setCats(rec.categories); if (rec.tiers?.length) setTiers(rec.tiers); } }).catch(() => {});
+  const loadRows = () => api.list("specsHub").then((r) => setAll((r.records || []).map((x) => ({ ...x, _id: rid(x) })).sort((a, b) => rid(b) - rid(a)))).catch(() => setAll([]));
+  useEffect(() => { loadMasters(); loadRows(); }, []);
 
+  const refresh = async () => { setRefreshing(true); await Promise.all([loadMasters(), loadRows()]); setRefreshing(false); };
   const saveMasters = async () => {
-    setSavingM(true); setMsg("");
     const data = { categories: cats.filter((x) => x.trim()), tiers: tiers.filter((x) => x.trim()) };
-    try {
-      if (masterId) await api.update("specsHubMaster", masterId, data);
-      else { const r = await api.create("specsHubMaster", data); setMasterId(r.id); }
-      setMsg("Saved ✓");
-    } catch (e) { setMsg(e.message); }
-    setSavingM(false);
+    try { if (masterId) await api.update("specsHubMaster", masterId, data); else { const r = await api.create("specsHubMaster", data); setMasterId(r.id); } setShowMasters(false); } catch (e) { alert(e.message); }
   };
-  const updRow = (r) => setRows((rs) => (rs || []).map((x) => rid(x) === rid(r) ? r : x));
+  const updRow = (r) => setAll((rs) => (rs || []).map((x) => rid(x) === rid(r) ? { ...r, _id: rid(r) } : x));
+
+  const base = useMemo(() => {
+    let rs = all || [];
+    if (from) rs = rs.filter((r) => (r.approvalDate || "") >= from);
+    if (to) rs = rs.filter((r) => (r.approvalDate || "") <= to);
+    if (fStatus) rs = rs.filter((r) => statusOf(r) === fStatus);
+    if (fPerson) rs = rs.filter((r) => r.specPerson === fPerson || r.salesPerson === fPerson);
+    return rs;
+  }, [all, from, to, fStatus, fPerson]);
+
+  const tabbed = useMemo(() => {
+    if (tab === "all") return base;
+    if (tab === "Mailed") return base.filter((r) => r.mailTick && !r.salesStatus);
+    return base.filter((r) => statusOf(r) === tab);
+  }, [base, tab]);
+
+  const people = useMemo(() => [...new Set((all || []).flatMap((r) => [r.specPerson, r.salesPerson]).filter(Boolean))], [all]);
+  const cnt = (s) => base.filter((r) => statusOf(r) === s).length;
+
+  const exportCsv = () => {
+    const cols = ["projectName", "location", "category", "grade", "tier", "approvedByType", "firmName", "specPerson", "salesPerson", "approvedQty"];
+    const head = ["Project", "Location", "Category", "Grade", "Tier", "Approved By", "Firm", "Spec Person", "Sales Person", "Qty", "Status"];
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const lines = [head.join(",")].concat(tabbed.map((r) => cols.map((c) => esc(r[c])).concat(esc(statusOf(r))).join(",")));
+    const url = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
+    const a = document.createElement("a"); a.href = url; a.download = "specs-hub.csv"; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const columns = [
+    { key: "projectName", label: "Project" },
+    { key: "location", label: "Location" },
+    { key: "category", label: "Category", render: (v) => v || "—" },
+    { key: "grade", label: "Grade" },
+    { key: "specPerson", label: "Spec Person" },
+    { key: "salesPerson", label: "Sales Person" },
+    { key: "status", label: "Status", filter: false, render: (_v, r) => <Pill status={statusOf(r)} /> },
+    { key: "mailTick", label: "Mailed", filter: false, render: (v) => v ? "✓" : "—" },
+    { key: "createdByName", label: "Created By", render: (v, r) => v || r.specPerson || "—" },
+  ];
+  const tabs = [
+    { key: "all", label: "All", count: base.length },
+    { key: "Draft", label: "Draft", count: cnt("Draft") },
+    { key: "Mailed", label: "Mailed", count: base.filter((r) => r.mailTick && !r.salesStatus).length },
+    { key: "Win", label: "Won", count: cnt("Win") },
+    { key: "Loss", label: "Lost", count: cnt("Loss") },
+  ];
 
   return (
-    <div style={{ padding: 20, maxWidth: 1100, margin: "0 auto" }}>
-      <h2 style={{ margin: "0 0 4px" }}>Specs-Hub</h2>
-      <div style={{ color: "var(--muted)", marginBottom: 18 }}>Dropdown masters for the app, and every specification with its chat.</div>
+    <div>
+      <PageHead crumb="Specs-Hub" title="Specs-Hub"
+        actions={<ToolButtons onRefresh={refresh} refreshing={refreshing} onExport={exportCsv} onHeaderConfig={() => setShowMasters(true)} />} />
 
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-        <ListEditor title="Category (app dropdown)" items={cats} setItems={setCats} />
-        <ListEditor title="Standard / Premium / Premium Plus" items={tiers} setItems={setTiers} />
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "14px 0 26px" }}>
-        <button className="btn btn-primary" disabled={savingM} onClick={saveMasters}>{savingM ? "Saving…" : "Save Masters"}</button>
-        {msg && <span style={{ fontWeight: 700, color: msg.includes("✓") ? "#0f7a44" : "#c03636" }}>{msg}</span>}
+      <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 14, marginBottom: 16 }}>
+        <StatCard label="Total" value={shown ? base.length : 0} sub="Matching records" color="#4a7bff" />
+        <StatCard label="Draft" value={shown ? cnt("Draft") : 0} sub="Draft records" color="#8b5cf6" />
+        <StatCard label="Mailed" value={shown ? base.filter((r) => r.mailTick && !r.salesStatus).length : 0} sub="Mailed records" color="#10b981" />
+        <StatCard label="Won" value={shown ? cnt("Win") : 0} sub="Won records" color="#f59e0b" />
+        <StatCard label="Lost" value={shown ? cnt("Loss") : 0} sub="Lost records" color="#ec4899" />
       </div>
 
-      <h3 style={{ margin: "0 0 10px" }}>Specifications</h3>
-      {rows === null ? <SkeletonList rows={6} /> : rows.length === 0 ? <div style={{ color: "var(--muted)", padding: 20 }}>No specifications yet.</div> : (
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", background: "#fff", borderRadius: 12, overflow: "hidden" }}>
-            <thead><tr style={{ background: "#f3f6fc", textAlign: "left" }}>{["Project", "Location", "Category", "Spec Person", "Sales Person", "Status", "Mailed", ""].map((h) => <th key={h} style={{ padding: "10px 12px", fontSize: 12.5, fontWeight: 800 }}>{h}</th>)}</tr></thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={rid(r)} style={{ borderTop: "1px solid #eef1f8" }}>
-                  <td style={{ padding: "10px 12px", fontWeight: 700 }}>{r.projectName}</td>
-                  <td style={{ padding: "10px 12px" }}>{r.location}</td>
-                  <td style={{ padding: "10px 12px" }}>{r.category}</td>
-                  <td style={{ padding: "10px 12px" }}>{r.specPerson}</td>
-                  <td style={{ padding: "10px 12px" }}>{r.salesPerson}</td>
-                  <td style={{ padding: "10px 12px", fontWeight: 700, color: r.salesStatus === "Win" ? "#0f7a44" : r.salesStatus === "Loss" ? "#c03636" : "#1b3a8f" }}>{r.salesStatus || r.status || "—"}</td>
-                  <td style={{ padding: "10px 12px" }}>{r.mailTick ? "✓" : "—"}</td>
-                  <td style={{ padding: "10px 12px" }}><button className="btn btn-soft" onClick={() => setChat(r)}>💬 Chat</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div className="card" style={{ padding: 14, marginBottom: 16 }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={sel} />
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={sel} />
+          <select value={fPerson} onChange={(e) => setFPerson(e.target.value)} style={sel}><option value="">All Persons</option>{people.map((p) => <option key={p}>{p}</option>)}</select>
+          <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} style={sel}><option value="">All Status</option>{["Draft", "Submitted", "Mailed", "Win", "Loss"].map((s) => <option key={s}>{s}</option>)}</select>
+          <button className="btn btn-primary" style={{ padding: "8px 22px" }} onClick={() => setShown(true)}>Show</button>
+        </div>
+      </div>
+
+      {!shown ? (
+        <div className="card" style={{ padding: 50, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Set filters and click <b>Show</b> to view specifications.</div>
+      ) : all === null ? <SkeletonList rows={6} /> : (
+        <>
+          <Tabs tabs={tabs} active={tab} onChange={setTab} />
+          <DataTable columns={columns} rows={tabbed} onView={(r) => setView(r)} onChat={(r) => setChat(r)} />
+        </>
+      )}
+
+      {view && <ViewModal rec={view} cats={cats} tiers={tiers} onSaved={(r) => { updRow(r); setView(r); }} onClose={() => setView(null)} />}
+      {chat && <AdminChat rec={chat} onChange={updRow} onClose={() => setChat(null)} />}
+      {showMasters && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.4)", zIndex: 1000, display: "grid", placeItems: "center", padding: 20 }} onClick={() => setShowMasters(false)}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", width: 720, maxWidth: "100%", borderRadius: 16, padding: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}><h3 style={{ margin: 0 }}>Dropdown Masters</h3><button className="btn btn-ghost" onClick={() => setShowMasters(false)}>✕</button></div>
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+              <ListEditor title="Category" items={cats} setItems={setCats} />
+              <ListEditor title="Standard / Premium / Premium Plus" items={tiers} setItems={setTiers} />
+            </div>
+            <button className="btn btn-primary" onClick={saveMasters} style={{ marginTop: 16 }}>Save Masters</button>
+          </div>
         </div>
       )}
-      {chat && <AdminChat rec={chat} onChange={updRow} onClose={() => setChat(null)} />}
     </div>
   );
 }

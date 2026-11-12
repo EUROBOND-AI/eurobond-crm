@@ -2,6 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, auth } from "../lib/api.js";
 import { ChevronLeft, Eye, Pencil, Mail, MessageSquare, Plus, Paperclip, X, Check, Send, Trophy, XCircle } from "lucide-react";
 import { SkeletonList } from "../components/Loaders.jsx";
+import ScreenHead from "../components/ScreenHead.jsx";
+import RefreshBtn from "../components/RefreshBtn.jsx";
+
+/* same in-app full-screen photo / PDF zoom viewer the other modules use */
+const openAppPhoto = (url) => { if (url) window.dispatchEvent(new CustomEvent("app-photo", { detail: url })); };
 
 /* ================= Specs-Hub (Specs → Sales) =================
    Specs persons create an approved-specification record, mail it to Approvals
@@ -20,6 +25,7 @@ const DEF_CATS = ["Project", "Govt", "Corporate"];
 const DEF_TIERS = ["Standard", "Premium", "Premium Plus"];
 const TO_MAIL = "approvals@eurobondacp.com";
 const CC_SALES = "sales@eurobondacp.com";
+const CC_RAHUL = "Rahul@eurobondacp.com";
 
 const now = () => new Date().toLocaleString("en-IN");
 const rid = (r) => r.id || r._id;
@@ -28,12 +34,15 @@ const rid = (r) => r.id || r._id;
 const inp = { width: "100%", padding: "11px 12px", borderRadius: 10, border: "1px solid var(--line, #d9deea)", fontSize: 14, boxSizing: "border-box", background: "#fff" };
 const lbl = { fontSize: 12.5, fontWeight: 700, color: "var(--muted, #6b7694)", margin: "14px 0 5px", display: "block" };
 const req = <span style={{ color: "#e23b4e" }}> *</span>;
+/* same top bar as every other app screen (ScreenHead look): back arrow, title,
+   Refresh. Used for the inner views whose Back returns to the list in state. */
 function Head({ title, onBack, right }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderBottom: "1px solid #eef1f8", position: "sticky", top: 0, background: "#fff", zIndex: 5 }}>
-      {onBack && <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><ChevronLeft size={22} /></button>}
-      <h3 style={{ margin: 0, fontSize: 17, flex: 1 }}>{title}</h3>
+    <div className="f-screen-head">
+      {onBack && <button onClick={onBack} aria-label="Back" style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", padding: 0, display: "grid", placeItems: "center" }}><ChevronLeft size={22} /></button>}
+      <div className="grow" style={{ fontFamily: "Bricolage Grotesque", fontWeight: 700, fontSize: 16 }}>{title}</div>
       {right}
+      <RefreshBtn />
     </div>
   );
 }
@@ -74,8 +83,8 @@ function AttView({ atts }) {
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
       {atts.map((a, i) => /^image\//.test(a.mime)
-        ? <a key={i} href={a.base64} target="_blank" rel="noreferrer"><img src={a.base64} alt={a.name} style={{ width: 92, height: 92, objectFit: "cover", borderRadius: 10, border: "1px solid #e1e7f5" }} /></a>
-        : <a key={i} href={a.base64} download={a.name} style={{ display: "flex", alignItems: "center", gap: 6, background: "#eef1f8", padding: "10px 14px", borderRadius: 10, fontSize: 12.5, fontWeight: 700, color: "#1b3a8f", textDecoration: "none" }}><Paperclip size={14} /> {a.name.length > 18 ? a.name.slice(0, 16) + "…" : a.name}</a>)}
+        ? <img key={i} src={a.base64} alt={a.name} onClick={() => openAppPhoto(a.base64)} style={{ width: 92, height: 92, objectFit: "cover", borderRadius: 10, border: "1px solid #e1e7f5", cursor: "zoom-in" }} />
+        : <div key={i} onClick={() => openAppPhoto(a.base64)} style={{ display: "flex", alignItems: "center", gap: 6, background: "#eef1f8", padding: "10px 14px", borderRadius: 10, fontSize: 12.5, fontWeight: 700, color: "#1b3a8f", cursor: "pointer" }}><Paperclip size={14} /> {a.name.length > 18 ? a.name.slice(0, 16) + "…" : a.name}</div>)}
     </div>
   );
 }
@@ -150,16 +159,15 @@ function Chat({ rec, onChange, onClose }) {
 
 /* ================= MAIL ================= */
 function MailModal({ rec, users, onSent, onClose }) {
-  const [extra, setExtra] = useState([]);   // extra CC names
   const [pick, setPick] = useState("");
   const [busy, setBusy] = useState(false);
   const specHod = hodEmailOf(users, rec.specPerson);
-  const ccList = useMemo(() => {
-    const s = new Set([CC_SALES]);
-    if (specHod) s.add(specHod);
-    extra.forEach((n) => { const e = emailOf(users, n); if (e) s.add(e); });
-    return [...s];
-  }, [extra, users, specHod]);
+  /* fixed CC (sales + Rahul) + the specs person's HOD, all REMOVABLE, and add more */
+  const [cc, setCc] = useState(() => [...new Set([CC_SALES, CC_RAHUL])]);
+  useEffect(() => { if (specHod) setCc((c) => c.includes(specHod) ? c : [...c, specHod]); }, [specHod]);
+  const rmCc = (e) => setCc((c) => c.filter((x) => x !== e));
+  const addPerson = () => { if (!pick) return; const e = emailOf(users, pick) || pick; if (e && !cc.includes(e)) setCc((c) => [...c, e]); setPick(""); };
+  const ccList = cc;
 
   const draftHtml = () => {
     const row = (k, v) => v ? `<tr><td style="padding:4px 10px;color:#6b7694;font-weight:600">${k}</td><td style="padding:4px 10px;font-weight:700">${v}</td></tr>` : "";
@@ -197,16 +205,18 @@ Regards,<br><b>${CU().name || ""}</b>${CU().mobile ? "<br>" + CU().mobile : ""}`
       <div style={{ padding: 16, maxWidth: 640, margin: "0 auto" }}>
         <div style={{ background: "#fff", borderRadius: 14, padding: 16, border: "1px solid #e6ecf7" }}>
           <div style={{ fontSize: 13 }}><b>To:</b> {TO_MAIL}</div>
-          <div style={{ fontSize: 13, marginTop: 6 }}><b>CC:</b> {ccList.join(", ")}</div>
-          <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>Sales + your HOD are added automatically. Add more people below.</div>
-          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--muted)", margin: "10px 0 6px" }}>CC (tap × to remove any)</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {ccList.map((e) => <span key={e} style={{ background: "#e7edfb", color: "#1b3a8f", padding: "5px 10px", borderRadius: 16, fontSize: 12.5, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 5 }}>{e} <X size={13} style={{ cursor: "pointer" }} onClick={() => rmCc(e)} /></span>)}
+            {ccList.length === 0 && <span style={{ fontSize: 12.5, color: "var(--muted)" }}>No CC</span>}
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
             <select value={pick} onChange={(e) => setPick(e.target.value)} style={{ ...inp, flex: 1 }}>
               <option value="">+ Add a person to CC…</option>
-              {salesPeople.concat(users.map((u) => u.name)).filter((n, i, a) => a.indexOf(n) === i && !extra.includes(n)).map((n) => <option key={n} value={n}>{n}</option>)}
+              {salesPeople.concat(users.map((u) => u.name)).filter((n, i, a) => a.indexOf(n) === i).map((n) => <option key={n} value={n}>{n}{emailOf(users, n) ? "" : " (no email)"}</option>)}
             </select>
-            <button onClick={() => { if (pick) { setExtra((x) => [...x, pick]); setPick(""); } }} className="f-submit" style={{ padding: "0 16px" }}>Add</button>
+            <button onClick={addPerson} className="f-submit" style={{ padding: "0 16px" }}>Add</button>
           </div>
-          {extra.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>{extra.map((n) => <span key={n} style={{ background: "#e7edfb", color: "#1b3a8f", padding: "4px 10px", borderRadius: 16, fontSize: 12, fontWeight: 700 }}>{n} <X size={12} style={{ cursor: "pointer" }} onClick={() => setExtra((x) => x.filter((y) => y !== n))} /></span>)}</div>}
         </div>
         <div style={{ background: "#fff", borderRadius: 14, padding: 16, border: "1px solid #e6ecf7", marginTop: 12 }}>
           <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--muted)", marginBottom: 8 }}>PREVIEW</div>
@@ -221,7 +231,7 @@ Regards,<br><b>${CU().name || ""}</b>${CU().mobile ? "<br>" + CU().mobile : ""}`
 
 /* ================= FORM (create / edit) ================= */
 function SpecForm({ edit, onSaved, onClose }) {
-  const m = useMasters(); const users = useUsers();
+  const users = useUsers();
   const [f, setF] = useState(edit || { approvalDate: "", category: "", projectName: "", location: "", colourCode: "", grade: "", tier: "", approvedByType: "", firmName: "", contactPerson: "", contactNumber: "", mailId: "", approvedQty: "", attachments: [], salesPerson: "" });
   const [busy, setBusy] = useState(false);
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
@@ -232,7 +242,7 @@ function SpecForm({ edit, onSaved, onClose }) {
 
   const save = async (asDraft) => {
     if (!asDraft) {
-      const need = [["approvalDate", "Approval date"], ["category", "Category"], ["projectName", "Project / Brand name"], ["location", "Location"], ["colourCode", "Colour code"], ["grade", "Grade"], ["tier", "Standard / Premium tier"], ["approvedByType", "Approved by"], ["firmName", "Firm name"], ["contactPerson", "Contact person name"], ["salesPerson", "Sales person"]];
+      const need = [["approvalDate", "Approval date"], ["projectName", "Project / Brand name"], ["location", "Location"], ["colourCode", "Colour code"], ["grade", "Grade"], ["approvedByType", "Approved by"], ["firmName", "Firm name"], ["contactPerson", "Contact person name"], ["salesPerson", "Sales person"]];
       for (const [k, label] of need) if (!String(f[k] || "").trim()) { alert(`Please fill: ${label}`); return; }
       if (!(f.attachments || []).length) { alert("Please add at least one attachment (photo / PDF)."); return; }
     } else {
@@ -258,8 +268,6 @@ function SpecForm({ edit, onSaved, onClose }) {
       <div style={{ padding: 16, maxWidth: 640, margin: "0 auto" }}>
         <label style={lbl}>Approval Date{req}</label>
         <input type="date" value={f.approvalDate} onChange={(e) => set("approvalDate", e.target.value)} style={inp} />
-        <label style={lbl}>Category{req}</label>
-        <select value={f.category} onChange={(e) => set("category", e.target.value)} style={inp}><option value="">Select…</option>{m.categories.map((c) => <option key={c}>{c}</option>)}</select>
         <label style={lbl}>Project / Brand Name{req}</label>
         <input value={f.projectName} onChange={(e) => set("projectName", e.target.value)} style={inp} placeholder="Project or brand name" />
         <label style={lbl}>Location{req}</label>
@@ -268,8 +276,6 @@ function SpecForm({ edit, onSaved, onClose }) {
         <input value={f.colourCode} onChange={(e) => set("colourCode", e.target.value)} style={inp} />
         <label style={lbl}>Grade{req}</label>
         <input value={f.grade} onChange={(e) => set("grade", e.target.value)} style={inp} />
-        <label style={lbl}>Standard / Premium / Premium Plus{req}</label>
-        <select value={f.tier} onChange={(e) => set("tier", e.target.value)} style={inp}><option value="">Select…</option>{m.tiers.map((c) => <option key={c}>{c}</option>)}</select>
         <label style={lbl}>Approved By{req}</label>
         <select value={f.approvedByType} onChange={(e) => set("approvedByType", e.target.value)} style={inp}><option value="">Select…</option>{APPROVED_BY.map((c) => <option key={c}>{c}</option>)}</select>
         {f.approvedByType && (
@@ -386,7 +392,7 @@ export function SpecsHubScreen() {
 
   return (
     <div style={{ minHeight: "100%", background: "#f6f8fd" }}>
-      <Head title="Specs-Hub" right={<button className="f-submit" style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 14px" }} onClick={() => setView({ type: "form", rec: null })}><Plus size={16} /> Add</button>} />
+      <ScreenHead title="Specs-Hub" right={<button className="f-submit" style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 14px" }} onClick={() => setView({ type: "form", rec: null })}><Plus size={16} /> Add</button>} />
       <div style={{ padding: 16 }}>
         {rows === null ? <SkeletonList rows={5} /> : rows.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", marginTop: 50 }}>No specifications yet.<br />Tap <b>Add</b> to create one.</div>
@@ -488,7 +494,7 @@ export function SalesHubScreen() {
 
   return (
     <div style={{ minHeight: "100%", background: "#f6f8fd" }}>
-      <Head title="Sales-Hub" />
+      <ScreenHead title="Sales-Hub" />
       <div style={{ padding: 16 }}>
         {rows === null ? <SkeletonList rows={5} /> : rows.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", marginTop: 50 }}>No specifications shared with you yet.</div>
