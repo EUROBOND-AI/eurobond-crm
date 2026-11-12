@@ -299,6 +299,17 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
   }, [msgs]);
   function newChat() { setMsgs([]); setPending(null); setInput(""); setShowHist(false); setShowInfo(false); setActiveId(Date.now()); stopSpeaking(); }
   function openChat(c) { stopSpeaking(); setMsgs(Array.isArray(c.msgs) ? c.msgs : []); setActiveId(c.id); setPending(null); setShowHist(false); }
+  /* Another screen (a weekend-report notification) can open Chitra and drop the
+     prepared report straight in as Chitra's message, ready for follow-up. */
+  useEffect(() => {
+    const h = (e) => {
+      setOpen(true); setShowHist(false); setShowInfo(false); stopSpeaking();
+      const rpt = e && e.detail && e.detail.report;
+      if (rpt) { setActiveId(Date.now()); setPending(null); setMsgs([{ role: "model", text: String(rpt) }]); }
+    };
+    window.addEventListener("eb-open-chitra", h);
+    return () => window.removeEventListener("eb-open-chitra", h);
+  }, []);
   /* EUVA opens a screen for the user. It navigates the app underneath and the
      chat stays open, so the next command can follow. */
   function goScreen(screen) {
@@ -832,8 +843,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
               {msgs.length === 0 && (
                 <div style={{ color: "#6b7694", fontSize: 13.5, textAlign: "center", margin: "auto", padding: 16, lineHeight: 1.6 }}>
                   <div style={{ marginBottom: 10 }}><EubotIcon size={80} /></div>
-                  <div style={{ fontWeight: 800, color: "#2a3450", fontSize: 16, marginBottom: 6 }}>Meet Chitra</div>
-                  <div className="euva-sign" style={{ marginBottom: 10 }}>Trained &amp; Developed by Karthik G</div>
+                  <div style={{ fontWeight: 800, color: "#2a3450", fontSize: 16, marginBottom: 10 }}>Meet Chitra</div>
                   Ask me anything, in any language — I can find, calculate, explain any screen, give product &amp; contact details, and make entries for you.<br />
                   <span style={{ fontSize: 12, opacity: .8 }}>Tap the mic to talk.</span>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", marginTop: 14 }}>

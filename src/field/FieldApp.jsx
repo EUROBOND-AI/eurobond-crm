@@ -6037,6 +6037,9 @@ function FieldNotifications() {
     setRead(getReadIds());
     /* once viewed, remove it so it never shows again (even after re-login) */
     dismiss(n._id);
+    /* a Chitra-prepared report (weekend report) opens the Chitra chat with the
+       full report shown, instead of navigating to a screen */
+    if (n.openChitra && n.report) { window.dispatchEvent(new CustomEvent("eb-open-chitra", { detail: { report: n.report } })); return; }
     const raw = String(n.link || "");
 
     /* A message in a conversation opens that conversation — leave, project
@@ -6296,7 +6299,9 @@ function SwipeNotif({ n, unread, onOpen, onInfo, onDismiss, sender = "", senderP
         <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
           {/* a notice somebody sent carries their face; everything else keeps
               the company mark, exactly as before */}
-          {sender
+          {(n.icon === "chitra" || n.from === "Chitra")
+            ? <div style={{ width: 38, height: 38, minWidth: 38, borderRadius: "50%", background: "linear-gradient(135deg,#1b3a8f,#6c5ce7,#00b894)", display: "grid", placeItems: "center", flexShrink: 0, color: "#fff", fontWeight: 900, fontSize: 18, fontFamily: "'Bricolage Grotesque',sans-serif" }}>C</div>
+            : sender
             ? <Avatar name={sender} photo={senderPhoto} size={38} />
             : /* everything the company sends keeps the small hex mark it always
                  had — the full logo was too big and read as a different brand */

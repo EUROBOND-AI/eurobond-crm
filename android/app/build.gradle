@@ -22,7 +22,7 @@ android {
         applicationId "com.eurobond.crm"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 20323
+        versionCode 20325
         versionName "2.3.8"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {

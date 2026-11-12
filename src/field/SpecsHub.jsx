@@ -137,7 +137,7 @@ function Chat({ rec, onChange, onClose }) {
   return (
     <div style={{ minHeight: "100%", background: "#f6f8fd", display: "flex", flexDirection: "column" }}>
       <Head title={`Chat · ${rec.projectName || "Specs"}`} onBack={onClose} />
-      <div ref={boxRef} style={{ flex: 1, minHeight: "48vh", overflowY: "auto", padding: 16 }}>
+      <div ref={boxRef} style={{ flex: 1, minHeight: "48vh", overflowY: "auto", padding: "16px 16px calc(var(--f-nav-total) + 86px)" }}>
         {msgs.length === 0 && <div style={{ textAlign: "center", color: "var(--muted)", marginTop: 40 }}>No messages yet. Say hello 👋</div>}
         {msgs.map((m, i) => (
           <div key={i} style={{ display: "flex", justifyContent: mine(m) ? "flex-end" : "flex-start", marginBottom: 10 }}>
@@ -149,7 +149,7 @@ function Chat({ rec, onChange, onClose }) {
           </div>
         ))}
       </div>
-      <div style={{ display: "flex", gap: 8, padding: 12, borderTop: "1px solid #e6e9f2", background: "#fff" }}>
+      <div style={{ position: "fixed", bottom: "var(--f-nav-total)", left: 0, right: 0, maxWidth: 480, margin: "0 auto", display: "flex", gap: 8, padding: 12, borderTop: "1px solid #e6e9f2", background: "#fff", zIndex: 45 }}>
         <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} placeholder="Type a message…" style={{ ...inp, borderRadius: 24 }} />
         <button onClick={send} disabled={busy} style={{ width: 50, height: 50, borderRadius: "50%", background: "#1b3a8f", color: "#fff", border: "none", display: "grid", placeItems: "center", cursor: "pointer" }}><Send size={20} /></button>
       </div>
@@ -205,7 +205,7 @@ Regards,<br><b>${CU().name || ""}</b>${CU().mobile ? "<br>" + CU().mobile : ""}`
   return (
     <div style={{ minHeight: "100%", background: "#f6f8fd" }}>
       <Head title="Mail Specification" onBack={onClose} />
-      <div style={{ padding: 16, maxWidth: 640, margin: "0 auto" }}>
+      <div style={{ padding: "16px 16px calc(var(--f-nav-total) + 40px)", maxWidth: 640, margin: "0 auto" }}>
         <div style={{ background: "#fff", borderRadius: 14, padding: 16, border: "1px solid #e6ecf7" }}>
           <div style={{ fontSize: 13 }}><b>To:</b> {TO_MAIL}</div>
           <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--muted)", margin: "10px 0 6px" }}>CC (tap × to remove any)</div>
@@ -270,7 +270,7 @@ function SpecForm({ edit, onSaved, onClose }) {
   return (
     <div style={{ minHeight: "100%", background: "#f6f8fd" }}>
       <Head title={edit ? "Edit Specification" : "New Specification"} onBack={onClose} />
-      <div style={{ padding: 16, maxWidth: 640, margin: "0 auto" }}>
+      <div style={{ padding: "16px 16px calc(var(--f-nav-total) + 40px)", maxWidth: 640, margin: "0 auto" }}>
         <label style={lbl}>Approval Date{req}</label>
         <input type="date" value={f.approvalDate} onChange={(e) => set("approvalDate", e.target.value)} style={inp} />
         <label style={lbl}>Project / Brand Name{req}</label>
@@ -335,7 +335,7 @@ function SpecView({ rec, onClose }) {
   return (
     <div style={{ minHeight: "100%", background: "#f6f8fd" }}>
       <Head title="Specification" onBack={onClose} right={<Chip s={rec.salesStatus || rec.status} />} />
-      <div style={{ padding: 16, maxWidth: 640, margin: "0 auto" }}>
+      <div style={{ padding: "16px 16px calc(var(--f-nav-total) + 40px)", maxWidth: 640, margin: "0 auto" }}>
         <div style={{ background: "#fff", borderRadius: 14, padding: "4px 16px", border: "1px solid #e6ecf7" }}>
           <Row k="Approval Date" v={rec.approvalDate} /><Row k="Project / Brand" v={rec.projectName} />
           <Row k="Location" v={rec.location} /><Row k="Colour Code" v={rec.colourCode} /><Row k="Grade" v={rec.grade} />
@@ -452,7 +452,7 @@ function StatusModal({ rec, onSaved, onClose }) {
   return (
     <div style={{ minHeight: "100%", background: "#f6f8fd" }}>
       <Head title="Update Status" onBack={onClose} />
-      <div style={{ padding: 16, maxWidth: 640, margin: "0 auto" }}>
+      <div style={{ padding: "16px 16px calc(var(--f-nav-total) + 40px)", maxWidth: 640, margin: "0 auto" }}>
         <div style={{ display: "flex", gap: 10 }}>
           <button onClick={() => setMode("Win")} style={{ flex: 1, padding: 16, borderRadius: 14, border: mode === "Win" ? "2px solid #0f9d58" : "1px solid #d9deea", background: mode === "Win" ? "#e3f5ec" : "#fff", fontWeight: 900, color: "#0f7a44", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Trophy size={18} /> Win</button>
           <button onClick={() => setMode("Loss")} style={{ flex: 1, padding: 16, borderRadius: 14, border: mode === "Loss" ? "2px solid #c03636" : "1px solid #d9deea", background: mode === "Loss" ? "#fdecec" : "#fff", fontWeight: 900, color: "#c03636", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><XCircle size={18} /> Loss</button>
