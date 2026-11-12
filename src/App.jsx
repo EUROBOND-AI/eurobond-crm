@@ -29,6 +29,7 @@ const TargetDashboard = lazy(() => import("./admin/TargetDashboard.jsx"));
 const ProjectDashboard = lazy(() => import("./admin/ProjectDashboard.jsx"));
 const TaskDashboard = lazy(() => import("./admin/TaskDashboard.jsx"));
 const RolePermission = lazy(() => import("./admin/RolePermission.jsx"));
+const SpecsHubAdmin = lazy(() => import("./admin/SpecsHubAdmin.jsx"));
 const TeamAccess = lazy(() => import("./admin/TeamAccess.jsx"));
 const AppSettings = lazy(() => import("./admin/AppSettings.jsx"));
 const CustomersPage = lazy(() => import("./admin/CustomersPage.jsx"));
@@ -116,6 +117,7 @@ export default function App() {
         <Route path="sfa/checkin" element={<CheckinPage />} />
         <Route path="sfa/tour-report" element={<TourReport />} />
         <Route path="master/roles" element={<RolePermission />} />
+        <Route path="master/specs-hub" element={<SpecsHubAdmin />} />
         <Route path="master/team-access" element={<TeamAccess />} />
         <Route path="master/app-settings" element={<AppSettings />} />
         <Route path="master/users" element={<UsersPage />} />

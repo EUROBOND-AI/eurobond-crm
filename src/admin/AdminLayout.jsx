@@ -54,6 +54,7 @@ const NAV = [
           { label: "Project Projection", to: "/admin/sfa/project-projection" },
           { label: "Sales to Spec", to: "/admin/sfa/sales-to-spec" },
           { label: "Spec to Sales", to: "/admin/sfa/spec-to-sales" },
+          { label: "Specs-Hub", to: "/admin/master/specs-hub" },
         ],
       },
     ],

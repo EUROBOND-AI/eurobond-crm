@@ -14,6 +14,7 @@ import { ebFlushQueue, ebQueueSize, watchLocation, startTracker, stopTracker, se
 import { api, auth, API_BASE, clearApiCache, myStates, areasForMyStates } from "../lib/api.js";
 import { Avatar, fileUrl } from "../lib/avatar.jsx";
 import BeatPlan, { BeatPlanConfirm } from "./BeatPlan.jsx";
+import { SpecsHubScreen, SalesHubScreen } from "./SpecsHub.jsx";
 import ErrorBoundary from "../components/ErrorBoundary.jsx";
 import ChatAssistant from "../components/ChatAssistant.jsx";
 import PhotoZoom from "../components/PhotoZoom.jsx";
@@ -5416,6 +5417,10 @@ function MenuDrawer({ open, close }) {
       ["Project Projection", <Building2 size={16} />, "/app/m/projectProjection", "projectProjection"],
       ["Sales to Spec", <ClipboardList size={16} />, "/app/m/salesToSpec", "salesToSpec"],
       ["Spec to Sales", <ClipboardList size={16} />, "/app/m/specToSales", "specToSales"],
+      /* Specs-Hub (specs persons create & mail approved specs) and Sales-Hub
+         (the mentioned sales person acts on them) — shown by role */
+      ...((/spec/i.test(CU().role || "") || /admin|owner/i.test(CU().role || "") || CU().owner) ? [["Specs-Hub", <ClipboardList size={16} />, "/app/specs-hub", "specsHub"]] : []),
+      ...((/sales/i.test(CU().role || "") || /admin|owner/i.test(CU().role || "") || CU().owner) ? [["Sales-Hub", <ClipboardList size={16} />, "/app/sales-hub", "salesHub"]] : []),
       ["Expense", <Wallet size={16} />, "/app/m/expense", "expense"],
       ["Leave", <CalendarDays size={16} />, "/app/leave", "leave"],
     ] },
@@ -9574,6 +9579,8 @@ export default function FieldApp() {
             <Route path="expense" element={<FieldExpense list={expenses} add={(e) => setExpenses((x) => [e, ...x])} reload={reloadExpenses} />} />
             <Route path="expense/new" element={<FieldExpenseNew add={async (e) => { try { const r = await api.create("expense", e); setExpenses((x) => [{ _id: r.id, ...e }, ...x]); } catch (err) { alert(err.message); } }} />} />
             <Route path="expense/format/:id" element={<ExpenseFormatView list={expenses} reload={reloadExpenses} />} />
+            <Route path="specs-hub" element={<SpecsHubScreen />} />
+            <Route path="sales-hub" element={<SalesHubScreen />} />
             <Route path="leave" element={<FieldLeave leaves={leaves} add={(l) => setLeaves((x) => [l, ...x])} />} />
             <Route path="leave/new" element={<FieldLeaveNew add={async (l) => { try { const r = await api.create("leave", l); setLeaves((x) => [{ _id: r.id, ...l }, ...x]); const mgr = CU().manager; if (mgr) { try { await api.notify({ to: mgr, title: "Leave request", message: `${CU().name} applied for ${l.type} (${l.from} to ${l.to})`, link: "/app/leave-approval", createdAt: new Date().toLocaleString("en-IN") }); } catch {} } } catch (err) { alert(err.message); } }} />} />
             <Route path="followup" element={<FieldFollowUp items={followups} add={async (f) => {
