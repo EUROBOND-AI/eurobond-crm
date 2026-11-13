@@ -6,6 +6,7 @@
      module joinFormality / exitFormality
      data { empName, empCode, date, done:{idx:{by,at}}, remarks:{idx:text} }        */
 import { useEffect, useMemo, useState } from "react";
+import { Trash2 } from "lucide-react";
 import { PageHead, StatCard } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
 import { visibleUsers } from "../lib/scope.js";
@@ -34,63 +35,104 @@ const CHECKLISTS = {
 
 const fmtWhen = (iso) => { if (!iso) return ""; const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" }); };
 
+const low = (x) => String(x || "").trim().toLowerCase();
+const sel = { padding: "8px 10px", border: "1px solid var(--line)", borderRadius: 9, fontSize: 13, background: "#fff" };
+
 export default function FormalitiesPage({ kind = "joining" }) {
   const cfg = CHECKLISTS[kind] || CHECKLISTS.joining;
   const [rows, setRows] = useState(null);
   const [users, setUsers] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [shown, setShown] = useState(false);
   const [open, setOpen] = useState(null);   // record being viewed
   const [adding, setAdding] = useState(false);
   const me = auth.user?.name || "Admin";
 
+  /* Zone → State → HOD → User cascade */
+  const [fZone, setFZone] = useState(""), [fState, setFState] = useState(""), [fHod, setFHod] = useState(""), [fUser, setFUser] = useState("");
+
+  useEffect(() => {
+    setFZone(""); setFState(""); setFHod(""); setFUser(""); setShown(false); setRows(null);
+    api.listUsers().then((uu) => setUsers(visibleUsers(uu.users || []).filter((u) => u.status == 1))).catch(() => {});
+  }, [kind]);
+
   const load = () => {
-    setBusy(true);
-    Promise.all([api.list(cfg.module, false).catch(() => ({ records: [] })), api.listUsers().catch(() => ({ users: [] }))])
-      .then(([d, uu]) => {
-        setUsers(visibleUsers(uu.users || []).filter((u) => u.status == 1));
-        setRows((d.records || []).map((r) => ({ _id: r.id, ...(r.data || {}) }))
-          .sort((a, b) => String(b.date || "").localeCompare(String(a.date || ""))));
-      })
+    setShown(true); setBusy(true);
+    api.list(cfg.module, false).catch(() => ({ records: [] }))
+      .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...(r.data || {}) }))
+        .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))))
       .finally(() => setBusy(false));
   };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(load, [kind]);
+
+  const inZone = fZone ? users.filter((u) => low(u.zone) === low(fZone)) : users;
+  const inState = fState ? inZone.filter((u) => [u.state, ...String(u.states || "").split(",")].map(low).includes(low(fState))) : inZone;
+  const inHod = fHod ? inState.filter((u) => low(u.manager) === low(fHod)) : inState;
+  const zones = [...new Set(users.map((u) => u.zone).filter(Boolean))].sort();
+  const states = [...new Set(inZone.flatMap((u) => [u.state, ...String(u.states || "").split(",")]).map((x) => String(x || "").trim()).filter(Boolean))].sort();
+  const hods = [...new Set(inState.filter((u) => `${u.role || ""} ${u.designation || ""}`.toLowerCase().includes("hod")).map((u) => u.name))].sort();
+  const userNames = [...new Set(inHod.map((u) => u.name).filter(Boolean))].sort();
+  const allowNames = useMemo(() => new Set(inHod.map((u) => low(u.name))), [inHod]);
+
+  const filtered = useMemo(() => {
+    if (!rows) return [];
+    return rows.filter((r) => {
+      if (fUser) return low(r.empName) === low(fUser);
+      return allowNames.has(low(r.empName));   // zone/state/hod narrow the employees
+    });
+  }, [rows, fUser, allowNames]);
 
   const progOf = (r) => { const d = r.done || {}; return cfg.items.filter((_, i) => d[i]).length; };
   const total = cfg.items.length;
-
   const openRec = async (r) => { try { const full = await api.get(cfg.module, r._id); setOpen({ _id: r._id, ...(full.record?.data || full.data || r) }); } catch { setOpen(r); } };
+  const delRow = async (e, r) => {
+    e.stopPropagation();
+    if (!window.confirm(`Delete ${cfg.title.toLowerCase()} record for ${r.empName}? This cannot be undone.`)) return;
+    try { await api.remove(cfg.module, r._id); setRows((rs) => (rs || []).filter((x) => x._id !== r._id)); }
+    catch (err) { alert("Delete failed: " + err.message); }
+  };
 
   return (
     <div>
       <PageHead title={cfg.title} crumb={cfg.crumb}
         actions={<button className="btn btn-primary" style={{ padding: "8px 18px", fontWeight: 700 }} onClick={() => setAdding(true)}>+ Add Employee</button>} />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 18 }}>
-        <StatCard label="Employees" value={rows ? rows.length : "—"} color="#0b3c8c" />
-        <StatCard label="Fully done" value={rows ? rows.filter((r) => progOf(r) === total).length : "—"} color="#10b981" />
-        <StatCard label="In progress" value={rows ? rows.filter((r) => { const p = progOf(r); return p > 0 && p < total; }).length : "—"} color="#f59e0b" />
-        <StatCard label="Not started" value={rows ? rows.filter((r) => progOf(r) === 0).length : "—"} color="#ef4444" />
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 16 }}>
+        {zones.length > 0 && <select value={fZone} onChange={(e) => { setFZone(e.target.value); setFState(""); setFHod(""); setFUser(""); }} style={sel}><option value="">All Zones</option>{zones.map((z) => <option key={z}>{z}</option>)}</select>}
+        <select value={fState} onChange={(e) => { setFState(e.target.value); setFHod(""); setFUser(""); }} style={sel}><option value="">All States</option>{states.map((s) => <option key={s}>{s}</option>)}</select>
+        <select value={fHod} onChange={(e) => { setFHod(e.target.value); setFUser(""); }} style={sel}><option value="">All HOD</option>{hods.map((h) => <option key={h}>{h}</option>)}</select>
+        <select value={fUser} onChange={(e) => setFUser(e.target.value)} style={sel}><option value="">All Users</option>{userNames.map((u) => <option key={u}>{u}</option>)}</select>
+        <button className="btn btn-primary" style={{ padding: "8px 20px", fontWeight: 700 }} onClick={load}>Show</button>
       </div>
 
-      {busy && !rows ? <div style={{ padding: 30, color: "var(--muted)" }}>Loading…</div> : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 12 }}>
-          {(rows || []).length === 0 && <div style={{ color: "var(--muted)", padding: 20 }}>No employees yet — press <b>+ Add Employee</b>.</div>}
-          {(rows || []).map((r) => {
-            const p = progOf(r); const pct = Math.round((p / total) * 100);
-            const col = p === total ? "#10b981" : p === 0 ? "#ef4444" : "#f59e0b";
-            return (
-              <button key={r._id} onClick={() => openRec(r)} style={{ textAlign: "left", background: "#fff", border: "1px solid var(--line)", borderRadius: 12, padding: 14, cursor: "pointer" }}>
-                <div style={{ fontWeight: 800, color: "var(--navy)" }}>{r.empName || "—"}</div>
-                <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>{r.empCode ? r.empCode + " · " : ""}{cfg.dateLabel}: {r.date || "—"}</div>
-                <div style={{ height: 8, borderRadius: 99, background: "#eef1f6", overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: pct + "%", background: col }} />
+      {!shown ? <div style={{ padding: 30, color: "var(--muted)" }}>Press <b>Show</b> to load.</div>
+        : busy && !rows ? <div style={{ padding: 30, color: "var(--muted)" }}>Loading…</div> : (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 18 }}>
+            <StatCard label="Employees" value={filtered.length} color="#0b3c8c" />
+            <StatCard label="Fully done" value={filtered.filter((r) => progOf(r) === total).length} color="#10b981" />
+            <StatCard label="In progress" value={filtered.filter((r) => { const p = progOf(r); return p > 0 && p < total; }).length} color="#f59e0b" />
+            <StatCard label="Not started" value={filtered.filter((r) => progOf(r) === 0).length} color="#ef4444" />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 12 }}>
+            {filtered.length === 0 && <div style={{ color: "var(--muted)", padding: 20 }}>No records — press <b>+ Add Employee</b>.</div>}
+            {filtered.map((r) => {
+              const p = progOf(r); const pct = Math.round((p / total) * 100);
+              const col = p === total ? "#10b981" : p === 0 ? "#ef4444" : "#f59e0b";
+              return (
+                <div key={r._id} onClick={() => openRec(r)} style={{ position: "relative", textAlign: "left", background: "#fff", border: "1px solid var(--line)", borderRadius: 12, padding: 14, cursor: "pointer" }}>
+                  <button onClick={(e) => delRow(e, r)} title="Delete" style={{ position: "absolute", top: 8, right: 8, border: "none", background: "transparent", color: "#ef4444", cursor: "pointer", padding: 4 }}><Trash2 size={16} /></button>
+                  <div style={{ fontWeight: 800, color: "var(--navy)", paddingRight: 22 }}>{r.empName || "—"}</div>
+                  <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>{r.empCode ? r.empCode + " · " : ""}{cfg.dateLabel}: {r.date || "—"}</div>
+                  <div style={{ height: 8, borderRadius: 99, background: "#eef1f6", overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: pct + "%", background: col }} />
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 700, marginTop: 6, color: col }}>{p}/{total} done</div>
                 </div>
-                <div style={{ fontSize: 12, fontWeight: 700, marginTop: 6, color: col }}>{p}/{total} done</div>
-              </button>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {adding && <AddModal cfg={cfg} users={users} existing={rows || []} onClose={() => setAdding(false)} onSaved={() => { setAdding(false); load(); }} />}

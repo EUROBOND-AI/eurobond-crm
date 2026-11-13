@@ -105,13 +105,12 @@ export function EnquiryDashboardView({ rows, hist = [], users, busy, err, shown,
      per-person ranking only; stage / pipeline / source tiles stay live-only,
      because only a plain number was imported, not full enquiry details. */
   const histFiltered = useMemo(() => (hist || []).map((h) => ({
-    name: h.name || "", count: Number(h.count) || 0, d: monthDate(h.month || h.date),
-    src: String(h.leadFrom || h.leadSource || h.src || "").trim(),
-  })).filter((h) => h.count > 0 && h.d && pf.matchAny([h.name]) && dr.inRange(h.d)
-      && (!src || h.src === src)),   // respect the Lead-source filter too
+    name: h.name || "", count: Number(h.count) || 0, sales: Number(h.sales) || 0, d: monthDate(h.month || h.date),
+  })).filter((h) => (h.count > 0 || h.sales > 0) && h.d && pf.matchAny([h.name]) && dr.inRange(h.d)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [hist, pf.zone, pf.state, pf.hod, pf.person, dr.from, dr.to, src]);
+    [hist, pf.zone, pf.state, pf.hod, pf.person, dr.from, dr.to]);
   const histTotal = useMemo(() => histFiltered.reduce((s, h) => s + h.count, 0), [histFiltered]);
+  const histSales = useMemo(() => histFiltered.reduce((s, h) => s + h.sales, 0), [histFiltered]);
 
   const list = useMemo(() => (rows || []).filter((r) => {
     if (r.isDuplicate) return false;
@@ -151,18 +150,7 @@ export function EnquiryDashboardView({ rows, hist = [], users, busy, err, shown,
     });
     return bars;
   }, [list, histFiltered]);
-  const sources = useMemo(() => [...new Set([
-    ...(rows || []).map((r) => r.leadFrom || r.leadSource),
-    ...(hist || []).map((h) => h.leadFrom || h.leadSource || h.src),
-  ].filter(Boolean))].sort(), [rows, hist]);
-
-  /* Lead source ranking — live enquiries + imported counts merged */
-  const leadRank = useMemo(() => {
-    const m = new Map();
-    countBy(list, (r) => r.leadFrom || r.leadSource).forEach((x) => m.set(x.label, x.value));
-    histFiltered.forEach((h) => { const k = h.src || "—"; m.set(k, (m.get(k) || 0) + h.count); });
-    return [...m.entries()].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
-  }, [list, histFiltered]);
+  const sources = useMemo(() => [...new Set((rows || []).map((r) => r.leadFrom || r.leadSource).filter(Boolean))].sort(), [rows]);
 
   const people = useMemo(() => {
     const m = new Map();
@@ -234,7 +222,7 @@ export function EnquiryDashboardView({ rows, hist = [], users, busy, err, shown,
                 <div><b>{num(S.winMonth)}</b><span>Won this month</span></div>
               </div>
               <div style={{ marginTop: 14, fontSize: 12, color: "rgba(233,240,255,.7)" }}>
-                Won value so far <b style={{ color: "#fff", fontSize: 15, marginLeft: 6 }}>{money(S.winAmt)}</b>
+                Won value so far <b style={{ color: "#fff", fontSize: 15, marginLeft: 6 }}>{money(S.winAmt + histSales)}</b>
               </div>
               <NightList title="Just came in" empty="No enquiries yet."
                 rows={recent.slice(0, 4).map((r) => ({ label: r.company || r.customer || "Enquiry", sub: (whoOf(r) || "Not assigned") + " · " + (r.state || "—"), value: ago(dateOf(r), now) }))} />
@@ -255,7 +243,7 @@ export function EnquiryDashboardView({ rows, hist = [], users, busy, err, shown,
               <RankBars items={people.map((p) => ({ label: p.name, value: p.total, note: p.win ? `${p.win} won` : "" }))} photoOf={photoOf} />
             </Panel>
             <Panel title="Lead source" sub="Where enquiries come from">
-              <RankBars items={leadRank} />
+              <RankBars items={countBy(list, (r) => r.leadFrom || r.leadSource)} />
             </Panel>
             <Panel title="Top states" sub="By the enquiry's own state">
               <RankBars items={countBy(list, (r) => r.state)} />
