@@ -471,6 +471,14 @@ export const MODULES = {
      common questions and add answers to AI Training. No add form. */
   euvaLog: {
     path: "master/euva-history", title: "Chitra Chat History", crumb: "Chitra History",
+    /* two tabs: what people asked Chitra (Direct), and what Chitra sent on its
+       own — weekend reports and reminders (AI Generated). Older rows have no
+       kind and fall under the first tab (Direct). */
+    tabs: [
+      { key: "direct", label: "Direct messages" },
+      { key: "ai", label: "AI Generated" },
+    ],
+    tabField: "kind",
     columns: [
       { key: "createdAt", label: "When" },
       { key: "user", label: "User" },

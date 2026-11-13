@@ -638,7 +638,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
       const d = await api.aiChat(history.map((m) => ({ role: m.role, text: m.text })), activeId, { agent, surface });
       const reply = (d && d.reply) || "…";
       setMsgs((m) => [...m, { role: "model", text: reply }]);
-      if (d && d.action && (d.action.type === "create" || d.action.type === "update" || d.action.type === "delete")) setPending(d.action);
+      if (d && d.action && (d.action.type === "create" || d.action.type === "update" || d.action.type === "delete" || d.action.type === "reminder")) setPending(d.action);
       if (spoken) speak(reply);
     } catch (e) {
       setMsgs((m) => [...m, { role: "model", text: "Sorry — couldn't reach the assistant. " + (e.message || "") }]);
@@ -673,6 +673,16 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
       if (p.type === "delete") {
         await api.remove(p.module, p.id);
         label = `🗑 ${p.title || "Record"} deleted.`;
+        setMsgs((m) => [...m, { role: "note", text: label }]);
+        if (agentRef.current) speak(label);
+        setPending(null); setBusy(false);
+        if (agentRef.current) setTimeout(armMic, 700);
+        return;
+      }
+      if (p.type === "reminder") {
+        const me = (auth.user && auth.user.name) || name || "";
+        await api.create("reminder", { what: p.what, dueAt: p.dueAt, whenLabel: p.whenLabel, to: me, done: false, from: "Chitra", createdBy: me, at: new Date().toISOString() });
+        const label = `⏰ Reminder set — I'll remind you on ${p.whenLabel}.`;
         setMsgs((m) => [...m, { role: "note", text: label }]);
         if (agentRef.current) speak(label);
         setPending(null); setBusy(false);
