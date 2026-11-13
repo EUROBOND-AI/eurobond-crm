@@ -518,11 +518,17 @@ function AdminBell({ nav }) {
     Promise.all([api.list("notification", false), wantUsers]).then(([d, uu]) => {
       const gone = getSet(clearKey);
       const seeable = isPanelAdmin() ? null : visibleNameSet(uu.users || []);
+      const myName = String((auth.user || {}).name || "").trim().toLowerCase();
+      const mineOf = (n) => myName && String(n.to || "").trim().toLowerCase() === myName;
       const list = (d.records || []).map((r) => ({ _id: String(r.id), ...r.data }))
-        .filter((n) => n.to === "ADMIN" && !gone.has(n._id))
+        /* notices to the whole office ("ADMIN") AND anything addressed to the
+           person signed in here (e.g. their own Chitra reminder) */
+        .filter((n) => (n.to === "ADMIN" || mineOf(n)) && !gone.has(n._id))
         /* a notice whose sender cannot be placed is left in rather than hidden:
-           losing a notice is worse than showing one too many */
+           losing a notice is worse than showing one too many. A notice addressed
+           to me is always mine to see, whatever the sender. */
         .filter((n) => {
+          if (mineOf(n)) return true;
           if (!seeable) return true;
           const who = senderOf(n);
           return !who || seeable.has(who);
@@ -608,7 +614,7 @@ function AdminBell({ nav }) {
               <span style={{ fontWeight: 800, fontSize: 14, flex: 1, fontFamily: "Bricolage Grotesque" }}>{detail.title || "Notification"}</span>
             </div>
             <div style={{ padding: "16px 18px" }}>
-              <div style={{ fontSize: 13.5, color: "#1c2340", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{detail.message || ""}</div>
+              <div style={{ fontSize: 13.5, color: "#1c2340", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{detail.report || detail.message || ""}</div>
               {detail.createdAt && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 10 }}>{detail.createdAt}</div>}
             </div>
             <div style={{ display: "flex", gap: 8, padding: "0 18px 16px" }}>
