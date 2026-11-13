@@ -141,6 +141,19 @@ export default function AreasPage() {
             a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
             a.download = "areas-format.csv"; a.click();
           }}><Upload size={14} /> Download Format</button>
+          <button className="btn btn-ghost" onClick={async () => {
+            try {
+              const d = await api.areasAll();
+              const rows = (d.areaRows || d.areas || []).map((r) => typeof r === "string" ? { state: "", name: r, tier: "" } : r);
+              if (!rows.length) { alert("No areas to export."); return; }
+              const csv = [["State", "Area / City", "Tier (A/B/C)"]]
+                .concat(rows.map((r) => [r.state || "", r.name || r.area || "", r.tier || ""]))
+                .map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(",")).join("\n");
+              const a = document.createElement("a");
+              a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+              a.download = "areas-export.csv"; a.click();
+            } catch (e) { alert("Export failed: " + e.message); }
+          }}><Upload size={14} style={{ transform: "rotate(180deg)" }} /> Export CSV</button>
           <button className="btn btn-soft" onClick={() => setAddOpen(true)}><Plus size={14} /> Add Area</button>
           <label className="btn btn-primary" style={{ cursor: "pointer" }}>
             <Upload size={14} /> {busy ? "Importing…" : "Import CSV"}

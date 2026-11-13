@@ -194,6 +194,7 @@ export default function AttendancePage() {
   const [stateF, setStateF] = useState("");
   const [gpsF, setGpsF] = useState("");
   const [statusF, setStatusF] = useState("");
+  const [distF, setDistF] = useState("");
   const [user, setUser] = useState("");
   const [viewSess, setViewSess] = useState(null);   // session being viewed on map
   const [photoView, setPhotoView] = useState(null); // {url, label} same-page photo popup
@@ -250,10 +251,12 @@ export default function AttendancePage() {
     return s.app_status === "Live" ? "Live" : "GPS Off";
   };
   const statusOf = (s) => (s.marked_absent ? "Absent" : s.status === "DONE" ? "Completed" : "In Progress");
+  const rowKm = (s) => (liveKm[s.id] != null ? liveKm[s.id] : (Number(s.distance_km) || 0));
   const filtered = sessions.filter((s) =>
     (!zone || s.zone === zone) && (!hodF || s.manager === hodF)
     && (!stateF || s.state === stateF) && (!user || s.name === user)
     && (!gpsF || gpsOf(s) === gpsF) && (!statusF || statusOf(s) === statusF)
+    && (!distF || (distF === "lt5" ? rowKm(s) < 5 : rowKm(s) >= 5))
   );
   /* the ten rows currently on screen */
   const visibleRows = useMemo(() => filtered.slice((page - 1) * PAGE, page * PAGE),
@@ -690,6 +693,11 @@ export default function AttendancePage() {
         <select value={statusF} onChange={(e) => setStatusF(e.target.value)} style={sel}>
           <option value="">All Status</option>
           <option>In Progress</option><option>Completed</option><option>Absent</option>
+        </select>
+        <select value={distF} onChange={(e) => setDistF(e.target.value)} style={sel}>
+          <option value="">All Distance</option>
+          <option value="lt5">Below 5 KM</option>
+          <option value="ge5">5 KM &amp; above</option>
         </select>
       </div>
 

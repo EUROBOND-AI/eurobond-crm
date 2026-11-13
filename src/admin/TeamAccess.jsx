@@ -14,6 +14,8 @@ const APP_MODULES = [
   { key: "projectProjection", label: "Project Projection" },
   { key: "salesToSpec", label: "Sales to Spec" },
   { key: "specToSales", label: "Spec to Sales" },
+  { key: "specsHub", label: "Specs-Hub" },
+  { key: "salesHub", label: "Sales-Hub" },
   { key: "expense", label: "Expense" },
   { key: "leave", label: "Leave" },
   { key: "target", label: "Target" },

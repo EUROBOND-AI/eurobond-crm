@@ -3,7 +3,7 @@ import { SkeletonRows } from "../components/Loaders.jsx";
 import { Edit3, UserPlus, Trash2, Share2, X, Search, Ban, RefreshCw, MessageSquare, Copy, Send } from "lucide-react";
 import { PageHead } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
-import { scopeRows, visibleUsers } from "../lib/scope.js";
+import { scopeRows, visibleUsers, hodNamesOf } from "../lib/scope.js";
 import { canAdd, canDelete, canModify } from "../lib/perms.js";
 import { isPanelAdmin } from "../lib/scope.js";
 
@@ -161,6 +161,8 @@ export default function EnquiryPage() {
      one at a time meant running the same report over and over. Empty means all. */
   const [stateSel, setStateSel] = useState([]);
   const [stOpen, setStOpen] = useState(false);
+  const [fHod, setFHod] = useState("");
+  const [fUser, setFUser] = useState("");
   const stRef = useRef(null);
   useEffect(() => {
     if (!stOpen) return;
@@ -295,6 +297,11 @@ export default function EnquiryPage() {
     if (applied.from) l = l.filter((r) => { const d = enqDate(r); return d && d >= applied.from; });
     if (applied.to) l = l.filter((r) => { const d = enqDate(r); return d && d <= applied.to; });
     if (stateSel.length) l = l.filter((r) => stateSel.includes(r.state || ""));
+    if (fUser) l = l.filter((r) => [r.assignedTo, r.passto, r.createdBy, r.by].filter(Boolean).includes(fUser));
+    if (fHod) {
+      const mgrOf = {}; (users || []).forEach((u) => { if (u.name) mgrOf[String(u.name).toLowerCase()] = u.manager || ""; });
+      l = l.filter((r) => { const a = r.assignedTo || r.passto || r.createdBy || r.by || ""; return a && String(mgrOf[String(a).toLowerCase()] || "").toLowerCase() === String(fHod).toLowerCase(); });
+    }
     if (search) {
       const q = search.toLowerCase();
       l = l.filter((r) => {
@@ -316,7 +323,7 @@ export default function EnquiryPage() {
       if (vv) l = l.filter((r) => String(r[k] ?? "").toLowerCase().includes(vv));
     });
     return l;
-  }, [rows, search, colSearch, applied, users, stateSel]);
+  }, [rows, search, colSearch, applied, users, stateSel, fHod, fUser]);
 
   const list = useMemo(() => scoped.filter((r) => matchesTab(r, tab)), [scoped, tab]);
   const tabCounts = useMemo(() => {
@@ -567,6 +574,20 @@ export default function EnquiryPage() {
               ))}
             </div>
           )}
+        </div>
+        <div>
+          <label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>HOD</label>
+          <select value={fHod} onChange={(e) => setFHod(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5, background: "#fff" }}>
+            <option value="">All HODs</option>
+            {hodNamesOf(users).map((h) => <option key={h}>{h}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>User</label>
+          <select value={fUser} onChange={(e) => setFUser(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5, background: "#fff" }}>
+            <option value="">All Users</option>
+            {visibleUsers(users).map((u) => u.name).filter(Boolean).sort().map((n) => <option key={n}>{n}</option>)}
+          </select>
         </div>
         <button className="btn" style={{ background: "#22a45d", color: "#fff", borderColor: "transparent" }} onClick={applyShow}>Show</button>
         <button className="btn btn-soft" onClick={exportCsv}>Export to Excel</button>
