@@ -294,9 +294,10 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
        recognisable in history */
     const firstUser = (msgs.find((m) => m.role === "user") || {}).text;
     const title = firstUser || (msgs[0] && msgs[0].text ? String(msgs[0].text).replace(/\s*\n\s*/g, " ").trim().slice(0, 48) : "Chat");
+    const isAi = !msgs.some((m) => m.role === "user");   // AI-opened (reminder / report) — no server chatId, exempt from prune
     setChats((prev) => {
       const rest = prev.filter((c) => c.id !== activeId);
-      const next = [{ id: activeId, at: Date.now(), title: String(title).slice(0, 48), msgs }, ...rest]
+      const next = [{ id: activeId, at: Date.now(), title: String(title).slice(0, 48), msgs, ai: isAi }, ...rest]
         .filter((c) => (Date.now() - (c.at || 0)) < HIST_WEEK).slice(0, 40);
       saveChats(next); return next;
     });
@@ -560,6 +561,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
         const keep = new Set(d.chatIds.map(String));
         setChats((prev) => {
           const next = prev.filter((c) => {
+            if (c.ai) return true;   // AI-generated (reminder / report) chats live only on the phone — never prune
             const hasReply = Array.isArray(c.msgs) && c.msgs.some((m) => m.role === "model");
             return hasReply ? keep.has(String(c.id)) : true;
           });
@@ -685,8 +687,10 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
       }
       if (p.type === "reminder") {
         const me = (auth.user && auth.user.name) || name || "";
-        await api.create("reminder", { what: p.what, dueAt: p.dueAt, whenLabel: p.whenLabel, to: me, done: false, from: "Chitra", createdBy: me, mail: !!p.mail, email: p.email || "", at: new Date().toISOString() });
-        const label = `⏰ Reminder set — I'll remind you on ${p.whenLabel}${p.mail ? " (and by email)" : ""}.`;
+        await api.create("reminder", { what: p.what, dueAt: p.dueAt, whenLabel: p.whenLabel, act: p.act || "remind", mailTo: p.mailTo || "", assignee: p.assignee || "", byName: p.byName || me, byMobile: p.byMobile || "", byEmail: p.byEmail || "", to: me, done: false, from: "Chitra", createdBy: me, mail: !!p.mail, email: p.email || "", at: new Date().toISOString() });
+        const label = p.act === "mail" ? `📧 Scheduled — I'll email ${p.mailTo} on ${p.whenLabel}.`
+          : p.act === "task" ? `📋 Scheduled — I'll assign this task to ${p.assignee} on ${p.whenLabel}.`
+          : `⏰ Reminder set — I'll remind you on ${p.whenLabel}${p.mail ? " (and by email)" : ""}.`;
         setMsgs((m) => [...m, { role: "note", text: label }]);
         if (agentRef.current) speak(label);
         setPending(null); setBusy(false);
