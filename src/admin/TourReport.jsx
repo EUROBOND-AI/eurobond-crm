@@ -3,6 +3,7 @@ import { SkeletonList } from "../components/Loaders.jsx";
 import { PageHead, StatCard } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { visibleUsers } from "../lib/scope.js";
+import { TourImport } from "./HistoryImport.jsx";
 
 const MONTHS = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
 const monthKey = (dateStr) => {
@@ -153,6 +154,7 @@ export default function TourReport() {
         {shown && allAreas.length > 0 && <select value={fArea} onChange={(e) => setFArea(e.target.value)} style={sel}><option value="">All Areas</option>{allAreas.map((a) => <option key={a}>{a}</option>)}</select>}
         <button className="btn btn-primary" style={{ padding: "8px 20px", fontWeight: 700 }} onClick={runShow}>Show</button>
         {shown && <button className="btn" onClick={exportExcel}>Export</button>}
+        <TourImport users={users} onDone={() => { if (shown) runShow(); }} />
       </div>
 
       {/* the boxes are part of the page, not of the answer — they stand at zero

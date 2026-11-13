@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { ExternalLink } from "lucide-react";
 import { api } from "../lib/api.js";
 import { scopeRows, userByName } from "../lib/scope.js";
+import { EnqNumbersImport } from "./HistoryImport.jsx";
 import {
   DxPage, KpiCard, Panel, WeekBars, HalfDonut, Pipeline, RankBars, RowList, WordPill, ShowGate, RefreshBtn,
   usePlaceFilter, useDateRange, readDate, monthBars, countBy, money, num, pct, fmtInt, ORD, useNow, TodayClock, NightList,
@@ -50,6 +51,7 @@ const STAGE = {
 
 export default function EnquiryDashboard() {
   const [all, setAll] = useState(null);
+  const [hist, setHist] = useState([]);          // #10 — imported historical counts
   const [users, setUsers] = useState([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -59,9 +61,14 @@ export default function EnquiryDashboard() {
 
   const load = () => {
     setShown(true); setBusy(true); setErr("");
-    Promise.all([api.list("enquiry", false, { slim: true }), api.listUsers().catch(() => ({ users: [] }))])
-      .then(([d, uu]) => {
+    Promise.all([
+      api.list("enquiry", false, { slim: true }),
+      api.listUsers().catch(() => ({ users: [] })),
+      api.list("enqHist", false).catch(() => ({ records: [] })),
+    ])
+      .then(([d, uu, h]) => {
         setUsers(uu.users || []);
+        setHist((h.records || []).map((r) => ({ ...(r.data || {}), _id: r.id })));
         setAll(scopeRows(
           (d.records || []).map((r) => ({ ...(r.data || {}), _id: r.id, _by: r.created_by_name || "", _at: r.created_at })),
           uu.users || [], ["createdBy", "_by", "passto", "assignedTo", "hod"]));
@@ -70,10 +77,21 @@ export default function EnquiryDashboard() {
       .finally(() => setBusy(false));
   };
 
-  return <EnquiryDashboardView rows={all} users={users} busy={busy} err={err} shown={shown} onShow={load} />;
+  return <EnquiryDashboardView rows={all} hist={hist} users={users} busy={busy} err={err} shown={shown} onShow={load} />;
 }
 
-export function EnquiryDashboardView({ rows, users, busy, err, shown, onShow }) {
+/* "2025-04" (or a full date) -> Date at that month's start, else null */
+const monthDate = (m) => {
+  const s = String(m || "").trim();
+  let y, mo;
+  let mm = s.match(/^(\d{4})[-/](\d{1,2})/);
+  if (mm) { y = +mm[1]; mo = +mm[2] - 1; }
+  else { mm = s.match(/^(\d{1,2})[-/](\d{4})$/); if (mm) { y = +mm[2]; mo = +mm[1] - 1; } }
+  if (y == null || mo < 0 || mo > 11) { const d = readDate(s); return d ? new Date(d.getFullYear(), d.getMonth(), 1) : null; }
+  return new Date(y, mo, 1);
+};
+
+export function EnquiryDashboardView({ rows, hist = [], users, busy, err, shown, onShow }) {
   const nav = useNavigate();
   const now = useNow(60000);
   const pf = usePlaceFilter(users);
@@ -81,6 +99,17 @@ export function EnquiryDashboardView({ rows, users, busy, err, shown, onShow }) 
   const [src, setSrc] = useState("");
 
   const dateOf = (r) => readDate(r._at) || readDate(r.date) || readDate(r.createdAt);
+
+  /* #10 — imported historical counts, passed through the SAME place + date
+     filters as live enquiries. They add to the Total, the by-month chart and the
+     per-person ranking only; stage / pipeline / source tiles stay live-only,
+     because only a plain number was imported, not full enquiry details. */
+  const histFiltered = useMemo(() => (hist || []).map((h) => ({
+    name: h.name || "", count: Number(h.count) || 0, d: monthDate(h.month || h.date),
+  })).filter((h) => h.count > 0 && h.d && pf.matchAny([h.name]) && dr.inRange(h.d)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [hist, pf.zone, pf.state, pf.hod, pf.person, dr.from, dr.to]);
+  const histTotal = useMemo(() => histFiltered.reduce((s, h) => s + h.count, 0), [histFiltered]);
 
   const list = useMemo(() => (rows || []).filter((r) => {
     if (r.isDuplicate) return false;
@@ -112,7 +141,14 @@ export function EnquiryDashboardView({ rows, users, busy, err, shown, onShow }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [list, Math.floor(now / 3600000)]);
 
-  const months = useMemo(() => monthBars(list, dateOf, 12), [list]);
+  const months = useMemo(() => {
+    const bars = monthBars(list, dateOf, 12);
+    histFiltered.forEach((h) => {
+      const b = bars.find((x) => x.y === h.d.getFullYear() && x.m === h.d.getMonth());
+      if (b) b.value += h.count;
+    });
+    return bars;
+  }, [list, histFiltered]);
   const sources = useMemo(() => [...new Set((rows || []).map((r) => r.leadFrom || r.leadSource).filter(Boolean))].sort(), [rows]);
 
   const people = useMemo(() => {
@@ -127,8 +163,15 @@ export function EnquiryDashboardView({ rows, users, busy, err, shown, onShow }) 
       if (st === "win") x.amt += Number(r.winAmount) || 0;
       m.set(n, x);
     });
+    /* add imported counts to each person's total (create the person if new) */
+    histFiltered.forEach((h) => {
+      if (!h.name) return;
+      const x = m.get(h.name) || { name: h.name, total: 0, waiting: 0, working: 0, win: 0, amt: 0 };
+      x.total += h.count;
+      m.set(h.name, x);
+    });
     return [...m.values()].sort((a, b) => b.total - a.total);
-  }, [list]);
+  }, [list, histFiltered]);
 
   const recent = useMemo(() => [...list].sort((a, b) => (dateOf(b) || 0) - (dateOf(a) || 0)).slice(0, 7), [list]);
   const photoOf = (n) => (userByName(users || [], n) || {}).photo || "";
@@ -137,7 +180,7 @@ export function EnquiryDashboardView({ rows, users, busy, err, shown, onShow }) 
 
   return (
     <DxPage title="Enquiry Dashboard" sub="Where every enquiry stands"
-      actions={shown && <><RefreshBtn onClick={onShow} busy={busy} /><button className="dx-btn dx-btn-p" onClick={goList}><ExternalLink size={15} /> Open Enquiries</button></>}>
+      actions={shown && <><EnqNumbersImport users={users} onDone={onShow} /><RefreshBtn onClick={onShow} busy={busy} /><button className="dx-btn dx-btn-p" onClick={goList}><ExternalLink size={15} /> Open Enquiries</button></>}>
       <div className="dx-filters">
         {pf.fields}
         <div><label>Lead from</label>
@@ -151,7 +194,7 @@ export function EnquiryDashboardView({ rows, users, busy, err, shown, onShow }) 
       : (
         <>
           <div className="dx-grid dx-kpis" style={{ marginBottom: 16 }}>
-            <KpiCard hero label="Total Enquiries" value={fmtInt(S.real)} chip={S.today} sub="came in today" onClick={goList} />
+            <KpiCard hero label="Total Enquiries" value={fmtInt(S.real + histTotal)} chip={S.today} sub="came in today" onClick={goList} />
             <KpiCard label="Not Assigned" value={fmtInt(S.by.new.length)} chip={S.assignedToday} sub="given out today" onClick={goList} />
             <KpiCard label="No Reply Yet" value={fmtInt(S.by.waiting.length)} sub={S.by.waiting.length ? "given out, nothing heard back" : "everyone has responded"} onClick={goList} />
             <KpiCard label="Win" value={fmtInt(S.by.win.length)} chip={pct(S.by.win.length, S.real) + "%"} sub="of all enquiries won" onClick={goList} />

@@ -319,6 +319,7 @@ export const api = {
   attUnmarkAbsent: (session_id) => req("/attendance.php?action=unmarkAbsent", { method: "POST", body: { session_id } }),
   attTrack: (session_id) => req("/attendance.php?action=track&session_id=" + session_id),
   attGeocode: (session_id) => req("/attendance.php?action=geocode&session_id=" + session_id),
+  attImportTours: (rows) => req("/attendance.php?action=importTours", { method: "POST", body: { rows } }),
   settingsList: () => req("/settings.php?action=list"),
   settingsDelete: (key) => req("/settings.php?action=delete", { method: "POST", body: { key } }),
   settingsSave: (key, value, label) => req("/settings.php?action=save", { method: "POST", body: { key, value, label } }),
