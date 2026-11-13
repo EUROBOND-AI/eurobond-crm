@@ -5,7 +5,7 @@
    the server (powerbi.php). Each upload replaces the whole dataset. */
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
-import { Upload, Download, FileDown, Maximize2, X, Trash2 } from "lucide-react";
+import { Upload, Download, FileDown, Maximize2, X, Trash2, Filter } from "lucide-react";
 import { api, auth, API_BASE } from "../lib/api.js";
 import { isPanelAdmin } from "../lib/scope.js";
 import { DxPage, KpiCard, Panel, ShowGate, RankBars, WeekBars, HalfDonut } from "../components/dash.jsx";
@@ -98,30 +98,90 @@ const cellNum = (c) => {
 };
 const cellText = (c) => String(c && c.v !== undefined ? c.v : (c == null ? "" : c));
 function T({ head, rows, foot }) {
-  const [sort, setSort] = useState(null);   // { col, dir: 'asc'|'desc' }
+  const [sort, setSort] = useState(null);          // { col, dir: 'asc'|'desc' }
+  const [colFilters, setColFilters] = useState({}); // { col: Set(selected text values) }
+  const [pop, setPop] = useState(null);            // { col, x, y }  open filter popover
+  const [q, setQ] = useState("");
+
+  /* rows left after every column's Excel-style pick list is applied */
+  const filtered = useMemo(() => rows.filter((r) =>
+    Object.entries(colFilters).every(([ci, set]) => !set || set.size === 0 || set.has(cellText(r[ci])))
+  ), [rows, colFilters]);
+
   const sorted = useMemo(() => {
-    if (!sort) return rows;
+    if (!sort) return filtered;
     const { col, dir } = sort;
-    const numeric = rows.every((r) => cellNum(r[col]) !== null);
-    const cp = [...rows];
+    const numeric = filtered.every((r) => cellNum(r[col]) !== null);
+    const cp = [...filtered];
     cp.sort((a, b) => {
       if (numeric) { const x = cellNum(a[col]) || 0, y = cellNum(b[col]) || 0; return dir === "asc" ? x - y : y - x; }
       const x = cellText(a[col]).toLowerCase(), y = cellText(b[col]).toLowerCase();
       return dir === "asc" ? x.localeCompare(y) : y.localeCompare(x);
     });
     return cp;
-  }, [rows, sort]);
+  }, [filtered, sort]);
+
   const click = (i) => setSort((p) => (p && p.col === i ? (p.dir === "asc" ? { col: i, dir: "desc" } : null) : { col: i, dir: "asc" }));
   const arrow = (i) => (sort && sort.col === i ? (sort.dir === "asc" ? " ▲" : " ▼") : "");
+  const openFilter = (e, i) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setQ(""); setPop({ col: i, x: Math.min(r.left, window.innerWidth - 250), y: r.bottom + 4 }); };
+
+  /* every distinct value in a column, for the pick list */
+  const distinct = useMemo(() => {
+    if (!pop) return [];
+    return [...new Set(rows.map((r) => cellText(r[pop.col])))].sort((a, b) => a.localeCompare(b));
+  }, [pop, rows]);
+  const curSet = pop ? colFilters[pop.col] : null;
+  const isOn = (v) => !curSet || curSet.size === 0 || curSet.has(v);
+  const toggleVal = (v) => setColFilters((f) => {
+    const base = f[pop.col] && f[pop.col].size ? new Set(f[pop.col]) : new Set(distinct); // first click starts from "all"
+    base.has(v) ? base.delete(v) : base.add(v);
+    return { ...f, [pop.col]: base };
+  });
+  const setAll = (on) => setColFilters((f) => ({ ...f, [pop.col]: on ? new Set() : new Set(["\u0000none"]) }));
+
   return (
     <div>
       <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12.5, whiteSpace: "nowrap" }}>
-        <thead><tr>{head.map((h, i) => <th key={i} onClick={() => click(i)} title="Click to sort" style={{ position: "sticky", top: 0, zIndex: 3, background: "var(--navy)", color: "#fff", fontWeight: 700, padding: "7px 10px", textAlign: i === 0 ? "left" : "right", cursor: "pointer", userSelect: "none" }}>{h}{arrow(i)}</th>)}</tr></thead>
+        <thead><tr>{head.map((h, i) => {
+          const active = colFilters[i] && colFilters[i].size > 0;
+          return (
+            <th key={i} style={{ position: "sticky", top: 0, zIndex: 3, background: "var(--navy)", color: "#fff", fontWeight: 700, padding: "7px 10px", textAlign: i === 0 ? "left" : "right", userSelect: "none" }}>
+              <span onClick={() => click(i)} title="Click to sort" style={{ cursor: "pointer" }}>{h}{arrow(i)}</span>
+              <span onClick={(e) => openFilter(e, i)} title="Filter" style={{ cursor: "pointer", marginLeft: 6, opacity: active ? 1 : 0.55 }}><Filter size={12} style={{ verticalAlign: "middle", fill: active ? "#ffd166" : "none" }} /></span>
+            </th>
+          );
+        })}</tr></thead>
         <tbody>
           {sorted.map((r, ri) => <tr key={ri} style={{ borderBottom: "1px solid var(--line)" }}>{r.map((c, ci) => <td key={ci} style={{ padding: "6px 10px", textAlign: ci === 0 ? "left" : "right", fontWeight: ci === 0 ? 700 : 500, color: c && c.c ? c.c : "var(--ink)" }}>{c && c.v !== undefined ? c.v : c}</td>)}</tr>)}
           {foot && <tr style={{ background: "var(--accent-soft)", fontWeight: 800 }}>{foot.map((c, ci) => <td key={ci} style={{ padding: "7px 10px", textAlign: ci === 0 ? "left" : "right" }}>{c && c.v !== undefined ? c.v : c}</td>)}</tr>}
         </tbody>
       </table>
+
+      {pop && (
+        <>
+          <div onClick={() => setPop(null)} style={{ position: "fixed", inset: 0, zIndex: 100000 }} />
+          <div style={{ position: "fixed", left: pop.x, top: pop.y, zIndex: 100001, width: 240, maxHeight: 340, display: "flex", flexDirection: "column", background: "#fff", border: "1px solid var(--line)", borderRadius: 10, boxShadow: "0 14px 40px rgba(0,0,0,.22)", overflow: "hidden" }}>
+            <div style={{ padding: 8 }}>
+              <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" style={{ width: "100%", padding: "6px 8px", border: "1px solid var(--line)", borderRadius: 7, fontSize: 12.5 }} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "0 10px 6px" }}>
+              <button type="button" className="dx-btn" style={{ padding: "2px 8px", fontSize: 11 }} onClick={() => setAll(true)}>Select all</button>
+              <button type="button" className="dx-btn" style={{ padding: "2px 8px", fontSize: 11 }} onClick={() => setAll(false)}>Clear</button>
+            </div>
+            <div style={{ overflow: "auto", flex: 1, padding: "0 6px" }}>
+              {distinct.filter((v) => v.toLowerCase().includes(q.toLowerCase())).map((v) => (
+                <label key={v} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", cursor: "pointer", fontSize: 12.5 }}>
+                  <input type="checkbox" checked={isOn(v)} onChange={() => toggleVal(v)} />
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v || "—"}</span>
+                </label>
+              ))}
+            </div>
+            <div style={{ borderTop: "1px solid var(--line)", padding: 8, textAlign: "right" }}>
+              <button type="button" className="dx-btn dx-btn-p" style={{ padding: "4px 14px" }} onClick={() => setPop(null)}>OK</button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

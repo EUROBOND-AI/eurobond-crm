@@ -41,6 +41,7 @@ const QuotationAdmin = lazy(() => import("./admin/QuotationAdmin.jsx"));
 const ProductsPage = lazy(() => import("./admin/ProductsPage.jsx"));
 const HolidaysPage = lazy(() => import("./admin/HolidaysPage.jsx"));
 const EnquiryPage = lazy(() => import("./admin/EnquiryPage.jsx"));
+const FormalitiesPage = lazy(() => import("./admin/FormalitiesPage.jsx"));
 import { MODULES } from "./admin/moduleConfigs.jsx";
 const FieldApp = lazy(() => import("./field/FieldApp.jsx"));
 
@@ -116,6 +117,8 @@ export default function App() {
         <Route path="master/login-history" element={<LoginHistory />} />
         <Route path="sfa/checkin" element={<CheckinPage />} />
         <Route path="sfa/tour-report" element={<TourReport />} />
+        <Route path="sfa/joining" element={<FormalitiesPage kind="joining" />} />
+        <Route path="sfa/exit" element={<FormalitiesPage kind="exit" />} />
         <Route path="master/roles" element={<RolePermission />} />
         <Route path="master/specs-hub" element={<SpecsHubAdmin />} />
         <Route path="master/team-access" element={<TeamAccess />} />

@@ -55,6 +55,8 @@ const NAV = [
           { label: "Sales to Spec", to: "/admin/sfa/sales-to-spec" },
           { label: "Spec to Sales", to: "/admin/sfa/spec-to-sales" },
           { label: "Specs-Hub", to: "/admin/master/specs-hub" },
+          { label: "Joining Formalities", to: "/admin/sfa/joining" },
+          { label: "Exit Formalities", to: "/admin/sfa/exit" },
         ],
       },
     ],
