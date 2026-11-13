@@ -111,12 +111,14 @@ export function EnqNumbersImport({ users, onDone }) {
 
   const format = () => {
     const tpl =
-      "Employee Code,Month,Enquiries\n" +
-      "EB001,2025-04,12\n" +
-      "EB001,2025-05,9\n" +
-      "\n\n# One row per person per month. Month: YYYY-MM (2025-04 = April 2025).\n" +
-      "# Enquiries = how many enquiries that person got that month. Only the number — no other details.\n" +
-      "# Re-importing the same person+month replaces the old number (no doubling).\n" +
+      "Employee Code,Month,Lead Source,Enquiries\n" +
+      "EB001,2025-04,Website,12\n" +
+      "EB001,2025-04,Reference,5\n" +
+      "EB001,2025-05,Website,9\n" +
+      "\n\n# One row per person + month + lead source. Month: YYYY-MM (2025-04 = April 2025).\n" +
+      "# Lead Source = where the enquiry came from (Website, Reference, IndiaMART, Walk-in...). Leave blank if not known.\n" +
+      "# Enquiries = how many that person got that month from that source. Only the number — no other details.\n" +
+      "# Re-importing the same person + month + source replaces the old number (no doubling).\n" +
       "# Delete these notes and the employee list below before importing.\n\n" +
       "Employee Code,Name\n" + codeList(users);
     dl("enquiry-numbers-format.csv", tpl);
@@ -140,15 +142,16 @@ export function EnqNumbersImport({ users, onDone }) {
       const ci = (names) => head.findIndex((h) => names.includes(h));
       const iCode = ci(["employee code", "code", "emp code"]);
       const iMonth = ci(["month", "period"]);
+      const iSrc = ci(["lead source", "source", "lead from", "leadfrom", "lead"]);
       const iCount = ci(["enquiries", "count", "number", "numbers", "qty"]);
-      if (iCode < 0 || iMonth < 0 || iCount < 0) { alert("Header must have: Employee Code, Month, Enquiries"); return; }
+      if (iCode < 0 || iMonth < 0 || iCount < 0) { alert("Header must have: Employee Code, Month, Enquiries (Lead Source optional)"); return; }
 
       /* existing rows, so a re-import replaces instead of adding */
       const existing = await api.list("enqHist", false).catch(() => ({ records: [] }));
       const byKey = new Map();
       (existing.records || []).forEach((r) => {
         const d = r.data || {};
-        byKey.set(`${String(d.code || "").toLowerCase()}|${d.month}`, r.id);
+        byKey.set(`${String(d.code || "").toLowerCase()}|${d.month}|${String(d.leadFrom || "").toLowerCase()}`, r.id);
       });
 
       let done = 0, skipped = 0; const errors = [];
@@ -160,10 +163,11 @@ export function EnqNumbersImport({ users, onDone }) {
         if (!u) { errors.push(`Row ${r + 1}: no employee with code '${code}'`); continue; }
         const month = normMonth(row[iMonth]);
         if (!month) { errors.push(`Row ${r + 1}: bad month '${row[iMonth]}'`); continue; }
+        const leadFrom = iSrc >= 0 ? String(row[iSrc] || "").trim() : "";
         const count = parseInt(String(row[iCount] || "").replace(/[^\d-]/g, ""), 10);
         if (!count || count < 0) { skipped++; continue; }
-        const data = { code, name: u.name, month, count };
-        const key = `${code.toLowerCase()}|${month}`;
+        const data = { code, name: u.name, month, leadFrom, count };
+        const key = `${code.toLowerCase()}|${month}|${leadFrom.toLowerCase()}`;
         try {
           if (byKey.has(key)) await api.update("enqHist", byKey.get(key), data);
           else await api.create("enqHist", data);

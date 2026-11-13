@@ -85,17 +85,75 @@ function Sel({ label, value, set, opts, allLabel }) {
 
 /* a plain table. It does NOT scroll itself — its ZPanel gives every panel a
    fixed-height body that is the single scroller, so the header (sticky) freezes
-   against that box and every panel ends up exactly the same size. */
+   against that box and every panel ends up exactly the same size.
+   #2 — every column header is clickable to sort the rows: first click low→high,
+   second high→low, third back to the original order. Numeric columns sort by the
+   raw value carried on the cell ({v, n}); the name column sorts alphabetically.
+   The Total foot is never moved. */
+const cellNum = (c) => {
+  if (c && typeof c === "object" && c.n !== undefined) return c.n;
+  const raw = c && c.v !== undefined ? c.v : c;
+  const n = parseFloat(String(raw).replace(/[^0-9.\-]/g, ""));
+  return isNaN(n) ? null : n;
+};
+const cellText = (c) => String(c && c.v !== undefined ? c.v : (c == null ? "" : c));
 function T({ head, rows, foot }) {
+  const [sort, setSort] = useState(null);   // { col, dir: 'asc'|'desc' }
+  const sorted = useMemo(() => {
+    if (!sort) return rows;
+    const { col, dir } = sort;
+    const numeric = rows.every((r) => cellNum(r[col]) !== null);
+    const cp = [...rows];
+    cp.sort((a, b) => {
+      if (numeric) { const x = cellNum(a[col]) || 0, y = cellNum(b[col]) || 0; return dir === "asc" ? x - y : y - x; }
+      const x = cellText(a[col]).toLowerCase(), y = cellText(b[col]).toLowerCase();
+      return dir === "asc" ? x.localeCompare(y) : y.localeCompare(x);
+    });
+    return cp;
+  }, [rows, sort]);
+  const click = (i) => setSort((p) => (p && p.col === i ? (p.dir === "asc" ? { col: i, dir: "desc" } : null) : { col: i, dir: "asc" }));
+  const arrow = (i) => (sort && sort.col === i ? (sort.dir === "asc" ? " ▲" : " ▼") : "");
   return (
     <div>
       <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12.5, whiteSpace: "nowrap" }}>
-        <thead><tr>{head.map((h, i) => <th key={i} style={{ position: "sticky", top: 0, zIndex: 3, background: "var(--navy)", color: "#fff", fontWeight: 700, padding: "7px 10px", textAlign: i === 0 ? "left" : "right" }}>{h}</th>)}</tr></thead>
+        <thead><tr>{head.map((h, i) => <th key={i} onClick={() => click(i)} title="Click to sort" style={{ position: "sticky", top: 0, zIndex: 3, background: "var(--navy)", color: "#fff", fontWeight: 700, padding: "7px 10px", textAlign: i === 0 ? "left" : "right", cursor: "pointer", userSelect: "none" }}>{h}{arrow(i)}</th>)}</tr></thead>
         <tbody>
-          {rows.map((r, ri) => <tr key={ri} style={{ borderBottom: "1px solid var(--line)" }}>{r.map((c, ci) => <td key={ci} style={{ padding: "6px 10px", textAlign: ci === 0 ? "left" : "right", fontWeight: ci === 0 ? 700 : 500, color: c && c.c ? c.c : "var(--ink)" }}>{c && c.v !== undefined ? c.v : c}</td>)}</tr>)}
+          {sorted.map((r, ri) => <tr key={ri} style={{ borderBottom: "1px solid var(--line)" }}>{r.map((c, ci) => <td key={ci} style={{ padding: "6px 10px", textAlign: ci === 0 ? "left" : "right", fontWeight: ci === 0 ? 700 : 500, color: c && c.c ? c.c : "var(--ink)" }}>{c && c.v !== undefined ? c.v : c}</td>)}</tr>)}
           {foot && <tr style={{ background: "var(--accent-soft)", fontWeight: 800 }}>{foot.map((c, ci) => <td key={ci} style={{ padding: "7px 10px", textAlign: ci === 0 ? "left" : "right" }}>{c && c.v !== undefined ? c.v : c}</td>)}</tr>}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/* a checkbox dropdown for choosing several grades at once (empty = all). */
+function MultiSel({ label, opts, sel, setSel }) {
+  const [open, setOpen] = useState(false);
+  const n = sel.size;
+  const toggle = (v) => { const s = new Set(sel); s.has(v) ? s.delete(v) : s.add(v); setSel(s); };
+  return (
+    <div style={{ position: "relative" }}>
+      <label>{label}</label>
+      <button type="button" className="dx-btn" onClick={() => setOpen((o) => !o)} style={{ minWidth: 140, textAlign: "left", fontWeight: 600 }}>
+        {n === 0 ? "All grades" : n + " selected"} ▾
+      </button>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 50 }} />
+          <div style={{ position: "absolute", top: "100%", left: 0, zIndex: 51, marginTop: 4, background: "#fff", border: "1px solid var(--line)", borderRadius: 10, boxShadow: "0 12px 34px rgba(0,0,0,.18)", width: 230, maxHeight: 320, overflow: "auto", padding: 6 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 8px" }}>
+              <button type="button" className="dx-btn" style={{ padding: "2px 8px", fontSize: 11 }} onClick={() => setSel(new Set(opts.map((o) => o.v)))}>Select all</button>
+              <button type="button" className="dx-btn" style={{ padding: "2px 8px", fontSize: 11 }} onClick={() => setSel(new Set())}>Clear</button>
+            </div>
+            {opts.map((o) => (
+              <label key={o.v} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", cursor: "pointer", fontSize: 12.5 }}>
+                <input type="checkbox" checked={sel.has(o.v)} onChange={() => toggle(o.v)} />
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.lbl}</span>
+              </label>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -143,7 +201,8 @@ export default function SalesReview() {
   // the previous set (Year/Brand/QTR/Month/Region) + State/HOD/Person
   const [fy, setFy] = useState(""), [fb, setFb] = useState(""), [fq, setFq] = useState(""), [fm, setFm] = useState("");
   const [fr, setFr] = useState(""), [fst, setFst] = useState(""), [fhd, setFhd] = useState(""), [fp, setFp] = useState("");
-  const resetF = () => { setFy(""); setFb(""); setFq(""); setFm(""); setFr(""); setFst(""); setFhd(""); setFp(""); };
+  const [fgr, setFgr] = useState(new Set());   // #2 — grade multi-select (empty = all)
+  const resetF = () => { setFy(""); setFb(""); setFq(""); setFm(""); setFr(""); setFst(""); setFhd(""); setFp(""); setFgr(new Set()); };
 
   /* Power BI is open to every login. Admin/owner see the whole company; an
      individual (field) login sees ONLY their own sales rows. We match on the
@@ -216,8 +275,9 @@ export default function SalesReview() {
       (fy === "" || r[IX.Y] === +fy) && (fb === "" || r[IX.B] === +fb) &&
       (fq === "" || r[IX.Q] === +fq) && (fm === "" || r[IX.M] === +fm) &&
       (fr === "" || r[IX.R] === +fr) && (fst === "" || r[IX.ST] === +fst) &&
-      (fhd === "" || r[IX.HD] === +fhd) && (fp === "" || r[IX.P] === +fp));
-  }, [db, fy, fb, fq, fm, fr, fst, fhd, fp, admin, myScope]);
+      (fhd === "" || r[IX.HD] === +fhd) && (fp === "" || r[IX.P] === +fp) &&
+      (fgr.size === 0 || fgr.has(r[IX.GR])));
+  }, [db, fy, fb, fq, fm, fr, fst, fhd, fp, fgr, admin, myScope]);
 
   /* alphabetically-sorted option lists, straight from the uploaded data */
   const optsOf = (arr) => (arr || []).map((v, i) => ({ v: i, lbl: v })).sort((a, b) => String(a.lbl).localeCompare(String(b.lbl)));
@@ -240,7 +300,7 @@ export default function SalesReview() {
       if (!a && !b) return; raw.push({ name, a, b });
     });
     raw.sort((x, y) => (y.a + y.b) - (x.a + x.b));
-    const rows = raw.map((o) => [o.name, cr(o.a), pcStr(o.a, A.s0), cr(o.b), pcStr(o.b, A.s1), { v: cr(o.a + o.b), c: "#0b3c8c" }]);
+    const rows = raw.map((o) => [o.name, { v: cr(o.a), n: o.a }, { v: pcStr(o.a, A.s0), n: pcN(o.a, A.s0) }, { v: cr(o.b), n: o.b }, { v: pcStr(o.b, A.s1), n: pcN(o.b, A.s1) }, { v: cr(o.a + o.b), n: o.a + o.b, c: "#0b3c8c" }]);
     return { rows, foot: ["Total", cr(A.s0), "100%", cr(A.s1), "100%", cr(A.sAll)] };
   };
   /* compact 4-col version for the narrow Code/Grade/Party boxes */
@@ -251,7 +311,7 @@ export default function SalesReview() {
       if (!a && !b) return; ta += a; tb += b; raw.push({ name, a, b });
     });
     raw.sort((x, y) => (y.a + y.b) - (x.a + x.b));
-    const rows = raw.map((o) => [o.name, cr(o.a), cr(o.b), { v: cr(o.a + o.b), c: "#0b3c8c" }]);
+    const rows = raw.map((o) => [o.name, { v: cr(o.a), n: o.a }, { v: cr(o.b), n: o.b }, { v: cr(o.a + o.b), n: o.a + o.b, c: "#0b3c8c" }]);
     return { rows, foot: ["Total", cr(ta), cr(tb), cr(ta + tb)] };
   };
   /* target/sales/ach%/growth table (Region/Sales Person): sorted high→low by
@@ -264,7 +324,7 @@ export default function SalesReview() {
       const s = a + b; if (!s && !tg) return; tt += tg; ts += s; raw.push({ name, a, b, s, tg });
     });
     raw.sort((x, y) => y.s - x.s);
-    const rows = raw.map((o) => { const gw = o.a ? ((o.b - o.a) / o.a * 100) : null; return [o.name, cr(o.tg), cr(o.s), { v: pcStr(o.s, o.tg), c: pcColor(pcN(o.s, o.tg)) }, { v: gw == null ? "—" : gw.toFixed(1) + "%", c: gw == null ? "var(--muted)" : (gw >= 0 ? "#10b981" : "#ef4444") }]; });
+    const rows = raw.map((o) => { const gw = o.a ? ((o.b - o.a) / o.a * 100) : null; return [o.name, { v: cr(o.tg), n: o.tg }, { v: cr(o.s), n: o.s }, { v: pcStr(o.s, o.tg), n: pcN(o.s, o.tg), c: pcColor(pcN(o.s, o.tg)) }, { v: gw == null ? "—" : gw.toFixed(1) + "%", n: gw == null ? -1e9 : gw, c: gw == null ? "var(--muted)" : (gw >= 0 ? "#10b981" : "#ef4444") }]; });
     return { rows, foot: ["Total", cr(tt), cr(ts), { v: pcStr(ts, tt), c: pcColor(pcN(ts, tt)) }, ""] };
   };
   const bars = (arr, idxKey, lim) => (db ? arr.map((name, i) => ({ label: name, value: sm(rows.filter((r) => r[idxKey] === i), IX.S) })).filter((x) => x.value).sort((a, b) => b.value - a.value).slice(0, lim || 99) : []);
@@ -302,7 +362,8 @@ export default function SalesReview() {
         {db && <Sel label="Brand" value={fb} set={setFb} allLabel="All brands" opts={optsOf(db.b)} />}
         <Sel label="QTR" value={fq} set={setFq} allLabel="All quarters" opts={QS.map((y, i) => ({ v: i, lbl: y }))} />
         <Sel label="Month" value={fm} set={setFm} allLabel="All months" opts={MO.map((y, i) => ({ v: i, lbl: y }))} />
-        {(fy || fb || fq || fm || fr || fst || fhd || fp) && <button className="dx-btn" style={{ alignSelf: "flex-end" }} onClick={resetF}>Reset</button>}
+        {db && db.gr && db.gr.length > 0 && <MultiSel label="Grade" opts={optsOf(db.gr)} sel={fgr} setSel={setFgr} />}
+        {(fy || fb || fq || fm || fr || fst || fhd || fp || fgr.size) && <button className="dx-btn" style={{ alignSelf: "flex-end" }} onClick={resetF}>Reset</button>}
       </div>
 
       {!shown || (busy && !db) ? <ShowGate onShow={load} busy={busy} what="Sales Review" /> : !hasData ? (
@@ -344,7 +405,7 @@ export default function SalesReview() {
             {/* Row 4 */}
             <ZPanel title="Sales Personwise Contribution" sub="by sales value"><RankBars items={bars(db.sp, IX.P)} fmt={cr} limit={10} /></ZPanel>
             <ZPanel title="Monthwise" sub="Apr → Mar">
-              <T head={["Month", YA, YB, "Total"]} rows={MO.map((m, mi) => { const a = sm(A.y0.filter((r) => r[IX.M] === mi), IX.S), b = sm(A.y1.filter((r) => r[IX.M] === mi), IX.S); return (!a && !b) ? null : [m, cr(a), cr(b), { v: cr(a + b), c: "#0b3c8c" }]; }).filter(Boolean)} foot={["Total", cr(A.s0), cr(A.s1), cr(A.sAll)]} maxH={470} />
+              <T head={["Month", YA, YB, "Total"]} rows={MO.map((m, mi) => { const a = sm(A.y0.filter((r) => r[IX.M] === mi), IX.S), b = sm(A.y1.filter((r) => r[IX.M] === mi), IX.S); return (!a && !b) ? null : [m, { v: cr(a), n: a }, { v: cr(b), n: b }, { v: cr(a + b), n: a + b, c: "#0b3c8c" }]; }).filter(Boolean)} foot={["Total", cr(A.s0), cr(A.s1), cr(A.sAll)]} maxH={470} />
             </ZPanel>
             <ZPanel title="Sales Personwise" sub="target · sales · achievement · growth">
               {(() => { const t = perfTable(db.sp, IX.P); return <T head={["Sales Person", "Target", "Sales", "Ach%", "GW%"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
