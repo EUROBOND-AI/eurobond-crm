@@ -2212,7 +2212,7 @@ function FieldExpenseNew({ add }) {
   const nav = useNavigate();
   const ed = EXP_EDIT.data;
   const today = new Date().toISOString().slice(0, 10);
-  const [f, setF] = useState(ed || { date: today, km: "", station: "Outstation", category: "Food & Meals", amount: "", desc: "", description: "" });
+  const [f, setF] = useState(ed || { date: today, km: "", station: "", category: "", amount: "", desc: "", description: "" });
   const [doc, setDoc] = useState(ed?.photo || "");
   /* areas of my state, with their A/B/C tier — used for Origin to Destination */
   const [areaRows, setAreaRows] = useState([]);
@@ -2290,16 +2290,18 @@ function FieldExpenseNew({ add }) {
         <label>K.M. (if travel)</label>
         <input inputMode="decimal" value={f.km} onChange={(e) => setF({ ...f, km: e.target.value.replace(/[^\d.]/g, "") })} placeholder="Kilometers" style={{ width: "100%", marginBottom: 12 }} />
 
-        <label>Expense Type <b>*</b></label>
+        <label style={{ color: String(f.station || "").trim() ? undefined : "#c0392b" }}>Expense Type <b style={{ color: "#c0392b" }}>*</b></label>
         <select value={f.station} onChange={(e) => setF({ ...f, station: e.target.value })} style={{ width: "100%", marginBottom: 12 }}>
-          <option>Outstation</option><option>Exstation</option>
+          <option value="">Select Expense Type</option>
+          <option>Local</option><option>Exstation</option><option>Outstation</option>
         </select>
 
         <label style={{ color: String(f.category || "").trim() ? undefined : "#c0392b" }}>Category <b style={{ color: "#c0392b" }}>*</b></label>
         <select value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })} style={{ width: "100%", marginBottom: 6 }}>
+          <option value="">Select Category</option>
           {EXP_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
         </select>
-        <div style={{ fontSize: 11.5, color: "var(--accent)", fontWeight: 700, marginBottom: 12 }}>Expense Type: {expType} <span style={{ color: "var(--muted)", fontWeight: 500 }}>(auto)</span></div>
+        {String(f.category || "").trim() && <div style={{ fontSize: 11.5, color: "var(--accent)", fontWeight: 700, marginBottom: 12 }}>Expense Type: {expType} <span style={{ color: "var(--muted)", fontWeight: 500 }}>(auto)</span></div>}
 
         <label>Amount (₹) <b>*</b></label>
         <input inputMode="numeric" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value.replace(/\D/g, "") })} style={{ width: "100%", marginBottom: 12 }} />
@@ -2484,7 +2486,7 @@ function ExpenseItemEdit({ item, onClose, onSave, onDelete }) {
         <input inputMode="decimal" value={f.km} onChange={(e) => set("km", e.target.value.replace(/[^\d.]/g, ""))} style={{ width: "100%", marginBottom: 10, padding: 9, borderRadius: 9, border: "1px solid var(--line)" }} />
         <label style={{ fontSize: 12, fontWeight: 700 }}>Expense Type</label>
         <select value={f.station} onChange={(e) => set("station", e.target.value)} style={{ width: "100%", marginBottom: 10, padding: 9, borderRadius: 9, border: "1px solid var(--line)" }}>
-          <option>Outstation</option><option>Exstation</option>
+          <option>Local</option><option>Exstation</option><option>Outstation</option>
         </select>
         <label style={{ fontSize: 12, fontWeight: 700 }}>Category</label>
         <select value={f.category} onChange={(e) => set("category", e.target.value)} style={{ width: "100%", marginBottom: 10, padding: 9, borderRadius: 9, border: "1px solid var(--line)" }}>

@@ -33,6 +33,30 @@ const rid = (r) => r.id || r._id;
 /* ---- shared small UI ---- */
 const inp = { width: "100%", padding: "11px 12px", borderRadius: 10, border: "1px solid var(--line, #d9deea)", fontSize: 14, boxSizing: "border-box", background: "#fff" };
 const lbl = { fontSize: 12.5, fontWeight: 700, color: "var(--muted, #6b7694)", margin: "14px 0 5px", display: "block" };
+
+/* a type-to-search dropdown: shows matching names as you type, tap one to pick */
+function SearchSelect({ options, placeholder, onPick, exclude = [] }) {
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const ex = new Set((exclude || []).map((x) => String(x || "").toLowerCase()));
+  const ql = q.toLowerCase();
+  const list = (options || []).filter((n) => n && !ex.has(String(n).toLowerCase()) && String(n).toLowerCase().includes(ql)).slice(0, 40);
+  return (
+    <div style={{ position: "relative" }}>
+      <input value={q} placeholder={placeholder || "Search…"} onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onChange={(e) => { setQ(e.target.value); setOpen(true); }} style={inp} />
+      {open && list.length > 0 && (
+        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50, background: "#fff", border: "1px solid #d7dcef", borderRadius: 10, marginTop: 3, maxHeight: 220, overflowY: "auto", boxShadow: "0 6px 20px rgba(20,25,60,.14)" }}>
+          {list.map((n) => (
+            <div key={n} onMouseDown={(e) => { e.preventDefault(); onPick(n); setQ(""); setOpen(false); }}
+              style={{ padding: "9px 12px", cursor: "pointer", borderBottom: "1px solid #f0f2f8", fontSize: 13.5 }}>{n}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 const req = <span style={{ color: "#e23b4e" }}> *</span>;
 /* same top bar as every other app screen (ScreenHead look): back arrow, title,
    Refresh. Used for the inner views whose Back returns to the list in state. */
@@ -213,12 +237,12 @@ Regards,<br><b>${CU().name || ""}</b>${CU().mobile ? "<br>" + CU().mobile : ""}`
             {ccList.map((e) => <span key={e} style={{ background: "#e7edfb", color: "#1b3a8f", padding: "5px 10px", borderRadius: 16, fontSize: 12.5, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 5 }}>{e} <X size={13} style={{ cursor: "pointer" }} onClick={() => rmCc(e)} /></span>)}
             {ccList.length === 0 && <span style={{ fontSize: 12.5, color: "var(--muted)" }}>No CC</span>}
           </div>
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <select value={pick} onChange={(e) => setPick(e.target.value)} style={{ ...inp, flex: 1 }}>
-              <option value="">+ Add a person to CC…</option>
-              {salesPeople.concat(users.map((u) => u.name)).filter((n, i, a) => a.indexOf(n) === i).map((n) => <option key={n} value={n}>{n}{emailOf(users, n) ? "" : " (no email)"}</option>)}
-            </select>
-            <button onClick={addPerson} className="f-submit" style={{ padding: "0 16px" }}>Add</button>
+          <div style={{ marginTop: 12 }}>
+            <SearchSelect
+              options={salesPeople.concat(users.map((u) => u.name)).filter((n, i, a) => a.indexOf(n) === i)}
+              placeholder="🔍 Search & add a person to CC…"
+              onPick={(n) => { const e = emailOf(users, n) || n; if (e && !cc.includes(e)) setCc((c) => [...c, e]); }}
+            />
           </div>
         </div>
         <div style={{ background: "#fff", borderRadius: 14, padding: 16, border: "1px solid #e6ecf7", marginTop: 12 }}>
@@ -316,7 +340,7 @@ function SpecForm({ edit, onSaved, onClose }) {
             {f.salesPersons.map((n) => <span key={n} style={{ background: "#e7edfb", color: "#1b3a8f", padding: "5px 10px", borderRadius: 16, fontSize: 12.5, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 5 }}>{n} <X size={13} style={{ cursor: "pointer" }} onClick={() => set("salesPersons", f.salesPersons.filter((x) => x !== n))} /></span>)}
           </div>
         )}
-        <select value="" onChange={(e) => { const n = e.target.value; if (n && !f.salesPersons.includes(n)) set("salesPersons", [...f.salesPersons, n]); }} style={inp}><option value="">+ Add sales person…</option>{salesPeople.filter((n) => !f.salesPersons.includes(n)).map((n) => <option key={n}>{n}</option>)}</select>
+        <SearchSelect options={salesPeople} exclude={f.salesPersons} placeholder="🔍 Search & add sales person…" onPick={(n) => { if (!f.salesPersons.includes(n)) set("salesPersons", [...f.salesPersons, n]); }} />
 
         <label style={lbl}>Remark</label>
         <textarea value={f.remark} onChange={(e) => set("remark", e.target.value)} style={{ ...inp, minHeight: 80 }} placeholder="Any note / remark (optional)" />

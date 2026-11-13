@@ -840,12 +840,17 @@ function quoteHtml(q) {
 /* Company-format PDF (print window) — EP/08/160/26-27 numbering, letterhead style */
 function downloadQuotePdf(q) {
   const items = qItems(q);
+  /* a Running-Feet quotation (every line is Running Feet): drop the Sq.Mtr rate
+     column, rename the Sq.Ft rate to "Running/Sq.Ft", and don't tag each line
+     with "(Running Feet)" */
+  const allFins = items.length > 0 && items.every((it) => it.fins);
+  const stripRF = (s) => String(s || "").replace(/\s*\(running\s*feet\)\s*/ig, " ").trim();
   const w = window.open("", "_blank");
   const rowsHtml = items.map((it, i) => `<tr>
     <td class="srno">${i + 1}</td>
-    <td class="desc"><span class="gr">${tidyProduct(it.grade)}</span>${it.thickness ? `<span class="thk">(${it.thickness})</span>` : ""}${it.fins ? " (Running Feet)" : ""}</td>
+    <td class="desc"><span class="gr">${allFins ? stripRF(tidyProduct(it.grade)) : tidyProduct(it.grade)}</span>${it.thickness ? `<span class="thk">(${it.thickness})</span>` : ""}${(!allFins && it.fins) ? " (Running Feet)" : ""}</td>
     <td class="colour">${colourCell(it)}</td>
-    <td class="rate">${!it.fins && it.ratePerSqm ? it.ratePerSqm : "—"}</td>
+    ${allFins ? "" : `<td class="rate">${!it.fins && it.ratePerSqm ? it.ratePerSqm : "—"}</td>`}
     <td class="rate">${rate2(it.rate)}</td>
   </tr>`).join("");
   const tc = q.tc || {};
@@ -913,7 +918,7 @@ function downloadQuotePdf(q) {
           <div style="margin-top:6px"><b>Sub :-Quotation For Eurobond</b></div>
           <p>Sir,<br>In reference to the discusssion held with you regarding the said subject, we are please to quote our most preferred rates & others terms and condition for the same as follows.</p>
           <table class="items">
-            <thead><tr><th>Sr.No</th><th>Description</th><th>Color Code/Series</th><th>Rate/Sq.Mtr</th><th>Rate/Sq.Ft</th></tr></thead>
+            <thead><tr><th>Sr.No</th><th>Description</th><th>Color Code/Series</th>${allFins ? "" : "<th>Rate/Sq.Mtr</th>"}<th>${allFins ? "Running/Sq.Ft" : "Rate/Sq.Ft"}</th></tr></thead>
             <tbody>${rowsHtml}</tbody>
           </table>
           <h3>Terms &amp; Conditions:-</h3>
