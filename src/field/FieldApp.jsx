@@ -5422,7 +5422,7 @@ function MenuDrawer({ open, close }) {
       /* Specs-Hub (specs persons create & mail approved specs) and Sales-Hub
          (the mentioned sales person acts on them) — shown by role */
       ...((/spec/i.test(CU().role || "") || /admin|owner/i.test(CU().role || "") || CU().owner) ? [["Specs-Hub", <ClipboardList size={16} />, "/app/specs-hub", "specsHub"]] : []),
-      ...((/sales/i.test(CU().role || "") || /admin|owner/i.test(CU().role || "") || CU().owner) ? [["Sales-Hub", <ClipboardList size={16} />, "/app/sales-hub", "salesHub"]] : []),
+      ...((/sales/i.test(CU().role || "") || /admin|owner/i.test(CU().role || "") || CU().owner) ? [["Specs-Hub", <ClipboardList size={16} />, "/app/sales-hub", "salesHub"]] : []),
       ["Expense", <Wallet size={16} />, "/app/m/expense", "expense"],
       ["Leave", <CalendarDays size={16} />, "/app/leave", "leave"],
     ] },

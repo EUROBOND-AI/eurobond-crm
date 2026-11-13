@@ -538,7 +538,7 @@ export function SalesHubScreen() {
 
   return (
     <div style={{ minHeight: "100%", background: "#f6f8fd" }}>
-      <ScreenHead title="Sales-Hub" />
+      <ScreenHead title="Specs-Hub" />
       <div style={{ padding: 16 }}>
         {rows === null ? <SkeletonList rows={5} /> : rows.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", marginTop: 50 }}>No specifications shared with you yet.</div>

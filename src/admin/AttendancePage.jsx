@@ -694,11 +694,12 @@ export default function AttendancePage() {
           <option value="">All Status</option>
           <option>In Progress</option><option>Completed</option><option>Absent</option>
         </select>
-        <select value={distF} onChange={(e) => setDistF(e.target.value)} style={sel}>
-          <option value="">All Distance</option>
-          <option value="lt5">Below 5 KM</option>
-          <option value="ge5">5 KM &amp; above</option>
-        </select>
+        {shown && !loading && (
+          <select value={distF} onChange={(e) => setDistF(e.target.value)} style={sel}>
+            <option value="">All Distance</option>
+            <option value="lt5">Below 5 KM</option>
+          </select>
+        )}
       </div>
 
       {!shown ? <div style={{ padding: 50, textAlign: "center", color: "var(--muted)" }}>Select date range and filters, then click <b>Show</b> to load attendance.</div>
