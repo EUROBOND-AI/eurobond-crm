@@ -694,11 +694,15 @@ export default function AttendancePage() {
           <option value="">All Status</option>
           <option>In Progress</option><option>Completed</option><option>Absent</option>
         </select>
-        {shown && !loading && (
-          <select value={distF} onChange={(e) => setDistF(e.target.value)} style={sel}>
-            <option value="">All Distance</option>
-            <option value="lt5">Below 5 KM</option>
-          </select>
+        {shown && (
+          <button
+            disabled={loading}
+            onClick={() => { if (!loading) setDistF((v) => v === "lt5" ? "" : "lt5"); }}
+            title={loading ? "Loading distances…" : "Click to filter trips below 5 KM"}
+            style={{ position: "relative", overflow: "hidden", padding: "9px 16px", borderRadius: 9, border: "1px solid " + (distF === "lt5" ? "#1b3a8f" : "#d7dcef"), background: distF === "lt5" ? "#1b3a8f" : "#fff", color: distF === "lt5" ? "#fff" : "#1b3a8f", fontWeight: 700, fontSize: 12.5, cursor: loading ? "default" : "pointer", minWidth: 160 }}>
+            <span style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: loading ? "0%" : "100%", background: "rgba(34,164,93,.22)", transition: "width 1.4s ease", pointerEvents: "none" }} />
+            <span style={{ position: "relative" }}>{loading ? "Loading distance…" : distF === "lt5" ? "✓ Below 5 KM" : "Show Below 5 KM"}</span>
+          </button>
         )}
       </div>
 
