@@ -689,6 +689,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
         const me = (auth.user && auth.user.name) || name || "";
         await api.create("reminder", { what: p.what, dueAt: p.dueAt, whenLabel: p.whenLabel, act: p.act || "remind", mailTo: p.mailTo || "", assignee: p.assignee || "", byName: p.byName || me, byMobile: p.byMobile || "", byEmail: p.byEmail || "", to: me, done: false, from: "Chitra", createdBy: me, mail: !!p.mail, email: p.email || "", at: new Date().toISOString() });
         const label = p.act === "mail" ? `📧 Scheduled — I'll email ${p.mailTo} on ${p.whenLabel}.`
+          : p.act === "whatsapp" ? `📱 Scheduled — I'll WhatsApp ${p.mailTo ? "them" : "you"} on ${p.whenLabel}.`
           : p.act === "task" ? `📋 Scheduled — I'll assign this task to ${p.assignee} on ${p.whenLabel}.`
           : `⏰ Reminder set — I'll remind you on ${p.whenLabel}${p.mail ? " (and by email)" : ""}.`;
         setMsgs((m) => [...m, { role: "note", text: label }]);
