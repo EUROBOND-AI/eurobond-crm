@@ -252,12 +252,19 @@ export default function AttendancePage() {
   };
   const statusOf = (s) => (s.marked_absent ? "Absent" : s.status === "DONE" ? "Completed" : "In Progress");
   const rowKm = (s) => (liveKm[s.id] != null ? liveKm[s.id] : (Number(s.distance_km) || 0));
-  const filtered = sessions.filter((s) =>
+  /* a row whose real distance still has to be measured from its GPS points */
+  const needsKm = (s) => (s.points_count > 1 || !Number(s.distance_km)) && liveKm[s.id] == null;
+  /* everything the place/status filters keep — the distance button works on this whole set */
+  const baseFiltered = sessions.filter((s) =>
     (!zone || s.zone === zone) && (!hodF || s.manager === hodF)
     && (!stateF || s.state === stateF) && (!user || s.name === user)
     && (!gpsF || gpsOf(s) === gpsF) && (!statusF || statusOf(s) === statusF)
-    && (!distF || (distF === "lt5" ? rowKm(s) < 5 : rowKm(s) >= 5))
   );
+  const kmTotal = baseFiltered.length;
+  const kmReadyCount = baseFiltered.filter((s) => !needsKm(s)).length;
+  const kmPct = kmTotal === 0 ? 100 : Math.round((kmReadyCount / kmTotal) * 100);
+  const kmReady = kmReadyCount >= kmTotal;
+  const filtered = baseFiltered.filter((s) => !distF || (distF === "lt5" ? rowKm(s) < 5 : rowKm(s) >= 5));
   /* the ten rows currently on screen */
   const visibleRows = useMemo(() => filtered.slice((page - 1) * PAGE, page * PAGE),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -292,6 +299,30 @@ export default function AttendancePage() {
     })();
     return () => { stop = true; };
   }, [visibleRows]);
+
+  /* Distance button: measure EVERY row in the current filter set (not just the
+     page) in the background, so the "Below 5 KM" button only unlocks once all
+     distances are in. Keyed on the place/status filters, not on distF. */
+  useEffect(() => {
+    if (!shown || loading) return;
+    let stop = false;
+    (async () => {
+      const need = sessions.filter((s) =>
+        (!zone || s.zone === zone) && (!hodF || s.manager === hodF) && (!stateF || s.state === stateF)
+        && (!user || s.name === user) && (!gpsF || gpsOf(s) === gpsF) && (!statusF || statusOf(s) === statusF)
+        && (s.points_count > 1 || !Number(s.distance_km)) && liveKm[s.id] == null);
+      for (const s of need) {
+        if (stop) return;
+        try {
+          const d = await api.attPointsList(s.id);
+          const pts = (d && (d.points || d.route)) ? ebByTime(d.points || d.route) : [];
+          setLiveKm((m) => ({ ...m, [s.id]: pts.length > 1 ? kmFromPoints(pts) : 0 }));
+        } catch { setLiveKm((m) => ({ ...m, [s.id]: Number(s.distance_km) || 0 })); }
+      }
+    })();
+    return () => { stop = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shown, loading, sessions, zone, stateF, hodF, user, gpsF, statusF]);
 
   const exportCsv = () => {
     const head = '"Name","Code","Zone","City","Date","Start","End","Distance (km)","GPS Points","Status"';
@@ -694,14 +725,14 @@ export default function AttendancePage() {
           <option value="">All Status</option>
           <option>In Progress</option><option>Completed</option><option>Absent</option>
         </select>
-        {shown && (
+        {shown && !loading && (
           <button
-            disabled={loading}
-            onClick={() => { if (!loading) setDistF((v) => v === "lt5" ? "" : "lt5"); }}
-            title={loading ? "Loading distances…" : "Click to filter trips below 5 KM"}
-            style={{ position: "relative", overflow: "hidden", padding: "9px 16px", borderRadius: 9, border: "1px solid " + (distF === "lt5" ? "#1b3a8f" : "#d7dcef"), background: distF === "lt5" ? "#1b3a8f" : "#fff", color: distF === "lt5" ? "#fff" : "#1b3a8f", fontWeight: 700, fontSize: 12.5, cursor: loading ? "default" : "pointer", minWidth: 160 }}>
-            <span style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: loading ? "0%" : "100%", background: "rgba(34,164,93,.22)", transition: "width 1.4s ease", pointerEvents: "none" }} />
-            <span style={{ position: "relative" }}>{loading ? "Loading distance…" : distF === "lt5" ? "✓ Below 5 KM" : "Show Below 5 KM"}</span>
+            disabled={!kmReady}
+            onClick={() => { if (kmReady) setDistF((v) => v === "lt5" ? "" : "lt5"); }}
+            title={kmReady ? "Click to show only trips below 5 KM" : `Measuring distances… ${kmPct}%`}
+            style={{ position: "relative", overflow: "hidden", padding: "9px 16px", borderRadius: 9, border: "1px solid " + (distF === "lt5" ? "#1b3a8f" : "#d7dcef"), background: distF === "lt5" ? "#1b3a8f" : "#fff", color: distF === "lt5" ? "#fff" : (kmReady ? "#1b3a8f" : "#8a93ad"), fontWeight: 700, fontSize: 12.5, cursor: kmReady ? "pointer" : "progress", minWidth: 170 }}>
+            <span style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: kmPct + "%", background: kmReady ? "rgba(34,164,93,.22)" : "rgba(27,58,143,.14)", transition: "width .5s ease", pointerEvents: "none" }} />
+            <span style={{ position: "relative" }}>{distF === "lt5" ? "✓ Below 5 KM" : kmReady ? "Show Below 5 KM" : `Measuring… ${kmPct}%`}</span>
           </button>
         )}
       </div>
