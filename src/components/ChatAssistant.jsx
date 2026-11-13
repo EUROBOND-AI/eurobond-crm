@@ -289,7 +289,11 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
   /* keep this chat in the 7-day on-phone history */
   useEffect(() => {
     if (!msgs.length) return;
-    const title = (msgs.find((m) => m.role === "user") || {}).text || "Chat";
+    /* title from the first user line; for an AI-opened chat (reminder / weekly
+       report — no user line) use the first line of Chitra's message so it is
+       recognisable in history */
+    const firstUser = (msgs.find((m) => m.role === "user") || {}).text;
+    const title = firstUser || (msgs[0] && msgs[0].text ? String(msgs[0].text).replace(/\s*\n\s*/g, " ").trim().slice(0, 48) : "Chat");
     setChats((prev) => {
       const rest = prev.filter((c) => c.id !== activeId);
       const next = [{ id: activeId, at: Date.now(), title: String(title).slice(0, 48), msgs }, ...rest]
@@ -681,8 +685,8 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
       }
       if (p.type === "reminder") {
         const me = (auth.user && auth.user.name) || name || "";
-        await api.create("reminder", { what: p.what, dueAt: p.dueAt, whenLabel: p.whenLabel, to: me, done: false, from: "Chitra", createdBy: me, at: new Date().toISOString() });
-        const label = `⏰ Reminder set — I'll remind you on ${p.whenLabel}.`;
+        await api.create("reminder", { what: p.what, dueAt: p.dueAt, whenLabel: p.whenLabel, to: me, done: false, from: "Chitra", createdBy: me, mail: !!p.mail, email: p.email || "", at: new Date().toISOString() });
+        const label = `⏰ Reminder set — I'll remind you on ${p.whenLabel}${p.mail ? " (and by email)" : ""}.`;
         setMsgs((m) => [...m, { role: "note", text: label }]);
         if (agentRef.current) speak(label);
         setPending(null); setBusy(false);

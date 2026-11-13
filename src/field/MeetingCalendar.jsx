@@ -39,8 +39,9 @@ export default function MeetingCalendar() {
       api.list("enquiry", false).catch(() => ({ records: [] })),
       api.list("task", false, { slim: true }).catch(() => ({ records: [] })),
       api.holidaysAll().catch(() => ({ holidays: [] })),   // #11 — holidays on the calendar, state-wise
+      api.list("reminder", false).catch(() => ({ records: [] })),   // Chitra reminders on the calendar
     ])
-      .then(([c, b, e, t, hol]) => {
+      .then(([c, b, e, t, hol, rm]) => {
         const me = (auth.user || {}).name;
         /* Biltrax appointments show here too, alongside customer meetings */
         const appts = (b.records || [])
@@ -158,7 +159,24 @@ export default function MeetingCalendar() {
             };
           })
           .filter((x) => x.nextMeetingDate);
-        setRows([...(c.customers || []), ...appts, ...bfu, ...enq, ...enqAppt, ...holidays, ...tasks]);
+        /* Chitra reminders — show on their due date */
+        const reminders = (rm.records || [])
+          .map((r) => ({ _id: r.id, ...r.data }))
+          .filter((r) => r.dueAt && (!me || r.to === me || r.createdBy === me))
+          .map((r) => {
+            const d = new Date(r.dueAt);
+            const two = (n) => String(n).padStart(2, "0");
+            return {
+              name: `⏰ ${r.what || "Reminder"}`,
+              contactName: "", mobile: "", place: "",
+              nextMeetingDate: isNaN(d) ? toIso(String(r.dueAt).slice(0, 10)) : `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`,
+              nextMeetingTime: isNaN(d) ? "" : `${two(d.getHours())}:${two(d.getMinutes())}`,
+              nextMeetingRemark: "Chitra reminder",
+              isReminder: true,
+            };
+          })
+          .filter((x) => x.nextMeetingDate);
+        setRows([...(c.customers || []), ...appts, ...bfu, ...enq, ...enqAppt, ...holidays, ...tasks, ...reminders]);
       })
       .finally(() => setLoading(false));
   };
