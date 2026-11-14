@@ -5971,31 +5971,36 @@ function FieldModuleNew({ mod }) {
               // spec to sales → notify the sales person
               if (mod === "specToSales" && f.salesPerson) {
                 try {
-                  /* spec direct visit: projection record + sales person ki "Direct" entry */
-                  const pj = await api.create("projectProjection", {
-                    parentProjectId: rec._id,   // so deleting one removes the pair
-                    id: "PPJ-" + String(Date.now()).slice(-4),
-                    /* new field names so it shows properly in the admin table
-                       (old keys were name/firm/details -> every column showed "--") */
-                    projectName: f.project, name: f.project,
-                    firmName: f.firm || "", firm: f.firm || "",
-                    city: f.city || "", value: f.value || "",
-                    helpNeeded: f.help || "", details: f.help || "",
-                    visitDate: new Date().toISOString().slice(0, 10),
-                    isSpec: true, salesPerson: f.salesPerson || "",
-                    status: "Open", source: "Direct",
-                    ...(photoUrl ? { photo: photoUrl } : {}),
-                    createdBy: CU().name,
-                    createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
-                  });
-                  await api.create("salesToSpec", {
-                    id: "STS-" + String(Date.now()).slice(-4),
-                    project: f.project, help: f.help || "", specPerson: CU().name, salesPerson: f.salesPerson,
-                    ...(photoUrl ? { photo: photoUrl } : {}),
-                    source: "Direct", projectionId: pj && pj.id ? pj.id : "",
-                    status: "Approved", createdBy: CU().name,
-                    createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
-                  });
+                  /* Only auto-create the paired Project Projection when there is a
+                     real project name. Without this, a Spec→Sales entry with no
+                     project typed was still writing a blank projectProjection row
+                     (showed as an empty "--" project in admin). The sales person is
+                     still notified either way. */
+                  if (String(f.project || "").trim()) {
+                    /* spec direct visit: projection record + sales person ki "Direct" entry */
+                    const pj = await api.create("projectProjection", {
+                      parentProjectId: rec._id,   // so deleting one removes the pair
+                      id: "PPJ-" + String(Date.now()).slice(-4),
+                      projectName: f.project, name: f.project,
+                      firmName: f.firm || "", firm: f.firm || "",
+                      city: f.city || "", value: f.value || "",
+                      helpNeeded: f.help || "", details: f.help || "",
+                      visitDate: new Date().toISOString().slice(0, 10),
+                      isSpec: true, salesPerson: f.salesPerson || "",
+                      status: "Open", source: "Direct",
+                      ...(photoUrl ? { photo: photoUrl } : {}),
+                      createdBy: CU().name,
+                      createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+                    });
+                    await api.create("salesToSpec", {
+                      id: "STS-" + String(Date.now()).slice(-4),
+                      project: f.project, help: f.help || "", specPerson: CU().name, salesPerson: f.salesPerson,
+                      ...(photoUrl ? { photo: photoUrl } : {}),
+                      source: "Direct", projectionId: pj && pj.id ? pj.id : "",
+                      status: "Approved", createdBy: CU().name,
+                      createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+                    });
+                  }
                   await api.notify({ to: f.salesPerson, title: "Spec to Sales — " + (f.project || ""), message: `${CU().name}: ${f.help || ""}`, link: `/app/thread/specToSales/${created && created.id ? created.id : ""}`, createdAt: new Date().toLocaleString("en-IN") });
                 } catch {}
               }
