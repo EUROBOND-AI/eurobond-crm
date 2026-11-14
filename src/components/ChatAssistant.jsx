@@ -217,6 +217,13 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
   const [voiceOut, setVoiceOut] = useState(() => { try { return localStorage.getItem("eb_ai_voice") !== "0"; } catch { return true; } });
   const [lang, setLang] = useState(() => { try { return localStorage.getItem("eb_ai_lang") || "en-IN"; } catch { return "en-IN"; } });
   const [pending, setPending] = useState(null);    // {type:'create', module, fields}
+  /* for a reminder confirm card: which channels to deliver on (tick any). */
+  const [remCh, setRemCh] = useState({ chitra: true, mail: false, whatsapp: false });
+  useEffect(() => {
+    if (pending && pending.type === "reminder") {
+      setRemCh({ chitra: true, mail: pending.act === "mail" || !!pending.mail, whatsapp: pending.act === "whatsapp" });
+    }
+  }, [pending]);
   const [activeId, setActiveId] = useState(() => Date.now());
   const [chats, setChats] = useState(() => loadChats());
   const [showHist, setShowHist] = useState(false);
@@ -687,11 +694,24 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
       }
       if (p.type === "reminder") {
         const me = (auth.user && auth.user.name) || name || "";
-        await api.create("reminder", { what: p.what, dueAt: p.dueAt, whenLabel: p.whenLabel, act: p.act || "remind", mailTo: p.mailTo || "", waSelf: !!p.waSelf, assignee: p.assignee || "", byName: p.byName || me, byMobile: p.byMobile || "", byEmail: p.byEmail || "", to: me, done: false, from: "Chitra", createdBy: me, mail: !!p.mail, email: p.email || "", at: new Date().toISOString() });
+        /* the channels the user ticked on the card (chitra / mail / whatsapp).
+           They apply to a personal reminder — a mail / whatsapp / task to someone
+           else keeps its own act. */
+        const channels = Object.keys(remCh).filter((k) => remCh[k]);
+        const isPersonal = (p.act || "remind") === "remind";
+        await api.create("reminder", {
+          what: p.what, dueAt: p.dueAt, whenLabel: p.whenLabel, act: p.act || "remind",
+          mailTo: p.mailTo || "", waSelf: isPersonal ? !!remCh.whatsapp : !!p.waSelf,
+          assignee: p.assignee || "", byName: p.byName || me, byMobile: p.byMobile || "", byEmail: p.byEmail || "",
+          to: me, done: false, from: "Chitra", createdBy: me,
+          mail: isPersonal ? !!remCh.mail : !!p.mail, email: p.email || "",
+          channels, at: new Date().toISOString(),
+        });
+        const chTxt = channels.map((k) => (k === "chitra" ? "Chitra" : k === "mail" ? "Mail" : "WhatsApp")).join(", ");
         const label = p.act === "mail" ? `📧 Scheduled — I'll email ${p.mailTo} on ${p.whenLabel}.`
           : p.act === "whatsapp" ? `📱 Scheduled — I'll WhatsApp ${p.mailTo ? "them" : "you"} on ${p.whenLabel}.`
           : p.act === "task" ? `📋 Scheduled — I'll assign this task to ${p.assignee} on ${p.whenLabel}.`
-          : `⏰ Reminder set — I'll remind you on ${p.whenLabel}${p.mail ? " (and by email)" : ""}.`;
+          : `⏰ Reminder set for ${p.whenLabel} — via ${chTxt || "Chitra"}.`;
         setMsgs((m) => [...m, { role: "note", text: label }]);
         if (agentRef.current) speak(label);
         setPending(null); setBusy(false);
@@ -888,6 +908,19 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
                           <div key={j} style={{ display: "flex", gap: 8 }}><span style={{ color: "#7a8399", minWidth: 86 }}>{k}</span><b style={{ fontWeight: 600 }}>{String(v)}</b></div>))
                       : prettyFields(pending.fields).map((l, j) => <div key={j}>• {l}</div>)}
                   </div>
+                  {pending.type === "reminder" && (
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ fontSize: 11.5, color: "#7a8399", marginBottom: 5 }}>Send me this via — tap to pick (more than one allowed):</div>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        {[["chitra", "💬", "Chitra"], ["mail", "📧", "Mail"], ["whatsapp", "🟢", "WhatsApp"]].map(([k, ic, lbl]) => (
+                          <button key={k} onClick={() => setRemCh((c) => ({ ...c, [k]: !c[k] }))}
+                            style={{ flex: 1, padding: "7px 0", borderRadius: 9, border: "1.5px solid " + (remCh[k] ? accent : "#d4d9e6"), background: remCh[k] ? accent : "#fff", color: remCh[k] ? "#fff" : "#55607a", fontWeight: 700, fontSize: 11.5, cursor: "pointer" }}>
+                            {ic} {lbl}{remCh[k] ? " ✓" : ""}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                     <button disabled={busy} onClick={confirmEntry} style={{ flex: 1, padding: "8px 0", borderRadius: 9, border: "none", background: pending.type === "delete" ? "#c0392b" : accent, color: "#fff", fontWeight: 700, cursor: "pointer" }}>{pending.type === "delete" ? "🗑 Delete" : "✓ Confirm & Save"}</button>
                     <button disabled={busy} onClick={() => setPending(null)} style={{ padding: "8px 14px", borderRadius: 9, border: "1px solid #d4d9e6", background: "#fff", color: "#55607a", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
