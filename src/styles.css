@@ -99,6 +99,18 @@ input, select, textarea { font-family: inherit; font-size: 13px; }
 .side-caret { margin-left: auto; transition: transform 0.2s; }
 .side-caret.open { transform: rotate(180deg); }
 
+/* Compact mode — the whole left menu shrinks into small buttons and the logo is
+   hidden, so the content area gets more room. Toggled from the top bar. */
+.admin-compact .sidebar { width: 172px; min-width: 172px; }
+.admin-compact .brand { display: none; }
+.admin-compact .side-search { margin: 10px 8px 8px; }
+.admin-compact .side-search input { padding: 6px 10px 6px 30px; font-size: 12px; }
+.admin-compact .side-group { padding: 8px 12px 3px; font-size: 9px; letter-spacing: .08em; }
+.admin-compact .side-item { font-size: 11.5px; padding: 6px 10px; margin: 1px 7px; gap: 8px; border-radius: 8px; }
+.admin-compact .side-item:hover { transform: none; }
+.admin-compact .side-item svg { width: 14px; height: 14px; }
+.admin-compact .side-sub { padding-left: 22px; font-size: 11px; }
+
 .main-col { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .topbar {
   height: 64px; background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px);

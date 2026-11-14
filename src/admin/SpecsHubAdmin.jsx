@@ -3,6 +3,7 @@ import { api, auth } from "../lib/api.js";
 import { PageHead, Tabs, StatCard, DataTable, ToolButtons, Pill } from "../components/ui.jsx";
 import { SkeletonList } from "../components/Loaders.jsx";
 import { recordMatchesPlace, recordPeople, hodNamesOf, visibleUsers } from "../lib/scope.js";
+import { SpecsHubImport } from "./HistoryImport.jsx";
 
 /* Admin Specs-Hub — same look as every other module (stat boxes, filters, Show,
    tabs, table, export, refresh). Admin also sets each record's Category and
@@ -272,6 +273,7 @@ export default function SpecsHubAdmin() {
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={sel} />
           <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} style={sel}><option value="">All Status</option>{["Draft", "Submitted", "Mailed", "Win", "Loss"].map((s) => <option key={s}>{s}</option>)}</select>
           <button className="btn btn-primary" style={{ padding: "8px 22px" }} onClick={() => setShown(true)}>Show</button>
+          <SpecsHubImport users={users} onDone={() => { loadRows(); setShown(true); }} />
         </div>
       </div>
 

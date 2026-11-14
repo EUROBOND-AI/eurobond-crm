@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { Outlet, NavLink, useNavigate, Navigate, useLocation } from "react-router-dom";
 import {
   Search, Bell, Moon, Maximize, Pin, LayoutDashboard, Megaphone, Users,
-  BarChart3, Boxes, LifeBuoy, BellRing, ChevronDown, LogOut,
+  BarChart3, Boxes, LifeBuoy, BellRing, ChevronDown, LogOut, PanelLeft,
 } from "lucide-react";
 import { FooterNote } from "../components/ui.jsx";
 import ChatAssistant from "../components/ChatAssistant.jsx";
@@ -272,6 +272,9 @@ export default function AdminLayout() {
   const [showPass, setShowPass] = useState(false);
   const [pw, setPw] = useState({ old: "", nw: "" });
   const [logoutAsk, setLogoutAsk] = useState(false);   // centered logout confirm
+  /* compact sidebar — small buttons, no logo, more screen. Remembered per device. */
+  const [compact, setCompact] = useState(() => { try { return localStorage.getItem("eb_admin_compact") === "1"; } catch { return false; } });
+  useEffect(() => { try { document.body.classList.toggle("admin-compact", compact); localStorage.setItem("eb_admin_compact", compact ? "1" : "0"); } catch {} }, [compact]);
   const [lightbox, setLightbox] = useState(null);
   const [allowedNav, setAllowedNav] = useState(null);   // null = admin/all; Set = allowed module labels
 
@@ -393,6 +396,7 @@ export default function AdminLayout() {
               <strong>{admin.name}</strong>
             </div>
             <AdminBell nav={nav} />
+            <button className="icon-btn" title={compact ? "Expand menu" : "Compact menu"} onClick={() => setCompact((c) => !c)}><PanelLeft size={16} /></button>
             <button className="icon-btn" title="Dark / Light" onClick={() => {
               const dark = document.body.classList.toggle("dark-admin");
               localStorage.setItem("eb_admin_dark", dark ? "1" : "0");
