@@ -711,6 +711,8 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
           what: p.what, dueAt: p.dueAt, whenLabel: p.whenLabel, act: p.act || "remind",
           mailTo: p.mailTo || "", waSelf: isPersonal ? !!remCh.whatsapp : !!p.waSelf,
           assignee: p.assignee || "", byName: p.byName || me, byMobile: p.byMobile || "", byEmail: p.byEmail || "",
+          /* the RESOLVED recipient's real contact, so delivery reaches them (not the setter) */
+          toName: p.toName || "", toEmail: p.toEmail || "", toMobile: p.toMobile || "", toDept: p.toDept || "",
           to: me, done: false, from: "Chitra", createdBy: me,
           mail: isPersonal ? !!remCh.mail : !!p.mail, email: p.email || "",
           channels, at: new Date().toISOString(),
@@ -917,8 +919,23 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
                       : prettyFields(pending.fields).map((l, j) => <div key={j}>• {l}</div>)}
                   </div>
                   {pending.type === "reminder" && (() => {
-                    const remEmail = pending.byEmail || (auth.user && auth.user.email) || "";
-                    const remMobile = pending.byMobile || (auth.user && auth.user.mobile) || "";
+                    /* a personal reminder (act=remind) goes to ME; a mail/whatsapp/task
+                       goes to the RESOLVED recipient — so show that person's contact,
+                       not the setter's, and never warn "your profile" for someone else. */
+                    const isPersonal = !pending.act || pending.act === "remind";
+                    const remEmail = isPersonal
+                      ? (pending.toEmail || pending.byEmail || (auth.user && auth.user.email) || "")
+                      : (pending.toEmail || "");
+                    const remMobile = isPersonal
+                      ? (pending.toMobile || pending.byMobile || (auth.user && auth.user.mobile) || "")
+                      : (pending.toMobile || "");
+                    const toWho = (!isPersonal && pending.toName) ? pending.toName : "";
+                    const noMailMsg = isPersonal
+                      ? "No email on your profile — add it, else mail won't reach you."
+                      : "No email for " + (toWho || "this person") + " — add it in their profile.";
+                    const noWaMsg = isPersonal
+                      ? "No mobile on your profile — add it, else WhatsApp won't reach you."
+                      : "No mobile for " + (toWho || "this person") + " — add it in their profile.";
                     const chBtn = (k, icon, lbl) => (
                       <button key={k} onClick={() => setRemCh((c) => ({ ...c, [k]: !c[k] }))}
                         style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "7px 0", borderRadius: 9, border: "1.5px solid " + (remCh[k] ? accent : "#d4d9e6"), background: remCh[k] ? accent : "#fff", color: remCh[k] ? "#fff" : "#55607a", fontWeight: 700, fontSize: 11.5, cursor: "pointer" }}>
@@ -927,7 +944,7 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
                     );
                     return (
                       <div style={{ marginTop: 10 }}>
-                        <div style={{ fontSize: 11.5, color: "#7a8399", marginBottom: 5 }}>Send me this via — tap to pick (more than one allowed):</div>
+                        <div style={{ fontSize: 11.5, color: "#7a8399", marginBottom: 5 }}>{isPersonal ? "Send me this via" : ("Send " + (toWho || "them") + " this via")} — tap to pick (more than one allowed):</div>
                         <div style={{ display: "flex", gap: 6 }}>
                           {chBtn("chitra", <EubotIcon size={15} />, "Chitra")}
                           {chBtn("mail", <MailIcon size={15} color={remCh.mail ? "#fff" : "#55607a"} />, "Mail")}
@@ -938,10 +955,10 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
                           <div style={{ marginTop: 7, fontSize: 11.5, lineHeight: 1.7 }}>
                             {remCh.mail && (remEmail
                               ? <div style={{ color: "#33415c" }}><MailIcon size={12} color="#55607a" /> Mail → <b>{remEmail}</b></div>
-                              : <div style={{ color: "#c0392b" }}><MailIcon size={12} color="#c0392b" /> No email on your profile — add it, else mail won't reach you.</div>)}
+                              : <div style={{ color: "#c0392b" }}><MailIcon size={12} color="#c0392b" /> {noMailMsg}</div>)}
                             {remCh.whatsapp && (remMobile
                               ? <div style={{ color: "#33415c" }}><WhatsAppIcon size={12} color="#25D366" /> WhatsApp → <b>{remMobile}</b></div>
-                              : <div style={{ color: "#c0392b" }}><WhatsAppIcon size={12} color="#c0392b" /> No mobile on your profile — add it, else WhatsApp won't reach you.</div>)}
+                              : <div style={{ color: "#c0392b" }}><WhatsAppIcon size={12} color="#c0392b" /> {noWaMsg}</div>)}
                           </div>
                         )}
                       </div>
