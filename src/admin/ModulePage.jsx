@@ -825,7 +825,7 @@ export default function ModulePage({ cfgKey }) {
               {distinct("state").map((s) => <option key={s}>{s}</option>)}
             </select>
           )}
-          {hasCol("city") && distinct("city").length > 0 && (
+          {hasCol("city") && cfgKey !== "projectProjection" && distinct("city").length > 0 && (
             <select value={fCity} onChange={(e) => setFCity(e.target.value)} style={{ padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" }}>
               <option value="">All Cities</option>
               {distinct("city").map((c) => <option key={c}>{c}</option>)}
