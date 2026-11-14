@@ -65,6 +65,18 @@ export default function ApiKeysPage() {
         </div>
       )}
 
+      {/* ---- Add a new setting / key ---- */}
+      <div style={{ background: "#fff", borderRadius: 12, padding: 16, boxShadow: "var(--shadow)", maxWidth: 720, marginTop: 16 }}>
+        <div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 10 }}>+ Add a setting</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input value={newKey.key} onChange={(e) => setNewKey({ ...newKey, key: e.target.value })} placeholder="Key id (e.g. pingmate_text_template)" style={{ flex: "1 1 220px", padding: "9px 12px", borderRadius: 9, border: "1.5px solid #d7dcef", fontSize: 13, fontFamily: "monospace" }} />
+          <input value={newKey.label} onChange={(e) => setNewKey({ ...newKey, label: e.target.value })} placeholder="Label (e.g. WhatsApp Chitra Template)" style={{ flex: "1 1 220px", padding: "9px 12px", borderRadius: 9, border: "1.5px solid #d7dcef", fontSize: 13 }} />
+          <input value={newKey.value} onChange={(e) => setNewKey({ ...newKey, value: e.target.value })} placeholder="Value (e.g. chitra_notify)" style={{ flex: "1 1 220px", padding: "9px 12px", borderRadius: 9, border: "1.5px solid #d7dcef", fontSize: 13, fontFamily: "monospace" }} />
+          <button className="btn btn-primary" onClick={addNew}>Add</button>
+        </div>
+        <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 8 }}>Key id is the internal name (no spaces). It appears in the list above and is used instantly — no code change.</div>
+      </div>
+
       {/* ---- YOUR CRM's own API keys: give these to partners so they can push data in ---- */}
       <h3 style={{ margin: "26px 0 6px" }}>CRM API Keys (for partners)</h3>
       <p style={{ color: "var(--muted)", fontSize: 12.5, marginBottom: 12 }}>
