@@ -20,6 +20,14 @@ import eubotLogo from "../assets/eubot_logo.png";
    down like real smoke instead of just spinning.
    Middle: the dark disc and white ring, kept a clean circle.
    Top: the Eurobond logo, steady. */
+/* small real icons for the reminder channel buttons */
+function MailIcon({ size = 16, color = "currentColor" }) {
+  return (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m2 7 10 6 10-6" /></svg>);
+}
+function WhatsAppIcon({ size = 16, color = "currentColor" }) {
+  return (<svg width={size} height={size} viewBox="0 0 24 24" fill={color}><path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.9-4.45 9.9-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm0 1.67c2.2 0 4.27.86 5.82 2.42a8.2 8.2 0 0 1 2.42 5.82c0 4.54-3.7 8.24-8.25 8.24a8.2 8.2 0 0 1-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.2 8.2 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.26-8.24Zm-2.9 4.1c-.14 0-.36.05-.55.26-.19.21-.73.71-.73 1.74 0 1.03.75 2.02.85 2.16.1.14 1.47 2.25 3.56 3.16.5.21.88.34 1.19.44.5.16.95.14 1.31.08.4-.06 1.23-.5 1.4-.99.18-.48.18-.9.12-.99-.05-.08-.19-.13-.4-.24-.21-.1-1.23-.61-1.42-.68-.19-.07-.33-.1-.47.11-.14.21-.54.68-.66.82-.12.14-.24.16-.45.05-.21-.1-.88-.32-1.68-1.03-.62-.55-1.04-1.24-1.16-1.45-.12-.21-.01-.32.09-.42.1-.09.21-.24.31-.36.1-.12.14-.21.21-.35.07-.14.03-.26-.02-.37-.05-.1-.47-1.14-.64-1.56-.17-.4-.34-.35-.47-.36l-.4-.01Z" /></svg>);
+}
+
 function EubotIcon({ size = 40 }) {
   const fid = "ebw" + React.useId().replace(/[^a-zA-Z0-9]/g, "");
   const spin = (s, rev) => ({ transformBox: "view-box", transformOrigin: "128px 128px", animation: `eubotspin ${s}s linear infinite${rev ? " reverse" : ""}` });
@@ -908,19 +916,37 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
                           <div key={j} style={{ display: "flex", gap: 8 }}><span style={{ color: "#7a8399", minWidth: 86 }}>{k}</span><b style={{ fontWeight: 600 }}>{String(v)}</b></div>))
                       : prettyFields(pending.fields).map((l, j) => <div key={j}>• {l}</div>)}
                   </div>
-                  {pending.type === "reminder" && (
-                    <div style={{ marginTop: 10 }}>
-                      <div style={{ fontSize: 11.5, color: "#7a8399", marginBottom: 5 }}>Send me this via — tap to pick (more than one allowed):</div>
-                      <div style={{ display: "flex", gap: 6 }}>
-                        {[["chitra", "💬", "Chitra"], ["mail", "📧", "Mail"], ["whatsapp", "🟢", "WhatsApp"]].map(([k, ic, lbl]) => (
-                          <button key={k} onClick={() => setRemCh((c) => ({ ...c, [k]: !c[k] }))}
-                            style={{ flex: 1, padding: "7px 0", borderRadius: 9, border: "1.5px solid " + (remCh[k] ? accent : "#d4d9e6"), background: remCh[k] ? accent : "#fff", color: remCh[k] ? "#fff" : "#55607a", fontWeight: 700, fontSize: 11.5, cursor: "pointer" }}>
-                            {ic} {lbl}{remCh[k] ? " ✓" : ""}
-                          </button>
-                        ))}
+                  {pending.type === "reminder" && (() => {
+                    const remEmail = pending.byEmail || (auth.user && auth.user.email) || "";
+                    const remMobile = pending.byMobile || (auth.user && auth.user.mobile) || "";
+                    const chBtn = (k, icon, lbl) => (
+                      <button key={k} onClick={() => setRemCh((c) => ({ ...c, [k]: !c[k] }))}
+                        style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "7px 0", borderRadius: 9, border: "1.5px solid " + (remCh[k] ? accent : "#d4d9e6"), background: remCh[k] ? accent : "#fff", color: remCh[k] ? "#fff" : "#55607a", fontWeight: 700, fontSize: 11.5, cursor: "pointer" }}>
+                        {icon}<span>{lbl}</span>{remCh[k] ? " ✓" : ""}
+                      </button>
+                    );
+                    return (
+                      <div style={{ marginTop: 10 }}>
+                        <div style={{ fontSize: 11.5, color: "#7a8399", marginBottom: 5 }}>Send me this via — tap to pick (more than one allowed):</div>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          {chBtn("chitra", <EubotIcon size={15} />, "Chitra")}
+                          {chBtn("mail", <MailIcon size={15} color={remCh.mail ? "#fff" : "#55607a"} />, "Mail")}
+                          {chBtn("whatsapp", <WhatsAppIcon size={15} color={remCh.whatsapp ? "#fff" : "#25D366"} />, "WhatsApp")}
+                        </div>
+                        {/* show exactly where it will go, so you confirm the real id */}
+                        {(remCh.mail || remCh.whatsapp) && (
+                          <div style={{ marginTop: 7, fontSize: 11.5, lineHeight: 1.7 }}>
+                            {remCh.mail && (remEmail
+                              ? <div style={{ color: "#33415c" }}><MailIcon size={12} color="#55607a" /> Mail → <b>{remEmail}</b></div>
+                              : <div style={{ color: "#c0392b" }}><MailIcon size={12} color="#c0392b" /> No email on your profile — add it, else mail won't reach you.</div>)}
+                            {remCh.whatsapp && (remMobile
+                              ? <div style={{ color: "#33415c" }}><WhatsAppIcon size={12} color="#25D366" /> WhatsApp → <b>{remMobile}</b></div>
+                              : <div style={{ color: "#c0392b" }}><WhatsAppIcon size={12} color="#c0392b" /> No mobile on your profile — add it, else WhatsApp won't reach you.</div>)}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                   <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                     <button disabled={busy} onClick={confirmEntry} style={{ flex: 1, padding: "8px 0", borderRadius: 9, border: "none", background: pending.type === "delete" ? "#c0392b" : accent, color: "#fff", fontWeight: 700, cursor: "pointer" }}>{pending.type === "delete" ? "🗑 Delete" : "✓ Confirm & Save"}</button>
                     <button disabled={busy} onClick={() => setPending(null)} style={{ padding: "8px 14px", borderRadius: 9, border: "1px solid #d4d9e6", background: "#fff", color: "#55607a", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
