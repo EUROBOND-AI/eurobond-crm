@@ -341,7 +341,12 @@ export default function ModulePage({ cfgKey }) {
     if (fStateM) list = list.filter((r) => (r.state || "") === fStateM);
     if (cfg.softDelete) list = list.filter((r) => !r.adminHidden);
     if (cfgKey === "projectProjection") {
-      list = list.filter((r) => projSide === "Specs" ? r.isSpec : !r.isSpec);
+      /* The Sales/Specs toggle normally splits the list. But when you are
+         filtering by a specific person (Created By / User / Spec / Sales), show
+         that person's projects from BOTH sides — otherwise a Sales project by
+         someone looks "missing" while you happen to be on the Specs side. */
+      const personFilter = fUser || tUser || fSpec || fSales;
+      if (!personFilter) list = list.filter((r) => projSide === "Specs" ? r.isSpec : !r.isSpec);
       /* hide blank junk rows (no project name) — these came from half-filled or
          auto-create flows and only clutter the list; a real project always has a
          name, so nothing useful is hidden. */
