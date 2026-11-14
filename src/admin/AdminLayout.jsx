@@ -179,39 +179,45 @@ export function loadSavedTheme() {
 }
 function ThemeCustomizer() {
   const [open, setOpen] = useState(false);
+  const [box, setBox] = useState({ top: 60, right: 20 });
+  const btnRef = useRef(null);
   const read = () => { const o = {}; THEME_KEYS.forEach((t) => { o[t.key] = (getComputedStyle(document.documentElement).getPropertyValue(t.key).trim() || t.def); }); return o; };
   const [vals, setVals] = useState(read);
   const set = (k, v) => { const n = { ...vals, [k]: v }; setVals(n); applyTheme({ [k]: v }); };
   const usePreset = (p) => { const n = { ...vals, ...p.v }; setVals(n); applyTheme(p.v); };
   const save = () => { try { localStorage.setItem("eb_admin_theme", JSON.stringify(vals)); } catch {} setOpen(false); };
   const reset = () => { const def = {}; THEME_KEYS.forEach((t) => (def[t.key] = t.def)); setVals(def); applyTheme(def); try { localStorage.removeItem("eb_admin_theme"); } catch {} };
+  const openPanel = () => { const r = btnRef.current?.getBoundingClientRect(); if (r) setBox({ top: r.bottom + 8, right: Math.max(10, window.innerWidth - r.right) }); setVals(read()); setOpen((o) => !o); };
   return (
-    <div style={{ position: "relative" }}>
-      <button className="icon-btn" title="Colours / Theme" onClick={() => { setVals(read()); setOpen((o) => !o); }}><Palette size={16} /></button>
-      {open && createPortal(<div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 2147482000 }} />, document.body)}
-      {open && (
-        <div style={{ position: "absolute", right: 0, top: "110%", zIndex: 2147483000, width: 280, background: "#fff", border: "1px solid var(--line)", borderRadius: 14, boxShadow: "0 18px 50px rgba(10,20,45,.25)", padding: 14 }}>
-          <div style={{ fontWeight: 800, color: "var(--navy)", marginBottom: 10 }}>Customise colours</div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-            {THEME_PRESETS.map((p) => (
-              <button key={p.name} onClick={() => usePreset(p)} style={{ border: "1px solid var(--line)", borderRadius: 8, padding: "4px 8px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", background: "#fff", display: "flex", alignItems: "center", gap: 5 }}>
-                <span style={{ width: 12, height: 12, borderRadius: 3, background: p.v["--navy"] }} />{p.name}
-              </button>
-            ))}
-          </div>
-          {THEME_KEYS.map((t) => (
-            <div key={t.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 9 }}>
-              <span style={{ fontSize: 12.5, color: "var(--ink)" }}>{t.label}</span>
-              <input type="color" value={toHex(vals[t.key]) || t.def} onChange={(e) => set(t.key, e.target.value)} style={{ width: 38, height: 26, border: "1px solid var(--line)", borderRadius: 6, padding: 0, cursor: "pointer" }} />
+    <>
+      <button ref={btnRef} className="icon-btn" title="Colours / Theme" onClick={openPanel}><Palette size={16} /></button>
+      {/* panel + backdrop both go to <body> so nothing in the top bar's stacking
+          context can sit over the colour pickers and block editing */}
+      {open && createPortal(
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 2147483000 }} />
+          <div style={{ position: "fixed", top: box.top, right: box.right, zIndex: 2147483001, width: 290, background: "#fff", border: "1px solid var(--line)", borderRadius: 14, boxShadow: "0 18px 50px rgba(10,20,45,.25)", padding: 14 }}>
+            <div style={{ fontWeight: 800, color: "var(--navy)", marginBottom: 10 }}>Customise colours</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+              {THEME_PRESETS.map((p) => (
+                <button key={p.name} onClick={() => usePreset(p)} style={{ border: "1px solid var(--line)", borderRadius: 8, padding: "4px 8px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", background: "#fff", display: "flex", alignItems: "center", gap: 5 }}>
+                  <span style={{ width: 12, height: 12, borderRadius: 3, background: p.v["--navy"] }} />{p.name}
+                </button>
+              ))}
             </div>
-          ))}
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <button className="btn btn-soft" style={{ flex: 1, padding: "8px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }} onClick={reset}><RotateCcw size={14} /> Reset</button>
-            <button className="btn btn-primary" style={{ flex: 1, padding: "8px", fontWeight: 700 }} onClick={save}>Save</button>
+            {THEME_KEYS.map((t) => (
+              <label key={t.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 9, cursor: "pointer" }}>
+                <span style={{ fontSize: 12.5, color: "var(--ink)" }}>{t.label}</span>
+                <input type="color" value={toHex(vals[t.key]) || t.def} onChange={(e) => set(t.key, e.target.value)} style={{ width: 44, height: 28, border: "1px solid var(--line)", borderRadius: 6, padding: 0, cursor: "pointer", background: "#fff" }} />
+              </label>
+            ))}
+            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+              <button className="btn btn-soft" style={{ flex: 1, padding: "8px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }} onClick={reset}><RotateCcw size={14} /> Reset</button>
+              <button className="btn btn-primary" style={{ flex: 1, padding: "8px", fontWeight: 700 }} onClick={save}>Save</button>
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        </>, document.body)}
+    </>
   );
 }
 /* a color input needs #rrggbb; pass through anything already in that form */
