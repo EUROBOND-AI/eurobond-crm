@@ -202,9 +202,13 @@ export const MODULES = {
     idPrefix: "PPJ", app: true, appLabel: "Project Projection", importable: true, chat: true,
     filters: ["hod", "createdBy"],
     dateFilter: true, showButton: true,
+    /* "All" first so every project shows whatever its status; the app saves new
+       ones as "Open", older/admin flows use Running/Hold/Win/Lost/Loss — all are
+       covered here, and the status tabs still let you narrow down. */
     tabs: [
-      { key: "Running", label: "Running" }, { key: "Hold", label: "Hold" },
-      { key: "Win", label: "Win" }, { key: "Loss", label: "Loss" },
+      { key: "All", label: "All", all: true },
+      { key: "Open", label: "Open" }, { key: "Running", label: "Running" }, { key: "Hold", label: "Hold" },
+      { key: "Win", label: "Win" }, { key: "Lost", label: "Lost" }, { key: "Loss", label: "Loss" },
     ],
     tabField: "status",
     columns: [
