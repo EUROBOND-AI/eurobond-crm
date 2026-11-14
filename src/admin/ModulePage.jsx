@@ -340,7 +340,7 @@ export default function ModulePage({ cfgKey }) {
     if (fStatus) list = list.filter((r) => (r.status || "") === fStatus);
     if (fStateM) list = list.filter((r) => (r.state || "") === fStateM);
     if (cfg.softDelete) list = list.filter((r) => !r.adminHidden);
-    if (cfgKey === "projectProjection") {
+    if (cfgKey === "projectProjection" && projSide !== "All") {
       list = list.filter((r) => projSide === "Specs" ? r.isSpec : !r.isSpec);
     }
     /* date range (From/To)
@@ -420,7 +420,7 @@ export default function ModulePage({ cfgKey }) {
      to what is actually there. */
   const distinct = (key) => {
     let src = visibleRows;
-    if (cfgKey === "projectProjection") src = src.filter((r) => projSide === "Specs" ? r.isSpec : !r.isSpec);
+    if (cfgKey === "projectProjection" && projSide !== "All") src = src.filter((r) => projSide === "Specs" ? r.isSpec : !r.isSpec);
     const found = [...new Set(src.map((r) => r[key]).filter(Boolean))].sort();
     if (found.length || !(gated && !shown)) return found;
     if (["createdBy", "specPerson", "salesPerson", "assignedTo"].includes(key)) return userNames;
@@ -842,7 +842,7 @@ export default function ModulePage({ cfgKey }) {
           )}
           {cfgKey === "projectProjection" && (
             <div style={{ display: "inline-flex", background: "#eef1ff", borderRadius: 9, padding: 3 }}>
-              {["Sales", "Specs"].map((s) => (
+              {["Sales", "Specs", "All"].map((s) => (
                 <button key={s} onClick={() => setProjSide(s)} style={{ padding: "6px 16px", borderRadius: 7, border: "none", fontWeight: 700, fontSize: 13, cursor: "pointer", background: projSide === s ? "var(--navy)" : "transparent", color: projSide === s ? "#fff" : "var(--navy)" }}>{s}</button>
               ))}
             </div>

@@ -3990,7 +3990,10 @@ function FieldProjectNew() {
      it had "come back". The ref blocks the second tap immediately. */
   const savingRef = useRef(false);
   const save = async () => {
-    if (!f.projectName) { alert("Project Name required"); return; }
+    if (!f.visitDate) { alert("Visit Date required"); return; }
+    if (!String(f.projectName || "").trim()) { alert("Project Name required"); return; }
+    if (!String(f.projectType || "").trim()) { alert("Project Type required"); return; }
+    if (!String(f.address || "").trim()) { alert("Address required"); return; }
     /* a contact block with a category but no firm name is of no use to anyone
        downstream, so it is not allowed through */
     const noFirm = contacts.find((c) => String(c.category || "").trim() && !String(c.firmName || "").trim());
@@ -4074,7 +4077,7 @@ function FieldProjectNew() {
     <>
       <ScreenHead title={ed ? "Edit Project Projection" : "Add Project Projection"} />
       <div className="f-form">
-        <label>Visit Date</label>
+        <label>Visit Date <b>*</b></label>
         <input type="date" value={f.visitDate} onChange={(e) => set("visitDate", e.target.value)} style={inp} />
 
         {/* specs-only extra columns */}
@@ -4125,7 +4128,7 @@ function FieldProjectNew() {
         <input value={f.projectName} onChange={(e) => set("projectName", e.target.value)}
           placeholder="…or type a project name" style={inp} />
 
-        <label>Project Type</label>
+        <label>Project Type <b>*</b></label>
         <select value={f.projectType} onChange={(e) => set("projectType", e.target.value)} style={inp}>
           <option value="">Select…</option>{PROJ_TYPES.map((t) => <option key={t}>{t}</option>)}
         </select>
@@ -4134,7 +4137,7 @@ function FieldProjectNew() {
             finding what is near you — a position is taken as well, so the
             project turns up under Near By Projects for whoever is standing
             there. The line can still be corrected by hand. */}
-        <label>Address (auto — current location)</label>
+        <label>Address (auto — current location) <b>*</b></label>
         <div style={{ ...inp, background: "#f1f4fb", border: "1.5px solid #d7dcef", borderRadius: 10,
           padding: "10px 12px", fontSize: 13, color: projLocBusy ? "var(--muted)" : "#33406b", minHeight: 42 }}>
           {projLocBusy ? "📍 Getting your location…" : (f.address ? `📍 ${f.address}` : "⚠️ Location unavailable — turn on GPS")}
