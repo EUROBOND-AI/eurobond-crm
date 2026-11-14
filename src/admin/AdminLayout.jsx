@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { Outlet, NavLink, useNavigate, Navigate, useLocation } from "react-router-dom";
 import {
   Search, Bell, Moon, Maximize, Pin, LayoutDashboard, Megaphone, Users,
-  BarChart3, Boxes, LifeBuoy, BellRing, ChevronDown, LogOut, PanelLeft,
+  BarChart3, Boxes, LifeBuoy, BellRing, ChevronDown, LogOut, PanelLeft, ListTodo, Palette, RotateCcw,
 } from "lucide-react";
 import { FooterNote } from "../components/ui.jsx";
 import ChatAssistant from "../components/ChatAssistant.jsx";
@@ -31,7 +31,7 @@ const NAV = [
           { label: "Power BI", to: "/admin/dashboards/sales-review" },
         ],
       },
-      { label: "Task", icon: <Megaphone size={17} />, to: "/admin/sfa/task" },
+      { label: "Task", icon: <ListTodo size={17} />, to: "/admin/sfa/task" },
     ],
   },
   {
@@ -122,7 +122,9 @@ function SideParent({ item }) {
 /* Collapsed icon rail — one icon button per nav item, no names. An item with
    children opens a flyout (with the names) on hover; a plain item navigates. */
 function RailItem({ item }) {
-  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);   // {x, y} fixed-position for the flyout, or null
+  const ref = useRef(null);
+  const timer = useRef(0);
   const loc = useLocation();
   const icon = item.icon || <span className="rail-letter">{String(item.label || "?").trim()[0]}</span>;
   if (!item.children) {
@@ -134,20 +136,86 @@ function RailItem({ item }) {
   }
   const kids = item.children.filter((c) => !c.ownerOnly || auth.isOwner);
   const anyActive = kids.some((c) => loc.pathname === c.to);
+  const openFly = () => { clearTimeout(timer.current); const r = ref.current?.getBoundingClientRect(); if (r) setPos({ x: r.right + 4, y: Math.min(r.top, window.innerHeight - 40 - kids.length * 38) }); };
+  const closeFly = () => { clearTimeout(timer.current); timer.current = setTimeout(() => setPos(null), 160); };
   return (
-    <div className="rail-item" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+    <div className="rail-item" ref={ref} onMouseEnter={openFly} onMouseLeave={closeFly}>
       <button className={`rail-btn ${anyActive ? "active" : ""}`} title={item.label}>{icon}</button>
-      {open && (
-        <div className="rail-flyout">
+      {/* the flyout is rendered to <body> so it escapes the sidebar's clipping
+          and sits OUTSIDE the blue rail, where its items can be clicked */}
+      {pos && createPortal(
+        <div className="rail-flyout" style={{ position: "fixed", left: pos.x, top: Math.max(8, pos.y) }}
+          onMouseEnter={() => clearTimeout(timer.current)} onMouseLeave={closeFly}>
           <div className="fly-head">{item.label}</div>
           {kids.map((c) => (
-            <NavLink key={c.to} to={c.to} className={({ isActive }) => (isActive ? "active" : "")}>{c.label}</NavLink>
+            <NavLink key={c.to} to={c.to} onClick={() => setPos(null)} className={({ isActive }) => (isActive ? "active" : "")}>{c.label}</NavLink>
           ))}
+        </div>, document.body)}
+    </div>
+  );
+}
+
+/* ---- Theme / colours customizer ----
+   Lets each admin recolour the panel (primary buttons, accent, page background,
+   sidebar) to their taste and SAVE it. Values are written as CSS variables on
+   :root, so the whole panel follows, and kept in localStorage per device. */
+const THEME_KEYS = [
+  { key: "--navy", label: "Primary (buttons, headings)", def: "#0b3c8c" },
+  { key: "--accent", label: "Accent (tabs, links)", def: "#6c5ce7" },
+  { key: "--bg", label: "Screen background", def: "#eef1fb" },
+  { key: "--sidebar-bg", label: "Sidebar", def: "#242c54" },
+];
+const THEME_PRESETS = [
+  { name: "Eurobond", v: { "--navy": "#0b3c8c", "--accent": "#6c5ce7", "--bg": "#eef1fb", "--sidebar-bg": "#242c54" } },
+  { name: "Emerald", v: { "--navy": "#0f766e", "--accent": "#10b981", "--bg": "#eafaf4", "--sidebar-bg": "#123a33" } },
+  { name: "Slate", v: { "--navy": "#334155", "--accent": "#0ea5e9", "--bg": "#eef2f7", "--sidebar-bg": "#1f2733" } },
+  { name: "Plum", v: { "--navy": "#7c3aed", "--accent": "#ec4899", "--bg": "#f6eefc", "--sidebar-bg": "#2e1f47" } },
+];
+export function applyTheme(obj) {
+  try { Object.entries(obj || {}).forEach(([k, v]) => v && document.documentElement.style.setProperty(k, v)); } catch {}
+}
+export function loadSavedTheme() {
+  try { const s = localStorage.getItem("eb_admin_theme"); if (s) applyTheme(JSON.parse(s)); } catch {}
+}
+function ThemeCustomizer() {
+  const [open, setOpen] = useState(false);
+  const read = () => { const o = {}; THEME_KEYS.forEach((t) => { o[t.key] = (getComputedStyle(document.documentElement).getPropertyValue(t.key).trim() || t.def); }); return o; };
+  const [vals, setVals] = useState(read);
+  const set = (k, v) => { const n = { ...vals, [k]: v }; setVals(n); applyTheme({ [k]: v }); };
+  const usePreset = (p) => { const n = { ...vals, ...p.v }; setVals(n); applyTheme(p.v); };
+  const save = () => { try { localStorage.setItem("eb_admin_theme", JSON.stringify(vals)); } catch {} setOpen(false); };
+  const reset = () => { const def = {}; THEME_KEYS.forEach((t) => (def[t.key] = t.def)); setVals(def); applyTheme(def); try { localStorage.removeItem("eb_admin_theme"); } catch {} };
+  return (
+    <div style={{ position: "relative" }}>
+      <button className="icon-btn" title="Colours / Theme" onClick={() => { setVals(read()); setOpen((o) => !o); }}><Palette size={16} /></button>
+      {open && createPortal(<div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 2147482000 }} />, document.body)}
+      {open && (
+        <div style={{ position: "absolute", right: 0, top: "110%", zIndex: 2147483000, width: 280, background: "#fff", border: "1px solid var(--line)", borderRadius: 14, boxShadow: "0 18px 50px rgba(10,20,45,.25)", padding: 14 }}>
+          <div style={{ fontWeight: 800, color: "var(--navy)", marginBottom: 10 }}>Customise colours</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+            {THEME_PRESETS.map((p) => (
+              <button key={p.name} onClick={() => usePreset(p)} style={{ border: "1px solid var(--line)", borderRadius: 8, padding: "4px 8px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", background: "#fff", display: "flex", alignItems: "center", gap: 5 }}>
+                <span style={{ width: 12, height: 12, borderRadius: 3, background: p.v["--navy"] }} />{p.name}
+              </button>
+            ))}
+          </div>
+          {THEME_KEYS.map((t) => (
+            <div key={t.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 9 }}>
+              <span style={{ fontSize: 12.5, color: "var(--ink)" }}>{t.label}</span>
+              <input type="color" value={toHex(vals[t.key]) || t.def} onChange={(e) => set(t.key, e.target.value)} style={{ width: 38, height: 26, border: "1px solid var(--line)", borderRadius: 6, padding: 0, cursor: "pointer" }} />
+            </div>
+          ))}
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <button className="btn btn-soft" style={{ flex: 1, padding: "8px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }} onClick={reset}><RotateCcw size={14} /> Reset</button>
+            <button className="btn btn-primary" style={{ flex: 1, padding: "8px", fontWeight: 700 }} onClick={save}>Save</button>
+          </div>
         </div>
       )}
     </div>
   );
 }
+/* a color input needs #rrggbb; pass through anything already in that form */
+function toHex(v) { v = String(v || "").trim(); return /^#[0-9a-f]{6}$/i.test(v) ? v : ""; }
 
 function CollapsedNav({ groups }) {
   return (
@@ -315,6 +383,7 @@ export default function AdminLayout() {
      Remembered per device. */
   const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem("eb_admin_collapsed") === "1"; } catch { return false; } });
   useEffect(() => { try { document.body.classList.toggle("admin-collapsed", collapsed); localStorage.setItem("eb_admin_collapsed", collapsed ? "1" : "0"); } catch {} }, [collapsed]);
+  useEffect(() => { loadSavedTheme(); }, []);   // apply the saved colour theme
   const [lightbox, setLightbox] = useState(null);
   const [allowedNav, setAllowedNav] = useState(null);   // null = admin/all; Set = allowed module labels
 
@@ -438,6 +507,7 @@ export default function AdminLayout() {
             </div>
             <AdminBell nav={nav} />
             <button className="icon-btn" title={collapsed ? "Expand menu" : "Collapse menu"} onClick={() => setCollapsed((c) => !c)}><PanelLeft size={16} /></button>
+            <ThemeCustomizer />
             <button className="icon-btn" title="Dark / Light" onClick={() => {
               const dark = document.body.classList.toggle("dark-admin");
               localStorage.setItem("eb_admin_dark", dark ? "1" : "0");

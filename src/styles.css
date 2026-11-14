@@ -54,7 +54,7 @@ input, select, textarea { font-family: inherit; font-size: 13px; }
 .admin-shell { display: flex; height: 100vh; overflow: hidden; background: var(--bg); }
 .sidebar {
   width: 240px; min-width: 240px;
-  background: linear-gradient(180deg, #2a3260 0%, #1e2547 100%);
+  background: var(--sidebar-bg, linear-gradient(180deg, #2a3260 0%, #1e2547 100%));
   color: var(--sidebar-text); display: flex; flex-direction: column;
   overflow: hidden; scrollbar-width: thin;
   box-shadow: 4px 0 24px rgba(20, 25, 55, 0.28); z-index: 5;
