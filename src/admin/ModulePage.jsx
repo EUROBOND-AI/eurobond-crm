@@ -342,6 +342,10 @@ export default function ModulePage({ cfgKey }) {
     if (cfg.softDelete) list = list.filter((r) => !r.adminHidden);
     if (cfgKey === "projectProjection") {
       list = list.filter((r) => projSide === "Specs" ? r.isSpec : !r.isSpec);
+      /* hide blank junk rows (no project name) — these came from half-filled or
+         auto-create flows and only clutter the list; a real project always has a
+         name, so nothing useful is hidden. */
+      list = list.filter((r) => String(r.projectName || r.name || "").trim());
     }
     /* date range (From/To)
 
