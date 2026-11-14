@@ -99,17 +99,29 @@ input, select, textarea { font-family: inherit; font-size: 13px; }
 .side-caret { margin-left: auto; transition: transform 0.2s; }
 .side-caret.open { transform: rotate(180deg); }
 
-/* Compact mode — the whole left menu shrinks into small buttons and the logo is
-   hidden, so the content area gets more room. Toggled from the top bar. */
-.admin-compact .sidebar { width: 172px; min-width: 172px; }
-.admin-compact .brand { display: none; }
-.admin-compact .side-search { margin: 10px 8px 8px; }
-.admin-compact .side-search input { padding: 6px 10px 6px 30px; font-size: 12px; }
-.admin-compact .side-group { padding: 8px 12px 3px; font-size: 9px; letter-spacing: .08em; }
-.admin-compact .side-item { font-size: 11.5px; padding: 6px 10px; margin: 1px 7px; gap: 8px; border-radius: 8px; }
-.admin-compact .side-item:hover { transform: none; }
-.admin-compact .side-item svg { width: 14px; height: 14px; }
-.admin-compact .side-sub { padding-left: 22px; font-size: 11px; }
+/* Collapsed sidebar — the menu becomes an icon rail: no names, just icon buttons.
+   Hover an icon to see its name and (for a group) its items in a flyout. */
+.admin-collapsed .sidebar { width: 62px; min-width: 62px; }
+.rail { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; }
+.rail-item { position: relative; width: 100%; display: flex; justify-content: center; }
+.rail-btn {
+  width: 42px; height: 42px; border-radius: 12px; border: none; cursor: pointer;
+  display: grid; place-items: center; color: #cdd3f2; background: transparent; transition: all .15s ease;
+}
+.rail-btn:hover { background: rgba(255,255,255,.10); color: #fff; }
+.rail-btn.active { background: linear-gradient(135deg, #5a78ff, #8b5cf6); color: #fff; box-shadow: 0 6px 16px rgba(108,92,231,.45); }
+.rail-letter { font-size: 15px; font-weight: 800; }
+.rail-flyout {
+  position: absolute; left: 54px; top: -4px; z-index: 60; min-width: 210px;
+  background: #2a3260; border: 1px solid #3a4370; border-radius: 12px; padding: 6px;
+  box-shadow: 0 16px 40px rgba(10,15,40,.45);
+}
+.rail-flyout .fly-head { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: #8a93c8; font-weight: 700; padding: 6px 10px 4px; }
+.rail-flyout a, .rail-flyout .fly-link {
+  display: block; padding: 8px 12px; border-radius: 9px; color: #d7dcf5; font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; white-space: nowrap;
+}
+.rail-flyout a:hover, .rail-flyout .fly-link:hover { background: rgba(255,255,255,.10); color: #fff; }
+.rail-flyout a.active { background: linear-gradient(135deg, #5a78ff, #8b5cf6); color: #fff; }
 
 .main-col { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .topbar {

@@ -253,7 +253,10 @@ export default function SpecsHubAdmin() {
   return (
     <div>
       <PageHead crumb="Specs-Hub" title="Specs-Hub"
-        actions={<ToolButtons onRefresh={refresh} refreshing={refreshing} onExport={exportCsv} onHeaderConfig={() => setShowMasters(true)} />} />
+        actions={<div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <SpecsHubImport users={users} onDone={() => { loadRows(); setShown(true); }} />
+          <ToolButtons onRefresh={refresh} refreshing={refreshing} onExport={exportCsv} onHeaderConfig={() => setShowMasters(true)} />
+        </div>} />
 
       <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 14, marginBottom: 16 }}>
         <StatCard label="Total" value={shown ? base.length : 0} sub="Matching records" color="#4a7bff" />
@@ -273,7 +276,6 @@ export default function SpecsHubAdmin() {
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={sel} />
           <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} style={sel}><option value="">All Status</option>{["Draft", "Submitted", "Mailed", "Win", "Loss"].map((s) => <option key={s}>{s}</option>)}</select>
           <button className="btn btn-primary" style={{ padding: "8px 22px" }} onClick={() => setShown(true)}>Show</button>
-          <SpecsHubImport users={users} onDone={() => { loadRows(); setShown(true); }} />
         </div>
       </div>
 

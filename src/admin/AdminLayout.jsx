@@ -119,6 +119,45 @@ function SideParent({ item }) {
   );
 }
 
+/* Collapsed icon rail — one icon button per nav item, no names. An item with
+   children opens a flyout (with the names) on hover; a plain item navigates. */
+function RailItem({ item }) {
+  const [open, setOpen] = useState(false);
+  const loc = useLocation();
+  const icon = item.icon || <span className="rail-letter">{String(item.label || "?").trim()[0]}</span>;
+  if (!item.children) {
+    return (
+      <div className="rail-item">
+        <NavLink to={item.to} title={item.label} className={({ isActive }) => `rail-btn ${isActive ? "active" : ""}`}>{icon}</NavLink>
+      </div>
+    );
+  }
+  const kids = item.children.filter((c) => !c.ownerOnly || auth.isOwner);
+  const anyActive = kids.some((c) => loc.pathname === c.to);
+  return (
+    <div className="rail-item" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+      <button className={`rail-btn ${anyActive ? "active" : ""}`} title={item.label}>{icon}</button>
+      {open && (
+        <div className="rail-flyout">
+          <div className="fly-head">{item.label}</div>
+          {kids.map((c) => (
+            <NavLink key={c.to} to={c.to} className={({ isActive }) => (isActive ? "active" : "")}>{c.label}</NavLink>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CollapsedNav({ groups }) {
+  return (
+    <div className="side-scroll"><div className="rail">
+      {groups.map((g) => g.items.map((it) => <RailItem key={it.label} item={it} />))}
+      <div style={{ height: 20 }} />
+    </div></div>
+  );
+}
+
 function ModuleSearch({ nav }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -272,9 +311,10 @@ export default function AdminLayout() {
   const [showPass, setShowPass] = useState(false);
   const [pw, setPw] = useState({ old: "", nw: "" });
   const [logoutAsk, setLogoutAsk] = useState(false);   // centered logout confirm
-  /* compact sidebar — small buttons, no logo, more screen. Remembered per device. */
-  const [compact, setCompact] = useState(() => { try { return localStorage.getItem("eb_admin_compact") === "1"; } catch { return false; } });
-  useEffect(() => { try { document.body.classList.toggle("admin-compact", compact); localStorage.setItem("eb_admin_compact", compact ? "1" : "0"); } catch {} }, [compact]);
+  /* collapsed sidebar — an icon rail (no names), logo hidden, more screen.
+     Remembered per device. */
+  const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem("eb_admin_collapsed") === "1"; } catch { return false; } });
+  useEffect(() => { try { document.body.classList.toggle("admin-collapsed", collapsed); localStorage.setItem("eb_admin_collapsed", collapsed ? "1" : "0"); } catch {} }, [collapsed]);
   const [lightbox, setLightbox] = useState(null);
   const [allowedNav, setAllowedNav] = useState(null);   // null = admin/all; Set = allowed module labels
 
@@ -330,43 +370,44 @@ export default function AdminLayout() {
       <ChatAssistant accent="#1b3a8f" surface="admin" side="right" />
       <PhotoZoom />
       <aside className="sidebar">
-        <div className="brand" style={{ padding: "14px 14px 10px" }}>
-          {/* full-width white card (covers the blue gap on the right); logo stays
-              the same size, with a small light that keeps running around it */}
-          <style>{`@keyframes eb-logo-run{to{transform:rotate(360deg)}}`}</style>
-          <div style={{ position: "relative", flex: 1, width: "100%", borderRadius: 12, padding: 2, overflow: "hidden" }}>
-            <div style={{ position: "absolute", top: "-60%", left: "-10%", width: "120%", height: "220%", background: "conic-gradient(from 0deg, transparent 0 68%, rgba(120,170,255,.9) 82%, #ffffff 90%, transparent 100%)", animation: "eb-logo-run 3.2s linear infinite", pointerEvents: "none" }} />
-            <span style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", background: "#fff", borderRadius: 10, padding: "8px 10px" }}>
-              <img src={logoImg} alt="Eurobond" style={{ height: 26, display: "block" }} />
-            </span>
+        {!collapsed && (
+          <div className="brand" style={{ padding: "14px 14px 10px" }}>
+            {/* full-width white card (covers the blue gap on the right); logo stays
+                the same size, with a small light that keeps running around it */}
+            <style>{`@keyframes eb-logo-run{to{transform:rotate(360deg)}}`}</style>
+            <div style={{ position: "relative", flex: 1, width: "100%", borderRadius: 12, padding: 2, overflow: "hidden" }}>
+              <div style={{ position: "absolute", top: "-60%", left: "-10%", width: "120%", height: "220%", background: "conic-gradient(from 0deg, transparent 0 68%, rgba(120,170,255,.9) 82%, #ffffff 90%, transparent 100%)", animation: "eb-logo-run 3.2s linear infinite", pointerEvents: "none" }} />
+              <span style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", background: "#fff", borderRadius: 10, padding: "8px 10px" }}>
+                <img src={logoImg} alt="Eurobond" style={{ height: 26, display: "block" }} />
+              </span>
+            </div>
           </div>
-        </div>
-        <ModuleSearch nav={nav} />
-        <div className="side-scroll">
-        {NAV.map((g) => {
+        )}
+        {!collapsed && <ModuleSearch nav={nav} />}
+        {(() => {
           /* filter children/items by role permission (Admin: allowedNav === null → show all) */
-          const items = g.items.map((it) => {
-            /* a module with View switched off in Roles & Permission is hidden,
-               EXCEPT Power BI which every login may open (it shows only their own
-               scoped sales data for non-admins) */
-            const ALWAYS = new Set(["Power BI"]);
-            const viewable = (label) => ALWAYS.has(label) || ((allowedNav === null || allowedNav.has(label)) && canView(label));
-            if (it.children) {
-              const kids = it.children.filter((c) => viewable(c.label));
-              return kids.length ? { ...it, children: kids } : null;
-            }
-            return viewable(it.label) ? it : null;
+          const ALWAYS = new Set(["Power BI"]);
+          const viewable = (label) => ALWAYS.has(label) || ((allowedNav === null || allowedNav.has(label)) && canView(label));
+          const groups = NAV.map((g) => {
+            const items = g.items.map((it) => {
+              if (it.children) { const kids = it.children.filter((c) => viewable(c.label)); return kids.length ? { ...it, children: kids } : null; }
+              return viewable(it.label) ? it : null;
+            }).filter(Boolean);
+            return items.length ? { group: g.group, items } : null;
           }).filter(Boolean);
-          if (!items.length) return null;
+          if (collapsed) return <CollapsedNav groups={groups} />;
           return (
-            <div key={g.group}>
-              <div className="side-group">{g.group}</div>
-              {items.map((it) => <SideParent key={it.label} item={it} />)}
+            <div className="side-scroll">
+              {groups.map((g) => (
+                <div key={g.group}>
+                  <div className="side-group">{g.group}</div>
+                  {g.items.map((it) => <SideParent key={it.label} item={it} />)}
+                </div>
+              ))}
+              <div style={{ height: 30 }} />
             </div>
           );
-        })}
-        <div style={{ height: 30 }} />
-        </div>
+        })()}
       </aside>
       <div className="main-col">
         <header className="topbar">
@@ -396,7 +437,7 @@ export default function AdminLayout() {
               <strong>{admin.name}</strong>
             </div>
             <AdminBell nav={nav} />
-            <button className="icon-btn" title={compact ? "Expand menu" : "Compact menu"} onClick={() => setCompact((c) => !c)}><PanelLeft size={16} /></button>
+            <button className="icon-btn" title={collapsed ? "Expand menu" : "Collapse menu"} onClick={() => setCollapsed((c) => !c)}><PanelLeft size={16} /></button>
             <button className="icon-btn" title="Dark / Light" onClick={() => {
               const dark = document.body.classList.toggle("dark-admin");
               localStorage.setItem("eb_admin_dark", dark ? "1" : "0");
