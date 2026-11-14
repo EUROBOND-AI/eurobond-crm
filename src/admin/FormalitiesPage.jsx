@@ -11,27 +11,60 @@ import { PageHead, StatCard } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
 import { visibleUsers } from "../lib/scope.js";
 
+/* Each item is { label, type } — type "tick" (a checkbox) or "yesno" (a Yes/No
+   choice). For a Yes/No item, picking "No" settles it with no tick needed;
+   picking "Yes" then shows the tick to mark it actually done. */
 const CHECKLISTS = {
   joining: {
     module: "joinFormality", title: "Joining Formalities", crumb: "Joining Formalities", dateLabel: "Date of Joining",
     items: [
-      "Offer letter issued", "Appointment letter signed", "Documents collected (ID, address, education)",
-      "Bank account details collected", "PF registration", "ESIC registration",
-      "Employee code created", "Official email ID created", "CRM / system access given",
-      "Visiting cards ordered", "ID card issued", "Laptop / SIM / assets issued",
-      "Uniform issued", "Reporting manager & seating assigned", "Induction / orientation done",
-      "Added to attendance & payroll",
+      { label: "Welcome email shared with the employee" },
+      { label: "QR code generated" },
+      { label: "Visiting card delivered" },
+      { label: "Employee induction completed" },
+      { label: "Incentive policy explained" },
+      { label: "Travel policy explained" },
+      { label: "Area allocation shared" },
+      { label: "Data transfer from resigned employee, if applicable", type: "yesno" },
+      { label: "Name of the employee whose data is being transferred", type: "yesno" },
+      { label: "Newly allocated area — previous employee data transfer not required", type: "yesno" },
+      { label: "Product training completed" },
+      { label: "Welcome kit provided" },
+      { label: "SIM card provided" },
+      { label: "Old SIM replaced for any existing employee", type: "yesno" },
+      { label: "CRM login credentials provided" },
+      { label: "Sales target communicated" },
+      { label: "CRM training completed" },
+      { label: "After confirmation" },
+      { label: "Uniform issued" },
     ],
   },
   exit: {
     module: "exitFormality", title: "Exit Formalities", crumb: "Exit Formalities", dateLabel: "Date of Exit",
     items: [
-      "Resignation received & accepted", "Handover of work / documents",
-      "Company assets returned (laptop, SIM, ID card)", "No dues cleared (Accounts, Admin, IT)",
-      "Exit interview conducted", "Full & final settlement + relieving / experience letter issued",
+      { label: "Confirm the employee's last working date with the respective HOD" },
+      { label: "CRM access declined — all except Attendance Login" },
+      { label: "Deactivate CRM login access — all" },
+      { label: "Remove the employee from relevant official groups" },
+      { label: "Confirm with the HOD whether a replacement is required" },
+      { label: "Obtain replacement approval from Rahul Sir" },
+      { label: "After Rahul Sir's approval, email the HR Department regarding the replacement requirement" },
     ],
   },
 };
+
+/* an item counts as settled: a tick item when ticked; a Yes/No item when answered
+   No, or answered Yes and then ticked. */
+function itemDone(cfg, rec, i) {
+  const it = cfg.items[i];
+  if (it.type === "yesno") {
+    const a = (rec.answer || {})[i];
+    if (a === "No") return true;
+    if (a === "Yes") return !!(rec.done || {})[i];
+    return false;
+  }
+  return !!(rec.done || {})[i];
+}
 
 const fmtWhen = (iso) => { if (!iso) return ""; const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" }); };
 
@@ -81,7 +114,7 @@ export default function FormalitiesPage({ kind = "joining" }) {
     });
   }, [rows, fUser, allowNames]);
 
-  const progOf = (r) => { const d = r.done || {}; return cfg.items.filter((_, i) => d[i]).length; };
+  const progOf = (r) => cfg.items.filter((_, i) => itemDone(cfg, r, i)).length;
   const total = cfg.items.length;
   const openRec = async (r) => { try { const full = await api.get(cfg.module, r._id); setOpen({ _id: r._id, ...(full.record?.data || full.data || r) }); } catch { setOpen(r); } };
   const delRow = async (e, r) => {
@@ -148,10 +181,14 @@ function AddModal({ cfg, users, existing, onClose, onSaved }) {
   const save = async () => {
     if (!emp) { alert("Select an employee"); return; }
     const u = users.find((x) => x.name === emp);
-    if (existing.some((r) => r.empName === emp)) { if (!window.confirm(emp + " already has a record. Add another?")) return; }
     setBusy(true);
     try {
-      await api.create(cfg.module, { empName: emp, empCode: u?.code || "", date, done: {}, remarks: {} });
+      /* check against the live list so the same employee is never added twice,
+         even if the page was opened without pressing Show */
+      const cur = await api.list(cfg.module, false).catch(() => ({ records: [] }));
+      const dup = (cur.records || []).some((r) => String(r.data?.empName || "").trim().toLowerCase() === emp.trim().toLowerCase());
+      if (dup) { alert(emp + " is already added in " + cfg.title + "."); setBusy(false); return; }
+      await api.create(cfg.module, { empName: emp, empCode: u?.code || "", date, done: {}, answer: {}, remarks: {} });
       onSaved();
     } catch (e) { alert("Save failed: " + e.message); setBusy(false); }
   };
@@ -174,36 +211,62 @@ function AddModal({ cfg, users, existing, onClose, onSaved }) {
 
 function DetailModal({ cfg, rec, me, onClose, onSaved }) {
   const [done, setDone] = useState(rec.done || {});
+  const [answer, setAnswer] = useState(rec.answer || {});
   const [remarks, setRemarks] = useState(rec.remarks || {});
   const [busy, setBusy] = useState(false);
-  const p = useMemo(() => cfg.items.filter((_, i) => done[i]).length, [done, cfg]);
+  const p = useMemo(() => cfg.items.filter((_, i) => itemDone(cfg, { done, answer }, i)).length, [done, answer, cfg]);
 
-  const toggle = (i) => setDone((d) => {
-    const n = { ...d };
-    if (n[i]) delete n[i]; else n[i] = { by: me, at: new Date().toISOString() };
-    return n;
-  });
+  const stamp = () => ({ by: me, at: new Date().toISOString() });
+  const toggle = (i) => setDone((d) => { const n = { ...d }; if (n[i]) delete n[i]; else n[i] = stamp(); return n; });
+  const setYN = (i, val) => {
+    setAnswer((a) => ({ ...a, [i]: a[i] === val ? "" : val }));
+    /* choosing No clears any tick — No needs no tick */
+    if (val === "No") setDone((d) => { const n = { ...d }; delete n[i]; return n; });
+  };
   const save = async () => {
     setBusy(true);
-    try { await api.update(cfg.module, rec._id, { empName: rec.empName, empCode: rec.empCode, date: rec.date, done, remarks }); onSaved(); }
+    try { await api.update(cfg.module, rec._id, { empName: rec.empName, empCode: rec.empCode, date: rec.date, done, answer, remarks }); onSaved(); }
     catch (e) { alert("Save failed: " + e.message); setBusy(false); }
   };
+
+  const ynBtn = (active, color) => ({ padding: "4px 14px", borderRadius: 7, border: "1px solid " + (active ? color : "var(--line)"), background: active ? color : "#fff", color: active ? "#fff" : "var(--ink)", fontWeight: 700, fontSize: 12.5, cursor: "pointer" });
 
   return (
     <Overlay onClose={onClose} title={rec.empName + " — " + cfg.title} wide
       sub={(rec.empCode ? rec.empCode + " · " : "") + cfg.dateLabel + ": " + (rec.date || "—") + "  ·  " + p + "/" + cfg.items.length + " done"}>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {cfg.items.map((label, i) => {
+        {cfg.items.map((it, i) => {
+          const isYN = it.type === "yesno";
+          const ans = answer[i] || "";
           const on = !!done[i];
+          const settled = itemDone(cfg, { done, answer }, i);
           return (
-            <div key={i} style={{ border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", background: on ? "#f1fbf5" : "#fff" }}>
-              <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
-                <input type="checkbox" checked={on} onChange={() => toggle(i)} style={{ marginTop: 3, width: 17, height: 17 }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, color: "var(--navy)" }}>{i + 1}. {label}</div>
-                  {on && done[i].by && <div style={{ fontSize: 11.5, color: "#10b981", fontWeight: 600 }}>✓ by {done[i].by} · {fmtWhen(done[i].at)}</div>}
+            <div key={i} style={{ border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", background: settled ? "#f1fbf5" : "#fff" }}>
+              {isYN ? (
+                <div>
+                  <div style={{ fontWeight: 700, color: "var(--navy)", marginBottom: 6 }}>{i + 1}. {it.label}</div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <button type="button" style={ynBtn(ans === "Yes", "#0b3c8c")} onClick={() => setYN(i, "Yes")}>Yes</button>
+                    <button type="button" style={ynBtn(ans === "No", "#ef4444")} onClick={() => setYN(i, "No")}>No</button>
+                    {/* tick only when Yes — No needs no tick */}
+                    {ans === "Yes" && (
+                      <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", marginLeft: 4 }}>
+                        <input type="checkbox" checked={on} onChange={() => toggle(i)} style={{ width: 17, height: 17 }} />
+                        <span style={{ fontSize: 12.5, fontWeight: 600 }}>Done</span>
+                      </label>
+                    )}
+                    {ans === "Yes" && on && done[i].by && <span style={{ fontSize: 11.5, color: "#10b981", fontWeight: 600 }}>✓ {done[i].by} · {fmtWhen(done[i].at)}</span>}
+                  </div>
                 </div>
-              </label>
+              ) : (
+                <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
+                  <input type="checkbox" checked={on} onChange={() => toggle(i)} style={{ marginTop: 3, width: 17, height: 17 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, color: "var(--navy)" }}>{i + 1}. {it.label}</div>
+                    {on && done[i].by && <div style={{ fontSize: 11.5, color: "#10b981", fontWeight: 600 }}>✓ by {done[i].by} · {fmtWhen(done[i].at)}</div>}
+                  </div>
+                </label>
+              )}
               <input value={remarks[i] || ""} onChange={(e) => setRemarks((r) => ({ ...r, [i]: e.target.value }))}
                 placeholder="Remark (optional)" style={{ ...inp, marginTop: 8, marginBottom: 0 }} />
             </div>
