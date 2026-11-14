@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, auth } from "../lib/api.js";
 import ScreenHead from "../components/ScreenHead.jsx";
-import { usePhonePager, PhonePager } from "./FieldApp.jsx";
+import { usePhonePager, PhonePager, FSearch, rowHit } from "./FieldApp.jsx";
 
 const inp = { width: "100%", marginBottom: 10, padding: "9px 11px", borderRadius: 9, border: "1px solid #d7dcef", fontSize: 13 };
 const lbl = { fontSize: 12, fontWeight: 700 };
@@ -22,6 +22,7 @@ export default function BiltraxList() {
   const nav = useNavigate();
   const [rows, setRows] = useState(null);
   const [tab, setTab] = useState("All");
+  const [q, setQ] = useState("");
   const [view, setView] = useState(null);
   const [winFor, setWinFor] = useState(null);
   const [lossFor, setLossFor] = useState(null);   // #5 — mark a project Loss with a reason
@@ -71,11 +72,11 @@ export default function BiltraxList() {
 
   const list = useMemo(() => {
     if (!rows) return null;
-    if (tab === "All") return rows;
-    return rows.filter((r) => (r.biltraxType || "Requested") === tab);
-  }, [rows, tab]);
+    const base = tab === "All" ? rows : rows.filter((r) => (r.biltraxType || "Requested") === tab);
+    return base.filter((r) => rowHit(r, q));
+  }, [rows, tab, q]);
   /* ten at a time — see usePhonePager */
-  const pager = usePhonePager(list || [], 10, tab);
+  const pager = usePhonePager(list || [], 10, tab + q);
 
   return (
     <>
@@ -88,6 +89,7 @@ export default function BiltraxList() {
       </div>
 
       <div className="f-list-pad">
+        {rows && rows.length > 0 && <FSearch value={q} onChange={setQ} placeholder="Search Biltrax…" />}
         {!list ? <div className="eb-loading"><div className="eb-spin" />Loading…</div>
         : list.length === 0 ? (
           <div style={{ ...card, textAlign: "center", color: "var(--muted)", fontSize: 13 }}>

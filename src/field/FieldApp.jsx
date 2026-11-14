@@ -2067,8 +2067,36 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
 }
 
 /* ------------------------------------------------ EXPENSE ------------------------------------------------ */
+/* #1 — a plain search box used on every list screen. It checks the row's text
+   values (a few levels deep) so a search matches a name, number, city, status,
+   remark, anything on the card. */
+export function rowHit(obj, q) {
+  if (!q) return true;
+  const s = q.trim().toLowerCase();
+  if (!s) return true;
+  const walk = (v, d) => {
+    if (v == null || d > 3) return false;
+    if (typeof v === "string" || typeof v === "number") return String(v).toLowerCase().includes(s);
+    if (Array.isArray(v)) return v.some((x) => walk(x, d + 1));
+    if (typeof v === "object") return Object.values(v).some((x) => walk(x, d + 1));
+    return false;
+  };
+  return walk(obj, 0);
+}
+export function FSearch({ value, onChange, placeholder }) {
+  return (
+    <div style={{ position: "relative", marginBottom: 12 }}>
+      <span style={{ position: "absolute", left: 11, top: 9, opacity: 0.5, fontSize: 14 }}>🔍</span>
+      <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder || "Search…"}
+        style={{ width: "100%", padding: "9px 32px 9px 32px", borderRadius: 10, border: "1px solid var(--line)", fontSize: 13, background: "#fff", outline: "none" }} />
+      {value && <span onClick={() => onChange("")} style={{ position: "absolute", right: 10, top: 7, cursor: "pointer", color: "var(--muted)", fontSize: 16 }}>×</span>}
+    </div>
+  );
+}
+
 function FieldExpense({ list, add, reload }) {
   const [tab, setTab] = useState("Draft");
+  const [q, setQ] = useState("");
   const tabs = ["Draft", "Format", "Submitted", "Approved", "Rejected"];
   const nav = useNavigate();
   const [busy, setBusy] = useState(false);
@@ -2082,9 +2110,9 @@ function FieldExpense({ list, add, reload }) {
     if (tab === "Approved") return ["Approved", "Coordination", "Uploader"].includes(e.status);
     if (tab === "Rejected") return e.status === "Rejected" || e.status === "Reject";
     return false;
-  });
+  }).filter((e) => rowHit(e, q));
   /* ten at a time — see usePhonePager */
-  const pager = usePhonePager(rows, 10, tab);
+  const pager = usePhonePager(rows, 10, tab + q);
 
   const delDraft = async (e) => {
     if (!window.confirm("Delete this draft?")) return;
@@ -2138,6 +2166,7 @@ function FieldExpense({ list, add, reload }) {
       )}
 
       <div className="f-list-pad">
+        <FSearch value={q} onChange={setQ} placeholder="Search expenses…" />
         {rows.length === 0 && <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, padding: 26 }}>No {tab.toLowerCase()} expenses</div>}
         {pager.slice.map((e, i) => (
           <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "var(--shadow)" }}>
@@ -3198,16 +3227,18 @@ function FieldProjectList() {
     return () => window.removeEventListener("eb-app-resumed", again);
   }, []);
 
+  const [q, setQ] = useState("");
   const STATUSES = ["All", "Open", "Win", "Lost", "Hold"];
-  const filtered = (rows || []).filter((r) => filter === "All" || (r.status || "Open") === filter);
+  const filtered = (rows || []).filter((r) => (filter === "All" || (r.status || "Open") === filter) && rowHit(r, q));
   /* ten at a time — see usePhonePager */
-  const pager = usePhonePager(filtered, 10, filter);
+  const pager = usePhonePager(filtered, 10, filter + q);
   const sColor = (s) => s === "Win" ? "#1f9d55" : s === "Lost" ? "#c03636" : s === "Hold" ? "#e08600" : "#3949ab";
 
   return (
     <>
       <ScreenHead title="Project Projection" right={<button className="f-submit" style={{ padding: "8px 14px", fontSize: 12.5 }} onClick={() => nav("/app/project/new")}>+ Add</button>} />
       <div className="f-list-pad" style={{ paddingTop: 14 }}>
+        <FSearch value={q} onChange={setQ} placeholder="Search projects…" />
         <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
           {STATUSES.map((s) => (
             <button key={s} onClick={() => setFilter(s)} style={{ padding: "7px 13px", borderRadius: 8, border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer", background: filter === s ? "var(--navy)" : "#eef1ff", color: filter === s ? "#fff" : "var(--navy)" }}>{s}</button>
@@ -5504,16 +5535,18 @@ function FieldSpecThreadList({ mod }) {
   useEffect(() => { load(); }, [mod]);
   useAppRefresh(load);
 
+  const [q, setQ] = useState("");
   const STATUSES = isS2S ? ["All", "Pending", "Process", "Approved"] : ["All", "Pending", "Process", "Win"];
-  const filtered = (rows || []).filter((r) => filter === "All" || (r.status || "Pending") === filter);
+  const filtered = (rows || []).filter((r) => (filter === "All" || (r.status || "Pending") === filter) && rowHit(r, q));
   /* ten at a time — see usePhonePager */
-  const pager = usePhonePager(filtered, 10, filter);
+  const pager = usePhonePager(filtered, 10, filter + q);
   const sColor = (s) => s === "Approved" || s === "Win" ? "#1f9d55" : s === "Process" ? "#e08600" : "#3949ab";
 
   return (
     <>
       <ScreenHead title={isS2S ? "Sales to Spec" : "Spec to Sales"} />
       <div className="f-list-pad" style={{ paddingTop: 14 }}>
+        <FSearch value={q} onChange={setQ} placeholder="Search…" />
         <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
           {STATUSES.map((s) => (
             <button key={s} onClick={() => setFilter(s)} style={{ padding: "7px 13px", borderRadius: 8, border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer", background: filter === s ? "var(--navy)" : "#eef1ff", color: filter === s ? "#fff" : "var(--navy)" }}>{s}</button>
@@ -5715,8 +5748,10 @@ function FieldModule({ mod }) {
   const cfg = APP_MODS[mod];
   const nav = useNavigate();
   const [rows, setRows] = useState(null);
+  const [q, setQ] = useState("");
+  const vrows = (rows || []).filter((r) => rowHit(r, q));
   /* ten at a time — see usePhonePager */
-  const pager = usePhonePager(rows || [], 10, mod);
+  const pager = usePhonePager(vrows, 10, mod + q);
   /* the phone's own reminders for anything with time still running */
   useEffect(() => {
     if (mod !== "task" || !rows || !rows.length) return;
@@ -5754,10 +5789,11 @@ function FieldModule({ mod }) {
     <>
       <ScreenHead title={cfg.appLabel || cfg.crumb} right={(cfg.appReadOnly || mod === "salesToSpec" || mod === "specToSales" || mod === "projectProjection") ? null : <button className="f-submit" style={{ padding: "8px 14px", fontSize: 12.5 }} onClick={() => nav(`/app/m/${mod}/new`)}>+ Add</button>} />
       <div className="f-list-pad" style={{ paddingTop: 14 }}>
+        {rows !== null && rows.length > 0 && <FSearch value={q} onChange={setQ} placeholder={"Search " + (cfg.appLabel || cfg.crumb || "") + "…"} />}
         {rows === null ? (
           <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
-        ) : rows.length === 0 ? (
-          <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>No records yet. Tap + Add to create one.</div>
+        ) : vrows.length === 0 ? (
+          <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>{q ? "No matches." : "No records yet. Tap + Add to create one."}</div>
         ) : pager.slice.map((r, i) => (
           <div key={i} onClick={() => {
             if (mod === "task" || mod === "projectProjection" || cfg.isSpecThread) nav(`/app/thread/${mod}/${r._id}`);
@@ -7249,6 +7285,7 @@ function FieldQuotationList() {
   const [rows, setRows] = useState(null);
   const [view, setView] = useState(null);
   const [winFor, setWinFor] = useState(null);
+  const [q, setQ] = useState("");
 
   /* kotta quotation add cheyganey pytaki (medana) kanipinchaali — anduke
      _id (server auto-increment) descending tho sort chestunnam, kotta vi pyna */
@@ -7260,25 +7297,26 @@ function FieldQuotationList() {
     <>
       <ScreenHead title="Quotation" right={<button onClick={() => { QUOTE_PREFILL.data = null; nav("/app/m/quotation/new"); }} style={{ background: "var(--navy)", color: "#fff", border: "none", borderRadius: 20, padding: "7px 14px", fontWeight: 800, fontSize: 13 }}>+ Add</button>} />
       <div className="f-list-pad" style={{ paddingTop: 12 }}>
+        {rows !== null && rows.length > 0 && <FSearch value={q} onChange={setQ} placeholder="Search quotations…" />}
         {rows === null ? <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
           : rows.length === 0 ? <div style={{ color: "var(--muted)", padding: 30, textAlign: "center" }}>No quotations yet.</div>
-            : rows.map((q) => (
-              <div key={q._id} style={{ background: "#fff", borderRadius: 10, padding: "10px 12px", marginBottom: 7, boxShadow: "var(--shadow)" }}>
+            : (() => { const vr = rows.filter((x) => rowHit(x, q)); return vr.length === 0 ? <div style={{ color: "var(--muted)", padding: 30, textAlign: "center" }}>No matches.</div> : vr.map((qr) => (
+              <div key={qr._id} style={{ background: "#fff", borderRadius: 10, padding: "10px 12px", marginBottom: 7, boxShadow: "var(--shadow)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 13.5 }}>{q.partyName || q.customer}</div>
-                    <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 1 }}>{q.quoteNo || q.id} · {q.createdAt || ""}</div>
+                    <div style={{ fontWeight: 700, fontSize: 13.5 }}>{qr.partyName || qr.customer}</div>
+                    <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 1 }}>{qr.quoteNo || qr.id} · {qr.createdAt || ""}</div>
                   </div>
-                  <span style={{ fontSize: 10.5, fontWeight: 800, color: q.status === "Win" ? "#059669" : q.status === "Approved" ? "#2563eb" : "#c07f00" }}>{q.status || "Pending"}</span>
+                  <span style={{ fontSize: 10.5, fontWeight: 800, color: qr.status === "Win" ? "#059669" : qr.status === "Approved" ? "#2563eb" : "#c07f00" }}>{qr.status || "Pending"}</span>
                 </div>
                 <div style={{ display: "flex", gap: 5, marginTop: 8 }}>
-                  <button onClick={() => setView(q)} style={{ ...actBtn("#3949ab"), flex: 1, background: "#eef1ff", color: "#3949ab", padding: "6px 4px", fontSize: 11 }}>👁 View</button>
-                  <button onClick={() => { QUOTE_EDIT.data = q; nav("/app/m/quotation/new"); }} style={{ ...actBtn("#f59e0b"), flex: 1, background: "#fef3e2", color: "#c07f00", padding: "6px 4px", fontSize: 11 }}>✎ Edit</button>
+                  <button onClick={() => setView(qr)} style={{ ...actBtn("#3949ab"), flex: 1, background: "#eef1ff", color: "#3949ab", padding: "6px 4px", fontSize: 11 }}>👁 View</button>
+                  <button onClick={() => { QUOTE_EDIT.data = qr; nav("/app/m/quotation/new"); }} style={{ ...actBtn("#f59e0b"), flex: 1, background: "#fef3e2", color: "#c07f00", padding: "6px 4px", fontSize: 11 }}>✎ Edit</button>
                   {/* stays after the win so a second invoice can be added later */}
-                  <button onClick={() => setWinFor(q)} style={{ ...actBtn("#059669"), flex: 1, background: "#e5f9f1", color: "#059669", padding: "6px 4px", fontSize: 11 }}>{q.status === "Win" ? "➕ Inv" : "🏆 Win"}</button>
+                  <button onClick={() => setWinFor(qr)} style={{ ...actBtn("#059669"), flex: 1, background: "#e5f9f1", color: "#059669", padding: "6px 4px", fontSize: 11 }}>{qr.status === "Win" ? "➕ Inv" : "🏆 Win"}</button>
                 </div>
               </div>
-            ))}
+            )); })()}
       </div>
 
       {view && <QuotationView q={view} onClose={() => setView(null)} />}

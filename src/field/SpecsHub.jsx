@@ -4,6 +4,7 @@ import { ChevronLeft, Eye, Pencil, Mail, MessageSquare, Plus, Paperclip, X, Chec
 import { SkeletonList } from "../components/Loaders.jsx";
 import ScreenHead from "../components/ScreenHead.jsx";
 import RefreshBtn from "../components/RefreshBtn.jsx";
+import { FSearch, rowHit } from "./FieldApp.jsx";
 
 /* same in-app full-screen photo / PDF zoom viewer the other modules use */
 const openAppPhoto = (url) => { if (url) window.dispatchEvent(new CustomEvent("app-photo", { detail: url })); };
@@ -415,6 +416,7 @@ const ActBtn = ({ icon, label, onClick, tone = "v" }) => {
 export function SpecsHubScreen() {
   const [rows, setRows] = useState(null);
   const [view, setView] = useState(null);   // {type, rec}
+  const [q, setQ] = useState("");
   const users = useUsers();
   const load = () => api.list("specsHub", false, isAdmin() ? {} : { involved: 1 }).then((d) => {
     const me = low(CU().name);
@@ -436,9 +438,10 @@ export function SpecsHubScreen() {
     <div style={{ minHeight: "100%", background: "#f6f8fd" }}>
       <ScreenHead title="Specs-Hub" right={<button className="f-submit" style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 14px" }} onClick={() => setView({ type: "form", rec: null })}><Plus size={16} /> Add</button>} />
       <div style={{ padding: 16 }}>
+        {rows !== null && rows.length > 0 && <FSearch value={q} onChange={setQ} placeholder="Search specifications…" />}
         {rows === null ? <SkeletonList rows={5} /> : rows.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", marginTop: 50 }}>No specifications yet.<br />Tap <b>Add</b> to create one.</div>
-        ) : rows.map((rec) => (
+        ) : rows.filter((r) => rowHit(r, q)).map((rec) => (
           <RowCard key={rid(rec)} rec={rec} actions={<>
             <ActBtn icon={<Eye size={14} />} label="View" onClick={() => setView({ type: "view", rec })} />
             <ActBtn icon={<Pencil size={14} />} label="Edit" tone="e" onClick={() => setView({ type: "form", rec })} />
