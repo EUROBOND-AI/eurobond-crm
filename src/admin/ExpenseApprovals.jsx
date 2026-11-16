@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { SkeletonList } from "../components/Loaders.jsx";
 import { PageHead, StatCard, ToolButtons } from "../components/ui.jsx";
 import { api, auth } from "../lib/api.js";
@@ -495,10 +496,21 @@ export default function ExpenseApprovals() {
   );
 }
 
+/* same category + expense-type lists the phone uses, so the admin edit offers
+   exactly the same dropdowns (Local was missing, Category & Origin were plain
+   text boxes). */
+const EXP_CATEGORIES = ["Flight", "Train", "Bus", "Local Transportation / Taxi", "Car Rental", "Fuel / Petrol / Diesel", "Hotel", "Relative Stay", "House Rent", "Food & Meals", "Parking", "Toll Charges", "Car Maintenance", "Bike Maintenance", "Stationery", "Xerox / Photocopy", "Courier", "Phone Recharge", "Business Promotion", "Damage & Customer Claim", "Miscellaneous"];
+const EXP_STATIONS = ["Local", "Exstation", "Outstation"];
+
 function ExpenseReview({ r, onClose, onDone }) {
   const items = r.items || [];
   const total = items.reduce((s, x) => s + (Number(x.amount) || 0), 0);
   const [busy, setBusy] = useState(false);
+  /* area list for the Origin-to-Destination dropdown, like the phone form */
+  const [areaNames, setAreaNames] = useState([]);
+  useEffect(() => {
+    api.areasAll().then((d) => setAreaNames((d.areas || []).map(([n]) => n).filter(Boolean))).catch(() => {});
+  }, []);
   const [remark, setRemark] = useState("");
   const [attach, setAttach] = useState("");
   /* read-only for anyone who is not the office team: the statement opens, the
@@ -520,7 +532,48 @@ function ExpenseReview({ r, onClose, onDone }) {
   const startEdit = () => { setDraft(items.map((x) => ({ ...x }))); setEditing(true); };
   const cancelEdit = () => { setEditing(false); setDraft(items); };
   const setCell = (i, k, v) => setDraft((d) => d.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
-  const rowsView = editing ? draft : items;
+  /* ---- Power BI style per-column filter + sort on the line items ----
+     keyed by the ORIGINAL index (_ix) so reject / approve / edit never point at
+     the wrong row once the view is sorted or filtered. Only in view mode. */
+  const EXP_COLS = ["SI No", "Date", "Ex/Out-station", "Origin to Destination", "Description", "KM", "Category", "Amount", "Approved Amount", "Bill"];
+  const NUM_COLS = new Set([0, 5, 7, 8]);
+  const [sort, setSort] = useState(null);           // { col, dir }
+  const [colFilters, setColFilters] = useState({}); // { col: Set(values) }
+  const [pop, setPop] = useState(null);             // open funnel { col, x, y }
+  const [psearch, setPsearch] = useState("");
+  const colText = (it, c) => {
+    switch (c) {
+      case 0: return String((it._ix ?? 0) + 1);
+      case 1: return it.date || "";
+      case 2: return it.station || "";
+      case 3: return it.desc || "";
+      case 4: return it.description || "";
+      case 5: return String(it.km ?? "");
+      case 6: return it.category || "";
+      case 7: return String(it.amount ?? "");
+      case 8: return String(itemApproved[it._ix] ?? it.approvedAmount ?? it.amount ?? "");
+      case 9: return it.photo ? "View" : "—";
+      default: return "";
+    }
+  };
+  const baseRows = (editing ? draft : items).map((x, ix) => ({ ...x, _ix: ix }));
+  const rowsView = useMemo(() => {
+    if (editing) return baseRows;
+    let out = baseRows.filter((it) => Object.entries(colFilters).every(([c, set]) => !set || set.size === 0 || set.has(colText(it, Number(c)))));
+    if (sort) {
+      const c = sort.col, dir = sort.dir === "desc" ? -1 : 1;
+      out = [...out].sort((a, b) => NUM_COLS.has(c)
+        ? ((Number(colText(a, c).replace(/[^\d.-]/g, "")) || 0) - (Number(colText(b, c).replace(/[^\d.-]/g, "")) || 0)) * dir
+        : colText(a, c).localeCompare(colText(b, c)) * dir);
+    }
+    return out;
+    // eslint-disable-next-line
+  }, [editing, draft, items, colFilters, sort, itemApproved]);
+  const toggleSort = (c) => setSort((s) => (s && s.col === c ? (s.dir === "asc" ? { col: c, dir: "desc" } : null) : { col: c, dir: "asc" }));
+  const openFunnel = (c, e) => { const rc = e.currentTarget.getBoundingClientRect(); setPsearch(""); setPop({ col: c, x: Math.min(rc.left, window.innerWidth - 240), y: rc.bottom + 4 }); };
+  const colVals = (c) => Array.from(new Set(baseRows.map((it) => colText(it, c)))).sort();
+  const curSet = pop ? (colFilters[pop.col] || new Set()) : null;
+  const toggleVal = (v) => setColFilters((f) => { const s = new Set(f[pop.col] || []); s.has(v) ? s.delete(v) : s.add(v); return { ...f, [pop.col]: s }; });
   const shownTotal = editing ? draft.reduce((s, x) => s + num(x.amount), 0) : total;
   const saveEdit = async () => {
     const clean = draft.map((x) => ({ ...x, amount: num(x.amount), km: String(x.km ?? "").trim() }));
@@ -625,15 +678,27 @@ function ExpenseReview({ r, onClose, onDone }) {
           <div><b>Period:</b> {r.periodFrom} → {r.periodTo}</div>
         </div>
 
+        {/* area suggestions for the Origin-to-Destination boxes above */}
+        <datalist id="eb-exp-areas">{areaNames.map((n) => <option key={n} value={n} />)}</datalist>
         <div style={{ maxHeight: "56vh", overflow: "auto", border: "1px solid #eef1f8", borderRadius: 10 }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
             <thead><tr style={{ background: "#f4f6fc", position: "sticky", top: 0 }}>
-              {["SI No", "Date", "Ex/Out-station", "Origin to Destination", "Description", "KM", "Category", "Amount", "Approved Amount", "Bill"]
-                .map((h) => <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontWeight: 800, fontSize: 11.5, whiteSpace: "nowrap" }}>{h}</th>)}
+              {EXP_COLS.map((h, c) => {
+                const active = colFilters[c] && colFilters[c].size > 0;
+                const arrow = sort && sort.col === c ? (sort.dir === "asc" ? " ▲" : " ▼") : "";
+                return (
+                  <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontWeight: 800, fontSize: 11.5, whiteSpace: "nowrap" }}>
+                    <span onClick={editing ? undefined : () => toggleSort(c)} style={{ cursor: editing ? "default" : "pointer" }}>{h}{arrow}</span>
+                    {!editing && (
+                      <span onClick={(e) => openFunnel(c, e)} title="Filter" style={{ cursor: "pointer", marginLeft: 4, fontSize: 10, color: active ? "var(--accent)" : "#aab2c5" }}>▾</span>
+                    )}
+                  </th>
+                );
+              })}
               {r.status === "Submitted" && canDecide && !editing && <th style={{ padding: "8px 10px", textAlign: "center", fontWeight: 800, fontSize: 11.5, color: "#c03636" }}>Action</th>}
             </tr></thead>
             <tbody>
-              {rowsView.map((it, i) => (
+              {rowsView.map((it) => { const i = it._ix; return (
                 <tr key={i} style={{ borderTop: "1px solid #eef1f8", background: rejectedIdx.has(i) ? "#fdecec" : undefined }}>
                   <td style={{ padding: "8px 10px" }}>{i + 1}</td>
                   {editing ? (
@@ -641,13 +706,23 @@ function ExpenseReview({ r, onClose, onDone }) {
                       <td style={{ padding: "6px 8px" }}><input type="date" value={it.date || ""} onChange={(e) => setCell(i, "date", e.target.value)} style={edInput} /></td>
                       <td style={{ padding: "6px 8px" }}>
                         <select value={it.station || ""} onChange={(e) => setCell(i, "station", e.target.value)} style={edInput}>
-                          <option value="">—</option><option>Outstation</option><option>Exstation</option>
+                          <option value="">—</option>
+                          {EXP_STATIONS.map((s) => <option key={s}>{s}</option>)}
+                          {it.station && !EXP_STATIONS.includes(it.station) && <option>{it.station}</option>}
                         </select>
                       </td>
-                      <td style={{ padding: "6px 8px", minWidth: 150 }}><input value={it.desc || ""} onChange={(e) => setCell(i, "desc", e.target.value)} placeholder="Origin to Destination" style={edInput} /></td>
+                      <td style={{ padding: "6px 8px", minWidth: 150 }}>
+                        <input list="eb-exp-areas" value={it.desc || ""} onChange={(e) => setCell(i, "desc", e.target.value)} placeholder="Origin to Destination" style={edInput} />
+                      </td>
                       <td style={{ padding: "6px 8px", minWidth: 130 }}><input value={it.description || ""} onChange={(e) => setCell(i, "description", e.target.value)} placeholder="Description" style={edInput} /></td>
                       <td style={{ padding: "6px 8px" }}><input value={it.km || ""} onChange={(e) => setCell(i, "km", e.target.value.replace(/[^\d.]/g, ""))} style={{ ...edInput, width: 70 }} /></td>
-                      <td style={{ padding: "6px 8px", minWidth: 130 }}><input value={it.category || ""} onChange={(e) => setCell(i, "category", e.target.value)} placeholder="Category" style={edInput} /></td>
+                      <td style={{ padding: "6px 8px", minWidth: 130 }}>
+                        <select value={it.category || ""} onChange={(e) => setCell(i, "category", e.target.value)} style={edInput}>
+                          <option value="">Select Category</option>
+                          {EXP_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+                          {it.category && !EXP_CATEGORIES.includes(it.category) && <option>{it.category}</option>}
+                        </select>
+                      </td>
                       <td style={{ padding: "6px 8px" }}><input value={it.amount ?? ""} onChange={(e) => setCell(i, "amount", e.target.value.replace(/[^\d.]/g, ""))} style={{ ...edInput, width: 90 }} /></td>
                     </>
                   ) : (
@@ -678,10 +753,31 @@ function ExpenseReview({ r, onClose, onDone }) {
                     </td>
                   )}
                 </tr>
-              ))}
+              ); })}
             </tbody>
           </table>
         </div>
+        {/* Power BI funnel popover for a column */}
+        {pop && createPortal(
+          <>
+            <div onClick={() => setPop(null)} style={{ position: "fixed", inset: 0, zIndex: 3000 }} />
+            <div style={{ position: "fixed", left: pop.x, top: pop.y, zIndex: 3001, background: "#fff", border: "1px solid #dde2ef", borderRadius: 10, boxShadow: "0 8px 28px rgba(20,25,60,.18)", width: 226, padding: 10 }}>
+              <input autoFocus value={psearch} onChange={(e) => setPsearch(e.target.value)} placeholder="Search…" style={{ width: "100%", padding: "6px 8px", borderRadius: 7, border: "1px solid #d7dcef", fontSize: 12, marginBottom: 6, boxSizing: "border-box" }} />
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 4 }}>
+                <span onClick={() => setColFilters((f) => ({ ...f, [pop.col]: new Set(colVals(pop.col)) }))} style={{ color: "var(--accent)", cursor: "pointer", fontWeight: 700 }}>Select all</span>
+                <span onClick={() => setColFilters((f) => ({ ...f, [pop.col]: new Set() }))} style={{ color: "#c03636", cursor: "pointer", fontWeight: 700 }}>Clear</span>
+              </div>
+              <div style={{ maxHeight: 190, overflow: "auto" }}>
+                {colVals(pop.col).filter((v) => !psearch || String(v).toLowerCase().includes(psearch.toLowerCase())).map((v) => (
+                  <label key={v} style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12, padding: "3px 2px", cursor: "pointer" }}>
+                    <input type="checkbox" checked={!!curSet && curSet.has(v)} onChange={() => toggleVal(v)} />
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v || "(blank)"}</span>
+                  </label>
+                ))}
+              </div>
+              <button onClick={() => setPop(null)} className="btn btn-primary" style={{ width: "100%", marginTop: 8, padding: "6px 0", fontSize: 12 }}>OK</button>
+            </div>
+          </>, document.body)}
 
         <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 4px", fontWeight: 800, fontSize: 15 }}>
           <span>TOTAL</span><span>₹{shownTotal.toLocaleString("en-IN")}</span>

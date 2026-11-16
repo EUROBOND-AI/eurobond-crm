@@ -49,10 +49,10 @@ export function StatCard({ label, value, sub, color = "#6c5ce7" }) {
 export function Pill({ status }) {
   const s = String(status).toLowerCase();
   let cls = "pill-gray";
-  if (["approved", "win", "complete", "paid", "active", "published", "present"].some((k) => s.includes(k))) cls = "pill-green";
+  if (["approved", "win", "won", "complete", "paid", "active", "published", "present"].some((k) => s.includes(k))) cls = "pill-green";
   else if (["pending", "inprocess", "hold", "medium", "draft", "upcoming"].some((k) => s.includes(k))) cls = "pill-amber";
-  else if (["reject", "lost", "absent", "high", "close", "junk", "cancel"].some((k) => s.includes(k))) cls = "pill-red";
-  else if (["low", "assigned", "submitted"].some((k) => s.includes(k))) cls = "pill-blue";
+  else if (["reject", "lost", "loss", "absent", "high", "close", "junk", "cancel"].some((k) => s.includes(k))) cls = "pill-red";
+  else if (["low", "assigned", "submitted", "mailed"].some((k) => s.includes(k))) cls = "pill-blue";
   return <span className={`pill ${cls}`}>{status}</span>;
 }
 

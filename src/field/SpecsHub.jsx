@@ -21,6 +21,29 @@ const isAdmin = () => /admin|owner/i.test(CU().role || "") || CU().owner || CU()
 const isSpec = () => /spec/i.test(CU().role || "") || isAdmin();
 const isSales = () => /sales/i.test(CU().role || "") || isAdmin();
 
+/* ---- the Specs-Hub lifecycle --------------------------------------------
+   Draft  : specs person saved it, not yet mailed
+   Mailed : specs person mailed/submitted it — now waiting for admin
+   Approved / Reject : admin's decision (Reject carries a remark + history)
+   Pending: once APPROVED it reflects to the sales person, who sees it as
+            Pending until they mark it Won or Lost
+   Won / Lost : the sales person's outcome
+   A record is hidden from the sales person until it has been approved. */
+function specStatusOf(r) {
+  if (r.salesStatus === "Win") return "Won";
+  if (r.salesStatus === "Loss") return "Lost";
+  if (r.flowStatus === "Reject" || r.rejectRemark) return "Reject";
+  if (r.flowStatus === "Approved" || r.reflectedToSales) return "Approved";
+  if (r.flowStatus === "Mailed" || r.mailTick) return "Mailed";
+  return "Draft";
+}
+function salesStatusLabel(r) {
+  if (r.salesStatus === "Win") return "Won";
+  if (r.salesStatus === "Loss") return "Lost";
+  return "Pending";
+}
+const isApprovedForSales = (r) => !!(r.reflectedToSales || r.flowStatus === "Approved" || r.salesStatus);
+
 const APPROVED_BY = ["Developer / Builder", "Architect", "Consultant", "Fabricator", "Contractor", "Others"];
 const DEF_CATS = ["Project", "Govt", "Corporate"];
 const DEF_TIERS = ["Standard", "Premium", "Premium Plus"];
@@ -72,7 +95,7 @@ function Head({ title, onBack, right }) {
   );
 }
 function Chip({ s }) {
-  const map = { Draft: ["#6b7694", "#eef1f8"], Submitted: ["#1b3a8f", "#e7edfb"], Mailed: ["#0f7a44", "#e3f5ec"], Win: ["#0f7a44", "#e3f5ec"], Loss: ["#c03636", "#fdecec"] };
+  const map = { Draft: ["#6b7694", "#eef1f8"], Submitted: ["#1b3a8f", "#e7edfb"], Mailed: ["#0f7a44", "#e3f5ec"], Approved: ["#1b7a3f", "#e3f5ec"], Reject: ["#c03636", "#fdecec"], Pending: ["#b26a00", "#fff3df"], Won: ["#0f7a44", "#e3f5ec"], Loss: ["#c03636", "#fdecec"], Lost: ["#c03636", "#fdecec"], Win: ["#0f7a44", "#e3f5ec"] };
   const [c, b] = map[s] || map.Draft;
   return <span style={{ fontSize: 11.5, fontWeight: 800, color: c, background: b, padding: "3px 10px", borderRadius: 20 }}>{s}</span>;
 }
@@ -220,7 +243,10 @@ Regards,<br><b>${CU().name || ""}</b>${CU().mobile ? "<br>" + CU().mobile : ""}`
         body: draftHtml(), html: true,
         attachments: (rec.attachments || []).map((a) => ({ name: a.name, mime: a.mime, base64: a.base64 })),
       });
-      const upd = { ...rec, mailTick: true, mailedAt: now(), status: rec.status === "Draft" ? "Submitted" : rec.status };
+      /* mailed → now waiting for the admin to approve. Keep an Approved/decided
+         record where it is (a re-mail of an already-approved spec). */
+      const alreadyDecided = rec.flowStatus === "Approved" || rec.flowStatus === "Reject" || rec.salesStatus;
+      const upd = { ...rec, mailTick: true, mailedAt: now(), status: "Mailed", flowStatus: alreadyDecided ? rec.flowStatus : "Mailed" };
       await api.update("specsHub", rid(rec), upd);
       onSent(upd);
     } catch (e) { alert("Mail failed: " + e.message); setBusy(false); }
@@ -279,15 +305,19 @@ function SpecForm({ edit, onSaved, onClose }) {
     if (!(f.salesPersons || []).length) { alert("Please add at least one Sales Person."); return; }
     if (!(f.attachments || []).length) { alert("Please add at least one attachment (photo / PDF)."); return; }
     setBusy(true);
-    const data = { ...f, salesPerson: (f.salesPersons || []).join(", "), status: (f.status === "Mailed" || f.mailTick ? f.status : "Submitted"), specPerson: edit?.specPerson || CU().name };
-    if (edit && edit.mailTick) data.mailTick = false; // changed after mail -> needs re-mail
+    /* a new spec starts as a Draft; it only moves on when mailed and then
+       approved. flowStatus drives the whole lifecycle now. */
+    const keepFlow = edit?.flowStatus && edit.flowStatus !== "Reject" ? edit.flowStatus : "Draft";
+    const data = { ...f, salesPerson: (f.salesPersons || []).join(", "), status: "Draft", flowStatus: keepFlow, specPerson: edit?.specPerson || CU().name };
+    if (edit && edit.mailTick) { data.mailTick = false; data.flowStatus = "Draft"; } // changed after mail -> back to draft, needs re-mail + re-approval
     try {
       let r;
       if (edit) { r = await api.update("specsHub", rid(edit), data); onSaved({ ...edit, ...data }); }
       else {
         r = await api.create("specsHub", data);
         onSaved({ id: r.id, ...data });
-        for (const sp of (f.salesPersons || [])) { try { await api.notify({ to: sp, title: "New Specification approved", message: `${CU().name} mentioned you on "${f.projectName}"`, link: "/app/sales-hub", createdAt: now() }); } catch {} }
+        /* NOTE: the mentioned sales persons are NOT notified here any more.
+           They only hear about it — and only see it — once the admin approves. */
       }
     } catch (e) { alert(e.message); setBusy(false); }
   };
@@ -359,7 +389,7 @@ function SpecView({ rec, onClose }) {
   const Row = ({ k, v }) => <div style={{ display: "flex", justifyContent: "space-between", padding: "11px 0", borderBottom: "1px solid #eef1f8", fontSize: 14 }}><span style={{ color: "var(--muted)", fontWeight: 600 }}>{k}</span><b style={{ textAlign: "right", maxWidth: "60%" }}>{v || "—"}</b></div>;
   return (
     <div style={{ minHeight: "100%", background: "#f6f8fd" }}>
-      <Head title="Specification" onBack={onClose} right={<Chip s={rec.salesStatus || rec.status} />} />
+      <Head title="Specification" onBack={onClose} right={<Chip s={specStatusOf(rec)} />} />
       <div style={{ padding: "16px 16px calc(var(--f-nav-total) + 40px)", maxWidth: 640, margin: "0 auto" }}>
         <div style={{ background: "#fff", borderRadius: 14, padding: "4px 16px", border: "1px solid #e6ecf7" }}>
           <Row k="Approval Date" v={rec.approvalDate} /><Row k="Project / Brand" v={rec.projectName} />
@@ -386,7 +416,7 @@ function SpecView({ rec, onClose }) {
 }
 
 /* ================= row card with actions ================= */
-function RowCard({ rec, actions }) {
+function RowCard({ rec, actions, statusLabel }) {
   return (
     <div style={{ background: "#fff", borderRadius: 14, padding: 14, border: "1px solid #e9edf6", marginBottom: 12, boxShadow: "0 2px 8px rgba(20,35,90,.05)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
@@ -396,7 +426,7 @@ function RowCard({ rec, actions }) {
           <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{rec.salesPerson ? "Sales: " + rec.salesPerson : ""}{rec.specPerson ? " · Spec: " + rec.specPerson : ""}</div>
         </div>
         <div style={{ textAlign: "right", flexShrink: 0 }}>
-          <Chip s={rec.salesStatus || rec.status} />
+          <Chip s={statusLabel || specStatusOf(rec)} />
           {rec.mailTick && <div style={{ color: "#0f7a44", fontSize: 11.5, fontWeight: 800, marginTop: 6, display: "flex", alignItems: "center", gap: 3, justifyContent: "flex-end" }}><Check size={14} /> Mailed</div>}
         </div>
       </div>
@@ -528,7 +558,9 @@ export function SalesHubScreen() {
     const me = low(CU().name);
     let rs = (d.records || []).map((r) => ({ ...(r.data || {}), id: r.id, _id: r.id, createdByName: r.created_by_name || (r.data || {}).createdByName, createdAt: r.created_at }));
     // sales side: records where I'm one of the sales persons (single or multi)
-    if (!isAdmin()) rs = rs.filter((r) => (r.salesPersons || []).map(low).includes(me) || String(r.salesPerson || "").split(/,\s*/).map(low).includes(me));
+    // AND only once the admin has APPROVED it — before that the sales person
+    // must not see it, even though they were mentioned on the spec.
+    if (!isAdmin()) rs = rs.filter((r) => ((r.salesPersons || []).map(low).includes(me) || String(r.salesPerson || "").split(/,\s*/).map(low).includes(me)) && isApprovedForSales(r));
     setRows(rs.sort((a, b) => rid(b) - rid(a)));
   }).catch(() => setRows([]));
   useEffect(() => { load(); }, []);
@@ -546,10 +578,10 @@ export function SalesHubScreen() {
         {rows === null ? <SkeletonList rows={5} /> : rows.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", marginTop: 50 }}>No specifications shared with you yet.</div>
         ) : rows.map((rec) => (
-          <RowCard key={rid(rec)} rec={rec} actions={<>
+          <RowCard key={rid(rec)} rec={rec} statusLabel={salesStatusLabel(rec)} actions={<>
             <ActBtn icon={<Eye size={14} />} label="View" onClick={() => setView({ type: "view", rec })} />
             <ActBtn icon={<MessageSquare size={14} />} label="Message" tone="m" onClick={() => setView({ type: "chat", rec })} />
-            <ActBtn icon={rec.salesStatus === "Win" ? <Trophy size={14} /> : rec.salesStatus === "Loss" ? <XCircle size={14} /> : <Check size={14} />} label={rec.salesStatus ? rec.salesStatus : "Status"} tone="p" onClick={() => setView({ type: "status", rec })} />
+            <ActBtn icon={rec.salesStatus === "Win" ? <Trophy size={14} /> : rec.salesStatus === "Loss" ? <XCircle size={14} /> : <Check size={14} />} label={rec.salesStatus === "Win" ? "Won" : rec.salesStatus === "Loss" ? "Lost" : "Status"} tone="p" onClick={() => setView({ type: "status", rec })} />
           </>} />
         ))}
       </div>

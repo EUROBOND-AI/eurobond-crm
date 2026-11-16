@@ -16,7 +16,25 @@ const low = (s) => String(s || "").trim().toLowerCase();
 const DEF_CATS = ["Project", "Govt", "Corporate"];
 const DEF_TIERS = ["Standard", "Premium", "Premium Plus"];
 const sel = { padding: "8px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, background: "#fff" };
-const statusOf = (r) => r.salesStatus || (r.mailTick ? "Mailed" : r.status) || "Draft";
+/* lifecycle: Draft → Mailed → (admin) Approved | Reject → (sales) Pending → Won | Lost */
+const statusOf = (r) => {
+  if (r.salesStatus === "Win") return "Won";
+  if (r.salesStatus === "Loss") return "Lost";
+  if (r.flowStatus === "Reject" || r.rejectRemark) return "Reject";
+  if (r.flowStatus === "Approved" || r.reflectedToSales) return "Approved";
+  if (r.flowStatus === "Mailed" || r.mailTick) return "Mailed";
+  return "Draft";
+};
+/* has the admin approved it (so it has reached the sales person)? */
+const isApproved = (r) => !!(r.reflectedToSales || r.flowStatus === "Approved" || r.salesStatus);
+/* the sales person's own view of it: Pending until they decide */
+const salesSideStatus = (r) => (r.salesStatus === "Win" ? "Won" : r.salesStatus === "Loss" ? "Lost" : "Pending");
+/* does a record belong under a given tab / status filter */
+function tabMembership(r, t) {
+  if (t === "all" || !t) return true;
+  if (t === "Pending") return isApproved(r) && !r.salesStatus;   // approved, sales not decided
+  return statusOf(r) === t;
+}
 
 /* ---- in-app attachment zoom (admin) ---- */
 function Lightbox({ src, onClose }) {
@@ -152,6 +170,60 @@ function ViewModal({ rec, cats, tiers, onSaved, onClose }) {
         <Atts atts={rec.attachments} onZoom={setZoom} />
         {rec.salesStatus === "Win" && <div style={{ marginTop: 14, background: "#e3f5ec", borderRadius: 12, padding: 14 }}><b style={{ color: "#0f7a44" }}>🏆 WON</b> — {rec.winSqm} Sq.Mtr {rec.winRemark ? "· " + rec.winRemark : ""}{(rec.invoices || []).length ? <div style={{ marginTop: 6, fontSize: 13 }}>Invoices: {(rec.invoices || []).map((x, i) => <span key={i}>{x.no} ₹{x.amount}; </span>)}</div> : null}</div>}
         {rec.salesStatus === "Loss" && <div style={{ marginTop: 14, background: "#fdecec", borderRadius: 12, padding: 14 }}><b style={{ color: "#c03636" }}>✗ LOST</b> — {rec.lossRemark}</div>}
+
+        {/* ---- admin approval: Approve, or Reject with a remark that is saved to History ---- */}
+        {(() => {
+          const st = statusOf(rec);
+          const pendingDecision = st === "Draft" || st === "Mailed";
+          const decide = async (action) => {
+            let remark = "";
+            if (action === "Reject") { remark = window.prompt("Reject remark (reason) — saved to History; the specs person can see it:"); if (remark === null) return; }
+            setBusy(true);
+            const by = (auth.user?.name || auth.user?.username || "Admin");
+            const at = new Date().toLocaleString("en-IN");
+            const hist = [...(rec.history || []), { at, by, action, remark }];
+            const d = action === "Approve"
+              ? { ...rec, flowStatus: "Approved", reflectedToSales: true, approvedBy: by, approvedAt: at, rejectRemark: "", history: hist }
+              : { ...rec, flowStatus: "Reject", reflectedToSales: false, rejectRemark: remark || "", rejectedBy: by, rejectedAt: at, history: hist };
+            try {
+              await api.update("specsHub", rid(rec), d);
+              if (action === "Approve") {
+                const sps = d.salesPersons && d.salesPersons.length ? d.salesPersons : String(d.salesPerson || "").split(/,\s*/);
+                for (const sp of sps) if (sp) { try { await api.create("notification", { title: "Specification approved", message: `"${rec.projectName}" approved — it is now with you.`, to: sp, link: "/app/sales-hub", at: new Date().toISOString() }); } catch {} }
+              } else if (rec.specPerson) {
+                try { await api.create("notification", { title: "Specification rejected", message: `"${rec.projectName}" needs changes.${remark ? " Remark: " + remark : ""}`, to: rec.specPerson, link: "/app/specs-hub", at: new Date().toISOString() }); } catch {}
+              }
+              onSaved(d);
+            } catch (e) { alert(e.message); setBusy(false); }
+          };
+          return (
+            <>
+              {pendingDecision && (
+                <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+                  <button className="btn" disabled={busy} onClick={() => decide("Approve")} style={{ flex: 1, background: "#0f7a44", color: "#fff", borderColor: "transparent", fontWeight: 800 }}>✓ Approve</button>
+                  <button className="btn" disabled={busy} onClick={() => decide("Reject")} style={{ flex: 1, background: "#c03636", color: "#fff", borderColor: "transparent", fontWeight: 800 }}>✕ Reject (remark)</button>
+                </div>
+              )}
+              {rec.rejectRemark && (
+                <div style={{ marginTop: 14, background: "#fdecec", border: "1px solid #f3c2c2", borderRadius: 12, padding: "10px 14px" }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 800, color: "#c03636", marginBottom: 4 }}>REJECT REMARK</div>
+                  <div style={{ fontSize: 14, whiteSpace: "pre-wrap" }}>{rec.rejectRemark}</div>
+                </div>
+              )}
+              {(rec.history || []).length > 0 && (
+                <div style={{ marginTop: 14 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--muted)", marginBottom: 6 }}>HISTORY</div>
+                  {rec.history.map((h, i) => (
+                    <div key={i} style={{ fontSize: 12.5, padding: "6px 0", borderBottom: "1px solid #eef1f8" }}>
+                      <b>{h.action}</b> · {h.by} · <span style={{ color: "var(--muted)" }}>{h.at}</span>{h.remark ? <div style={{ color: "#555", marginTop: 2 }}>{h.remark}</div> : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          );
+        })()}
+
         <button className="btn btn-primary" disabled={busy} onClick={save} style={{ width: "100%", marginTop: 16 }}>{busy ? "Saving…" : "Save Category / Tier"}</button>
         <Lightbox src={zoom} onClose={() => setZoom(null)} />
       </div>
@@ -165,6 +237,7 @@ export default function SpecsHubAdmin() {
   const [masterId, setMasterId] = useState(null);
   const [all, setAll] = useState(null);
   const [tab, setTab] = useState("all");
+  const [side, setSide] = useState("specs");   // specs → 7 tabs · sales → 4 tabs
   const [from, setFrom] = useState(""); const [to, setTo] = useState("");
   const [fStatus, setFStatus] = useState("");
   const [fZone, setFZone] = useState(""); const [fState, setFState] = useState("");
@@ -204,15 +277,14 @@ export default function SpecsHubAdmin() {
     if (to) rs = rs.filter((r) => (r.approvalDate || "") <= to);
     if (fZone || fState || fHod) rs = rs.filter((r) => recordMatchesPlace(r, users, { zone: fZone, state: fState, hod: fHod }));
     if (fUser) rs = rs.filter((r) => recordPeople(r).map(low).includes(low(fUser)));
-    if (fStatus) rs = rs.filter((r) => statusOf(r) === fStatus);
+    if (fStatus) rs = rs.filter((r) => tabMembership(r, fStatus));
+    /* the Sales view only ever contains records the admin has approved —
+       exactly what the sales person sees in the app. */
+    if (side === "sales") rs = rs.filter((r) => isApproved(r));
     return rs;
-  }, [all, from, to, fZone, fState, fHod, fUser, fStatus, users]);
+  }, [all, from, to, fZone, fState, fHod, fUser, fStatus, users, side]);
 
-  const tabbed = useMemo(() => {
-    if (tab === "all") return base;
-    if (tab === "Mailed") return base.filter((r) => r.mailTick && !r.salesStatus);
-    return base.filter((r) => statusOf(r) === tab);
-  }, [base, tab]);
+  const tabbed = useMemo(() => base.filter((r) => tabMembership(r, tab)), [base, tab]);
 
   const people = useMemo(() => [...new Set((all || []).flatMap((r) => [r.specPerson, r.salesPerson]).filter(Boolean))], [all]);
   const cnt = (s) => base.filter((r) => statusOf(r) === s).length;
@@ -233,7 +305,7 @@ export default function SpecsHubAdmin() {
     { key: "grade", label: "Grade" },
     { key: "specPerson", label: "Spec Person" },
     { key: "salesPerson", label: "Sales Persons", render: (v, r) => (r.salesPersons ? r.salesPersons.join(", ") : v) || "—" },
-    { key: "status", label: "Status", filter: false, render: (_v, r) => <Pill status={statusOf(r)} /> },
+    { key: "status", label: "Status", filter: false, render: (_v, r) => <Pill status={side === "sales" ? salesSideStatus(r) : statusOf(r)} /> },
     { key: "mailTick", label: "Mailed", filter: false, render: (v) => v ? "✓" : "—" },
     { key: "createdByName", label: "Created By", render: (v, r) => v || r.specPerson || "—" },
     { key: "remark", label: "Remark", filter: false, render: (v, r) => {
@@ -242,13 +314,13 @@ export default function SpecsHubAdmin() {
       return <span>{t.slice(0, 40)}… <a onClick={(e) => { e.stopPropagation(); setView(r); }} style={{ color: "#1b3a8f", fontWeight: 700, cursor: "pointer" }}>read more</a></span>;
     } },
   ];
-  const tabs = [
-    { key: "all", label: "All", count: base.length },
-    { key: "Draft", label: "Draft", count: cnt("Draft") },
-    { key: "Mailed", label: "Mailed", count: base.filter((r) => r.mailTick && !r.salesStatus).length },
-    { key: "Win", label: "Won", count: cnt("Win") },
-    { key: "Loss", label: "Lost", count: cnt("Loss") },
-  ];
+  const cntTab = (t) => base.filter((r) => tabMembership(r, t)).length;
+  /* Specs team sees the full 7-stage pipeline; the Sales team only the part
+     that has reached them (approved → Pending → Won / Lost). */
+  const SPECS_TABS = ["all", "Draft", "Mailed", "Approved", "Reject", "Pending", "Won", "Lost"];
+  const SALES_TABS = ["all", "Pending", "Won", "Lost"];
+  const TAB_LABEL = { all: "All", Draft: "Draft", Mailed: "Mailed", Approved: "Approved", Reject: "Reject", Pending: "Pending", Won: "Won", Lost: "Lost" };
+  const tabs = (side === "sales" ? SALES_TABS : SPECS_TABS).map((k) => ({ key: k, label: TAB_LABEL[k], count: cntTab(k) }));
 
   return (
     <div>
@@ -260,10 +332,10 @@ export default function SpecsHubAdmin() {
 
       <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 14, marginBottom: 16 }}>
         <StatCard label="Total" value={shown ? base.length : 0} sub="Matching records" color="#4a7bff" />
-        <StatCard label="Draft" value={shown ? cnt("Draft") : 0} sub="Draft records" color="#8b5cf6" />
-        <StatCard label="Mailed" value={shown ? base.filter((r) => r.mailTick && !r.salesStatus).length : 0} sub="Mailed records" color="#10b981" />
-        <StatCard label="Won" value={shown ? cnt("Win") : 0} sub="Won records" color="#f59e0b" />
-        <StatCard label="Lost" value={shown ? cnt("Loss") : 0} sub="Lost records" color="#ec4899" />
+        <StatCard label="Draft" value={shown ? cntTab("Draft") : 0} sub="Draft records" color="#8b5cf6" />
+        <StatCard label="Mailed" value={shown ? cntTab("Mailed") : 0} sub="Mailed records" color="#10b981" />
+        <StatCard label="Won" value={shown ? cntTab("Won") : 0} sub="Won records" color="#f59e0b" />
+        <StatCard label="Lost" value={shown ? cntTab("Lost") : 0} sub="Lost records" color="#ec4899" />
       </div>
 
       <div className="card" style={{ padding: 14, marginBottom: 16 }}>
@@ -274,7 +346,7 @@ export default function SpecsHubAdmin() {
           <select value={fUser} onChange={(e) => setFUser(e.target.value)} style={sel}><option value="">All Users</option>{userNames.map((p) => <option key={p}>{p}</option>)}</select>
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={sel} />
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={sel} />
-          <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} style={sel}><option value="">All Status</option>{["Draft", "Submitted", "Mailed", "Win", "Loss"].map((s) => <option key={s}>{s}</option>)}</select>
+          <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} style={sel}><option value="">All Status</option>{(side === "sales" ? ["Pending", "Won", "Lost"] : ["Draft", "Mailed", "Approved", "Reject", "Pending", "Won", "Lost"]).map((s) => <option key={s}>{s}</option>)}</select>
           <button className="btn btn-primary" style={{ padding: "8px 22px" }} onClick={() => setShown(true)}>Show</button>
         </div>
       </div>
@@ -283,6 +355,14 @@ export default function SpecsHubAdmin() {
         <div className="card" style={{ padding: 50, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Set filters and click <b>Show</b> to view specifications.</div>
       ) : all === null ? <SkeletonList rows={6} /> : (
         <>
+          {/* Specs team sees the full 7-stage pipeline; Sales team only the 4
+             stages that reach them (approved onward) — like Project Projection. */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            {[["specs", "Specs Team"], ["sales", "Sales Team"]].map(([s, lbl]) => (
+              <button key={s} onClick={() => { setSide(s); setTab("all"); setFStatus(""); }}
+                style={{ padding: "7px 18px", borderRadius: 9, border: "1.5px solid " + (side === s ? "#4a7bff" : "#d4d9e6"), background: side === s ? "#4a7bff" : "#fff", color: side === s ? "#fff" : "#55607a", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>{lbl}</button>
+            ))}
+          </div>
           <Tabs tabs={tabs} active={tab} onChange={setTab} />
           <DataTable columns={columns} rows={tabbed} onView={(r) => setView(r)} onChat={(r) => setChat(r)} onDelete={delRow} />
         </>
