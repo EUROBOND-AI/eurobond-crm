@@ -10,7 +10,7 @@ import { isPanelAdmin } from "../lib/scope.js";
 const LEAD_SOURCES = [
   "IndiaMart", "Social Media", "Direct Call", "Exhibition", "DCCHAT",
   "IndiaMart (ARCHER)", "Google AD (Eurobond)", "Google AD (Archer)",
-  "Website Archer", "Website Eurobond", "Display Centers", "Export", "Other",
+  "Website Archer", "Website Eurobond", "Display Centers", "WhatsApp Bot", "Export", "Other",
 ];
 /* An export enquiry still came in through one of the ordinary channels — an
    IndiaMart listing, a stand at an exhibition, a direct call — so "Export"
