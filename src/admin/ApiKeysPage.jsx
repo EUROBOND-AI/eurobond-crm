@@ -78,10 +78,19 @@ export default function ApiKeysPage() {
       </div>
 
       {/* ---- YOUR CRM's own API keys: give these to partners so they can push data in ---- */}
-      <h3 style={{ margin: "26px 0 6px" }}>CRM API Keys (for partners)</h3>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", margin: "26px 0 6px" }}>
+        <h3 style={{ margin: 0 }}>CRM API Keys (for partners)</h3>
+        {/* the official, ready-to-share PDF explaining exactly how a partner connects */}
+        <a href="/Eurobond-CRM-API-Integration-Guide.pdf" target="_blank" rel="noopener noreferrer"
+          className="btn" style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#0f2d6b", color: "#fff", borderColor: "transparent", fontWeight: 700 }}>
+          📄 Integration Guide (PDF)
+        </a>
+      </div>
       <p style={{ color: "var(--muted)", fontSize: 12.5, marginBottom: 12 }}>
         Issue a key to anyone who needs to send data into this CRM (leads, enquiries).
         They POST to <code>/crm-api/crm_api.php?action=push&amp;key=THEIR_KEY</code>.
+        Hand the partner the <b>Integration Guide (PDF)</b> above along with their key — it explains
+        the endpoint, fields, examples and support, step by step.
       </p>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12, maxWidth: 720 }}>
         <input value={newCrm.label} onChange={(e) => setNewCrm({ ...newCrm, label: e.target.value })} placeholder="Partner / source name" style={{ ...ni, flex: 1, minWidth: 180 }} />

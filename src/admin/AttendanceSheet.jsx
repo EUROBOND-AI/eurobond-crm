@@ -181,7 +181,7 @@ export default function AttendanceSheet() {
       [u.name, u.code || "", u.manager || "", u.zone || "", u.state || "", ...cells, totals.p, totals.t, totals.l, totals.ho, totals.s, totals.a, totals.total]);
     const csv = [head, ...rows].map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
     a.download = `attendance-${month}.csv`;
     a.click();
   };

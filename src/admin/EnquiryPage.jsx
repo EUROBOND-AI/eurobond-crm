@@ -407,10 +407,12 @@ export default function EnquiryPage() {
   const exportCsv = () => {
     const head = ["Sl#", "Lead From", "Sub From", "Year", "Month", "Date", "Time", "Company", "Contact Person", "Contact", "Email", "State", "Area", "Full Address", "HOD", "Passto", "Product", "Enquiry Details", "Status", "Assign Date", "Assign Time", "Assigned By", "Last Remark", "Amount", "Order (Sq. Meter)", "Attachment Link"];
     const invLink = (r) => r.winInvoice || ((r.winInvoices || []).find((x) => x.url) || {}).url || "";
-    const body = list.map((r, i) => [i + 1, r.leadFrom || r.leadSource, r.subFrom || "", r.year, monthLabel(r), r.date, enqTime(r), r.company || r.customer, r.contactPerson || "", r.contact || r.phone, r.email, r.state, r.area || r.city, r.address || r.fullAddress || "", r.hod, r.passto || r.assignedTo, r.product, r.enquiryDetails, r.status || "Pending", r.assignDate, r.assignTime || "", r.assignedBy || "", r.lastRemark || "", r.winAmount ? "₹" + r.winAmount : "", r.winSqm || "", invLink(r)]);
+    const body = list.map((r, i) => [i + 1, r.leadFrom || r.leadSource, r.subFrom || "", r.year, monthLabel(r), r.date, enqTime(r), r.company || r.customer, r.contactPerson || "", r.contact || r.phone, r.email, r.state, r.area || r.city, r.address || r.fullAddress || "", r.hod, r.passto || r.assignedTo, r.product, r.enquiryDetails, r.status || "Pending", r.assignDate, r.assignTime || "", r.assignedBy || "", r.lastRemark || "", r.winAmount || "", r.winSqm || "", invLink(r)]);
     const csv = [head, ...body].map((row) => row.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    /* ﻿ = UTF-8 BOM so Excel reads ₹ and other characters correctly
+       (without it ₹ turned into "â‚¹") */
+    a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
     a.download = "enquiries.csv"; a.click();
   };
 

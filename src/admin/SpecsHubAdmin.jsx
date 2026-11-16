@@ -294,7 +294,7 @@ export default function SpecsHubAdmin() {
     const head = ["Project", "Project Location", "Category", "Grade", "Tier", "Approved By", "Firm", "Spec Person", "Sales Persons", "Qty", "Remark", "Status"];
     const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const lines = [head.join(",")].concat(tabbed.map((r) => cols.map((c) => esc(r[c])).concat(esc(statusOf(r))).join(",")));
-    const url = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
+    const url = URL.createObjectURL(new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a"); a.href = url; a.download = "specs-hub.csv"; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
