@@ -160,6 +160,13 @@ async function reqRaw(path, { method = "GET", body, isForm = false, timeout } = 
          had not even typed their number yet. */
       if (hadToken) {
         try {
+          /* fire a real notification on THIS phone too, so the person is told
+             even if the server-side push did not reach them (FCM off, etc.) */
+          const Cap = typeof window !== "undefined" ? window.Capacitor : null;
+          const LN = Cap && Cap.Plugins && Cap.Plugins.LocalNotifications;
+          if (LN) LN.schedule({ notifications: [{ id: 77011, title: "Signed out", body: "Your account was opened on another device, so you were signed out here.", channelId: "eurobond_reminder", smallIcon: "ic_stat_notify", schedule: { at: new Date(Date.now() + 300), allowWhileIdle: true } }] }).catch(() => {});
+        } catch {}
+        try {
           auth.clear();
           localStorage.setItem("eb_kicked", "1");
           if (typeof window !== "undefined") window.location.replace("/app");

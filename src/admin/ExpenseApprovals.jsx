@@ -491,7 +491,7 @@ export default function ExpenseApprovals() {
         </div>
       )}
 
-      {view && <ExpenseReview r={view} onClose={() => setView(null)} onDone={() => { setView(null); load(); }} />}
+      {view && <ExpenseReview r={view} ownerState={userOf(view).state || ""} onClose={() => setView(null)} onDone={() => { setView(null); load(); }} />}
     </>
   );
 }
@@ -502,15 +502,27 @@ export default function ExpenseApprovals() {
 const EXP_CATEGORIES = ["Flight", "Train", "Bus", "Local Transportation / Taxi", "Car Rental", "Fuel / Petrol / Diesel", "Hotel", "Relative Stay", "House Rent", "Food & Meals", "Parking", "Toll Charges", "Car Maintenance", "Bike Maintenance", "Stationery", "Xerox / Photocopy", "Courier", "Phone Recharge", "Business Promotion", "Damage & Customer Claim", "Miscellaneous"];
 const EXP_STATIONS = ["Local", "Exstation", "Outstation"];
 
-function ExpenseReview({ r, onClose, onDone }) {
+function ExpenseReview({ r, ownerState, onClose, onDone }) {
   const items = r.items || [];
   const total = items.reduce((s, x) => s + (Number(x.amount) || 0), 0);
   const [busy, setBusy] = useState(false);
-  /* area list for the Origin-to-Destination dropdown, like the phone form */
+  /* area list for the Origin-to-Destination dropdown, WITH the A/B/C tier, just
+     like the phone form (which shows "Area (A)"). Loaded for the statement
+     owner's state so the tiers match; falls back to the plain all-areas list. */
   const [areaNames, setAreaNames] = useState([]);
   useEffect(() => {
-    api.areasAll().then((d) => setAreaNames((d.areas || []).map(([n]) => n).filter(Boolean))).catch(() => {});
-  }, []);
+    if (ownerState) {
+      api.areasByState(ownerState)
+        .then((d) => {
+          const rows = d.areaRows || (d.areas || []).map((n) => (Array.isArray(n) ? { name: n[0], tier: "A" } : { name: n, tier: "A" }));
+          const list = rows.map((a) => `${a.name} (${a.tier || "A"})`).filter(Boolean);
+          if (list.length) setAreaNames(list); else throw new Error("empty");
+        })
+        .catch(() => api.areasAll().then((d) => setAreaNames((d.areas || []).map(([n]) => n).filter(Boolean))).catch(() => {}));
+    } else {
+      api.areasAll().then((d) => setAreaNames((d.areas || []).map(([n]) => n).filter(Boolean))).catch(() => {});
+    }
+  }, [ownerState]);
   const [remark, setRemark] = useState("");
   const [attach, setAttach] = useState("");
   /* read-only for anyone who is not the office team: the statement opens, the
@@ -788,7 +800,7 @@ function ExpenseReview({ r, onClose, onDone }) {
             <div style={{ fontSize: 12, color: "var(--muted)" }}>Editing entries — change any field above, then Save.</div>
             <div style={{ flex: 1 }} />
             <button className="btn btn-ghost" disabled={busy} onClick={cancelEdit}>Cancel</button>
-            <button className="btn" style={{ background: "#0f7a44", color: "#fff", borderColor: "transparent" }} disabled={busy} onClick={saveEdit}>💾 Save Changes</button>
+            <button className="btn" style={{ background: "#0f7a44", color: "#fff", borderColor: "transparent" }} disabled={busy} onClick={saveEdit}>💾 Save</button>
           </div>
         ) : r.status === "Submitted" && canDecide ? (
           rejectedIdx.size > 0 ? (

@@ -447,6 +447,7 @@ export function SpecsHubScreen() {
   const [rows, setRows] = useState(null);
   const [view, setView] = useState(null);   // {type, rec}
   const [q, setQ] = useState("");
+  const [filter, setFilter] = useState("All");
   const users = useUsers();
   const load = () => api.list("specsHub", false, isAdmin() ? {} : { involved: 1 }).then((d) => {
     const me = low(CU().name);
@@ -466,12 +467,19 @@ export function SpecsHubScreen() {
 
   return (
     <div style={{ minHeight: "100%", background: "#f6f8fd" }}>
-      <ScreenHead title="Specs-Hub" right={<button className="f-submit" style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 14px" }} onClick={() => setView({ type: "form", rec: null })}><Plus size={16} /> Add</button>} />
+      <ScreenHead title="Specs-Hub" right={<button className="f-submit" style={{ padding: "8px 14px", fontSize: 12.5 }} onClick={() => setView({ type: "form", rec: null })}>+ Add</button>} />
       <div style={{ padding: 16 }}>
         {rows !== null && rows.length > 0 && <FSearch value={q} onChange={setQ} placeholder="Search specifications…" />}
+        {rows !== null && rows.length > 0 && (
+          <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+            {["All", "Draft", "Mailed", "Approved", "Reject", "Won", "Lost"].map((s) => (
+              <button key={s} onClick={() => setFilter(s)} style={{ padding: "7px 13px", borderRadius: 8, border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer", background: filter === s ? "var(--navy)" : "#eef1ff", color: filter === s ? "#fff" : "var(--navy)" }}>{s}</button>
+            ))}
+          </div>
+        )}
         {rows === null ? <SkeletonList rows={5} /> : rows.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", marginTop: 50 }}>No specifications yet.<br />Tap <b>Add</b> to create one.</div>
-        ) : rows.filter((r) => rowHit(r, q)).map((rec) => (
+        ) : rows.filter((r) => (filter === "All" || specStatusOf(r) === filter) && rowHit(r, q)).map((rec) => (
           <RowCard key={rid(rec)} rec={rec} actions={<>
             <ActBtn icon={<Eye size={14} />} label="View" onClick={() => setView({ type: "view", rec })} />
             <ActBtn icon={<Pencil size={14} />} label="Edit" tone="e" onClick={() => setView({ type: "form", rec })} />
@@ -554,6 +562,8 @@ function StatusModal({ rec, onSaved, onClose }) {
 export function SalesHubScreen() {
   const [rows, setRows] = useState(null);
   const [view, setView] = useState(null);
+  const [q, setQ] = useState("");
+  const [filter, setFilter] = useState("All");
   const load = () => api.list("specsHub", false, isAdmin() ? {} : { involved: 1 }).then((d) => {
     const me = low(CU().name);
     let rs = (d.records || []).map((r) => ({ ...(r.data || {}), id: r.id, _id: r.id, createdByName: r.created_by_name || (r.data || {}).createdByName, createdAt: r.created_at }));
@@ -575,9 +585,17 @@ export function SalesHubScreen() {
     <div style={{ minHeight: "100%", background: "#f6f8fd" }}>
       <ScreenHead title="Specs-Hub" />
       <div style={{ padding: 16 }}>
+        {rows !== null && rows.length > 0 && <FSearch value={q} onChange={setQ} placeholder="Search specifications…" />}
+        {rows !== null && rows.length > 0 && (
+          <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+            {["All", "Pending", "Won", "Lost"].map((s) => (
+              <button key={s} onClick={() => setFilter(s)} style={{ padding: "7px 13px", borderRadius: 8, border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer", background: filter === s ? "var(--navy)" : "#eef1ff", color: filter === s ? "#fff" : "var(--navy)" }}>{s}</button>
+            ))}
+          </div>
+        )}
         {rows === null ? <SkeletonList rows={5} /> : rows.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", marginTop: 50 }}>No specifications shared with you yet.</div>
-        ) : rows.map((rec) => (
+        ) : rows.filter((r) => (filter === "All" || salesStatusLabel(r) === filter) && rowHit(r, q)).map((rec) => (
           <RowCard key={rid(rec)} rec={rec} statusLabel={salesStatusLabel(rec)} actions={<>
             <ActBtn icon={<Eye size={14} />} label="View" onClick={() => setView({ type: "view", rec })} />
             <ActBtn icon={<MessageSquare size={14} />} label="Message" tone="m" onClick={() => setView({ type: "chat", rec })} />
