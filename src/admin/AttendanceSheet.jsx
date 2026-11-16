@@ -186,6 +186,37 @@ export default function AttendanceSheet() {
     a.click();
   };
 
+  /* Export as a real Excel sheet WITH colours. A plain CSV cannot carry cell
+     colour, so we write an HTML table (Excel opens .xls HTML and keeps the
+     styles): Leave (L) and Absent (A) come out RED, like the screen grid. */
+  const exportExcel = () => {
+    if (!grid) return;
+    const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+    const esc = (x) => String(x == null ? "" : x).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const thS = 'style="background:#1f2d5a;color:#fff;border:1px solid #c9d2e3;padding:4px 6px;font-weight:bold;text-align:center"';
+    const tdS = 'border:1px solid #c9d2e3;padding:3px 6px';
+    const headCells = ["Name", "Code", "HOD", "Zone", "State", ...days, "Local", "Tour", "Leave", "Holiday", "Sunday", "Absent", "Total"]
+      .map((h) => `<th ${thS}>${esc(h)}</th>`).join("");
+    const bodyRows = grid.map(({ u, cells, totals }) => {
+      const fixed = [u.name, u.code || "", u.manager || "", u.zone || "", u.state || ""]
+        .map((x) => `<td style="${tdS}">${esc(x)}</td>`).join("");
+      const dayCells = cells.map((c) => {
+        const st = CODE_STYLE[c];
+        const col = st ? `background:${st.bg};color:${st.color};font-weight:bold;` : "";
+        return `<td style="${tdS};text-align:center;${col}">${esc(c)}</td>`;
+      }).join("");
+      const tot = [totals.p, totals.t, totals.l, totals.ho, totals.s, totals.a, totals.total]
+        .map((x) => `<td style="${tdS};text-align:center">${esc(x)}</td>`).join("");
+      return `<tr>${fixed}${dayCells}${tot}</tr>`;
+    }).join("");
+    const html = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head>`
+      + `<body><table border="1"><thead><tr>${headCells}</tr></thead><tbody>${bodyRows}</tbody></table></body></html>`;
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([html], { type: "application/vnd.ms-excel" }));
+    a.download = `attendance-${month}.xls`;
+    a.click();
+  };
+
   const dayHead = Array.from({ length: dayRange[1] - dayRange[0] + 1 }, (_, i) => {
     const d = dayRange[0] + i;
     const dow = new Date(Y, M - 1, d).getDay();
@@ -214,8 +245,11 @@ export default function AttendanceSheet() {
           <button className="btn btn-ghost" onClick={load} disabled={busy} style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <RefreshCw size={14} className={busy ? "spin" : ""} /> Refresh
           </button>
-          <button className="btn btn-primary" onClick={exportCsv} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <Download size={14} /> Export CSV
+          <button className="btn" onClick={exportCsv} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <Download size={14} /> CSV
+          </button>
+          <button className="btn btn-primary" onClick={exportExcel} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <Download size={14} /> Export Excel
           </button>
         </div>
       </div>

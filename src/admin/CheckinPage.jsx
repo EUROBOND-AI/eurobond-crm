@@ -102,7 +102,7 @@ export default function CheckinPage() {
     const photoOf = (nm) => { const u = (allUsers || []).find((x) => String(x.name).trim().toLowerCase() === String(nm).trim().toLowerCase()); return u ? u.photo : ""; };
     if (show === "login") return loginUsers.map((u) => ({ name: u.name, sub: sessionInfo(u.id), photo: u.photo }));
     if (show === "pending") return pendingUsers.map((u) => ({ name: u.name, sub: u.city || "—", photo: u.photo }));
-    if (show === "leave") return appliedLeave.map((l) => { const nm = l.createdBy || l.appliedBy || l.user || "—"; const st = String(l.status || "Pending"); const stLabel = /^appr/i.test(st) ? "✓ Approved" : "⏳ Pending approval"; return { name: nm, sub: `${l.from} → ${l.to || l.from} · ${stLabel}`, photo: photoOf(nm) }; });
+    if (show === "leave") return appliedLeave.map((l) => { const nm = l.createdBy || l.appliedBy || l.user || "—"; const st = String(l.status || "Pending"); const isPending = !/^appr/i.test(st); const stLabel = isPending ? "⏳ Pending approval" : "✓ Approved"; return { name: nm, sub: `${l.from} → ${l.to || l.from} · ${stLabel}`, photo: photoOf(nm), danger: isPending }; });
     return inScope.map((u) => ({ name: u.name, sub: checkedIds.has(String(u.id)) ? "Logged in" : "Not logged in", photo: u.photo }));
   };
   const sessionInfo = (uid) => {
@@ -173,7 +173,7 @@ export default function CheckinPage() {
                   <Avatar name={r.name} photo={r.photo} size={34} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 13.5 }}>{r.name}</div>
-                    <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{r.sub}</div>
+                    <div style={{ fontSize: 11.5, color: r.danger ? "#c0392b" : "var(--muted)", fontWeight: r.danger ? 700 : 400 }}>{r.sub}</div>
                   </div>
                   {/* #19 — unlock late attendance for this person so they can still
                       mark it after the 10:30 cut-off */}

@@ -7207,6 +7207,9 @@ function EnquiryReassign({ r, onClose, onDone }) {
     try {
       await api.update("enquiry", r._id, {
         ...r, assignedTo: u.name, assignedToId: u.id, passto: u.name,
+        /* the HOD must follow the new person, exactly like the admin re-assign —
+           otherwise the lead kept showing the previous assignee's manager */
+        hod: u.manager || u.manager_name || u.hod || u.reportingManager || (u.data && u.data.manager) || "",
         reassigned: true, reassignedBy: CU().name,
         reassignAt: new Date().toLocaleString("en-IN"),
         reassignRemark: rmk || "",
@@ -8016,7 +8019,7 @@ function FieldCustomers({ nearbyOnly = false }) {
         )}
         <div style={{ position: "relative", marginBottom: 12 }}>
           <Search size={15} color="var(--muted)" style={{ position: "absolute", left: 12, top: 12 }} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name / mobile / place…"
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name / mobile / place / contact…"
             style={{ width: "100%", padding: "10px 12px 10px 34px", borderRadius: 12, border: "1.5px solid #d7dcef", fontSize: 13.5, background: "#fff" }} />
         </div>
 

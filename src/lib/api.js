@@ -186,7 +186,10 @@ export function clearApiCache() { _memo.clear(); }
 
 export const api = {
   async login(username, password) {
-    const d = await req("/auth.php?action=login", { method: "POST", body: { username, password } });
+    /* send this device's own push token so the "signed in on another device"
+       alert the server fires skips THIS phone and only hits the old ones */
+    let device_token = ""; try { device_token = localStorage.getItem("eb_fcm_token") || ""; } catch {}
+    const d = await req("/auth.php?action=login", { method: "POST", body: { username, password, device_token } });
     auth.set(d.token, d.user);
     return d.user;
   },
