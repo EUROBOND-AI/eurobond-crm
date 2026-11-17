@@ -734,24 +734,33 @@ function FieldLogin({ onLogin }) {
   };
 
   return (
-    <div className="phone-body" style={{ background: "#eef2fb", display: "flex", flexDirection: "column", minHeight: "100%", overflow: "hidden" }}>
-      {/* ---- premium brand hero ---- */}
-      <div style={{ position: "relative", background: "linear-gradient(140deg,#0b2a6b 0%,#163f93 52%,#2a59c0 100%)", padding: "52px 24px 76px", borderRadius: "0 0 34px 34px", color: "#fff", textAlign: "center", overflow: "hidden", boxShadow: "0 16px 40px rgba(11,42,107,.28)" }}>
-        {/* soft decorative glows */}
-        <div style={{ position: "absolute", top: -70, right: -50, width: 190, height: 190, borderRadius: "50%", background: "radial-gradient(circle,rgba(255,255,255,.16),transparent 70%)" }} />
-        <div style={{ position: "absolute", bottom: -40, left: -40, width: 150, height: 150, borderRadius: "50%", background: "radial-gradient(circle,rgba(255,255,255,.10),transparent 70%)" }} />
-        <div style={{ position: "relative" }}>
-          <div style={{ width: 82, height: 82, borderRadius: 22, background: "#fff", display: "grid", placeItems: "center", margin: "0 auto 16px", boxShadow: "0 12px 30px rgba(0,0,0,.22)" }}>
-            <img src={logoImg} alt="Eurobond" style={{ height: 44 }} />
-          </div>
-          <div style={{ fontSize: 23, fontWeight: 800, letterSpacing: .3, lineHeight: 1.15 }}>Eurobond Field</div>
-          <div style={{ fontSize: 13, opacity: .9, marginTop: 6 }}>Your sales day — all in one place</div>
+    <div className="phone-body" style={{ display: "grid", placeItems: "center", padding: 24, background: "#fff" }}>
+      <div style={{ width: "100%", maxWidth: 340 }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 18 }}>
+          <img src={logoImg} alt="Eurobond" style={{ height: 54, marginBottom: 10, animation: "ebFade .6s ease both" }} />
+          {/* a simple route that draws itself, with two map pins dropping in */}
+          <svg width="250" height="100" viewBox="0 0 250 100" style={{ maxWidth: "100%" }}>
+            <style>{`
+              @keyframes ebDraw { to { stroke-dashoffset: 0; } }
+              @keyframes ebDrop { 0% { opacity: 0; transform: translateY(-12px); } 100% { opacity: 1; transform: translateY(0); } }
+              @keyframes ebFade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+              .eb-route { stroke-dasharray: 360; stroke-dashoffset: 360; animation: ebDraw 1.8s ease forwards; }
+              .eb-p1 { transform-box: fill-box; transform-origin: center bottom; animation: ebDrop .5s ease .5s both; }
+              .eb-p2 { transform-box: fill-box; transform-origin: center bottom; animation: ebDrop .5s ease 1.4s both; }
+            `}</style>
+            <path className="eb-route" d="M36 30 C 110 42, 70 64, 130 66 C 196 68, 176 88, 214 84" stroke="#123f8f" strokeWidth="4.5" fill="none" strokeLinecap="round" />
+            <g className="eb-p1" transform="translate(36,30)">
+              <path d="M0 -18 C 11 -18, 11 -2, 0 8 C -11 -2, -11 -18, 0 -18 Z" fill="#123f8f" />
+              <circle cx="0" cy="-10" r="4" fill="#fff" />
+            </g>
+            <g className="eb-p2" transform="translate(214,84)">
+              <path d="M0 -18 C 11 -18, 11 -2, 0 8 C -11 -2, -11 -18, 0 -18 Z" fill="#c0392b" />
+              <circle cx="0" cy="-10" r="4" fill="#fff" />
+            </g>
+          </svg>
+          <div style={{ fontFamily: "Bricolage Grotesque", fontWeight: 800, fontSize: 20, color: "#1c2340", marginTop: 4, animation: "ebFade .6s ease .2s both" }}>Eurobond <span style={{ color: "#c0392b" }}>Field Sales</span></div>
         </div>
-      </div>
-      {/* ---- floating login card ---- */}
-      <div style={{ width: "100%", maxWidth: 360, margin: "-46px auto 0", padding: "0 20px 24px" }}>
-        <div style={{ background: "#fff", borderRadius: 22, padding: 20, boxShadow: "0 24px 60px rgba(11,42,107,.18), 0 4px 14px rgba(11,42,107,.08)", border: "1px solid #e8edf9" }}>
-        <div style={{ textAlign: "center", fontSize: 16.5, fontWeight: 800, color: "var(--navy)", marginBottom: 2 }}>{step === 1 ? "Welcome back 👋" : "Verify it's you"}</div>
+        <div style={{ background: "#fff", borderRadius: 20, padding: 18, boxShadow: "0 20px 50px rgba(11,60,140,.15), 0 4px 12px rgba(11,60,140,.08)", border: "1px solid #eef1f8" }}>
         <p style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, marginBottom: 22 }}>
           {step === 1 ? "Login with your mobile number — OTP will be sent to your registered email" : `Enter the OTP sent to ${maskedEmail || "your email"}`}
         </p>
@@ -7350,8 +7359,11 @@ function FieldQuotationList() {
                 <div style={{ display: "flex", gap: 5, marginTop: 8 }}>
                   <button onClick={() => setView(qr)} style={{ ...actBtn("#3949ab"), flex: 1, background: "#eef1ff", color: "#3949ab", padding: "6px 4px", fontSize: 11 }}>👁 View</button>
                   <button onClick={() => { QUOTE_EDIT.data = qr; nav("/app/m/quotation/new"); }} style={{ ...actBtn("#f59e0b"), flex: 1, background: "#fef3e2", color: "#c07f00", padding: "6px 4px", fontSize: 11 }}>✎ Edit</button>
-                  {/* Status: Win (with invoices) or Loss (with remark) */}
-                  <button onClick={() => setWinFor(qr)} style={{ ...actBtn("#059669"), flex: 1, background: qr.status === "Lost" ? "#fdecec" : "#e5f9f1", color: qr.status === "Lost" ? "#c03636" : "#059669", padding: "6px 4px", fontSize: 11 }}>⚑ Status</button>
+                  {/* Status (Win / Loss) — shows only AFTER the admin has approved
+                      the quotation; before that the sales person cannot set it */}
+                  {["Approved", "Win", "Lost"].includes(qr.status) && (
+                    <button onClick={() => setWinFor(qr)} style={{ ...actBtn("#059669"), flex: 1, background: qr.status === "Lost" ? "#fdecec" : "#e5f9f1", color: qr.status === "Lost" ? "#c03636" : "#059669", padding: "6px 4px", fontSize: 11 }}>⚑ Status</button>
+                  )}
                 </div>
               </div>
             )); })()}
@@ -7485,6 +7497,7 @@ function WinEntries({ rec }) {
 function QuotationWin({ q, onClose, onDone }) {
   const [tab, setTab] = useState(q.status === "Lost" ? "Loss" : "Win");
   const [sqm, setSqm] = useState("");
+  const [amount, setAmount] = useState("");
   const [file, setFile] = useState(null);
   const [remark, setRemark] = useState(q.lossRemark || "");
   const [busy, setBusy] = useState(false);
@@ -7499,7 +7512,7 @@ function QuotationWin({ q, onClose, onDone }) {
       }
       let invoiceUrl = "";
       if (file) invoiceUrl = (await api.uploadPhoto(file, "quotation")).url;
-      await api.update("quotation", q._id, { ...q, status: "Win", lossRemark: "", ...winAppend(q, { sqm, url: invoiceUrl }) });
+      await api.update("quotation", q._id, { ...q, status: "Win", lossRemark: "", ...winAppend(q, { sqm, amount, url: invoiceUrl }) });
       try { await api.create("notification", { title: "Quotation Won", message: `${q.quoteNo || q.id} marked as Win`, forRole: "Admin", link: "/admin/sfa/quotation", at: new Date().toISOString() }); } catch {}
       onDone();
     } catch (e) { alert(e.message); setBusy(false); }
@@ -7518,6 +7531,8 @@ function QuotationWin({ q, onClose, onDone }) {
             <WinEntries rec={q} />
             <label style={{ fontSize: 12.5, fontWeight: 700 }}>Sq. Meter</label>
             <input inputMode="decimal" value={sqm} onChange={(e) => setSqm(e.target.value.replace(/[^\d.]/g, ""))} placeholder="e.g. 500" style={{ width: "100%", marginBottom: 12 }} />
+            <label style={{ fontSize: 12.5, fontWeight: 700 }}>Amount (₹)</label>
+            <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))} placeholder="e.g. 250000" style={{ width: "100%", marginBottom: 12 }} />
             <label style={{ fontSize: 12.5, fontWeight: 700 }}>Invoice (photo / PDF)</label>
             <input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files[0])} style={{ width: "100%", marginBottom: 14 }} />
           </>

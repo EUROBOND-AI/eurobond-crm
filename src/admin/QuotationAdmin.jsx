@@ -510,12 +510,29 @@ function QuoteAdminView({ q, onClose, onPdf }) {
             {q.tc.remarks && <div><b>Remarks:</b> {q.tc.remarks}</div>}
           </div>
         )}
-        {q.status === "Win" && q.winInvoice && (
-          <div style={{ marginTop: 14 }}>
-            <b style={{ fontSize: 13 }}>Invoice (Won · {q.winSqm} sq.mtr):</b>
-            {String(q.winInvoice).toLowerCase().includes(".pdf")
-              ? <a href={q.winInvoice} target="_blank" rel="noreferrer" className="btn btn-soft" style={{ marginTop: 6, display: "inline-block" }}>Open Invoice PDF</a>
-              : <img src={q.winInvoice} alt="Invoice" style={{ width: "100%", borderRadius: 10, marginTop: 6 }} />}
+        {q.status === "Win" && (() => {
+          const list = Array.isArray(q.winInvoices) && q.winInvoices.length
+            ? q.winInvoices
+            : ((q.winInvoice || q.winSqm || q.winAmount) ? [{ url: q.winInvoice || "", sqm: q.winSqm || "", amount: q.winAmount || "" }] : []);
+          const tot = (k) => list.reduce((t, x) => t + (parseFloat(x[k]) || 0), 0);
+          const sqmT = q.winSqm || (tot("sqm") ? Math.round(tot("sqm") * 100) / 100 : "");
+          const amtT = q.winAmount || tot("amount");
+          return (
+            <div style={{ marginTop: 14, background: "#f3faf6", border: "1px solid #cfe8d8", borderRadius: 10, padding: "12px 14px" }}>
+              <div style={{ fontWeight: 800, fontSize: 13.5, color: "#0f7a44", marginBottom: 6 }}>🏆 Won{sqmT ? ` · ${sqmT} sq.mtr` : ""}{amtT ? ` · ₹${Number(amtT).toLocaleString("en-IN")}` : ""}</div>
+              {list.map((x, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, fontSize: 12.5, padding: "4px 0", borderTop: i ? "1px solid #dcefe3" : "none" }}>
+                  <span>#{i + 1} {x.sqm ? x.sqm + " sq.mtr" : ""}{x.amount ? " · ₹" + Number(x.amount).toLocaleString("en-IN") : ""}{x.at ? " · " + String(x.at).split(",")[0] : ""}</span>
+                  {x.url && <a href={x.url} target="_blank" rel="noreferrer" style={{ color: "var(--accent)", fontWeight: 700 }}>{String(x.url).toLowerCase().includes(".pdf") ? "Invoice PDF" : "View invoice"}</a>}
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+        {q.status === "Lost" && (
+          <div style={{ marginTop: 14, background: "#fdecec", border: "1px solid #f3c2c2", borderRadius: 10, padding: "12px 14px" }}>
+            <div style={{ fontWeight: 800, fontSize: 13.5, color: "#c03636", marginBottom: 4 }}>✗ Lost</div>
+            <div style={{ fontSize: 13, whiteSpace: "pre-wrap" }}>{q.lossRemark || "—"}</div>
           </div>
         )}
         <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "center" }}>

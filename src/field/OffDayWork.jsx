@@ -74,7 +74,8 @@ export function FieldOffDayWork() {
         {rows === null ? <SkeletonList rows={4} /> : rows.length === 0 ? (
           <div style={{ color: "var(--muted)", padding: 30, textAlign: "center" }}>No off-day work requests yet.<br />Tap <b>+ Apply</b> to request one.</div>
         ) : rows.map((r) => (
-          <div key={r._id} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "var(--shadow)" }}>
+          <div key={r._id} onClick={() => r._id && nav(`/app/thread/offDayWork/${r._id}`)}
+            style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "var(--shadow)", cursor: "pointer" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
               <div>
                 <div style={{ fontWeight: 800, fontSize: 14 }}>{r.date || "—"} <span style={{ fontWeight: 600, color: "var(--muted)", fontSize: 12 }}>· {r.dayType || "Off day"}</span></div>
@@ -84,6 +85,7 @@ export function FieldOffDayWork() {
               </div>
               <Chip s={statusOf(r)} />
             </div>
+            <div style={{ color: "var(--accent)", fontSize: 11, marginTop: 6, fontWeight: 700 }}>💬 Tap to view / chat</div>
           </div>
         ))}
       </div>
