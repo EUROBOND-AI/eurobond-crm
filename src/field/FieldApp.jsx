@@ -738,59 +738,92 @@ function FieldLogin({ onLogin }) {
       <div style={{ width: "100%", maxWidth: 340 }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 18 }}>
           <img src={logoImg} alt="Eurobond" style={{ height: 54, marginBottom: 10 }} />
-          {/* a little story that draws itself: a field executive walks up as the
-              Eurobond building rises beside him, the EUROBOND name appears, and a
-              flower blooms — growth. All self-drawn, on-brand (navy + red). */}
-          <svg width="290" height="174" viewBox="0 0 300 180" style={{ maxWidth: "100%" }}>
+          {/* a colourful little story that plays on open: the Eurobond building
+              rises from the ground, a field executive walks up (arms & legs
+              moving), the EUROBOND name lights on, and a flower blooms — "Your
+              Growth". Full colour, on-brand. */}
+          <svg width="310" height="194" viewBox="0 0 320 200" style={{ maxWidth: "100%" }}>
+            <defs>
+              <linearGradient id="ebSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#e3f2fd" /><stop offset="1" stopColor="#f6fbff" /></linearGradient>
+              <linearGradient id="ebGlass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#6db3ef" /><stop offset="1" stopColor="#3d7fc4" /></linearGradient>
+              <clipPath id="ebRound"><rect x="0" y="0" width="320" height="200" rx="18" /></clipPath>
+            </defs>
             <style>{`
-              @keyframes ebDr  { to { stroke-dashoffset: 0; } }
-              @keyframes ebFin { from { opacity:0 } to { opacity:1 } }
-              @keyframes ebWalk{ 0%{ transform: translateX(-30px) } 100%{ transform: translateX(28px) } }
-              @keyframes ebBob { 0%,100%{ transform: translateY(0) } 50%{ transform: translateY(-2px) } }
-              @keyframes ebPop { 0%{ opacity:0; transform:scale(0) } 70%{ transform:scale(1.3) } 100%{ opacity:1; transform:scale(1) } }
-              .eb-bld{ stroke-dasharray:420; stroke-dashoffset:420; animation: ebDr 1.5s ease .2s forwards; }
-              .eb-grid{ opacity:0; animation: ebFin .6s ease 1.3s forwards; }
-              .eb-p1{ opacity:0; animation: ebFin .4s ease 1.5s forwards; }
-              .eb-p2{ opacity:0; animation: ebFin .4s ease 1.75s forwards; }
-              .eb-p3{ opacity:0; animation: ebFin .4s ease 2.0s forwards; }
-              .eb-brand{ opacity:0; animation: ebFin .7s ease 2.1s forwards; }
-              .eb-walker{ animation: ebWalk 2.4s ease-in-out .3s forwards; }
-              .eb-bob{ animation: ebBob .5s ease-in-out .3s 5; }
-              .eb-fig{ stroke-dasharray:260; stroke-dashoffset:260; animation: ebDr 1.1s ease .3s forwards; }
-              .eb-bag{ opacity:0; animation: ebFin .4s ease 1.0s forwards; }
-              .eb-petal{ transform-box: fill-box; transform-origin: 150px 132px; opacity:0; }
-              .eb-pt1{ animation: ebPop .4s ease 2.5s both; } .eb-pt2{ animation: ebPop .4s ease 2.65s both; }
-              .eb-pt3{ animation: ebPop .4s ease 2.8s both; } .eb-pt4{ animation: ebPop .4s ease 2.95s both; }
-              .eb-core{ transform-box: fill-box; transform-origin:center; opacity:0; animation: ebPop .4s ease 3.1s both; }
-              .eb-stem{ stroke-dasharray:30; stroke-dashoffset:30; animation: ebDr .5s ease 2.3s forwards; }
+              @keyframes ebRise { from{ transform: scaleY(0) } to{ transform: scaleY(1) } }
+              @keyframes ebFin  { from{opacity:0} to{opacity:1} }
+              @keyframes ebWalkIn { from{ transform: translateX(-70px) } to{ transform: translateX(0) } }
+              @keyframes ebBob  { 0%,100%{ transform: translateY(0) } 50%{ transform: translateY(-2.5px) } }
+              @keyframes ebLegF { 0%{ transform: rotate(22deg) } 50%{ transform: rotate(-22deg) } 100%{ transform: rotate(22deg) } }
+              @keyframes ebLegB { 0%{ transform: rotate(-22deg) } 50%{ transform: rotate(22deg) } 100%{ transform: rotate(-22deg) } }
+              @keyframes ebArmF { 0%{ transform: rotate(-20deg) } 50%{ transform: rotate(18deg) } 100%{ transform: rotate(-20deg) } }
+              @keyframes ebArmB { 0%{ transform: rotate(20deg) } 50%{ transform: rotate(-18deg) } 100%{ transform: rotate(20deg) } }
+              @keyframes ebBloom{ 0%{opacity:0; transform:scale(0)} 65%{transform:scale(1.25)} 100%{opacity:1; transform:scale(1)} }
+              @keyframes ebGrow { to { stroke-dashoffset: 0; } }
+              .eb-bld{ transform-box: fill-box; transform-origin: center bottom; animation: ebRise 1.6s cubic-bezier(.2,.8,.2,1) .2s both; }
+              .eb-lit1{ opacity:0; animation: ebFin .4s ease 1.6s forwards; }
+              .eb-lit2{ opacity:0; animation: ebFin .4s ease 1.85s forwards; }
+              .eb-lit3{ opacity:0; animation: ebFin .4s ease 2.1s forwards; }
+              .eb-brand{ opacity:0; animation: ebFin .7s ease 2.2s forwards; }
+              .eb-person{ animation: ebWalkIn 2.6s ease-out .2s both; }
+              .eb-pbob{ animation: ebBob .5s ease-in-out .2s 6 both; }
+              .eb-legF{ transform-box: fill-box; transform-origin: center top; animation: ebLegF .5s ease-in-out .2s 6 both; }
+              .eb-legB{ transform-box: fill-box; transform-origin: center top; animation: ebLegB .5s ease-in-out .2s 6 both; }
+              .eb-armF{ transform-box: fill-box; transform-origin: center top; animation: ebArmF .5s ease-in-out .2s 6 both; }
+              .eb-armB{ transform-box: fill-box; transform-origin: center top; animation: ebArmB .5s ease-in-out .2s 6 both; }
+              .eb-stem{ stroke-dasharray:44; stroke-dashoffset:44; animation: ebGrow .6s ease 2.3s forwards; }
+              .eb-leaf{ opacity:0; animation: ebFin .4s ease 2.6s forwards; }
+              .eb-petal{ transform-box: fill-box; transform-origin: center; opacity:0; }
+              .eb-q1{animation:ebBloom .4s ease 2.7s both} .eb-q2{animation:ebBloom .4s ease 2.8s both}
+              .eb-q3{animation:ebBloom .4s ease 2.9s both} .eb-q4{animation:ebBloom .4s ease 3.0s both}
+              .eb-q5{animation:ebBloom .4s ease 3.1s both} .eb-q6{animation:ebBloom .4s ease 3.2s both}
+              .eb-fcore{ transform-box: fill-box; transform-origin:center; opacity:0; animation: ebBloom .4s ease 3.3s both; }
+              .eb-gtext{ opacity:0; animation: ebFin .6s ease 3.5s forwards; }
             `}</style>
-            <line x1="18" y1="152" x2="282" y2="152" stroke="#123f8f" strokeWidth="3" strokeLinecap="round" />
-            <path className="eb-bld" d="M196 152 V48 H266 V152" fill="none" stroke="#123f8f" strokeWidth="3.5" strokeLinejoin="round" />
-            <g className="eb-grid" stroke="#123f8f" strokeWidth="1.3" opacity="0.75">
-              <line x1="196" y1="70" x2="266" y2="70" /><line x1="196" y1="92" x2="266" y2="92" />
-              <line x1="196" y1="114" x2="266" y2="114" /><line x1="196" y1="134" x2="266" y2="134" />
-              <line x1="219" y1="48" x2="219" y2="152" /><line x1="242" y1="48" x2="242" y2="152" />
-            </g>
-            <rect className="eb-p1" x="196" y="48" width="23" height="22" fill="#1b3a8f" opacity="0.22" />
-            <rect className="eb-p2" x="242" y="92" width="24" height="22" fill="#1b3a8f" opacity="0.22" />
-            <rect className="eb-p3" x="219" y="114" width="23" height="20" fill="#c0392b" opacity="0.30" />
-            <text className="eb-brand" x="231" y="38" textAnchor="middle" fontFamily="Bricolage Grotesque, Segoe UI, Arial" fontWeight="800" fontSize="15" fill="#0f2d6b">EUROBOND</text>
-            <g className="eb-walker"><g className="eb-bob">
-              <path className="eb-fig" d="M66 92 m0 11 v22 M66 125 l -9 22 M66 125 l 11 22 M66 112 l -10 11 M66 112 l 13 9" fill="none" stroke="#123f8f" strokeWidth="3.5" strokeLinecap="round" />
-              <circle className="eb-fig" cx="66" cy="92" r="11" fill="none" stroke="#123f8f" strokeWidth="3.5" />
-              <g className="eb-bag"><rect x="77" y="118" width="20" height="15" rx="2" fill="none" stroke="#c0392b" strokeWidth="2.6" />
-                <line x1="83" y1="118" x2="83" y2="114" stroke="#c0392b" strokeWidth="2.6" /><line x1="91" y1="118" x2="91" y2="114" stroke="#c0392b" strokeWidth="2.6" /></g>
-            </g></g>
-            <g transform="translate(20,0)">
-              <line className="eb-stem" x1="150" y1="152" x2="150" y2="132" stroke="#1b7a44" strokeWidth="3" strokeLinecap="round" />
-              <g fill="#1b3a8f">
-                <path className="eb-petal eb-pt1" d="M150 132 C 138 120, 140 106, 150 112 C 160 106, 162 120, 150 132" opacity="0.85" />
-                <path className="eb-petal eb-pt2" d="M150 132 C 162 124, 174 130, 166 140 C 172 150, 158 150, 150 132" opacity="0.85" />
-                <path className="eb-petal eb-pt3" d="M150 132 C 150 148, 136 152, 134 140 C 126 148, 130 128, 150 132" opacity="0.85" />
-                <path className="eb-petal eb-pt4" d="M150 132 C 136 136, 126 128, 134 120 C 128 112, 144 116, 150 132" opacity="0.85" />
+            <g clipPath="url(#ebRound)">
+              <rect x="0" y="0" width="320" height="200" fill="url(#ebSky)" />
+              <rect x="0" y="162" width="320" height="38" fill="#74c56e" />
+              <rect x="0" y="162" width="320" height="4" fill="#5fb259" />
+              <g className="eb-bld">
+                <rect x="214" y="70" width="74" height="92" fill="#3a4f7d" />
+                <rect x="220" y="76" width="62" height="80" fill="url(#ebGlass)" />
+                <g stroke="#2f4368" strokeWidth="2" opacity="0.5">
+                  <line x1="241" y1="76" x2="241" y2="156" /><line x1="261" y1="76" x2="261" y2="156" />
+                  <line x1="220" y1="98" x2="282" y2="98" /><line x1="220" y1="120" x2="282" y2="120" /><line x1="220" y1="140" x2="282" y2="140" />
+                </g>
+                <rect className="eb-lit1" x="222" y="78" width="17" height="18" fill="#ffd45a" />
+                <rect className="eb-lit2" x="263" y="100" width="17" height="18" fill="#ffd45a" />
+                <rect className="eb-lit3" x="243" y="122" width="16" height="16" fill="#ffd45a" />
+                <rect x="214" y="70" width="74" height="7" fill="#c0392b" />
               </g>
-              <circle className="eb-core" cx="150" cy="132" r="6" fill="#c0392b" />
+              <text className="eb-brand" x="251" y="60" textAnchor="middle" fontFamily="Segoe UI,Arial" fontWeight="800" fontSize="14" fill="#1b3a8f">EUROBOND</text>
+              <g transform="translate(70,0)"><g className="eb-person"><g className="eb-pbob">
+                <g className="eb-legB"><rect x="-4" y="120" width="8" height="38" rx="4" fill="#2b3b63" /><ellipse cx="2" cy="159" rx="8" ry="4" fill="#22304f" /></g>
+                <g className="eb-legF"><rect x="-4" y="120" width="8" height="38" rx="4" fill="#33467a" /><ellipse cx="2" cy="159" rx="8" ry="4" fill="#2a3a5e" /></g>
+                <g className="eb-armB"><rect x="-3" y="98" width="7" height="24" rx="3.5" fill="#d85c2a" /></g>
+                <path d="M-11 98 Q -11 92 0 92 Q 11 92 11 98 L 9 122 Q 0 126 -9 122 Z" fill="#e8743b" />
+                <circle cx="0" cy="80" r="11" fill="#eeb58c" />
+                <path d="M-11 78 Q 0 64 11 78 Q 6 72 0 72 Q -6 72 -11 78 Z" fill="#3a2a1e" />
+                <g className="eb-armF"><rect x="-3" y="98" width="7" height="24" rx="3.5" fill="#f08043" />
+                  <rect x="6" y="118" width="18" height="14" rx="2" fill="#8a5a2b" stroke="#6e4620" strokeWidth="1.5" />
+                  <rect x="12" y="114" width="6" height="5" rx="1.5" fill="none" stroke="#6e4620" strokeWidth="1.5" /></g>
+              </g></g></g>
+              <g transform="translate(150,0)">
+                <line className="eb-stem" x1="0" y1="162" x2="0" y2="118" stroke="#3fa845" strokeWidth="3.5" strokeLinecap="round" />
+                <path className="eb-leaf" d="M0 140 C -14 132, -20 142, -6 146 C -2 144, 0 142, 0 140 Z" fill="#46b94f" />
+                <path className="eb-leaf" d="M0 150 C 14 142, 20 152, 6 156 C 2 154, 0 152, 0 150 Z" fill="#3fa845" />
+                <g fill="#ff6fa5">
+                  <ellipse className="eb-petal eb-q1" cx="0" cy="100" rx="7" ry="12" />
+                  <g transform="rotate(60 13 108)"><ellipse className="eb-petal eb-q2" cx="13" cy="108" rx="7" ry="12" /></g>
+                  <g transform="rotate(120 13 124)"><ellipse className="eb-petal eb-q3" cx="13" cy="124" rx="7" ry="12" /></g>
+                  <ellipse className="eb-petal eb-q4" cx="0" cy="132" rx="7" ry="12" />
+                  <g transform="rotate(60 -13 124)"><ellipse className="eb-petal eb-q5" cx="-13" cy="124" rx="7" ry="12" /></g>
+                  <g transform="rotate(120 -13 108)"><ellipse className="eb-petal eb-q6" cx="-13" cy="108" rx="7" ry="12" /></g>
+                </g>
+                <circle className="eb-fcore" cx="0" cy="116" r="8.5" fill="#ffc83d" />
+                <text className="eb-gtext" x="0" y="184" textAnchor="middle" fontFamily="Brush Script MT, Segoe Script, cursive" fontWeight="700" fontSize="16" fill="#2b7a3f">Your Growth</text>
+              </g>
             </g>
+            <rect x="1" y="1" width="318" height="198" rx="18" fill="none" stroke="#e3e9f5" strokeWidth="2" />
           </svg>
         </div>
         <div style={{ background: "#fff", borderRadius: 20, padding: 18, boxShadow: "0 20px 50px rgba(11,60,140,.15), 0 4px 12px rgba(11,60,140,.08)", border: "1px solid #eef1f8" }}>
