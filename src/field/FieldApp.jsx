@@ -737,35 +737,60 @@ function FieldLogin({ onLogin }) {
     <div className="phone-body" style={{ display: "grid", placeItems: "center", padding: 24, background: "#fff" }}>
       <div style={{ width: "100%", maxWidth: 340 }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 18 }}>
-          <img src={logoImg} alt="Eurobond" style={{ height: 54, marginBottom: 10, animation: "ebFade .6s ease both" }} />
-          {/* a growth line that draws itself and climbs, soft area fills in and
-              value dots pop on — a clean, on-brand motion (no map) */}
-          <svg width="252" height="112" viewBox="0 0 252 112" style={{ maxWidth: "100%" }}>
-            <defs>
-              <linearGradient id="ebArea" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#1b3a8f" stopOpacity="0.20" />
-                <stop offset="100%" stopColor="#1b3a8f" stopOpacity="0" />
-              </linearGradient>
-            </defs>
+          <img src={logoImg} alt="Eurobond" style={{ height: 54, marginBottom: 10 }} />
+          {/* a little story that draws itself: a field executive walks up as the
+              Eurobond building rises beside him, the EUROBOND name appears, and a
+              flower blooms — growth. All self-drawn, on-brand (navy + red). */}
+          <svg width="290" height="174" viewBox="0 0 300 180" style={{ maxWidth: "100%" }}>
             <style>{`
-              @keyframes ebDraw { to { stroke-dashoffset: 0; } }
-              @keyframes ebFade { from { opacity: 0; } to { opacity: 1; } }
-              @keyframes ebPop { 0% { opacity: 0; transform: scale(0); } 70% { transform: scale(1.4); } 100% { opacity: 1; transform: scale(1); } }
-              .eb-line { stroke-dasharray: 320; stroke-dashoffset: 320; animation: ebDraw 1.7s ease forwards; }
-              .eb-area { opacity: 0; animation: ebFade .7s ease 1.25s forwards; }
-              .eb-d { transform-box: fill-box; transform-origin: center; opacity: 0; }
-              .eb-d1 { animation: ebPop .4s ease .55s both; }
-              .eb-d2 { animation: ebPop .4s ease .85s both; }
-              .eb-d3 { animation: ebPop .4s ease 1.15s both; }
-              .eb-d4 { animation: ebPop .45s ease 1.45s both; }
+              @keyframes ebDr  { to { stroke-dashoffset: 0; } }
+              @keyframes ebFin { from { opacity:0 } to { opacity:1 } }
+              @keyframes ebWalk{ 0%{ transform: translateX(-30px) } 100%{ transform: translateX(28px) } }
+              @keyframes ebBob { 0%,100%{ transform: translateY(0) } 50%{ transform: translateY(-2px) } }
+              @keyframes ebPop { 0%{ opacity:0; transform:scale(0) } 70%{ transform:scale(1.3) } 100%{ opacity:1; transform:scale(1) } }
+              .eb-bld{ stroke-dasharray:420; stroke-dashoffset:420; animation: ebDr 1.5s ease .2s forwards; }
+              .eb-grid{ opacity:0; animation: ebFin .6s ease 1.3s forwards; }
+              .eb-p1{ opacity:0; animation: ebFin .4s ease 1.5s forwards; }
+              .eb-p2{ opacity:0; animation: ebFin .4s ease 1.75s forwards; }
+              .eb-p3{ opacity:0; animation: ebFin .4s ease 2.0s forwards; }
+              .eb-brand{ opacity:0; animation: ebFin .7s ease 2.1s forwards; }
+              .eb-walker{ animation: ebWalk 2.4s ease-in-out .3s forwards; }
+              .eb-bob{ animation: ebBob .5s ease-in-out .3s 5; }
+              .eb-fig{ stroke-dasharray:260; stroke-dashoffset:260; animation: ebDr 1.1s ease .3s forwards; }
+              .eb-bag{ opacity:0; animation: ebFin .4s ease 1.0s forwards; }
+              .eb-petal{ transform-box: fill-box; transform-origin: 150px 132px; opacity:0; }
+              .eb-pt1{ animation: ebPop .4s ease 2.5s both; } .eb-pt2{ animation: ebPop .4s ease 2.65s both; }
+              .eb-pt3{ animation: ebPop .4s ease 2.8s both; } .eb-pt4{ animation: ebPop .4s ease 2.95s both; }
+              .eb-core{ transform-box: fill-box; transform-origin:center; opacity:0; animation: ebPop .4s ease 3.1s both; }
+              .eb-stem{ stroke-dasharray:30; stroke-dashoffset:30; animation: ebDr .5s ease 2.3s forwards; }
             `}</style>
-            <line x1="22" y1="96" x2="236" y2="96" stroke="#e5e9f4" strokeWidth="2" strokeLinecap="round" />
-            <path className="eb-area" d="M26 82 L 82 68 L 134 74 L 188 46 L 228 24 L 228 96 L 26 96 Z" fill="url(#ebArea)" />
-            <polyline className="eb-line" points="26,82 82,68 134,74 188,46 228,24" fill="none" stroke="#1b3a8f" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" />
-            <circle className="eb-d eb-d1" cx="82" cy="68" r="4.5" fill="#1b3a8f" />
-            <circle className="eb-d eb-d2" cx="134" cy="74" r="4.5" fill="#1b3a8f" />
-            <circle className="eb-d eb-d3" cx="188" cy="46" r="4.5" fill="#1b3a8f" />
-            <circle className="eb-d eb-d4" cx="228" cy="24" r="6" fill="#c0392b" />
+            <line x1="18" y1="152" x2="282" y2="152" stroke="#123f8f" strokeWidth="3" strokeLinecap="round" />
+            <path className="eb-bld" d="M196 152 V48 H266 V152" fill="none" stroke="#123f8f" strokeWidth="3.5" strokeLinejoin="round" />
+            <g className="eb-grid" stroke="#123f8f" strokeWidth="1.3" opacity="0.75">
+              <line x1="196" y1="70" x2="266" y2="70" /><line x1="196" y1="92" x2="266" y2="92" />
+              <line x1="196" y1="114" x2="266" y2="114" /><line x1="196" y1="134" x2="266" y2="134" />
+              <line x1="219" y1="48" x2="219" y2="152" /><line x1="242" y1="48" x2="242" y2="152" />
+            </g>
+            <rect className="eb-p1" x="196" y="48" width="23" height="22" fill="#1b3a8f" opacity="0.22" />
+            <rect className="eb-p2" x="242" y="92" width="24" height="22" fill="#1b3a8f" opacity="0.22" />
+            <rect className="eb-p3" x="219" y="114" width="23" height="20" fill="#c0392b" opacity="0.30" />
+            <text className="eb-brand" x="231" y="38" textAnchor="middle" fontFamily="Bricolage Grotesque, Segoe UI, Arial" fontWeight="800" fontSize="15" fill="#0f2d6b">EUROBOND</text>
+            <g className="eb-walker"><g className="eb-bob">
+              <path className="eb-fig" d="M66 92 m0 11 v22 M66 125 l -9 22 M66 125 l 11 22 M66 112 l -10 11 M66 112 l 13 9" fill="none" stroke="#123f8f" strokeWidth="3.5" strokeLinecap="round" />
+              <circle className="eb-fig" cx="66" cy="92" r="11" fill="none" stroke="#123f8f" strokeWidth="3.5" />
+              <g className="eb-bag"><rect x="77" y="118" width="20" height="15" rx="2" fill="none" stroke="#c0392b" strokeWidth="2.6" />
+                <line x1="83" y1="118" x2="83" y2="114" stroke="#c0392b" strokeWidth="2.6" /><line x1="91" y1="118" x2="91" y2="114" stroke="#c0392b" strokeWidth="2.6" /></g>
+            </g></g>
+            <g transform="translate(20,0)">
+              <line className="eb-stem" x1="150" y1="152" x2="150" y2="132" stroke="#1b7a44" strokeWidth="3" strokeLinecap="round" />
+              <g fill="#1b3a8f">
+                <path className="eb-petal eb-pt1" d="M150 132 C 138 120, 140 106, 150 112 C 160 106, 162 120, 150 132" opacity="0.85" />
+                <path className="eb-petal eb-pt2" d="M150 132 C 162 124, 174 130, 166 140 C 172 150, 158 150, 150 132" opacity="0.85" />
+                <path className="eb-petal eb-pt3" d="M150 132 C 150 148, 136 152, 134 140 C 126 148, 130 128, 150 132" opacity="0.85" />
+                <path className="eb-petal eb-pt4" d="M150 132 C 136 136, 126 128, 134 120 C 128 112, 144 116, 150 132" opacity="0.85" />
+              </g>
+              <circle className="eb-core" cx="150" cy="132" r="6" fill="#c0392b" />
+            </g>
           </svg>
         </div>
         <div style={{ background: "#fff", borderRadius: 20, padding: 18, boxShadow: "0 20px 50px rgba(11,60,140,.15), 0 4px 12px rgba(11,60,140,.08)", border: "1px solid #eef1f8" }}>
