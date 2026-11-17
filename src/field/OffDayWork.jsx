@@ -11,12 +11,12 @@ const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0
 
 /* The rules the person must read EVERY time they open this module. */
 export const OFFDAY_RULES = [
-  "To mark attendance and work on a Sunday or Holiday (a non-working day), you must take your HOD's permission in advance — on the day before.",
-  "If you work, you must also enter a minimum of 5 New customers or Revisit customers.",
-  "If you visit only one customer instead of 5, you must give a proper explanation to your HOD and to HO.",
-  "For exhibition-related work, take the same approval one day in advance.",
-  "If you are already on Tour, you must also take approval for your Return or Stay.",
-  "Instructions are clear from HO: please take approvals or clear any doubts one day before, because HO does not work on Holidays & Sundays.",
+  "Working on a Sunday or a declared Holiday requires prior approval from your HOD, obtained on the preceding working day.",
+  "On any approved working day, you must record a minimum of five (5) New or Revisit customer entries.",
+  "If fewer than five customers are visited, a written justification must be submitted to your HOD and to Head Office.",
+  "Participation in exhibitions or events on a non-working day requires the same approval, secured at least one day in advance.",
+  "If you are already on an outstation tour, separate approval must be obtained for any extension, return or stay.",
+  "Head Office remains closed on Sundays and Holidays. Kindly obtain all approvals and clarify any queries at least one day in advance.",
 ];
 
 function statusOf(r) {
@@ -38,7 +38,7 @@ function RulesPopup({ onAgree }) {
       <div className="f-sheet sheet-3d" onClick={(e) => e.stopPropagation()} style={{ maxHeight: "88vh", overflowY: "auto" }}>
         <div style={{ textAlign: "center", marginBottom: 6 }}>
           <div style={{ width: 54, height: 54, borderRadius: 16, background: "#eef3ff", display: "grid", placeItems: "center", margin: "0 auto 10px" }}><CalendarCheck size={26} color="#1b3a8f" /></div>
-          <div style={{ fontWeight: 800, fontSize: 17, color: "var(--navy)" }}>Off-Day Work — Please Read</div>
+          <div style={{ fontWeight: 800, fontSize: 17, color: "var(--navy)" }}>Special Working — Please Read</div>
           <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>Working on a Sunday / Holiday needs HOD approval</div>
         </div>
         <div style={{ marginTop: 14 }}>
@@ -69,10 +69,10 @@ export function FieldOffDayWork() {
 
   return (
     <>
-      <ScreenHead title="Off-Day Work" right={agreed ? <button className="f-submit" style={{ padding: "8px 14px", fontSize: 12.5 }} onClick={() => nav("/app/off-day-work/new")}>+ Apply</button> : null} />
+      <ScreenHead title="Special Working" right={agreed ? <button className="f-submit" style={{ padding: "8px 14px", fontSize: 12.5 }} onClick={() => nav("/app/off-day-work/new")}>+ Apply</button> : null} />
       <div className="f-list-pad" style={{ paddingTop: 12 }}>
         {rows === null ? <SkeletonList rows={4} /> : rows.length === 0 ? (
-          <div style={{ color: "var(--muted)", padding: 30, textAlign: "center" }}>No off-day work requests yet.<br />Tap <b>+ Apply</b> to request one.</div>
+          <div style={{ color: "var(--muted)", padding: 30, textAlign: "center" }}>No special working requests yet.<br />Tap <b>+ Apply</b> to request one.</div>
         ) : rows.map((r) => (
           <div key={r._id} onClick={() => r._id && nav(`/app/thread/offDayWork/${r._id}`)}
             style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "var(--shadow)", cursor: "pointer" }}>
@@ -114,14 +114,14 @@ export function FieldOffDayWorkNew() {
     const rec = { date: f.date, dayType: dayTypeOf(f.date), reason: f.reason.trim(), hod, status: "Pending", createdBy: CU().name, createdById: CU().id, createdAt: now() };
     try {
       await api.create("offDayWork", rec);
-      if (hod) { try { await api.notify({ to: hod, title: "Off-Day Work request", message: `${CU().name} requests to work on ${f.date} (${rec.dayType}). Reason: ${rec.reason}`, link: "/app/off-day-approval", createdAt: now() }); } catch {} }
+      if (hod) { try { await api.notify({ to: hod, title: "Special Working request", message: `${CU().name} requests to work on ${f.date} (${rec.dayType}). Reason: ${rec.reason}`, link: "/app/off-day-approval", createdAt: now() }); } catch {} }
       nav("/app/off-day-work");
     } catch (e) { alert(e.message); setBusy(false); }
   };
 
   return (
     <>
-      <ScreenHead title="Request Off-Day Work" />
+      <ScreenHead title="Request Special Working" />
       <div className="f-form">
         <div style={{ background: "#fff8ea", border: "1px solid #f3dca6", borderRadius: 10, padding: "10px 12px", fontSize: 12, color: "#8a6400", marginBottom: 14 }}>
           Take this approval <b>one day before</b>. You must enter at least <b>5 new / revisit customers</b> on the day you work.
@@ -158,14 +158,14 @@ export function FieldOffDayApproval() {
     if (status === "Rejected") { remark = window.prompt("Reject remark:") || ""; if (remark === "") return; }
     try {
       await api.update("offDayWork", r._id, { ...r, status, rejectRemark: remark, decidedBy: CU().name, decidedAt: now() });
-      try { await api.notify({ to: r.createdBy, title: `Off-Day Work ${status}`, message: `Your request to work on ${r.date} was ${status}${remark ? " — " + remark : ""}.`, link: "/app/off-day-work", createdAt: now() }); } catch {}
+      try { await api.notify({ to: r.createdBy, title: `Special Working ${status}`, message: `Your request to work on ${r.date} was ${status}${remark ? " — " + remark : ""}.`, link: "/app/off-day-work", createdAt: now() }); } catch {}
       load();
     } catch (e) { alert(e.message); }
   };
 
   return (
     <>
-      <ScreenHead title="Off-Day Work Approval" />
+      <ScreenHead title="Special Working Approval" />
       <div className="f-list-pad" style={{ paddingTop: 12 }}>
         {rows === null ? <SkeletonList rows={4} /> : rows.length === 0 ? (
           <div style={{ color: "var(--muted)", padding: 30, textAlign: "center" }}>No requests.</div>

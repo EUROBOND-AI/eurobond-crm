@@ -272,7 +272,7 @@ export const MODULES = {
   },
 
   offDayWork: {
-    path: "sfa/off-day-work", title: "Off-Day Work Requests", crumb: "Off-Day Work", addLabel: "Request",
+    path: "sfa/off-day-work", title: "Special Working Requests", crumb: "Special Working", addLabel: "Request",
     idPrefix: "ODW", app: false, approveFlow: ["Approved", "Rejected"],
     dateKey: "date",
     tabs: [

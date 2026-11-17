@@ -738,27 +738,35 @@ function FieldLogin({ onLogin }) {
       <div style={{ width: "100%", maxWidth: 340 }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 18 }}>
           <img src={logoImg} alt="Eurobond" style={{ height: 54, marginBottom: 10, animation: "ebFade .6s ease both" }} />
-          {/* a simple route that draws itself, with two map pins dropping in */}
-          <svg width="250" height="100" viewBox="0 0 250 100" style={{ maxWidth: "100%" }}>
+          {/* a growth line that draws itself and climbs, soft area fills in and
+              value dots pop on — a clean, on-brand motion (no map) */}
+          <svg width="252" height="112" viewBox="0 0 252 112" style={{ maxWidth: "100%" }}>
+            <defs>
+              <linearGradient id="ebArea" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#1b3a8f" stopOpacity="0.20" />
+                <stop offset="100%" stopColor="#1b3a8f" stopOpacity="0" />
+              </linearGradient>
+            </defs>
             <style>{`
               @keyframes ebDraw { to { stroke-dashoffset: 0; } }
-              @keyframes ebDrop { 0% { opacity: 0; transform: translateY(-12px); } 100% { opacity: 1; transform: translateY(0); } }
-              @keyframes ebFade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-              .eb-route { stroke-dasharray: 360; stroke-dashoffset: 360; animation: ebDraw 1.8s ease forwards; }
-              .eb-p1 { transform-box: fill-box; transform-origin: center bottom; animation: ebDrop .5s ease .5s both; }
-              .eb-p2 { transform-box: fill-box; transform-origin: center bottom; animation: ebDrop .5s ease 1.4s both; }
+              @keyframes ebFade { from { opacity: 0; } to { opacity: 1; } }
+              @keyframes ebPop { 0% { opacity: 0; transform: scale(0); } 70% { transform: scale(1.4); } 100% { opacity: 1; transform: scale(1); } }
+              .eb-line { stroke-dasharray: 320; stroke-dashoffset: 320; animation: ebDraw 1.7s ease forwards; }
+              .eb-area { opacity: 0; animation: ebFade .7s ease 1.25s forwards; }
+              .eb-d { transform-box: fill-box; transform-origin: center; opacity: 0; }
+              .eb-d1 { animation: ebPop .4s ease .55s both; }
+              .eb-d2 { animation: ebPop .4s ease .85s both; }
+              .eb-d3 { animation: ebPop .4s ease 1.15s both; }
+              .eb-d4 { animation: ebPop .45s ease 1.45s both; }
             `}</style>
-            <path className="eb-route" d="M36 30 C 110 42, 70 64, 130 66 C 196 68, 176 88, 214 84" stroke="#123f8f" strokeWidth="4.5" fill="none" strokeLinecap="round" />
-            <g className="eb-p1" transform="translate(36,30)">
-              <path d="M0 -18 C 11 -18, 11 -2, 0 8 C -11 -2, -11 -18, 0 -18 Z" fill="#123f8f" />
-              <circle cx="0" cy="-10" r="4" fill="#fff" />
-            </g>
-            <g className="eb-p2" transform="translate(214,84)">
-              <path d="M0 -18 C 11 -18, 11 -2, 0 8 C -11 -2, -11 -18, 0 -18 Z" fill="#c0392b" />
-              <circle cx="0" cy="-10" r="4" fill="#fff" />
-            </g>
+            <line x1="22" y1="96" x2="236" y2="96" stroke="#e5e9f4" strokeWidth="2" strokeLinecap="round" />
+            <path className="eb-area" d="M26 82 L 82 68 L 134 74 L 188 46 L 228 24 L 228 96 L 26 96 Z" fill="url(#ebArea)" />
+            <polyline className="eb-line" points="26,82 82,68 134,74 188,46 228,24" fill="none" stroke="#1b3a8f" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" />
+            <circle className="eb-d eb-d1" cx="82" cy="68" r="4.5" fill="#1b3a8f" />
+            <circle className="eb-d eb-d2" cx="134" cy="74" r="4.5" fill="#1b3a8f" />
+            <circle className="eb-d eb-d3" cx="188" cy="46" r="4.5" fill="#1b3a8f" />
+            <circle className="eb-d eb-d4" cx="228" cy="24" r="6" fill="#c0392b" />
           </svg>
-          <div style={{ fontFamily: "Bricolage Grotesque", fontWeight: 800, fontSize: 20, color: "#1c2340", marginTop: 4, animation: "ebFade .6s ease .2s both" }}>Eurobond <span style={{ color: "#c0392b" }}>Field Sales</span></div>
         </div>
         <div style={{ background: "#fff", borderRadius: 20, padding: 18, boxShadow: "0 20px 50px rgba(11,60,140,.15), 0 4px 12px rgba(11,60,140,.08)", border: "1px solid #eef1f8" }}>
         <p style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, marginBottom: 22 }}>
@@ -5493,7 +5501,7 @@ function MenuDrawer({ open, close }) {
       ...((/sales/i.test(CU().role || "") || /admin|owner/i.test(CU().role || "") || CU().owner) ? [["Specs-Hub", <ClipboardList size={16} />, "/app/sales-hub", "salesHub"]] : []),
       ["Expense", <Wallet size={16} />, "/app/m/expense", "expense"],
       ["Leave", <CalendarDays size={16} />, "/app/leave", "leave"],
-      ["Off-Day Work", <CalendarCheck size={16} />, "/app/off-day-work", "leave"],
+      ["Special Working", <CalendarCheck size={16} />, "/app/off-day-work", "leave"],
     ] },
     { h: "MANAGEMENT", items: [
       ["Target", <Target size={16} />, "/app/target", "target"],
@@ -5501,7 +5509,7 @@ function MenuDrawer({ open, close }) {
       ["Team Tracking", <MapPin size={16} />, "/app/team-tracking", "teamTracking"],
       ["Team Customers Tracking", <Users size={16} />, "/app/team-customers", "teamCustomers"],
       ["Leave Approval", <CalendarDays size={16} />, "/app/leave-approval", "leaveApproval"],
-      ["Off-Day Approval", <CalendarCheck size={16} />, "/app/off-day-approval", "leaveApproval"],
+      ["Special Working Approval", <CalendarCheck size={16} />, "/app/off-day-approval", "leaveApproval"],
       ["Attendance", <CalendarCheck size={16} />, "/app/attendance", "attendance"],
       ["Task", <ClipboardList size={16} />, "/app/m/task", "task"],
       ["Beat Plan", <CalendarDays size={16} />, "/app/beat-plan", "beatPlan"],
