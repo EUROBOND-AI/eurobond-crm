@@ -1,24 +1,43 @@
 /* Service worker — app shell caching so returning to the app does NOT reload */
-const CACHE = "eb-crm-v2";
+const CACHE = "eb-crm-v3";
+const ASSET = /\/assets\//;   // hashed build files (js/css) — safe to cache-first
 
-self.addEventListener("install", (e) => self.skipWaiting());
+self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => {
-  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))));
-  self.clients.claim();
+  e.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener("fetch", (e) => {
-  const url = new URL(e.request.url);
-  if (e.request.method !== "GET" || url.origin !== self.location.origin) return; // let API calls pass through
-  // cache-first for app assets (no reload flicker on resume)
+  const req = e.request;
+  const url = new URL(req.url);
+  // Only our own GET requests. API calls (other origin) and POST/login pass straight through.
+  if (req.method !== "GET" || url.origin !== self.location.origin) return;
+
+  // Hashed build assets never change for a given URL -> cache-first (instant, offline-safe).
+  if (ASSET.test(url.pathname)) {
+    e.respondWith(
+      caches.match(req).then((cached) => {
+        if (cached) return cached;
+        return fetch(req).then((res) => {
+          if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
+          return res;
+        });
+      })
+    );
+    return;
+  }
+
+  // Everything else (index.html shell, manifest, icons) -> network-first so a new
+  // deploy is picked up immediately; fall back to cache only when offline.
   e.respondWith(
-    caches.match(e.request).then((cached) => {
-      const fetchP = fetch(e.request).then((res) => {
-        if (res.ok) caches.open(CACHE).then((c) => c.put(e.request, res.clone()));
-        return res;
-      }).catch(() => cached);
-      return cached || fetchP;
-    })
+    fetch(req).then((res) => {
+      if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
+      return res;
+    }).catch(() => caches.match(req).then((c) => c || caches.match("/index.html")))
   );
 });
 
