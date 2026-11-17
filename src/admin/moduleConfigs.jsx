@@ -271,6 +271,29 @@ export const MODULES = {
     ],
   },
 
+  offDayWork: {
+    path: "sfa/off-day-work", title: "Off-Day Work Requests", crumb: "Off-Day Work", addLabel: "Request",
+    idPrefix: "ODW", app: false, approveFlow: ["Approved", "Rejected"],
+    dateKey: "date",
+    tabs: [
+      { key: "All", label: "All", all: true },
+      { key: "Pending", label: "Pending" },
+      { key: "Approved", label: "Approved" },
+      { key: "Rejected", label: "Rejected" },
+    ],
+    tabField: "status",
+    columns: [
+      { key: "createdBy", label: "Requested By" }, { key: "date", label: "Work Date" },
+      { key: "dayType", label: "Day" }, { key: "hod", label: "HOD" },
+      { key: "reason", label: "Reason / Plan", render: longText },
+      { key: "decidedBy", label: "Decided By" }, { key: "status", label: "Status", render: pill },
+    ],
+    form: [
+      { name: "date", label: "Work Date", type: "date", required: true },
+      { name: "reason", label: "Reason / Work Plan", type: "textarea", full: true },
+    ],
+  },
+
   expense: {
     path: "sfa/expense", title: "Expense List", crumb: "Expense", addLabel: "Add Expense",
     idPrefix: "EXP", app: true, appLabel: "Expense", approveFlow: ["Approved", "Reject", "Paid"],

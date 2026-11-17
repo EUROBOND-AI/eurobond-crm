@@ -137,6 +137,7 @@ export default function QuotationAdmin() {
   });
   const [busy, setBusy] = useState(false);
   const [fStatus, setFStatus] = useState("");
+  const [tab, setTab] = useState("all");   // Project-Projection-style status tabs
   const [fZone, setFZone] = useState("");    // #7 — cascade Zone/State/HOD
   const [fStateQ, setFStateQ] = useState("");
   const [fHodQ, setFHodQ] = useState("");
@@ -151,6 +152,13 @@ export default function QuotationAdmin() {
   const toggleCol = (c) => setHiddenCols((s) => { const n = new Set(s); n.has(c) ? n.delete(c) : n.add(c); localStorage.setItem("quote_hidden_cols", JSON.stringify([...n])); return n; });
   const colVisible = (c) => !hiddenCols.has(c);
   const applyShow = () => setApplied({ status: fStatus, zone: fZone, state: fStateQ, hod: fHodQ, person: fPerson, from: fFrom, to: fTo });
+  /* clicking a status tab filters + shows straight away, like Project Projection */
+  const pickTab = (t) => {
+    setTab(t);
+    const st = t === "all" ? "" : (t === "Loss" ? "Lost" : t);
+    setFStatus(st);
+    setApplied({ status: st, zone: fZone, state: fStateQ, hod: fHodQ, person: fPerson, from: fFrom, to: fTo });
+  };
 
   const load = () => api.list("quotation", false)
     .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data }))))
@@ -242,6 +250,7 @@ export default function QuotationAdmin() {
   };
   const approved = scoped.filter((r) => r.status === "Approved").length;
   const won = scoped.filter((r) => r.status === "Win").length;
+  const lost = scoped.filter((r) => r.status === "Lost").length;
 
   return (
     <div>
@@ -266,13 +275,21 @@ export default function QuotationAdmin() {
         <StatCard label="Pending" value={applied ? pending : 0} sub="Awaiting approval" color="#f59e0b" />
         <StatCard label="Approved" value={applied ? approved : 0} sub="Approved" color="#2563eb" />
         <StatCard label="Won" value={applied ? won : 0} sub="Win" color="#059669" />
+        <StatCard label="Lost" value={applied ? lost : 0} sub="Loss" color="#c03636" />
+      </div>
+
+      {/* status tabs — incoming → approved → win → loss (like Project Projection) */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+        {[["all", "All", scoped.length], ["Pending", "Pending", pending], ["Approved", "Approved", approved], ["Win", "Win", won], ["Loss", "Loss", lost]].map(([k, lbl, ct]) => (
+          <button key={k} onClick={() => pickTab(k)} style={{ padding: "8px 16px", borderRadius: 9, border: "1.5px solid " + (tab === k ? "#4a7bff" : "#d4d9e6"), background: tab === k ? "#4a7bff" : "#fff", color: tab === k ? "#fff" : "#55607a", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{lbl} <span style={{ opacity: .8 }}>({ct})</span></button>
+        ))}
       </div>
 
       {/* filters + Show */}
       <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 14, background: "#fff", padding: 14, borderRadius: 12, boxShadow: "var(--shadow)" }}>
         <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>Status</label>
           <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5 }}>
-            <option value="">All</option><option>Pending</option><option>Approved</option><option>Win</option>
+            <option value="">All</option><option>Pending</option><option>Approved</option><option>Win</option><option>Lost</option>
           </select></div>
         {/* #7 — Zone → State → HOD → Created By cascade (users-based), same as every module */}
         {(() => {
@@ -305,7 +322,7 @@ export default function QuotationAdmin() {
         <div><label style={{ fontSize: 11.5, fontWeight: 700, display: "block", marginBottom: 4 }}>To Date</label>
           <input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid #dde2ef", fontSize: 12.5 }} /></div>
         <button className="btn" style={{ background: "#22a45d", color: "#fff", borderColor: "transparent" }} onClick={applyShow}>Show</button>
-        {applied && <button className="btn btn-soft" onClick={() => { setApplied(null); setFStatus(""); setFZone(""); setFStateQ(""); setFHodQ(""); setFPerson(""); setFFrom(""); setFTo(""); }}>Clear</button>}
+        {applied && <button className="btn btn-soft" onClick={() => { setApplied(null); setTab("all"); setFStatus(""); setFZone(""); setFStateQ(""); setFHodQ(""); setFPerson(""); setFFrom(""); setFTo(""); }}>Clear</button>}
       </div>
 
       <div style={{ background: "#fff", borderRadius: 14, boxShadow: "var(--shadow)", overflow: "hidden" }}>

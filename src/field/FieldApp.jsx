@@ -27,6 +27,7 @@ import { MultiPeople, MultiFiles } from "../components/FormBits.jsx";
 import ScreenHead, { parentOf } from "../components/ScreenHead.jsx";
 import { Spinner, SkeletonList } from "../components/Loaders.jsx";
 import { MODULES } from "../admin/moduleConfigs.jsx";
+import { FieldOffDayWork, FieldOffDayWorkNew, FieldOffDayApproval } from "./OffDayWork.jsx";
 
 /* logged-in field user (from auth) with safe fallbacks */
 const CU = () => auth.user || {};
@@ -733,33 +734,24 @@ function FieldLogin({ onLogin }) {
   };
 
   return (
-    <div className="phone-body" style={{ display: "grid", placeItems: "center", padding: 24, background: "#fff" }}>
-      <div style={{ width: "100%", maxWidth: 340 }}>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 16 }}>
-          <img src={logoImg} alt="Eurobond" style={{ height: 56, marginBottom: 10 }} />
-          {/* route with 2 big pins; text next to each pin */}
-          <svg width="290" height="150" viewBox="0 0 290 150" style={{ maxWidth: "100%" }}>
-            {/* wavy route line */}
-            <path d="M70 32 C 120 55, 40 72, 90 92 C 130 108, 100 116, 120 118" stroke="#123f8f" strokeWidth="5.5" fill="none" strokeLinecap="round" />
-            {/* top pin (big) + small circle base */}
-            <g transform="translate(70,32)">
-              <path d="M0 -20 C 12 -20, 12 -2, 0 9 C -12 -2, -12 -20, 0 -20 Z" fill="#123f8f"/>
-              <circle cx="0" cy="-11" r="4.5" fill="#fff"/>
-              <ellipse cx="0" cy="11" rx="7" ry="2.5" fill="#123f8f" opacity="0.25"/>
-            </g>
-            {/* top text */}
-            <text x="95" y="30" fontFamily="Bricolage Grotesque" fontWeight="800" fontSize="18" fill="#1c2340">Wherever You <tspan fill="#c0392b">GO</tspan></text>
-            {/* bottom pin (big) + small circle base */}
-            <g transform="translate(120,118)">
-              <path d="M0 -20 C 12 -20, 12 -2, 0 9 C -12 -2, -12 -20, 0 -20 Z" fill="#123f8f"/>
-              <circle cx="0" cy="-11" r="4.5" fill="#fff"/>
-              <ellipse cx="0" cy="11" rx="7" ry="2.5" fill="#123f8f" opacity="0.25"/>
-            </g>
-            {/* bottom text */}
-            <text x="145" y="118" fontFamily="Bricolage Grotesque" fontWeight="800" fontSize="18" fill="#1c2340">Always <tspan fill="#c0392b">Tracking</tspan></text>
-          </svg>
+    <div className="phone-body" style={{ background: "#eef2fb", display: "flex", flexDirection: "column", minHeight: "100%", overflow: "hidden" }}>
+      {/* ---- premium brand hero ---- */}
+      <div style={{ position: "relative", background: "linear-gradient(140deg,#0b2a6b 0%,#163f93 52%,#2a59c0 100%)", padding: "52px 24px 76px", borderRadius: "0 0 34px 34px", color: "#fff", textAlign: "center", overflow: "hidden", boxShadow: "0 16px 40px rgba(11,42,107,.28)" }}>
+        {/* soft decorative glows */}
+        <div style={{ position: "absolute", top: -70, right: -50, width: 190, height: 190, borderRadius: "50%", background: "radial-gradient(circle,rgba(255,255,255,.16),transparent 70%)" }} />
+        <div style={{ position: "absolute", bottom: -40, left: -40, width: 150, height: 150, borderRadius: "50%", background: "radial-gradient(circle,rgba(255,255,255,.10),transparent 70%)" }} />
+        <div style={{ position: "relative" }}>
+          <div style={{ width: 82, height: 82, borderRadius: 22, background: "#fff", display: "grid", placeItems: "center", margin: "0 auto 16px", boxShadow: "0 12px 30px rgba(0,0,0,.22)" }}>
+            <img src={logoImg} alt="Eurobond" style={{ height: 44 }} />
+          </div>
+          <div style={{ fontSize: 23, fontWeight: 800, letterSpacing: .3, lineHeight: 1.15 }}>Eurobond Field</div>
+          <div style={{ fontSize: 13, opacity: .9, marginTop: 6 }}>Your sales day — all in one place</div>
         </div>
-        <div style={{ background: "#fff", borderRadius: 20, padding: 18, boxShadow: "0 20px 50px rgba(11,60,140,.15), 0 4px 12px rgba(11,60,140,.08)", border: "1px solid #eef1f8" }}>
+      </div>
+      {/* ---- floating login card ---- */}
+      <div style={{ width: "100%", maxWidth: 360, margin: "-46px auto 0", padding: "0 20px 24px" }}>
+        <div style={{ background: "#fff", borderRadius: 22, padding: 20, boxShadow: "0 24px 60px rgba(11,42,107,.18), 0 4px 14px rgba(11,42,107,.08)", border: "1px solid #e8edf9" }}>
+        <div style={{ textAlign: "center", fontSize: 16.5, fontWeight: 800, color: "var(--navy)", marginBottom: 2 }}>{step === 1 ? "Welcome back 👋" : "Verify it's you"}</div>
         <p style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, marginBottom: 22 }}>
           {step === 1 ? "Login with your mobile number — OTP will be sent to your registered email" : `Enter the OTP sent to ${maskedEmail || "your email"}`}
         </p>
@@ -1198,6 +1190,31 @@ function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expense
       .then((d) => setMonthMeetings((d.customers || []).filter(stillAhead).length))
       .catch(() => setMonthMeetings(0));
   }, []);
+
+  /* #Off-Day — on a Sunday or a company Holiday the swipe is replaced by a
+     SUNDAY / HOLIDAY greeting, UNLESS the person has an APPROVED Off-Day Work
+     request for today (then they may start attendance as usual). */
+  const [offDay, setOffDay] = useState({ isOff: false, kind: "", approved: false });
+  useEffect(() => {
+    const d0 = new Date();
+    const today = `${d0.getFullYear()}-${String(d0.getMonth() + 1).padStart(2, "0")}-${String(d0.getDate()).padStart(2, "0")}`;
+    let kind = d0.getDay() === 0 ? "sunday" : "";
+    (async () => {
+      try {
+        const h = await api.list("holidays", false);
+        const hs = (h.records || h.holidays || []).map((r) => r.data || r);
+        if (hs.some((x) => String(x.date || x.from || x.on || "").slice(0, 10) === today)) kind = "holiday";
+      } catch {}
+      let approved = false;
+      if (kind) {
+        try {
+          const o = await api.list("offDayWork", true);
+          approved = (o.records || []).map((r) => r.data || r).some((x) => String(x.date || "").slice(0, 10) === today && /appro/i.test(x.status || ""));
+        } catch {}
+      }
+      setOffDay({ isOff: !!kind, kind, approved });
+    })();
+  }, []);
   const [sheet, setSheet] = useState(false);
   const [, tickHome] = useState(0);
   const nav = useNavigate();
@@ -1293,6 +1310,14 @@ function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expense
         {doneToday ? (
           <div style={{ background: "#e8f7ee", border: "1.5px solid #7ed9a0", borderRadius: 16, padding: "16px", textAlign: "center", fontWeight: 800, color: "#1f7a44", fontSize: 14 }}>
             ✓ Attendance completed for today
+          </div>
+        ) : (offDay.isOff && !offDay.approved && !attendanceOn) ? (
+          /* Sunday / Holiday greeting — work only after an approved Off-Day Work request */
+          <div style={{ background: offDay.kind === "sunday" ? "#eef4ff" : "#fff6e9", border: "1.5px solid " + (offDay.kind === "sunday" ? "#b9cdf5" : "#f3dca6"), borderRadius: 16, padding: "16px", textAlign: "center" }}>
+            <div style={{ fontWeight: 900, fontSize: 18, letterSpacing: 0.5, color: offDay.kind === "sunday" ? "#1b3a8f" : "#b26a00" }}>{offDay.kind === "sunday" ? "SUNDAY" : "HOLIDAY"}</div>
+            <div style={{ fontWeight: 600, fontSize: 12.5, marginTop: 4, color: offDay.kind === "sunday" ? "#3a4a7a" : "#8a6400" }}>
+              {offDay.kind === "sunday" ? "Happy Sunday 🎉" : `Enjoy your holiday${(CU().name || "").split(" ")[0] ? ", " + (CU().name || "").split(" ")[0] : ""} 🎉`}
+            </div>
           </div>
         ) : lockedAbsent ? (
           /* #19 — not started by 11:00 AM: the day is Absent and the swipe is
@@ -5459,6 +5484,7 @@ function MenuDrawer({ open, close }) {
       ...((/sales/i.test(CU().role || "") || /admin|owner/i.test(CU().role || "") || CU().owner) ? [["Specs-Hub", <ClipboardList size={16} />, "/app/sales-hub", "salesHub"]] : []),
       ["Expense", <Wallet size={16} />, "/app/m/expense", "expense"],
       ["Leave", <CalendarDays size={16} />, "/app/leave", "leave"],
+      ["Off-Day Work", <CalendarCheck size={16} />, "/app/off-day-work", "leave"],
     ] },
     { h: "MANAGEMENT", items: [
       ["Target", <Target size={16} />, "/app/target", "target"],
@@ -5466,6 +5492,7 @@ function MenuDrawer({ open, close }) {
       ["Team Tracking", <MapPin size={16} />, "/app/team-tracking", "teamTracking"],
       ["Team Customers Tracking", <Users size={16} />, "/app/team-customers", "teamCustomers"],
       ["Leave Approval", <CalendarDays size={16} />, "/app/leave-approval", "leaveApproval"],
+      ["Off-Day Approval", <CalendarCheck size={16} />, "/app/off-day-approval", "leaveApproval"],
       ["Attendance", <CalendarCheck size={16} />, "/app/attendance", "attendance"],
       ["Task", <ClipboardList size={16} />, "/app/m/task", "task"],
       ["Beat Plan", <CalendarDays size={16} />, "/app/beat-plan", "beatPlan"],
@@ -7318,13 +7345,13 @@ function FieldQuotationList() {
                     <div style={{ fontWeight: 700, fontSize: 13.5 }}>{qr.partyName || qr.customer}</div>
                     <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 1 }}>{qr.quoteNo || qr.id} · {qr.createdAt || ""}</div>
                   </div>
-                  <span style={{ fontSize: 10.5, fontWeight: 800, color: qr.status === "Win" ? "#059669" : qr.status === "Approved" ? "#2563eb" : "#c07f00" }}>{qr.status || "Pending"}</span>
+                  <span style={{ fontSize: 10.5, fontWeight: 800, color: qr.status === "Win" ? "#059669" : qr.status === "Approved" ? "#2563eb" : qr.status === "Lost" ? "#c03636" : "#c07f00" }}>{qr.status || "Pending"}</span>
                 </div>
                 <div style={{ display: "flex", gap: 5, marginTop: 8 }}>
                   <button onClick={() => setView(qr)} style={{ ...actBtn("#3949ab"), flex: 1, background: "#eef1ff", color: "#3949ab", padding: "6px 4px", fontSize: 11 }}>👁 View</button>
                   <button onClick={() => { QUOTE_EDIT.data = qr; nav("/app/m/quotation/new"); }} style={{ ...actBtn("#f59e0b"), flex: 1, background: "#fef3e2", color: "#c07f00", padding: "6px 4px", fontSize: 11 }}>✎ Edit</button>
-                  {/* stays after the win so a second invoice can be added later */}
-                  <button onClick={() => setWinFor(qr)} style={{ ...actBtn("#059669"), flex: 1, background: "#e5f9f1", color: "#059669", padding: "6px 4px", fontSize: 11 }}>{qr.status === "Win" ? "➕ Inv" : "🏆 Win"}</button>
+                  {/* Status: Win (with invoices) or Loss (with remark) */}
+                  <button onClick={() => setWinFor(qr)} style={{ ...actBtn("#059669"), flex: 1, background: qr.status === "Lost" ? "#fdecec" : "#e5f9f1", color: qr.status === "Lost" ? "#c03636" : "#059669", padding: "6px 4px", fontSize: 11 }}>⚑ Status</button>
                 </div>
               </div>
             )); })()}
@@ -7379,6 +7406,12 @@ function QuotationView({ q, onClose }) {
             <div style={{ fontWeight: 800, fontSize: 13, margin: "14px 0 8px", color: "#059669" }}>🏆 Won</div>
             <div style={{ fontSize: 12.5 }}>{q.winSqm ? `Sq. Meter: ${q.winSqm}` : ""}</div>
             {q.winInvoice && (String(q.winInvoice).match(/\.pdf$/i) ? <button onClick={() => openAppPhoto(q.winInvoice)} style={{ marginTop: 8, background: "#eef1ff", color: "var(--navy)", border: "none", borderRadius: 8, padding: "8px 12px", fontWeight: 700, fontSize: 12.5 }}>📄 View Invoice PDF</button> : <img src={q.winInvoice} alt="Invoice" onClick={() => openAppPhoto(q.winInvoice)} style={{ width: "100%", borderRadius: 10, marginTop: 8, cursor: "pointer" }} />)}
+          </>
+        )}
+        {q.status === "Lost" && (
+          <>
+            <div style={{ fontWeight: 800, fontSize: 13, margin: "14px 0 8px", color: "#c03636" }}>✗ Lost</div>
+            <div style={{ fontSize: 12.5, whiteSpace: "pre-wrap" }}>{q.lossRemark || "—"}</div>
           </>
         )}
       </div>
@@ -7448,33 +7481,55 @@ function WinEntries({ rec }) {
   );
 }
 
-/* Win modal — attach Sq meter + invoice (photo/pdf), in-app open */
+/* Status modal — Win (Sq meter + invoice photo/pdf) OR Loss (remark) */
 function QuotationWin({ q, onClose, onDone }) {
+  const [tab, setTab] = useState(q.status === "Lost" ? "Loss" : "Win");
   const [sqm, setSqm] = useState("");
   const [file, setFile] = useState(null);
+  const [remark, setRemark] = useState(q.lossRemark || "");
   const [busy, setBusy] = useState(false);
+  const save = async () => {
+    setBusy(true);
+    try {
+      if (tab === "Loss") {
+        if (!remark.trim()) { alert("Please add a loss remark"); setBusy(false); return; }
+        await api.update("quotation", q._id, { ...q, status: "Lost", lossRemark: remark.trim(), lostAt: new Date().toLocaleString("en-IN"), lostBy: CU().name });
+        try { await api.create("notification", { title: "Quotation Lost", message: `${q.quoteNo || q.id} marked as Lost`, forRole: "Admin", link: "/admin/sfa/quotation", at: new Date().toISOString() }); } catch {}
+        onDone(); return;
+      }
+      let invoiceUrl = "";
+      if (file) invoiceUrl = (await api.uploadPhoto(file, "quotation")).url;
+      await api.update("quotation", q._id, { ...q, status: "Win", lossRemark: "", ...winAppend(q, { sqm, url: invoiceUrl }) });
+      try { await api.create("notification", { title: "Quotation Won", message: `${q.quoteNo || q.id} marked as Win`, forRole: "Admin", link: "/admin/sfa/quotation", at: new Date().toISOString() }); } catch {}
+      onDone();
+    } catch (e) { alert(e.message); setBusy(false); }
+  };
   return (
     <div className="f-sheet-mask" onClick={onClose}>
       <div className="f-sheet sheet-3d" onClick={(e) => e.stopPropagation()}>
-        <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 12 }}>
-          {q.status === "Win" ? "➕ Add Invoice" : "🏆 Mark as Win"} — {q.quoteNo || q.id}
+        <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 12 }}>⚑ Update Status — {q.quoteNo || q.id}</div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          {["Win", "Loss"].map((s) => (
+            <button key={s} onClick={() => setTab(s)} style={{ flex: 1, padding: 10, borderRadius: 9, border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer", background: tab === s ? (s === "Win" ? "#059669" : "#c03636") : "#eef1ff", color: tab === s ? "#fff" : "var(--navy)" }}>{s === "Win" ? "🏆 Win" : "✗ Loss"}</button>
+          ))}
         </div>
-        <WinEntries rec={q} />
-        <label style={{ fontSize: 12.5, fontWeight: 700 }}>Sq. Meter</label>
-        <input inputMode="decimal" value={sqm} onChange={(e) => setSqm(e.target.value.replace(/[^\d.]/g, ""))} placeholder="e.g. 500" style={{ width: "100%", marginBottom: 12 }} />
-        <label style={{ fontSize: 12.5, fontWeight: 700 }}>Invoice (photo / PDF)</label>
-        <input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files[0])} style={{ width: "100%", marginBottom: 14 }} />
-        <button className="f-submit" style={{ width: "100%" }} disabled={busy || !sqm}
-          onClick={async () => {
-            setBusy(true);
-            try {
-              let invoiceUrl = "";
-              if (file) invoiceUrl = (await api.uploadPhoto(file, "quotation")).url;
-              await api.update("quotation", q._id, { ...q, status: "Win", ...winAppend(q, { sqm, url: invoiceUrl }) });
-              try { await api.create("notification", { title: "Quotation Won", message: `${q.quoteNo || q.id} marked as Win`, forRole: "Admin", link: "/admin/sfa/quotation", at: new Date().toISOString() }); } catch {}
-              onDone();
-            } catch (e) { alert(e.message); setBusy(false); }
-          }}>{q.status === "Win" ? "Add Invoice" : "Save Win"}</button>
+        {tab === "Win" ? (
+          <>
+            <WinEntries rec={q} />
+            <label style={{ fontSize: 12.5, fontWeight: 700 }}>Sq. Meter</label>
+            <input inputMode="decimal" value={sqm} onChange={(e) => setSqm(e.target.value.replace(/[^\d.]/g, ""))} placeholder="e.g. 500" style={{ width: "100%", marginBottom: 12 }} />
+            <label style={{ fontSize: 12.5, fontWeight: 700 }}>Invoice (photo / PDF)</label>
+            <input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files[0])} style={{ width: "100%", marginBottom: 14 }} />
+          </>
+        ) : (
+          <>
+            <label style={{ fontSize: 12.5, fontWeight: 700 }}>Loss Remark <b style={{ color: "#c03636" }}>*</b></label>
+            <textarea value={remark} onChange={(e) => setRemark(e.target.value)} rows={4} placeholder="Why was this quotation lost?" style={{ width: "100%", marginBottom: 14, padding: "10px 12px", borderRadius: 9, border: "1px solid #d7dcef", fontSize: 13.5, fontFamily: "inherit", boxSizing: "border-box" }} />
+          </>
+        )}
+        <button className="f-submit" style={{ width: "100%", background: tab === "Loss" ? "#c03636" : undefined }} disabled={busy || (tab === "Win" ? !sqm : !remark.trim())} onClick={save}>
+          {busy ? "Saving…" : tab === "Win" ? (q.status === "Win" ? "Add Invoice" : "Save Win") : "Save Loss"}
+        </button>
       </div>
     </div>
   );
@@ -9685,6 +9740,9 @@ export default function FieldApp() {
             <Route path="team-tracking" element={<FieldTeamTracking />} />
             <Route path="team-customers" element={<FieldTeamCustomers />} />
             <Route path="leave-approval" element={<FieldLeaveApproval />} />
+            <Route path="off-day-work" element={<FieldOffDayWork />} />
+            <Route path="off-day-work/new" element={<FieldOffDayWorkNew />} />
+            <Route path="off-day-approval" element={<FieldOffDayApproval />} />
             <Route path="notifications" element={<FieldNotifications />} />
             <Route path="spec/:specId" element={<SpecThreadRoute />} />
             <Route path="nearby" element={<FieldCustomers nearbyOnly />} />
