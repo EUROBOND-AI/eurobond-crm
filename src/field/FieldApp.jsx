@@ -3253,7 +3253,10 @@ function FieldProjectList() {
      smaller answer comes back noticeably quicker on mobile data */
   const load = () => {
     setRows(null);
-    return api.list("projectProjection", true)
+    /* everything this person is named on — created by them, or where they are the
+       sales / spec person (so imported and forwarded projects show too), not only
+       rows the app account itself created. */
+    return api.list("projectProjection", false, { involved: true })
       .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data }))))
       .catch(() => setRows([]));
   };

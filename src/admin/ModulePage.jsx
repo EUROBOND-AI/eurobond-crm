@@ -177,6 +177,7 @@ export default function ModulePage({ cfgKey }) {
   const [editing, setEditing] = useState(null);
   const [userNames, setUserNames] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
+  const [imp, setImp] = useState(null);   // import progress overlay {done,total,saved}
 
   useEffect(() => {
     api.listUsers().then((d) => {
@@ -569,13 +570,56 @@ export default function ModulePage({ cfgKey }) {
          column). Contacts and products are parsed into the record's arrays. */
       if (cfgKey === "projectProjection") {
         const isSpec = labels.includes("Category") && labels.includes("Category Firm");
-        for (const line of dataLines) {
+        const codeOf = (c) => String(c || "").trim().toLowerCase();
+        const userByCode = (code) => (allUsers || []).find((u) => codeOf(u.code) === codeOf(code));
+        const num = (x) => String(x ?? "").replace(/[^\d.-]/g, "");
+        const errors = [];   // rows that fail validation (with the reason)
+        const good = [];
+        /* validate EVERY row first — nothing bad gets written, and whatever
+           fails comes back to the user as a file with the reason. */
+        dataLines.forEach((line, i) => {
           const cells = cut(line);
-          const obj = {}; labels.forEach((lab, i) => { obj[lab] = cells[i]; });
-          if (!String(obj["Project Name"] || "").trim()) continue;   // skip blank rows
-          try { await api.create("projectProjection", ppjRowToRecord(obj, isSpec, allUsers)); ok++; } catch {}
+          const obj = {}; labels.forEach((lab, j) => { obj[lab] = cells[j]; });
+          const anyVal = Object.values(obj).some((v) => String(v || "").trim());
+          if (!anyVal) return;   // completely empty line — ignore silently
+          const reasons = [];
+          const name = String(obj["Project Name"] || "").trim();
+          if (!name) reasons.push("Project Name is blank");
+          const cb = String(obj["Created By (EMP Code)"] || obj["Created By"] || "").trim();
+          if (!cb) reasons.push("Created By (EMP Code) is blank");
+          else if (!userByCode(cb)) reasons.push(`Created By code "${cb}" is not an app user`);
+          const specCode = String(obj["Spec Person (EMP Code)"] || "").trim();
+          const salesCode = String(obj["Sales Person (EMP Code)"] || "").trim();
+          if (specCode && !userByCode(specCode)) reasons.push(`Spec Person code "${specCode}" is not an app user`);
+          if (salesCode && !userByCode(salesCode)) reasons.push(`Sales Person code "${salesCode}" is not an app user`);
+          const sqm = String(obj["Sq.Mtr"] || "").trim();
+          if (sqm && isNaN(Number(num(sqm)))) reasons.push("Sq.Mtr is not a number");
+          const sls = String(obj["Sales"] || "").trim();
+          if (sls && isNaN(Number(num(sls)))) reasons.push("Sales is not a number");
+          if (reasons.length) errors.push({ obj, reason: reasons.join("; ") });
+          else good.push(obj);
+        });
+        /* write the good rows, moving the progress bar as it goes */
+        let saved = 0;
+        setImp({ done: 0, total: good.length, saved: 0 });
+        for (let i = 0; i < good.length; i++) {
+          try { await api.create("projectProjection", ppjRowToRecord(good[i], isSpec, allUsers)); saved++; }
+          catch (e) { errors.push({ obj: good[i], reason: "Server rejected: " + (e.message || "error") }); }
+          setImp({ done: i + 1, total: good.length, saved });
         }
-        alert(`Imported ${ok} ${isSpec ? "Specs" : "Sales"} project(s)`);
+        setImp(null);
+        /* hand back the rows that did NOT go in, with the reason, as a CSV */
+        if (errors.length) {
+          const qq = (x) => `"${String(x ?? "").replace(/"/g, '""')}"`;
+          const head = [...labels, "Why not imported"].map(qq).join(",");
+          const body = errors.map((e) => [...labels.map((l) => e.obj[l] ?? ""), e.reason].map(qq).join(","));
+          const csv = [head, ...body].join("\n") + "\n";
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+          a.download = "project-projection-NOT-imported.csv"; a.click();
+        }
+        alert(`Imported ${saved} ${isSpec ? "Specs" : "Sales"} project(s).` +
+          (errors.length ? `\n\n${errors.length} row(s) could NOT be imported — a file "project-projection-NOT-imported.csv" with those rows and the reason has been downloaded. Fix them and import that file again.` : ""));
         reload();
         return;
       }
@@ -788,6 +832,21 @@ export default function ModulePage({ cfgKey }) {
 
   return (
     <>
+      {imp && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(10,20,40,.45)", display: "grid", placeItems: "center" }}>
+          <div style={{ background: "#fff", borderRadius: 14, padding: 24, width: 330, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}>
+            <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 12 }}>Importing & checking rows…</div>
+            <div style={{ fontSize: 13, color: "#555", marginBottom: 6 }}>
+              {imp.done} / {imp.total}
+              <b style={{ marginLeft: 8, color: "#1b3a8f" }}>{Math.round((imp.done / Math.max(1, imp.total)) * 100)}%</b>
+            </div>
+            <div style={{ height: 10, background: "#eef1f8", borderRadius: 99, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: Math.round((imp.done / Math.max(1, imp.total)) * 100) + "%", background: "#2b6fb8", transition: "width .2s" }} />
+            </div>
+            <div style={{ fontSize: 12, color: "#777", marginTop: 8 }}>{imp.saved} saved</div>
+          </div>
+        </div>
+      )}
       <PageHead
         crumb={cfg.crumb}
         title={cfg.title}
