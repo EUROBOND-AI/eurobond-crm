@@ -619,7 +619,12 @@ export default function ModulePage({ cfgKey }) {
         let saved = 0;
         setImp({ done: 0, total: good.length, saved: 0 });
         for (let i = 0; i < good.length; i++) {
-          try { await api.create("projectProjection", ppjRowToRecord(good[i], isSpec, allUsers)); saved++; }
+          const rec = ppjRowToRecord(good[i], isSpec, allUsers);
+          /* own the row by the Created By person (their emp code) so it shows up
+             in THAT person's app, not the admin's — same as the customers import. */
+          const ownerCode = String(good[i]["Created By (EMP Code)"] || good[i]["Created By"] || "").trim();
+          if (ownerCode) rec._ownerCode = ownerCode;
+          try { await api.create("projectProjection", rec); saved++; }
           catch (e) { errors.push({ obj: good[i], reason: "Server rejected: " + (e.message || "error") }); }
           setImp({ done: i + 1, total: good.length, saved });
         }
