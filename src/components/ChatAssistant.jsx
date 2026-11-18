@@ -220,6 +220,8 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState([]);            // {role:'user'|'model'|'note', text, action?}
   const [input, setInput] = useState("");
+  const [copiedI, setCopiedI] = useState(null);    // which message was just copied
+  const [reacts, setReacts] = useState({});        // per-message 👍/👎
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
   const [voiceOut, setVoiceOut] = useState(() => { try { return localStorage.getItem("eb_ai_voice") !== "0"; } catch { return true; } });
@@ -616,8 +618,8 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
     if (T) { try { T.stop(); } catch {} }
     try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch {}
   }
-  function speak(text) {
-    if (!voiceOut || !text) return;
+  function speak(text, force = false) {
+    if ((!voiceOut && !force) || !text) return;
     const T = capPlug("TextToSpeech");
     if (T) {
       const clean = speechClean(text);
@@ -841,6 +843,12 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
   const hBtn = { background: "rgba(255,255,255,.14)", border: "none", color: "#fff", cursor: "pointer", width: 30, height: 30, borderRadius: 8, display: "grid", placeItems: "center", flexShrink: 0 };
   const head = { background: accent, color: "#fff", padding: "11px 12px", display: "flex", alignItems: "center", gap: 7 };
   const body = { flex: 1, overflowY: "auto", padding: 14, background: "#f6f8fd", display: "flex", flexDirection: "column", gap: 10 };
+  /* per-message actions (copy / read aloud / reactions / regenerate / edit) */
+  const copyMsg = (text, i) => { try { navigator.clipboard.writeText(text || ""); setCopiedI(i); setTimeout(() => setCopiedI((c) => (c === i ? null : c)), 1200); } catch {} };
+  const regen = (i) => { let j = i - 1; while (j >= 0 && msgs[j].role !== "user") j--; if (j >= 0 && !busy) send(msgs[j].text); };
+  const actBtn = { background: "none", border: "none", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: "2px 5px", borderRadius: 6, color: "#8a93a6" };
+  const msgActBar = { display: "flex", gap: 2, marginTop: 3, padding: "0 2px" };
+
   const bubbleU = { alignSelf: "flex-end", background: accent, color: "#fff", padding: "8px 12px", borderRadius: "14px 14px 3px 14px", maxWidth: "82%", fontSize: 14, lineHeight: 1.45, whiteSpace: "pre-wrap" };
   const bubbleM = { alignSelf: "flex-start", background: "#fff", color: "#1a2236", padding: "8px 12px", borderRadius: "14px 14px 14px 3px", maxWidth: "82%", fontSize: 14, lineHeight: 1.45, whiteSpace: "pre-wrap", boxShadow: "0 1px 4px rgba(20,25,60,.08)" };
   const note = { alignSelf: "center", background: "#e8f0ff", color: "#1b3a8f", padding: "5px 12px", borderRadius: 20, fontSize: 12.5, fontWeight: 600 };
@@ -906,7 +914,26 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
               {msgs.map((m, i) => (
                 m.role === "note"
                   ? <div key={i} style={note}>{m.text}</div>
-                  : <div key={i} style={m.role === "user" ? bubbleU : bubbleM}>{m.role === "model" ? withLinks(mdClean(m.text)) : m.text}</div>
+                  : (
+                    <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start", maxWidth: "100%" }}>
+                      <div style={m.role === "user" ? bubbleU : bubbleM}>{m.role === "model" ? withLinks(mdClean(m.text)) : m.text}</div>
+                      {m.role === "model" ? (
+                        <div style={msgActBar}>
+                          <button style={actBtn} title="Copy" onClick={() => copyMsg(m.text, i)}>{copiedI === i ? "✓" : "⧉"}</button>
+                          {(canTTS || capPlug("TextToSpeech")) && <button style={actBtn} title="Read aloud" onClick={() => speak(m.text, true)}>🔊</button>}
+                          <button style={{ ...actBtn, color: reacts[i] === "up" ? "#1f9d55" : actBtn.color }} title="Good answer" onClick={() => setReacts((r) => ({ ...r, [i]: r[i] === "up" ? null : "up" }))}>👍</button>
+                          <button style={{ ...actBtn, color: reacts[i] === "down" ? "#c03636" : actBtn.color }} title="Bad answer" onClick={() => setReacts((r) => ({ ...r, [i]: r[i] === "down" ? null : "down" }))}>👎</button>
+                          <button style={actBtn} title="Regenerate" onClick={() => regen(i)}>↻</button>
+                        </div>
+                      ) : (
+                        <div style={msgActBar}>
+                          <button style={actBtn} title="Edit" onClick={() => setInput(m.text)}>✎</button>
+                          <button style={actBtn} title="Copy" onClick={() => copyMsg(m.text, i)}>{copiedI === i ? "✓" : "⧉"}</button>
+                          <button style={actBtn} title="Ask again" onClick={() => !busy && send(m.text)}>↻</button>
+                        </div>
+                      )}
+                    </div>
+                  )
               ))}
 
               {pending && (

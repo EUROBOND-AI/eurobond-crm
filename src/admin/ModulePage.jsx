@@ -481,7 +481,9 @@ export default function ModulePage({ cfgKey }) {
   const shownColumns = useMemo(() => {
     let cols = cfg.columns.filter((c) => !hiddenCols.includes(c.key));
     /* project projection: category columns only in Specs view */
-    if (cfgKey === "projectProjection" && projSide === "Sales") cols = cols.filter((c) => c.key !== "category" && c.key !== "categoryFirm");
+    if (cfgKey === "projectProjection" && projSide === "Sales") cols = cols.filter((c) => c.key !== "category" && c.key !== "categoryFirm" && c.key !== "salesPerson");
+    /* on a Sales sheet the Created By IS the sales person, on a Specs sheet the Created By IS the spec person — so the matching column just repeats it; hide the duplicate */
+    if (cfgKey === "projectProjection" && projSide === "Specs") cols = cols.filter((c) => c.key !== "specPerson");
     return cols;
   }, [cfg, hiddenCols, cfgKey, projSide]);
 
