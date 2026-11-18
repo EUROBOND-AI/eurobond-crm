@@ -186,31 +186,37 @@ function T({ head, rows, foot }) {
   );
 }
 
-/* a checkbox dropdown for choosing several grades at once (empty = all). */
-function MultiSel({ label, opts, sel, setSel }) {
+/* a checkbox dropdown for choosing several values at once (empty = all).
+   Full labels are shown (wrap, never cut off) and there is a quick search. */
+function MultiSel({ label, opts, sel, setSel, allLabel }) {
   const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
   const n = sel.size;
   const toggle = (v) => { const s = new Set(sel); s.has(v) ? s.delete(v) : s.add(v); setSel(s); };
+  const shown = q.trim() ? opts.filter((o) => String(o.lbl).toLowerCase().includes(q.trim().toLowerCase())) : opts;
   return (
     <div style={{ position: "relative" }}>
       <label>{label}</label>
-      <button type="button" className="dx-btn" onClick={() => setOpen((o) => !o)} style={{ minWidth: 140, textAlign: "left", fontWeight: 600 }}>
-        {n === 0 ? "All grades" : n + " selected"} ▾
+      <button type="button" className="dx-btn" onClick={() => setOpen((o) => !o)} style={{ minWidth: 150, textAlign: "left", fontWeight: 600 }}>
+        {n === 0 ? (allLabel || "All") : n + " selected"} ▾
       </button>
       {open && (
         <>
           <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 50 }} />
-          <div style={{ position: "absolute", top: "100%", left: 0, zIndex: 51, marginTop: 4, background: "#fff", border: "1px solid var(--line)", borderRadius: 10, boxShadow: "0 12px 34px rgba(0,0,0,.18)", width: 230, maxHeight: 320, overflow: "auto", padding: 6 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 8px" }}>
+          <div style={{ position: "absolute", top: "100%", left: 0, zIndex: 51, marginTop: 4, background: "#fff", border: "1px solid var(--line)", borderRadius: 10, boxShadow: "0 12px 34px rgba(0,0,0,.18)", width: 300, maxWidth: "80vw", maxHeight: 360, overflow: "auto", padding: 6 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 6, padding: "4px 8px" }}>
               <button type="button" className="dx-btn" style={{ padding: "2px 8px", fontSize: 11 }} onClick={() => setSel(new Set(opts.map((o) => o.v)))}>Select all</button>
               <button type="button" className="dx-btn" style={{ padding: "2px 8px", fontSize: 11 }} onClick={() => setSel(new Set())}>Clear</button>
             </div>
-            {opts.map((o) => (
-              <label key={o.v} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", cursor: "pointer", fontSize: 12.5 }}>
-                <input type="checkbox" checked={sel.has(o.v)} onChange={() => toggle(o.v)} />
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.lbl}</span>
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={"Search " + (label || "").toLowerCase() + "…"}
+              style={{ width: "100%", margin: "2px 0 6px", padding: "6px 8px", border: "1px solid var(--line)", borderRadius: 8, fontSize: 12.5 }} />
+            {shown.map((o) => (
+              <label key={o.v} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "5px 8px", cursor: "pointer", fontSize: 12.5 }}>
+                <input type="checkbox" checked={sel.has(o.v)} onChange={() => toggle(o.v)} style={{ marginTop: 2, flexShrink: 0 }} />
+                <span style={{ whiteSpace: "normal", wordBreak: "break-word", lineHeight: 1.3 }}>{o.lbl}</span>
               </label>
             ))}
+            {!shown.length && <div style={{ padding: "6px 8px", fontSize: 12, color: "var(--muted)" }}>No match</div>}
           </div>
         </>
       )}
@@ -262,7 +268,8 @@ export default function SalesReview() {
   const [fy, setFy] = useState(""), [fb, setFb] = useState(""), [fq, setFq] = useState(""), [fm, setFm] = useState("");
   const [fr, setFr] = useState(""), [fst, setFst] = useState(""), [fhd, setFhd] = useState(""), [fp, setFp] = useState("");
   const [fgr, setFgr] = useState(new Set());   // #2 — grade multi-select (empty = all)
-  const resetF = () => { setFy(""); setFb(""); setFq(""); setFm(""); setFr(""); setFst(""); setFhd(""); setFp(""); setFgr(new Set()); };
+  const [fco, setFco] = useState(new Set());   // code multi-select (empty = all)
+  const resetF = () => { setFy(""); setFb(""); setFq(""); setFm(""); setFr(""); setFst(""); setFhd(""); setFp(""); setFgr(new Set()); setFco(new Set()); };
 
   /* Power BI is open to every login. Admin/owner see the whole company; an
      individual (field) login sees ONLY their own sales rows. We match on the
@@ -336,8 +343,8 @@ export default function SalesReview() {
       (fq === "" || r[IX.Q] === +fq) && (fm === "" || r[IX.M] === +fm) &&
       (fr === "" || r[IX.R] === +fr) && (fst === "" || r[IX.ST] === +fst) &&
       (fhd === "" || r[IX.HD] === +fhd) && (fp === "" || r[IX.P] === +fp) &&
-      (fgr.size === 0 || fgr.has(r[IX.GR])));
-  }, [db, fy, fb, fq, fm, fr, fst, fhd, fp, fgr, admin, myScope]);
+      (fgr.size === 0 || fgr.has(r[IX.GR])) && (fco.size === 0 || fco.has(r[IX.CO])));
+  }, [db, fy, fb, fq, fm, fr, fst, fhd, fp, fgr, fco, admin, myScope]);
 
   /* alphabetically-sorted option lists, straight from the uploaded data */
   const optsOf = (arr) => (arr || []).map((v, i) => ({ v: i, lbl: v })).sort((a, b) => String(a.lbl).localeCompare(String(b.lbl)));
@@ -423,8 +430,9 @@ export default function SalesReview() {
         {db && <Sel label="Brand" value={fb} set={setFb} allLabel="All brands" opts={optsOf(db.b)} />}
         <Sel label="QTR" value={fq} set={setFq} allLabel="All quarters" opts={QS.map((y, i) => ({ v: i, lbl: y }))} />
         <Sel label="Month" value={fm} set={setFm} allLabel="All months" opts={MO.map((y, i) => ({ v: i, lbl: y }))} />
-        {db && db.gr && db.gr.length > 0 && <MultiSel label="Grade" opts={optsOf(db.gr)} sel={fgr} setSel={setFgr} />}
-        {(fy || fb || fq || fm || fr || fst || fhd || fp || fgr.size) && <button className="dx-btn" style={{ alignSelf: "flex-end" }} onClick={resetF}>Reset</button>}
+        {db && db.gr && db.gr.length > 0 && <MultiSel label="Grade" allLabel="All grades" opts={optsOf(db.gr)} sel={fgr} setSel={setFgr} />}
+        {db && db.co && db.co.length > 0 && <MultiSel label="Code" allLabel="All codes" opts={optsOf(db.co)} sel={fco} setSel={setFco} />}
+        {(fy || fb || fq || fm || fr || fst || fhd || fp || fgr.size || fco.size) && <button className="dx-btn" style={{ alignSelf: "flex-end" }} onClick={resetF}>Reset</button>}
       </div>
 
       {!shown || (busy && !db) ? <ShowGate onShow={load} busy={busy} what="Sales Review" /> : !hasData ? (

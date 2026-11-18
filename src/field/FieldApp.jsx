@@ -735,19 +735,21 @@ function FieldLogin({ onLogin }) {
 
   return (
     <div className="phone-body" style={{ position: "relative", minHeight: "100%", display: "flex", flexDirection: "column", background: "#eef3fb", overflow: "hidden" }}>
-      {/* two-tone background — curved divider + soft 3D sheen */}
+      {/* two-tone background — layered WAVE divider + soft 3D sheen */}
       <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
-        {/* curved brand-blue top with depth shadow under the curve */}
         <div style={{
-          position: "absolute", top: 0, left: 0, right: 0, height: "54%",
-          background: "linear-gradient(155deg,#0a3885 0%,#1a5ec6 58%,#2f78df 100%)",
-          borderBottomLeftRadius: "55% 24%", borderBottomRightRadius: "55% 24%",
-          boxShadow: "0 26px 46px rgba(8,38,96,.34)", overflow: "hidden",
+          position: "absolute", top: 0, left: 0, right: 0, height: "52%",
+          background: "linear-gradient(150deg,#0a3685 0%,#1a5ec6 55%,#2f7ce2 100%)",
+          overflow: "hidden",
         }}>
-          {/* light sheen — gives the 3D highlight */}
-          <div style={{ position: "absolute", top: "-28%", left: "-14%", width: "85%", height: "95%", transform: "rotate(-10deg)", background: "radial-gradient(ellipse at center, rgba(255,255,255,.24), rgba(255,255,255,0) 62%)" }} />
-          <div style={{ position: "absolute", top: "6%", right: "-8%", width: "55%", height: "60%", background: "radial-gradient(ellipse at center, rgba(130,186,255,.30), rgba(130,186,255,0) 60%)" }} />
-          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "26%", background: "linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.10) 100%)" }} />
+          {/* 3D light sheen */}
+          <div style={{ position: "absolute", top: "-30%", left: "-16%", width: "88%", height: "96%", transform: "rotate(-10deg)", background: "radial-gradient(ellipse at center, rgba(255,255,255,.26), rgba(255,255,255,0) 62%)" }} />
+          <div style={{ position: "absolute", top: "4%", right: "-10%", width: "58%", height: "64%", background: "radial-gradient(ellipse at center, rgba(140,194,255,.34), rgba(140,194,255,0) 60%)" }} />
+          {/* layered wave — a lighter wave behind, a solid wave in front, with a soft upward shadow for depth */}
+          <svg viewBox="0 0 390 92" preserveAspectRatio="none" style={{ position: "absolute", left: 0, right: 0, bottom: -1, width: "100%", height: 94, display: "block", filter: "drop-shadow(0 -5px 9px rgba(8,36,92,.16))" }}>
+            <path d="M0,46 C70,18 135,74 205,50 C280,24 330,66 390,40 L390,92 L0,92 Z" fill="#d9e4f6" opacity="0.6" />
+            <path d="M0,58 C70,32 140,86 210,60 C290,30 342,72 390,54 L390,92 L0,92 Z" fill="#eef3fb" />
+          </svg>
         </div>
       </div>
 

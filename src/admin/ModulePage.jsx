@@ -57,7 +57,10 @@ function ppjParseContact(cell, category) {
 function ppjParseProducts(cell) {
   const t = String(cell || "").trim();
   if (!t || t === "--" || t === "—") return [];
-  return t.split(/\s*[,;]\s*/).map((p) => {
+  /* split on " + " / " / " / ";" / newline — and still on a comma for old data.
+     The template now uses " + " so a Products cell carries no comma that a
+     spreadsheet could break into two columns. */
+  return t.split(/\s*[;,\n]\s*|\s+[+/]\s+/).map((p) => {
     const m = p.match(/^(.*?)\s*[x×]\s*(\d+)\s*$/i);
     return m ? { grade: m[1].trim(), colourCode: "", qty: m[2] } : { grade: p.trim(), colourCode: "", qty: "" };
   }).filter((x) => x.grade);
@@ -80,6 +83,7 @@ function ppjRowToRecord(obj, isSpec, users) {
     specPerson, salesPerson, helpNeeded: g("Help / Work"),
     winSqm: g("Sq.Mtr"), winSales: g("Sales"), statusRemark: g("Remark"), status: g("Status") || "Running",
     contacts, items: ppjParseProducts(obj["Products"]), imported: true,
+    createdAt: g("Visit Date") || new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
   };
   if (isSpec) { rec.isSpec = true; rec.category = g("Category"); rec.categoryFirm = g("Category Firm"); }
   return rec;
@@ -516,7 +520,7 @@ export default function ModulePage({ cfgKey }) {
          them into names, so a typo in a name can never land the row on the wrong person. */
       const salesSample = ["2026-11-04", "EMP001", "Sample Commercial Tower", "Commercial", "MG Road, Bengaluru 560001",
         "ABC Architects (Mr Rao 9876543210)", "", "XYZ Fabrication (Mr Shaikh 9811122233)", "", "", "",
-        "3MM RUBY x350, 4MM PLATINIUM", "Approved", "Dec-26", "EMP045", "Running", "350", "500000", "Follow up next week", "Running"];
+        "3MM RUBY x350 + 4MM PLATINIUM", "Approved", "Dec-26", "EMP045", "Running", "350", "500000", "Follow up next week", "Running"];
       const specsSample = ["2026-11-04", "Architect", "ABC Architects", "EMP045", "Sample Commercial Tower", "Commercial", "MG Road, Bengaluru 560001",
         "ABC Architects (Mr Rao 9876543210)", "", "XYZ Fabrication (Mr Shaikh 9811122233)", "", "", "",
         "3MM RUBY x350", "Approved", "Dec-26", "EMP001", "Work Done", "350", "", "In specs", "Running"];

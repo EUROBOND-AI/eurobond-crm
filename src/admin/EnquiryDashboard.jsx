@@ -98,7 +98,10 @@ export function EnquiryDashboardView({ rows, hist = [], users, busy, err, shown,
   const dr = useDateRange();
   const [src, setSrc] = useState("");
 
-  const dateOf = (r) => readDate(r._at) || readDate(r.date) || readDate(r.enquiryDate) || readDate(r.createdAt) || readDate(r._created);
+  /* filter by the enquiry's OWN date first (when the enquiry came in), then fall
+     back to when it was entered into the CRM — so "Last Month" means enquiries
+     dated last month, not whatever was typed in this month. */
+  const dateOf = (r) => readDate(r.date) || readDate(r.enquiryDate) || readDate(r._at) || readDate(r.createdAt) || readDate(r._created);
 
   /* #10 — imported historical counts, passed through the SAME place + date
      filters as live enquiries. They add to the Total, the by-month chart and the
