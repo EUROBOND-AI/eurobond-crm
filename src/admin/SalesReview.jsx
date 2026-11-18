@@ -371,8 +371,9 @@ export default function SalesReview() {
       if (!a && !b) return; ta += a; tb += b; raw.push({ name, a, b });
     });
     raw.sort((x, y) => (y.a + y.b) - (x.a + x.b));
-    const rows = raw.map((o) => [o.name, { v: cr(o.a), n: o.a }, { v: cr(o.b), n: o.b }, { v: cr(o.a + o.b), n: o.a + o.b, c: "#0b3c8c" }]);
-    return { rows, foot: ["Total", cr(ta), cr(tb), cr(ta + tb)] };
+    const grand = ta + tb;
+    const rows = raw.map((o) => [o.name, { v: cr(o.a), n: o.a }, { v: cr(o.b), n: o.b }, { v: cr(o.a + o.b), n: o.a + o.b, c: "#0b3c8c" }, { v: pcStr(o.a + o.b, grand), n: pcN(o.a + o.b, grand) }]);
+    return { rows, foot: ["Total", cr(ta), cr(tb), cr(grand), "100%"] };
   };
   /* target/sales/ach%/growth table (Region/Sales Person): sorted high→low by
      sales, with a Total foot */
@@ -465,7 +466,7 @@ export default function SalesReview() {
             {/* Row 4 */}
             <ZPanel title="Sales Personwise Contribution" sub="by sales value"><RankBars items={bars(db.sp, IX.P)} fmt={cr} limit={10} /></ZPanel>
             <ZPanel title="Monthwise" sub="Apr → Mar">
-              <T head={["Month", YA, YB, "Total"]} rows={MO.map((m, mi) => { const a = sm(A.y0.filter((r) => r[IX.M] === mi), IX.S), b = sm(A.y1.filter((r) => r[IX.M] === mi), IX.S); return (!a && !b) ? null : [m, { v: cr(a), n: a }, { v: cr(b), n: b }, { v: cr(a + b), n: a + b, c: "#0b3c8c" }]; }).filter(Boolean)} foot={["Total", cr(A.s0), cr(A.s1), cr(A.sAll)]} maxH={470} />
+              <T head={["Month", YA, YB, "Total", "%"]} rows={MO.map((m, mi) => { const a = sm(A.y0.filter((r) => r[IX.M] === mi), IX.S), b = sm(A.y1.filter((r) => r[IX.M] === mi), IX.S); return (!a && !b) ? null : [m, { v: cr(a), n: a }, { v: cr(b), n: b }, { v: cr(a + b), n: a + b, c: "#0b3c8c" }, { v: pcStr(a + b, A.sAll), n: pcN(a + b, A.sAll) }]; }).filter(Boolean)} foot={["Total", cr(A.s0), cr(A.s1), cr(A.sAll), "100%"]} maxH={470} />
             </ZPanel>
             <ZPanel title="Sales Personwise" sub="target · sales · achievement · growth">
               {(() => { const t = perfTable(db.sp, IX.P); return <T head={["Sales Person", "Target", "Sales", "Ach%", "GW%"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
@@ -480,13 +481,13 @@ export default function SalesReview() {
 
             {/* Row 6 */}
             <ZPanel title="Codewise" sub={db.co.length + " codes"}>
-              {(() => { const t = dimTableS(db.co, IX.CO); return <T head={["Code", YA, YB, "Total"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
+              {(() => { const t = dimTableS(db.co, IX.CO); return <T head={["Code", YA, YB, "Total", "%"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
             </ZPanel>
             <ZPanel title="Gradewise" sub={db.gr.length + " grades"}>
-              {(() => { const t = dimTableS(db.gr, IX.GR); return <T head={["Grade", YA, YB, "Total"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
+              {(() => { const t = dimTableS(db.gr, IX.GR); return <T head={["Grade", YA, YB, "Total", "%"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
             </ZPanel>
             <ZPanel title="Partywise" sub={db.pa.length + " parties"}>
-              {(() => { const t = dimTableS(db.pa, IX.PA); return <T head={["Party", YA, YB, "Total"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
+              {(() => { const t = dimTableS(db.pa, IX.PA); return <T head={["Party", YA, YB, "Total", "%"]} rows={t.rows} foot={t.foot} maxH={470} />; })()}
             </ZPanel>
           </div>
         </>

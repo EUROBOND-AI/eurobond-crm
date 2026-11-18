@@ -734,152 +734,77 @@ function FieldLogin({ onLogin }) {
   };
 
   return (
-    <div className="phone-body" style={{ display: "grid", placeItems: "center", padding: 24, background: "#fff" }}>
-      <div style={{ width: "100%", maxWidth: 340 }}>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 18 }}>
-          <img src={logoImg} alt="Eurobond" style={{ height: 54, marginBottom: 10 }} />
-          {/* a colourful little story that plays on open: the Eurobond building
-              rises from the ground, a field executive walks up (arms & legs
-              moving), the EUROBOND name lights on, and a flower blooms — "Your
-              Growth". Full colour, on-brand. */}
-          <svg width="310" height="194" viewBox="0 0 320 200" style={{ maxWidth: "100%" }}>
-            <defs>
-              <linearGradient id="ebSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#e3f2fd" /><stop offset="1" stopColor="#f6fbff" /></linearGradient>
-              <linearGradient id="ebGlass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#6db3ef" /><stop offset="1" stopColor="#3d7fc4" /></linearGradient>
-              <clipPath id="ebRound"><rect x="0" y="0" width="320" height="200" rx="18" /></clipPath>
-            </defs>
-            <style>{`
-              @keyframes ebRise { from{ transform: scaleY(0) } to{ transform: scaleY(1) } }
-              @keyframes ebFin  { from{opacity:0} to{opacity:1} }
-              @keyframes ebWalkIn { from{ transform: translateX(-70px) } to{ transform: translateX(0) } }
-              @keyframes ebBob  { 0%,100%{ transform: translateY(0) } 50%{ transform: translateY(-2.5px) } }
-              @keyframes ebLegF { 0%{ transform: rotate(22deg) } 50%{ transform: rotate(-22deg) } 100%{ transform: rotate(22deg) } }
-              @keyframes ebLegB { 0%{ transform: rotate(-22deg) } 50%{ transform: rotate(22deg) } 100%{ transform: rotate(-22deg) } }
-              @keyframes ebArmF { 0%{ transform: rotate(-20deg) } 50%{ transform: rotate(18deg) } 100%{ transform: rotate(-20deg) } }
-              @keyframes ebArmB { 0%{ transform: rotate(20deg) } 50%{ transform: rotate(-18deg) } 100%{ transform: rotate(20deg) } }
-              @keyframes ebBloom{ 0%{opacity:0; transform:scale(0)} 65%{transform:scale(1.25)} 100%{opacity:1; transform:scale(1)} }
-              @keyframes ebGrow { to { stroke-dashoffset: 0; } }
-              .eb-bld{ transform-box: fill-box; transform-origin: center bottom; animation: ebRise 1.6s cubic-bezier(.2,.8,.2,1) .2s both; }
-              .eb-lit1{ opacity:0; animation: ebFin .4s ease 1.6s forwards; }
-              .eb-lit2{ opacity:0; animation: ebFin .4s ease 1.85s forwards; }
-              .eb-lit3{ opacity:0; animation: ebFin .4s ease 2.1s forwards; }
-              .eb-brand{ opacity:0; animation: ebFin .7s ease 2.2s forwards; }
-              .eb-person{ animation: ebWalkIn 2.6s ease-out .2s both; }
-              .eb-pbob{ animation: ebBob .5s ease-in-out .2s 6 both; }
-              .eb-legF{ transform-box: fill-box; transform-origin: center top; animation: ebLegF .5s ease-in-out .2s 6 both; }
-              .eb-legB{ transform-box: fill-box; transform-origin: center top; animation: ebLegB .5s ease-in-out .2s 6 both; }
-              .eb-armF{ transform-box: fill-box; transform-origin: center top; animation: ebArmF .5s ease-in-out .2s 6 both; }
-              .eb-armB{ transform-box: fill-box; transform-origin: center top; animation: ebArmB .5s ease-in-out .2s 6 both; }
-              .eb-stem{ stroke-dasharray:44; stroke-dashoffset:44; animation: ebGrow .6s ease 2.3s forwards; }
-              .eb-leaf{ opacity:0; animation: ebFin .4s ease 2.6s forwards; }
-              .eb-petal{ transform-box: fill-box; transform-origin: center; opacity:0; }
-              .eb-q1{animation:ebBloom .4s ease 2.7s both} .eb-q2{animation:ebBloom .4s ease 2.8s both}
-              .eb-q3{animation:ebBloom .4s ease 2.9s both} .eb-q4{animation:ebBloom .4s ease 3.0s both}
-              .eb-q5{animation:ebBloom .4s ease 3.1s both} .eb-q6{animation:ebBloom .4s ease 3.2s both}
-              .eb-fcore{ transform-box: fill-box; transform-origin:center; opacity:0; animation: ebBloom .4s ease 3.3s both; }
-              .eb-gtext{ opacity:0; animation: ebFin .6s ease 3.5s forwards; }
-            `}</style>
-            <g clipPath="url(#ebRound)">
-              <rect x="0" y="0" width="320" height="200" fill="url(#ebSky)" />
-              <rect x="0" y="162" width="320" height="38" fill="#74c56e" />
-              <rect x="0" y="162" width="320" height="4" fill="#5fb259" />
-              <g className="eb-bld">
-                <rect x="214" y="70" width="74" height="92" fill="#3a4f7d" />
-                <rect x="220" y="76" width="62" height="80" fill="url(#ebGlass)" />
-                <g stroke="#2f4368" strokeWidth="2" opacity="0.5">
-                  <line x1="241" y1="76" x2="241" y2="156" /><line x1="261" y1="76" x2="261" y2="156" />
-                  <line x1="220" y1="98" x2="282" y2="98" /><line x1="220" y1="120" x2="282" y2="120" /><line x1="220" y1="140" x2="282" y2="140" />
-                </g>
-                <rect className="eb-lit1" x="222" y="78" width="17" height="18" fill="#ffd45a" />
-                <rect className="eb-lit2" x="263" y="100" width="17" height="18" fill="#ffd45a" />
-                <rect className="eb-lit3" x="243" y="122" width="16" height="16" fill="#ffd45a" />
-                <rect x="214" y="70" width="74" height="7" fill="#c0392b" />
-              </g>
-              <text className="eb-brand" x="251" y="60" textAnchor="middle" fontFamily="Segoe UI,Arial" fontWeight="800" fontSize="14" fill="#1b3a8f">EUROBOND</text>
-              <g transform="translate(70,0)"><g className="eb-person"><g className="eb-pbob">
-                <g className="eb-legB"><rect x="-4" y="120" width="8" height="38" rx="4" fill="#2b3b63" /><ellipse cx="2" cy="159" rx="8" ry="4" fill="#22304f" /></g>
-                <g className="eb-legF"><rect x="-4" y="120" width="8" height="38" rx="4" fill="#33467a" /><ellipse cx="2" cy="159" rx="8" ry="4" fill="#2a3a5e" /></g>
-                <g className="eb-armB"><rect x="-3" y="98" width="7" height="24" rx="3.5" fill="#d85c2a" /></g>
-                <path d="M-11 98 Q -11 92 0 92 Q 11 92 11 98 L 9 122 Q 0 126 -9 122 Z" fill="#e8743b" />
-                <circle cx="0" cy="80" r="11" fill="#eeb58c" />
-                <path d="M-11 78 Q 0 64 11 78 Q 6 72 0 72 Q -6 72 -11 78 Z" fill="#3a2a1e" />
-                <g className="eb-armF"><rect x="-3" y="98" width="7" height="24" rx="3.5" fill="#f08043" />
-                  <rect x="6" y="118" width="18" height="14" rx="2" fill="#8a5a2b" stroke="#6e4620" strokeWidth="1.5" />
-                  <rect x="12" y="114" width="6" height="5" rx="1.5" fill="none" stroke="#6e4620" strokeWidth="1.5" /></g>
-              </g></g></g>
-              <g transform="translate(150,0)">
-                <line className="eb-stem" x1="0" y1="162" x2="0" y2="118" stroke="#3fa845" strokeWidth="3.5" strokeLinecap="round" />
-                <path className="eb-leaf" d="M0 140 C -14 132, -20 142, -6 146 C -2 144, 0 142, 0 140 Z" fill="#46b94f" />
-                <path className="eb-leaf" d="M0 150 C 14 142, 20 152, 6 156 C 2 154, 0 152, 0 150 Z" fill="#3fa845" />
-                <g fill="#ff6fa5">
-                  <ellipse className="eb-petal eb-q1" cx="0" cy="100" rx="7" ry="12" />
-                  <g transform="rotate(60 13 108)"><ellipse className="eb-petal eb-q2" cx="13" cy="108" rx="7" ry="12" /></g>
-                  <g transform="rotate(120 13 124)"><ellipse className="eb-petal eb-q3" cx="13" cy="124" rx="7" ry="12" /></g>
-                  <ellipse className="eb-petal eb-q4" cx="0" cy="132" rx="7" ry="12" />
-                  <g transform="rotate(60 -13 124)"><ellipse className="eb-petal eb-q5" cx="-13" cy="124" rx="7" ry="12" /></g>
-                  <g transform="rotate(120 -13 108)"><ellipse className="eb-petal eb-q6" cx="-13" cy="108" rx="7" ry="12" /></g>
-                </g>
-                <circle className="eb-fcore" cx="0" cy="116" r="8.5" fill="#ffc83d" />
-                <text className="eb-gtext" x="0" y="184" textAnchor="middle" fontFamily="Brush Script MT, Segoe Script, cursive" fontWeight="700" fontSize="16" fill="#2b7a3f">Your Growth</text>
-              </g>
-            </g>
-            <rect x="1" y="1" width="318" height="198" rx="18" fill="none" stroke="#e3e9f5" strokeWidth="2" />
-          </svg>
-        </div>
-        <div style={{ background: "#fff", borderRadius: 20, padding: 18, boxShadow: "0 20px 50px rgba(11,60,140,.15), 0 4px 12px rgba(11,60,140,.08)", border: "1px solid #eef1f8" }}>
-        <p style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, marginBottom: 22 }}>
-          {step === 1 ? "Login with your mobile number — OTP will be sent to your registered email" : `Enter the OTP sent to ${maskedEmail || "your email"}`}
-        </p>
-        <div className="f-form" style={{ padding: 0 }}>
-          {step === 1 ? (
-            <>
-              {kicked && (
-                <div style={{ background: "#fdecec", color: "#c03636", borderRadius: 10, padding: "10px 12px", fontSize: 12.5, marginBottom: 12, fontWeight: 600 }}>
-                  You were signed out because this account was opened on another phone.
-                  One login can be used on one phone at a time.
-                </div>
+    <div className="phone-body" style={{ position: "relative", minHeight: "100%", display: "flex", flexDirection: "column", background: "#eef3fb", overflow: "hidden" }}>
+      {/* two-tone background: brand blue on top, soft light below */}
+      <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
+        <div style={{ height: "46%", background: "linear-gradient(160deg,#0b3c8c 0%,#1f66cf 100%)" }} />
+        <div style={{ height: "54%", background: "#eef3fb" }} />
+      </div>
+
+      <div style={{ position: "relative", zIndex: 1, flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div style={{ width: "100%", maxWidth: 340 }}>
+          {/* logo only — small, in a clean white badge, sitting a little lower */}
+          <div style={{ display: "flex", justifyContent: "center", marginTop: 34, marginBottom: 24 }}>
+            <div style={{ background: "#fff", borderRadius: 18, padding: "13px 24px", boxShadow: "0 16px 38px rgba(8,38,96,.30)" }}>
+              <img src={logoImg} alt="Eurobond" style={{ height: 40, display: "block" }} />
+            </div>
+          </div>
+
+          <div style={{ background: "#fff", borderRadius: 20, padding: 20, boxShadow: "0 22px 54px rgba(11,60,140,.18), 0 4px 12px rgba(11,60,140,.08)", border: "1px solid #eef1f8" }}>
+            <p style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, marginBottom: 22 }}>
+              {step === 1 ? "Login with your mobile number — OTP will be sent to your registered email" : `Enter the OTP sent to ${maskedEmail || "your email"}`}
+            </p>
+            <div className="f-form" style={{ padding: 0 }}>
+              {step === 1 ? (
+                <>
+                  {kicked && (
+                    <div style={{ background: "#fdecec", color: "#c03636", borderRadius: 10, padding: "10px 12px", fontSize: 12.5, marginBottom: 12, fontWeight: 600 }}>
+                      You were signed out because this account was opened on another phone.
+                      One login can be used on one phone at a time.
+                    </div>
+                  )}
+                  <label>Mobile Number / Employee Code <b>*</b></label>
+                  <input
+                    placeholder="Mobile or code"
+                    value={mobile}
+                    onChange={(e) => { setMobile(e.target.value); setErr(""); }}
+                    onKeyDown={(e) => e.key === "Enter" && sendOtp()}
+                    style={{ width: "100%", marginBottom: 8, fontSize: 15, letterSpacing: 1, padding: "9px 11px" }}
+                  />
+                  {err && <div style={{ color: "#d64545", fontSize: 12.5, fontWeight: 700, margin: "6px 0" }}>{err}</div>}
+                  <button className="f-submit" style={{ width: "100%", marginTop: 6, padding: "11px 14px", fontSize: 14.5, opacity: busy ? 0.7 : 1 }} disabled={busy} onClick={sendOtp}>
+                    {busy ? "Sending OTP…" : "Send OTP"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <label>Enter OTP <b>*</b></label>
+                  <input
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="6-digit OTP"
+                    value={otp}
+                    onChange={(e) => { setOtp(e.target.value.replace(/\D/g, "")); setErr(""); }}
+                    onKeyDown={(e) => e.key === "Enter" && verify()}
+                    style={{ width: "100%", marginBottom: 8, fontSize: 19, letterSpacing: 6, textAlign: "center", fontWeight: 800, padding: "9px 11px" }}
+                  />
+                  {err && <div style={{ color: "#d64545", fontSize: 12.5, fontWeight: 700, margin: "6px 0" }}>{err}</div>}
+                  <button className="f-submit" style={{ width: "100%", marginTop: 4, padding: "11px 14px", fontSize: 14.5, opacity: busy ? 0.7 : 1 }} disabled={busy} onClick={verify}>
+                    {busy ? "Verifying…" : "Verify & Login"}
+                  </button>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, fontSize: 12 }}>
+                    <button onClick={() => { setStep(1); setOtp(""); setErr(""); }} style={{ background: "none", border: "none", color: "var(--accent)", fontWeight: 700, cursor: "pointer" }}>← Change number</button>
+                    <button disabled={resendIn > 0 || busy} onClick={sendOtp} style={{ background: "none", border: "none", color: resendIn > 0 ? "var(--muted)" : "var(--accent)", fontWeight: 700, cursor: resendIn > 0 ? "default" : "pointer" }}>
+                      {resendIn > 0 ? `Resend in ${Math.floor(resendIn / 60)}:${String(resendIn % 60).padStart(2, "0")}` : "Resend OTP"}
+                    </button>
+                  </div>
+                </>
               )}
-              <label>Mobile Number / Employee Code <b>*</b></label>
-              <input
-                placeholder="Mobile or code"
-                value={mobile}
-                onChange={(e) => { setMobile(e.target.value); setErr(""); }}
-                onKeyDown={(e) => e.key === "Enter" && sendOtp()}
-                style={{ width: "100%", marginBottom: 8, fontSize: 15, letterSpacing: 1, padding: "9px 11px" }}
-              />
-              {err && <div style={{ color: "#d64545", fontSize: 12.5, fontWeight: 700, margin: "6px 0" }}>{err}</div>}
-              <button className="f-submit" style={{ width: "100%", marginTop: 6, padding: "11px 14px", fontSize: 14.5, opacity: busy ? 0.7 : 1 }} disabled={busy} onClick={sendOtp}>
-                {busy ? "Sending OTP…" : "Send OTP"}
-              </button>
-            </>
-          ) : (
-            <>
-              <label>Enter OTP <b>*</b></label>
-              <input
-                inputMode="numeric"
-                maxLength={6}
-                placeholder="6-digit OTP"
-                value={otp}
-                onChange={(e) => { setOtp(e.target.value.replace(/\D/g, "")); setErr(""); }}
-                onKeyDown={(e) => e.key === "Enter" && verify()}
-                style={{ width: "100%", marginBottom: 8, fontSize: 19, letterSpacing: 6, textAlign: "center", fontWeight: 800, padding: "9px 11px" }}
-              />
-              {err && <div style={{ color: "#d64545", fontSize: 12.5, fontWeight: 700, margin: "6px 0" }}>{err}</div>}
-              <button className="f-submit" style={{ width: "100%", marginTop: 4, padding: "11px 14px", fontSize: 14.5, opacity: busy ? 0.7 : 1 }} disabled={busy} onClick={verify}>
-                {busy ? "Verifying…" : "Verify & Login"}
-              </button>
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, fontSize: 12 }}>
-                <button onClick={() => { setStep(1); setOtp(""); setErr(""); }} style={{ background: "none", border: "none", color: "var(--accent)", fontWeight: 700, cursor: "pointer" }}>← Change number</button>
-                <button disabled={resendIn > 0 || busy} onClick={sendOtp} style={{ background: "none", border: "none", color: resendIn > 0 ? "var(--muted)" : "var(--accent)", fontWeight: 700, cursor: resendIn > 0 ? "default" : "pointer" }}>
-                  {resendIn > 0 ? `Resend in ${Math.floor(resendIn / 60)}:${String(resendIn % 60).padStart(2, "0")}` : "Resend OTP"}
-                </button>
-              </div>
-            </>
-          )}
+            </div>
           </div>
         </div>
-        </div>
       </div>
+    </div>
   );
 }
 

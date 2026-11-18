@@ -98,7 +98,7 @@ export function EnquiryDashboardView({ rows, hist = [], users, busy, err, shown,
   const dr = useDateRange();
   const [src, setSrc] = useState("");
 
-  const dateOf = (r) => readDate(r._at) || readDate(r.date) || readDate(r.createdAt);
+  const dateOf = (r) => readDate(r._at) || readDate(r.date) || readDate(r.enquiryDate) || readDate(r.createdAt) || readDate(r._created);
 
   /* #10 — imported historical counts, passed through the SAME place + date
      filters as live enquiries. They add to the Total, the by-month chart and the

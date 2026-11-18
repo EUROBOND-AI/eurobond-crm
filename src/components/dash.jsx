@@ -501,13 +501,42 @@ export function useDateRange() {
     if (to && k > to) return false;
     return true;
   };
+  /* quick ranges — one tap sets From/To correctly (no manual date picking) */
+  const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const setPreset = (key) => {
+    const n = new Date();
+    if (key === "thisMonth") { setFrom(ymd(new Date(n.getFullYear(), n.getMonth(), 1))); setTo(ymd(new Date(n.getFullYear(), n.getMonth() + 1, 0))); }
+    else if (key === "lastMonth") { setFrom(ymd(new Date(n.getFullYear(), n.getMonth() - 1, 1))); setTo(ymd(new Date(n.getFullYear(), n.getMonth(), 0))); }
+    else if (key === "last3") { setFrom(ymd(new Date(n.getFullYear(), n.getMonth() - 2, 1))); setTo(ymd(new Date(n.getFullYear(), n.getMonth() + 1, 0))); }
+    else if (key === "thisYear") { setFrom(ymd(new Date(n.getFullYear(), 0, 1))); setTo(ymd(new Date(n.getFullYear(), 11, 31))); }
+    else { setFrom(""); setTo(""); }
+  };
+  const PRESETS = [["thisMonth", "This Month"], ["lastMonth", "Last Month"], ["last3", "Last 3M"], ["thisYear", "This Year"]];
+  const curPreset = (() => {
+    const n = new Date();
+    const eq = (a, b) => from === ymd(a) && to === ymd(b);
+    if (eq(new Date(n.getFullYear(), n.getMonth(), 1), new Date(n.getFullYear(), n.getMonth() + 1, 0))) return "thisMonth";
+    if (eq(new Date(n.getFullYear(), n.getMonth() - 1, 1), new Date(n.getFullYear(), n.getMonth(), 0))) return "lastMonth";
+    if (eq(new Date(n.getFullYear(), n.getMonth() - 2, 1), new Date(n.getFullYear(), n.getMonth() + 1, 0))) return "last3";
+    if (eq(new Date(n.getFullYear(), 0, 1), new Date(n.getFullYear(), 11, 31))) return "thisYear";
+    return "";
+  })();
   const fields = (
     <>
+      <Field label="Quick range">
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {PRESETS.map(([k, lbl]) => (
+            <button key={k} type="button" onClick={() => setPreset(k)}
+              style={{ border: "1px solid var(--line, #dfe4f0)", borderRadius: 8, padding: "5px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer",
+                background: curPreset === k ? "var(--dx-600, #1b3a8f)" : "#fff", color: curPreset === k ? "#fff" : "var(--dx-700, #27324d)" }}>{lbl}</button>
+          ))}
+        </div>
+      </Field>
       <Field label="From"><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
       <Field label="To"><input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></Field>
     </>
   );
-  return { from, to, any: !!(from || to), inRange, clear: () => { setFrom(""); setTo(""); }, fields };
+  return { from, to, any: !!(from || to), inRange, setPreset, clear: () => { setFrom(""); setTo(""); }, fields };
 }
 
 /* the time of day, ticking — the night card's headline */
