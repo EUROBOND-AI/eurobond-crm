@@ -735,10 +735,20 @@ function FieldLogin({ onLogin }) {
 
   return (
     <div className="phone-body" style={{ position: "relative", minHeight: "100%", display: "flex", flexDirection: "column", background: "#eef3fb", overflow: "hidden" }}>
-      {/* two-tone background: brand blue on top, soft light below */}
+      {/* two-tone background — curved divider + soft 3D sheen */}
       <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
-        <div style={{ height: "46%", background: "linear-gradient(160deg,#0b3c8c 0%,#1f66cf 100%)" }} />
-        <div style={{ height: "54%", background: "#eef3fb" }} />
+        {/* curved brand-blue top with depth shadow under the curve */}
+        <div style={{
+          position: "absolute", top: 0, left: 0, right: 0, height: "54%",
+          background: "linear-gradient(155deg,#0a3885 0%,#1a5ec6 58%,#2f78df 100%)",
+          borderBottomLeftRadius: "55% 24%", borderBottomRightRadius: "55% 24%",
+          boxShadow: "0 26px 46px rgba(8,38,96,.34)", overflow: "hidden",
+        }}>
+          {/* light sheen — gives the 3D highlight */}
+          <div style={{ position: "absolute", top: "-28%", left: "-14%", width: "85%", height: "95%", transform: "rotate(-10deg)", background: "radial-gradient(ellipse at center, rgba(255,255,255,.24), rgba(255,255,255,0) 62%)" }} />
+          <div style={{ position: "absolute", top: "6%", right: "-8%", width: "55%", height: "60%", background: "radial-gradient(ellipse at center, rgba(130,186,255,.30), rgba(130,186,255,0) 60%)" }} />
+          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "26%", background: "linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.10) 100%)" }} />
+        </div>
       </div>
 
       <div style={{ position: "relative", zIndex: 1, flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>

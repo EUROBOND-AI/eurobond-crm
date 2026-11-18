@@ -49,9 +49,9 @@ export function StatCard({ label, value, sub, color = "#6c5ce7" }) {
 export function Pill({ status }) {
   const s = String(status).toLowerCase();
   let cls = "pill-gray";
-  if (["approved", "win", "won", "complete", "paid", "active", "published", "present"].some((k) => s.includes(k))) cls = "pill-green";
+  if (["approved", "win", "won", "complete", "paid", "active", "published", "present", "met"].some((k) => s.includes(k))) cls = "pill-green";
   else if (["pending", "inprocess", "hold", "medium", "draft", "upcoming"].some((k) => s.includes(k))) cls = "pill-amber";
-  else if (["reject", "lost", "loss", "absent", "high", "close", "junk", "cancel"].some((k) => s.includes(k))) cls = "pill-red";
+  else if (["reject", "lost", "loss", "absent", "high", "close", "junk", "cancel", "behind"].some((k) => s.includes(k))) cls = "pill-red";
   else if (["low", "assigned", "submitted", "mailed"].some((k) => s.includes(k))) cls = "pill-blue";
   return <span className={`pill ${cls}`}>{status}</span>;
 }
@@ -226,7 +226,7 @@ export function FormModal({ title, fields, onClose, onSave, initial }) {
   const [missing, setMissing] = useState([]);
 
   useEffect(() => {
-    if (fields.some((f) => f.optionsSource === "users" || f.type === "audience")) {
+    if (fields.some((f) => f.optionsSource === "users" || f.type === "audience" || f.type === "empcode")) {
       /* the whole person is kept, not just the name, so a field can be narrowed
          by their state (see byState below) */
       api.listUsers().then((d) => setUserPeople(visibleUsers((d.users || []).filter((u) => u.status == 1)))).catch(() => {});
@@ -303,6 +303,18 @@ export function FormModal({ title, fields, onClose, onSave, initial }) {
                   {upBusy === f.name && <span style={{ fontSize: 12, color: "var(--muted)" }}> Uploading…</span>}
                   {values[f.name] && <a href={values[f.name]} target="_blank" rel="noreferrer" className="link" style={{ fontSize: 12, marginLeft: 6 }}>View</a>}
                 </div>
+              ) : f.type === "empcode" ? (
+                <input type="text" placeholder={f.label} value={values[f.name] || ""}
+                  onChange={(e) => {
+                    const code = e.target.value;
+                    const u = userPeople.find((x) => String(x.code || "").trim().toLowerCase() === code.trim().toLowerCase());
+                    setValues((v) => ({ ...v, [f.name]: code,
+                      ...(f.setName ? { [f.setName]: u ? u.name : "" } : {}),
+                      ...(f.setHod ? { [f.setHod]: u ? (u.manager || "") : "" } : {}) }));
+                  }} />
+              ) : f.type === "readonly" ? (
+                <input type="text" readOnly value={values[f.name] || ""} placeholder="— fills from Employee Code —"
+                  style={{ background: "#f1f4fb", color: "#3a4256", cursor: "not-allowed" }} />
               ) : (
                 <input type={f.type || "text"} placeholder={f.label} value={values[f.name] || ""} onChange={(e) => setValues({ ...values, [f.name]: e.target.value })} />
               )}

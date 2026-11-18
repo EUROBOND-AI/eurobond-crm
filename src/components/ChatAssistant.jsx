@@ -213,8 +213,8 @@ const canTTS = (typeof window !== "undefined") && "speechSynthesis" in window;
 function SR_OK() { try { return !!(SR || capPlug("SpeechRecognition")); } catch { return false; } }
 
 /* one-tap starters on the empty screen */
-const SUGGEST_APP = ["My schedule today", "Add a new customer", "Add remark + next visit", "My enquiries", "Apply leave", "How do I add an expense?"];
-const SUGGEST_ADMIN = ["Enquiries this month by source", "Win sq.m & ₹ by person this month", "Today's attendance", "Quotation value this month", "Assign a task", "How do I assign enquiries?"];
+const SUGGEST_APP = ["My schedule today", "My sales vs target", "Add a new customer", "Add remark + next visit", "My enquiries", "Apply leave"];
+const SUGGEST_ADMIN = ["Brandwise sales this year", "Regionwise sales & achievement %", "Top sales persons by value", "Enquiries this month by source", "Today's attendance", "Quotation value this month"];
 
 export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface = "admin", side = "right" }) {
   const [open, setOpen] = useState(false);

@@ -404,7 +404,7 @@ export const MODULES = {
 
   target: {
     path: "sfa/target", title: "Targets", crumb: "Target", perm: "Targets", addLabel: "Assign Target",
-    app: false,
+    app: false, importable: true,
     tabs: [{ key: "Sales", label: "Sales Target (₹)" }, { key: "Specs", label: "Specs Target (Sq.Mtr)" }],
     tabField: "targetType",
     columns: [
@@ -418,14 +418,13 @@ export const MODULES = {
       { key: "status", label: "Status", render: pill },
     ],
     form: [
-      { name: "user", label: "Team Member", type: "select", optionsSource: "users", required: true },
-      { name: "code", label: "Employee Code" },
-      { name: "hod", label: "HOD", type: "select", optionsSource: "hods" },
+      { name: "code", label: "Employee Code", type: "empcode", setName: "user", setHod: "hod", required: true },
+      { name: "user", label: "Team Member", type: "readonly", required: true },
+      { name: "hod", label: "HOD", type: "readonly" },
       { name: "targetType", label: "Target Type", type: "select", options: ["Sales", "Specs"], required: true },
       { name: "period", label: "Month (e.g. Aug 2026)", required: true },
       { name: "target", label: "Target (₹ for Sales, Sq.Mtr for Specs)", type: "number", required: true },
       { name: "achieved", label: "Achieved (₹ for Sales, Sq.Mtr for Specs)", type: "number" },
-      { name: "note", label: "Note", type: "textarea", full: true },
     ],
   },
 

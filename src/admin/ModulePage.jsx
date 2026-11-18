@@ -138,6 +138,13 @@ function targetPct(d) {
   if (!t) return "";
   return Math.round((a / t) * 100) + "%";
 }
+/* Target status — meaningful, not the Sales/Specs tab: Met / Behind / Pending */
+function targetStatus(d) {
+  const t = Number(d && d.target) || 0, a = Number(d && d.achieved) || 0;
+  if (!a) return "Pending";
+  if (t && a >= t) return "Met";
+  return "Behind";
+}
 function projProductsText(items) {
   if (!items || !items.length) return "";
   return items.filter((it) => it.grade).map((it) => `${it.grade}${it.colourCode ? " / " + it.colourCode : ""}${it.qty ? " x" + it.qty : ""}`).join(", ");
@@ -233,7 +240,7 @@ export default function ModulePage({ cfgKey }) {
     if (gated && !shown) { setRows([]); setLoading(false); setErr(""); setLoadingMore(0); return; }
     let alive = true;
     setLoading(true); setErr(""); setLoadingMore(0);
-    const shape = (d) => (d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: r.data.followupsCount ?? (r.data.followups || []).length, productsText: r.data.productsText ?? projProductsText(r.data.items), ...(r.data.catCols || projCategoryCols(r.data.contacts)), achievementPct: targetPct(r.data), planSummary: beatSummary(r.data), planRemarks: beatRemarks(r.data), ...beatDayCols(r.data) }));
+    const shape = (d) => (d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: r.data.followupsCount ?? (r.data.followups || []).length, productsText: r.data.productsText ?? projProductsText(r.data.items), ...(r.data.catCols || projCategoryCols(r.data.contacts)), achievementPct: targetPct(r.data), planSummary: beatSummary(r.data), planRemarks: beatRemarks(r.data), ...beatDayCols(r.data), ...(cfgKey === "target" ? { status: targetStatus(r.data) } : {}) }));
     (async () => {
       try {
         const first = await api.list(cfgKey, false, { slim: true, limit: FIRST_PAGE, offset: 0 });
@@ -459,7 +466,7 @@ export default function ModulePage({ cfgKey }) {
     reloadBusy.current = true;
     if (!silent) { setRefreshing(true); setErr(""); }
     api.list(cfgKey, false, { slim: true, limit: 1000 })
-      .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: r.data.followupsCount ?? (r.data.followups || []).length, productsText: r.data.productsText ?? projProductsText(r.data.items), ...(r.data.catCols || projCategoryCols(r.data.contacts)), achievementPct: targetPct(r.data), planSummary: beatSummary(r.data), planRemarks: beatRemarks(r.data), ...beatDayCols(r.data) }))))
+      .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: r.data.followupsCount ?? (r.data.followups || []).length, productsText: r.data.productsText ?? projProductsText(r.data.items), ...(r.data.catCols || projCategoryCols(r.data.contacts)), achievementPct: targetPct(r.data), planSummary: beatSummary(r.data), planRemarks: beatRemarks(r.data), ...beatDayCols(r.data), ...(cfgKey === "target" ? { status: targetStatus(r.data) } : {}) }))))
       /* a background refresh that fails leaves what is on screen alone and says
          nothing — only a refresh the person asked for reports an error */
       .catch((e) => { if (!silent) setErr(e.message); })
@@ -517,6 +524,13 @@ export default function ModulePage({ cfgKey }) {
       setTimeout(() => dl("project-projection-SPECS-format.csv", [PPJ_SPECS_HEAD, specsSample]), 400);
       return;
     }
+    /* Targets — two templates (Sales & Specs). Name + HOD resolve from Emp Code on import. */
+    if (cfgKey === "target") {
+      const HEAD = ["Employee Code", "Target Type", "Month", "Target", "Achieved"];
+      dl("targets-SALES-format.csv", [HEAD, ["EMP001", "Sales", "Aug 2026", "500000", "0"]]);
+      setTimeout(() => dl("targets-SPECS-format.csv", [HEAD, ["EMP001", "Specs", "Aug 2026", "350", "0"]]), 400);
+      return;
+    }
     /* every field on the Add form (required ones marked), plus one sample row
        so the person knows exactly what to type in each column */
     const fields = (cfg.form || []).filter((f) => f && (f.label || f.name));
@@ -561,6 +575,37 @@ export default function ModulePage({ cfgKey }) {
         reload();
         return;
       }
+      /* Targets import — Emp Code resolves Team Member name + HOD (manager), like Project Projection */
+      if (cfgKey === "target") {
+        const stamp = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+        const L = labels.map((l) => l.toLowerCase());
+        const iCode = L.findIndex((l) => l.includes("code"));
+        const iType = L.findIndex((l) => l.includes("type"));
+        const iMonth = L.findIndex((l) => l.includes("month") || l.includes("period"));
+        const iTarget = L.findIndex((l) => l.startsWith("target") && !l.includes("type"));
+        const iAch = L.findIndex((l) => l.includes("achiev"));
+        const num = (x) => Number(String(x ?? "").replace(/[^\d.-]/g, "")) || 0;
+        for (const line of dataLines) {
+          const cells = cut(line);
+          const code = (iCode >= 0 ? cells[iCode] : "").trim();
+          if (!code) continue;
+          const u = (allUsers || []).find((x) => String(x.code || "").trim().toLowerCase() === code.toLowerCase());
+          const tt = iType >= 0 ? String(cells[iType] || "") : "";
+          const targetType = /spec/i.test(tt) ? "Specs" : "Sales";
+          const data = {
+            code, user: u ? u.name : "", hod: u ? (u.manager || "") : "",
+            targetType, status: targetType,
+            period: iMonth >= 0 ? (cells[iMonth] || "").trim() : "",
+            target: iTarget >= 0 ? num(cells[iTarget]) : 0,
+            achieved: iAch >= 0 ? num(cells[iAch]) : 0,
+            createdAt: stamp, createdBy: (auth.user && auth.user.name) || "",
+          };
+          try { await api.create("target", data); ok++; } catch {}
+        }
+        alert(`Imported ${ok} target(s)` + (ok ? "" : " — check the Employee Code column"));
+        reload();
+        return;
+      }
       const keyByLabel = {}; cfg.columns.forEach((c) => { keyByLabel[c.label] = c.key; });
       for (const line of dataLines) {
         const cells = cut(line);
@@ -599,7 +644,7 @@ export default function ModulePage({ cfgKey }) {
           ...values,
         };
         const res = await api.create(cfgKey, data);
-        setRows([{ _id: res.id, ...data, ...(res.ref ? { id: res.ref } : {}) }, ...rows]);
+        setRows([{ _id: res.id, ...data, ...(res.ref ? { id: res.ref } : {}), ...(cfgKey === "target" ? { achievementPct: targetPct(data), status: targetStatus(data) } : {}) }, ...rows]);
         /* Holidays/Announcements: select chesina audience ki matrame notification */
         if (cfg.notifyOnCreate) {
           try {
