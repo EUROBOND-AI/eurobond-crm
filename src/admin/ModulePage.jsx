@@ -565,8 +565,22 @@ export default function ModulePage({ cfgKey }) {
       const file = inp.files[0]; if (!file) return;
       const text = await file.text();
       const [headLine, ...dataLines] = text.split(/\r?\n/).filter(Boolean);
-      const labels = headLine.split(",").map((h) => h.replace(/^"|"$/g, "").replace(/\s*\*$/, "").trim());
-      const cut = (line) => line.match(/("([^"]|"")*"|[^,]*)/g).filter((_, i) => i % 2 === 0).map((c) => c.replace(/^"|"$/g, "").replace(/""/g, '"'));
+      /* proper CSV field parser — handles quoted commas AND consecutive empty
+         cells (",,,"). The old regex collapsed runs of empty cells, which
+         silently shifted every later column one place to the left (that is why a
+         row with blank Contractor/Facade/End User/Spec Person landed "Running" in
+         the wrong column and failed to import). */
+      const cut = (line) => {
+        const out = []; let cur = "", inQ = false;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (inQ) { if (ch === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else inQ = false; } else cur += ch; }
+          else { if (ch === '"') inQ = true; else if (ch === ",") { out.push(cur); cur = ""; } else cur += ch; }
+        }
+        out.push(cur);
+        return out.map((c) => c.trim());
+      };
+      const labels = cut(headLine).map((h) => h.replace(/\s*\*$/, "").trim());
       let ok = 0;
       /* #13 — Project Projection: Sales or Specs sheet (Specs has a "Category"
          column). Contacts and products are parsed into the record's arrays. */

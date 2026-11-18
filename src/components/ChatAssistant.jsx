@@ -221,7 +221,6 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
   const [msgs, setMsgs] = useState([]);            // {role:'user'|'model'|'note', text, action?}
   const [input, setInput] = useState("");
   const [copiedI, setCopiedI] = useState(null);    // which message was just copied
-  const [reacts, setReacts] = useState({});        // per-message 👍/👎
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
   const [voiceOut, setVoiceOut] = useState(() => { try { return localStorage.getItem("eb_ai_voice") !== "0"; } catch { return true; } });
@@ -921,8 +920,6 @@ export default function ChatAssistant({ accent = "#1b3a8f", bottom = 18, surface
                         <div style={msgActBar}>
                           <button style={actBtn} title="Copy" onClick={() => copyMsg(m.text, i)}>{copiedI === i ? "✓" : "⧉"}</button>
                           {(canTTS || capPlug("TextToSpeech")) && <button style={actBtn} title="Read aloud" onClick={() => speak(m.text, true)}>🔊</button>}
-                          <button style={{ ...actBtn, color: reacts[i] === "up" ? "#1f9d55" : actBtn.color }} title="Good answer" onClick={() => setReacts((r) => ({ ...r, [i]: r[i] === "up" ? null : "up" }))}>👍</button>
-                          <button style={{ ...actBtn, color: reacts[i] === "down" ? "#c03636" : actBtn.color }} title="Bad answer" onClick={() => setReacts((r) => ({ ...r, [i]: r[i] === "down" ? null : "down" }))}>👎</button>
                           <button style={actBtn} title="Regenerate" onClick={() => regen(i)}>↻</button>
                         </div>
                       ) : (
