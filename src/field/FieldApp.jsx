@@ -3253,10 +3253,10 @@ function FieldProjectList() {
      smaller answer comes back noticeably quicker on mobile data */
   const load = () => {
     setRows(null);
-    /* everything this person is named on — created by them, or where they are the
-       sales / spec person (so imported and forwarded projects show too), not only
-       rows the app account itself created. */
-    return api.list("projectProjection", false, { involved: true })
+    /* this person's own projects — a fast, indexed created_by lookup. Imported
+       projects are OWNED by the person (the importer sets _ownerCode), so they
+       show here too, without the slow JSON scan that `involved` needs. */
+    return api.list("projectProjection", true)
       .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data }))))
       .catch(() => setRows([]));
   };
@@ -7892,7 +7892,7 @@ function FieldNearbyProjects() {
 
   /* This person's own projects. Reading everyone's put a colleague's project on
      someone's screen, which is not what this is for. */
-  const loadProjects = () => api.list("projectProjection", false, { involved: true })
+  const loadProjects = () => api.list("projectProjection", true)
     .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data }))))
     .catch(() => setRows([]));
 
