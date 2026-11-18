@@ -7892,7 +7892,7 @@ function FieldNearbyProjects() {
 
   /* This person's own projects. Reading everyone's put a colleague's project on
      someone's screen, which is not what this is for. */
-  const loadProjects = () => api.list("projectProjection", true)
+  const loadProjects = () => api.list("projectProjection", false, { involved: true })
     .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data }))))
     .catch(() => setRows([]));
 
