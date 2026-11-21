@@ -347,7 +347,7 @@ export default function BiltraxPage() {
                 <td style={{ ...td, maxWidth: 220, whiteSpace: "normal" }}>
                   {r.lastRemark ? (
                     <>
-                      <div style={{ fontSize: 12.5 }}>{r.lastRemark}</div>
+                      <div style={{ fontSize: 12.5 }}><ClampText text={r.lastRemark} limit={90} /></div>
                       <div style={{ fontSize: 10.5, color: "var(--muted)" }}>{r.lastRemarkBy || ""}{r.lastRemarkAt ? " · " + r.lastRemarkAt : ""}</div>
                     </>
                   ) : "—"}

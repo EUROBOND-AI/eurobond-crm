@@ -4398,16 +4398,29 @@ function TargetView({ targets, filter, setFilter, isSpec, title }) {
   };
   const yearOf = (period) => { const y = (period || "").match(/\d{4}/); return y ? y[0] : ""; };
   const now = new Date();
-  const curMonth = now.toLocaleString("en-IN", { month: "short", year: "numeric" }).toLowerCase();
   const curYear = String(now.getFullYear());
   const curQ = Math.floor(((now.getMonth() + 9) % 12) / 3); // FY quarter 0..3
+  const qKeyOf = (p) => { const mi = monthIdx(p); const y = yearOf(p); if (mi < 0 || !y) return ""; const q = Math.floor(((mi + 9) % 12) / 3); return `Q${q + 1} ${y}`; };
+  const monthSort = (a, b) => { const ya = yearOf(a), yb = yearOf(b); if (ya !== yb) return yb.localeCompare(ya); return monthIdx(b) - monthIdx(a); };
+
+  const [pick, setPick] = useState(null);   // which month/quarter/year is being viewed (null = default/current)
+  const periods = [...new Set((targets || []).map((t) => t.period).filter(Boolean))];
+  const monthOpts = periods.filter((p) => monthIdx(p) >= 0).sort(monthSort);
+  const quarterOpts = [...new Set(periods.map(qKeyOf).filter(Boolean))];
+  const yearOpts = [...new Set(periods.map(yearOf).filter(Boolean))].sort().reverse();
+  const opts = filter === "Month" ? monthOpts : filter === "Quarter" ? quarterOpts : filter === "Year" ? yearOpts : [];
+  const defaultPick =
+    filter === "Month" ? (monthOpts.find((p) => monthIdx(p) === now.getMonth() && yearOf(p) === curYear) || monthOpts[0]) :
+    filter === "Quarter" ? (quarterOpts.find((q) => q === `Q${curQ + 1} ${curYear}`) || quarterOpts[0]) :
+    filter === "Year" ? (yearOpts.includes(curYear) ? curYear : yearOpts[0]) : null;
+  const sel = pick || defaultPick;
 
   const matches = (t) => {
-    const p = (t.period || "").toLowerCase();
     if (filter === "All") return true;
-    if (filter === "Month") return p.includes(curMonth.split(" ")[0]) && p.includes(curYear);
-    if (filter === "Year") return yearOf(t.period) === curYear;
-    if (filter === "Quarter") { const mi = monthIdx(t.period); if (mi < 0) return false; const q = Math.floor(((mi + 9) % 12) / 3); return q === curQ && yearOf(t.period) === curYear; }
+    if (!sel) return false;
+    if (filter === "Month") return t.period === sel;
+    if (filter === "Year") return yearOf(t.period) === sel;
+    if (filter === "Quarter") return qKeyOf(t.period) === sel;
     return true;
   };
 
@@ -4448,11 +4461,16 @@ function TargetView({ targets, filter, setFilter, isSpec, title }) {
       <ScreenHead title={title || "Target"} right={null} />
       <div className="f-list-pad" style={{ paddingTop: 14 }}>
         {/* filter chips */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+        <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
           {["Month", "Quarter", "Year", "All"].map((f) => (
-            <button key={f} onClick={() => setFilter(f)} style={{ flex: 1, padding: "8px 0", borderRadius: 9, border: "none", fontWeight: 700, fontSize: 12.5, cursor: "pointer", background: filter === f ? "var(--navy)" : "#eef1ff", color: filter === f ? "#fff" : "var(--navy)" }}>{f}</button>
+            <button key={f} onClick={() => { setFilter(f); setPick(null); }} style={{ flex: 1, padding: "8px 0", borderRadius: 9, border: "none", fontWeight: 700, fontSize: 12.5, cursor: "pointer", background: filter === f ? "var(--navy)" : "#eef1ff", color: filter === f ? "#fff" : "var(--navy)" }}>{f}</button>
           ))}
         </div>
+        {filter !== "All" && opts.length > 0 && (
+          <select value={sel || ""} onChange={(e) => setPick(e.target.value)} style={{ width: "100%", marginBottom: 14, padding: "9px 11px", borderRadius: 9, border: "1px solid #d7dcef", fontSize: 13, fontWeight: 700, background: "#fff" }}>
+            {opts.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+        )}
 
         {targets === null ? (
           <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>

@@ -654,7 +654,10 @@ export default function ModulePage({ cfgKey }) {
         const iTarget = L.findIndex((l) => l.startsWith("target") && !l.includes("type"));
         const iAch = L.findIndex((l) => l.includes("achiev"));
         const num = (x) => Number(String(x ?? "").replace(/[^\d.-]/g, "")) || 0;
-        for (const line of dataLines) {
+        setImp({ done: 0, total: dataLines.length, saved: 0 });
+        for (let li = 0; li < dataLines.length; li++) {
+          const line = dataLines[li];
+          setImp({ done: li + 1, total: dataLines.length, saved: ok });
           const cells = cut(line);
           const code = (iCode >= 0 ? cells[iCode] : "").trim();
           if (!code) continue;
@@ -671,17 +674,21 @@ export default function ModulePage({ cfgKey }) {
           };
           try { await api.create("target", data); ok++; } catch {}
         }
+        setImp(null);
         alert(`Imported ${ok} target(s)` + (ok ? "" : " — check the Employee Code column"));
         reload();
         return;
       }
       const keyByLabel = {}; cfg.columns.forEach((c) => { keyByLabel[c.label] = c.key; });
-      for (const line of dataLines) {
-        const cells = cut(line);
+      setImp({ done: 0, total: dataLines.length, saved: 0 });
+      for (let li = 0; li < dataLines.length; li++) {
+        const cells = cut(dataLines[li]);
         const data = {};
         labels.forEach((lab, i) => { if (keyByLabel[lab]) data[keyByLabel[lab]] = cells[i]; });
         if (Object.keys(data).length) { try { await api.create(cfgKey, data); ok++; } catch {} }
+        setImp({ done: li + 1, total: dataLines.length, saved: ok });
       }
+      setImp(null);
       alert(`Imported ${ok} records`);
       reload();
     };
