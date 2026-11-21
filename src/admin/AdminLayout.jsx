@@ -408,17 +408,18 @@ export default function AdminLayout() {
       Object.entries(u.perm).forEach(([mod, perms]) => { if (perms && Object.values(perms).some((v) => v === true)) allow.add(mod); });
       setAllowedNav(allow); return;
     }
-    const isAdminRole = /admin/i.test(role);
+    /* an Admin with no per-user access sees everything (Admin is not role-configured) */
+    if (/admin/i.test(role)) { setAllowedNav(null); return; }
     const plain = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     api.list("roles", false).then((d) => {
       const rec = (d.records || []).map((r) => r.data).find((r) => r && plain(r.name) === plain(role));
-      if (!rec || !rec.grid) { setAllowedNav(isAdminRole ? null : new Set()); return; }   // admin w/o grid → all; others → nothing
+      if (!rec || !rec.grid) { setAllowedNav(new Set()); return; }
       const allow = new Set();
       Object.entries(rec.grid).forEach(([mod, perms]) => {
         if (perms && Object.values(perms).some((v) => v === true)) allow.add(mod);
       });
       setAllowedNav(allow);
-    }).catch(() => setAllowedNav(isAdminRole ? null : new Set()));
+    }).catch(() => setAllowedNav(new Set()));
   }, []);
 
   useEffect(() => {

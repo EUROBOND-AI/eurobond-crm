@@ -21,9 +21,9 @@ export async function loadPerms() {
     /* a per-user grid set on this admin's own record wins (user-wise access) */
     const up = auth.user?.perm;
     if (up && typeof up === "object" && Object.keys(up).length) { GRID = up; return GRID; }
-    if (!role) { GRID = "ALL"; return GRID; }
-    /* otherwise a plain Admin follows the shared "Admin" role grid (full until
-       the owner limits it); every other role follows its own grid. */
+    /* an Admin with no per-user grid has full access (Admin is not role-configured) */
+    if (!role || role === "admin") { GRID = "ALL"; return GRID; }
+    /* every other role follows its own grid from Role & Permission */
     try {
       const d = await api.list("roles", false);
       /* role names are typed in two places ("HOD (Sales)" vs "hod (sales)"),

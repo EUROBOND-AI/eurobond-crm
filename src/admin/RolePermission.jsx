@@ -9,10 +9,9 @@ export const MODULES = ["Enquiry Dashboard", "Customers Dashboard", "Target Dash
    belong to the owner account alone, so a tick against them meant nothing. */
 export const PERMS = ["Add", "Approve", "Delete", "Export", "Import", "Modify", "View"];
 /* Fixed roles — same as User creation (no add/delete).
-   "Admin" IS listed now so admin backend users can be given limited access. It
-   starts with FULL access (nothing changes) until the owner unticks modules.
-   The OWNER account always keeps full access regardless of this grid. */
-const STD_ROLES = ["Admin", "HOD (Sales)", "HOD (Specs)", "HOD (Export)", "Sub HOD (Sales)", "Sub HOD (Specs)", "Sub HOD (Export)", "Sales Person", "Specs Person", "Export Person", "Sales Collection"];
+   Admin is NOT configured here: an admin's module access is set per-user on the
+   Admin Users page (🔒 Access), and the Owner always has full access. */
+const STD_ROLES = ["HOD (Sales)", "HOD (Specs)", "HOD (Export)", "Sub HOD (Sales)", "Sub HOD (Specs)", "Sub HOD (Export)", "Sales Person", "Specs Person", "Export Person", "Sales Collection"];
 
 export const emptyGrid = () => Object.fromEntries(MODULES.map((m) => [m, Object.fromEntries(PERMS.map((p) => [p, false]))]));
 export const adminGrid = () => Object.fromEntries(MODULES.map((m) => [m, Object.fromEntries(PERMS.map((p) => [p, true]))]));
@@ -28,12 +27,10 @@ export default function RolePermission() {
     try {
       const d = await api.list("roles");
       let rs = (d.records || []).map((r) => ({ _id: r.id, name: r.data.name, grid: r.data.grid || emptyGrid() }));
-      /* seed any missing role — Admin starts with FULL access (so nothing breaks),
-         every other role starts empty and the owner ticks what it can see */
+      /* seed any missing role with an empty grid — the owner ticks what each can see */
       for (const name of STD_ROLES) {
         if (!rs.find((r) => r.name === name)) {
-          const g = name === "Admin" ? adminGrid() : emptyGrid();
-          try { const res = await api.create("roles", { name, grid: g }); rs.push({ _id: res.id, name, grid: g }); } catch {}
+          try { const res = await api.create("roles", { name, grid: emptyGrid() }); rs.push({ _id: res.id, name, grid: emptyGrid() }); } catch {}
         }
       }
       /* keep only the configured roles, in fixed order (Admin excluded — always full access) */
@@ -75,7 +72,7 @@ export default function RolePermission() {
       />
 
       <div style={{ background: "#eef2ff", border: "1px solid #dbe3ff", borderRadius: 12, padding: "10px 14px", marginBottom: 14, fontSize: 12.5, color: "#3a4468" }}>
-        The <b>Owner</b> account always has full access. The <b>Admin</b> role starts with full access — untick modules to limit what backend admin users can see. Set below what each role can access.
+        The <b>Owner</b> always has full access, and each <b>Admin</b> user's access is set per-user on the <b>Admin Users</b> page (🔒 Access). Set below what each other role can access.
       </div>
 
       {loading ? <div style={{ padding: 16 }}><SkeletonList rows={6} /></div>
@@ -84,7 +81,7 @@ export default function RolePermission() {
           <h3 style={{ marginBottom: 8 }}>No roles yet</h3>
           <p style={{ fontSize: 13.5, marginBottom: 16 }}>Create the standard roles, then set what each can access.</p>
           <button className="btn btn-primary" onClick={async () => {
-            for (const name of STD_ROLES) { try { await api.create("roles", { name, grid: name === "Admin" ? adminGrid() : emptyGrid() }); } catch {} }
+            for (const name of STD_ROLES) { try { await api.create("roles", { name, grid: emptyGrid() }); } catch {} }
             load();
           }}>➕ Create Standard Roles</button>
         </div>
