@@ -294,6 +294,10 @@ export default function SalesReview({ scope = "sales" } = {}) {
     return { ec, sp };
   }, [admin, db]);
 
+  /* if this same component is reused when switching between Power BI and Export
+     BI, the old dataset must not linger — reset so the correct scope reloads */
+  useEffect(() => { setDb(null); setShown(false); setMsg(""); setProg(null); }, [scope]);
+
   const load = () => {
     setShown(true); setBusy(true);
     api.pbLoad(isExp ? "export" : "")

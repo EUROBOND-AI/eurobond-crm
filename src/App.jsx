@@ -112,8 +112,8 @@ export default function App() {
         <Route path="dashboards/target" element={<TargetDashboard />} />
         <Route path="dashboards/project" element={<ProjectDashboard />} />
         <Route path="dashboards/task" element={<TaskDashboard />} />
-        <Route path="dashboards/sales-review" element={<SalesReview />} />
-        <Route path="dashboards/export-bi" element={<SalesReview scope="export" />} />
+        <Route path="dashboards/sales-review" element={<SalesReview key="pbi-sales" />} />
+        <Route path="dashboards/export-bi" element={<SalesReview key="pbi-export" scope="export" />} />
         <Route path="sfa/biltrax" element={<BiltraxPage />} />
         <Route path="dashboards/biltrax" element={<BiltraxDashboard />} />
         <Route path="master/logs" element={<ActivityLogs />} />
