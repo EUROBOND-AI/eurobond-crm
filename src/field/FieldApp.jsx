@@ -4375,6 +4375,13 @@ function FieldProjectNew() {
 ============================================================================ */
 const pcColor = (pc) => (pc >= 100 ? "#1f9d55" : pc >= 60 ? "#e8a020" : "#d64545");
 
+/* Target period parsing — handles "Aug 2026", "Aug-26", "Mar-27", "2026" etc.
+   (month name in any separator, 4-digit OR 2-digit year). */
+const TGT_MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+const tgtMonthIdx = (p) => { const m = String(p || "").toLowerCase().match(/jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec/); return m ? TGT_MONTHS.indexOf(m[0]) : -1; };
+const tgtYearOf = (p) => { const s = String(p || ""); let m = s.match(/\b(20\d{2})\b/); if (m) return m[1]; m = s.match(/[-/\s'"](\d{2})\b/); if (m) return "20" + m[1]; m = s.match(/(\d{2})\s*$/); if (m) return "20" + m[1]; return ""; };
+const tgtQKey = (p) => { const mi = tgtMonthIdx(p), y = tgtYearOf(p); if (mi < 0 || !y) return ""; const q = Math.floor(((mi + 9) % 12) / 3); return `Q${q + 1} ${y}`; };
+
 function FieldTarget() {
   const [targets, setTargets] = useState(null);
   const [filter, setFilter] = useState("Month");   // Month / Quarter / Year / All
@@ -4391,12 +4398,10 @@ function FieldTarget() {
 
 /* shared target view — used by the field user AND the HOD (per member) */
 function TargetView({ targets, filter, setFilter, isSpec, title }) {
-  /* which financial quarter a "Aug 2026" month falls in (Apr-Jun=Q1 ... Jan-Mar=Q4) */
-  const monthIdx = (period) => {
-    const m = new Date(("1 " + (period || "")).replace(/(\w+)\s+(\d{4})/, "$1 1, $2"));
-    return isNaN(m) ? -1 : m.getMonth();
-  };
-  const yearOf = (period) => { const y = (period || "").match(/\d{4}/); return y ? y[0] : ""; };
+  /* Period parsing that accepts BOTH "Aug 2026" and "Aug-26" / "Mar-27" (2-digit
+     year, any separator). Quarter is the financial quarter (Apr-Jun=Q1 ... Jan-Mar=Q4). */
+  const monthIdx = tgtMonthIdx;
+  const yearOf = tgtYearOf;
   const now = new Date();
   const curYear = String(now.getFullYear());
   const curQ = Math.floor(((now.getMonth() + 9) % 12) / 3); // FY quarter 0..3
@@ -5031,9 +5036,9 @@ function FieldTeamPerformance() {
   const now = new Date();
   const curYear = String(now.getFullYear());
   const curQ = Math.floor(((now.getMonth() + 9) % 12) / 3);
-  const monthIdx = (period) => { const m = new Date(("1 " + (period || "")).replace(/(\w+)\s+(\d{4})/, "$1 1, $2")); return isNaN(m) ? -1 : m.getMonth(); };
-  const yearOf = (period) => { const y = (period || "").match(/\d{4}/); return y ? y[0] : ""; };
-  const qKeyOf = (p) => { const mi = monthIdx(p); const y = yearOf(p); if (mi < 0 || !y) return ""; const q = Math.floor(((mi + 9) % 12) / 3); return `Q${q + 1} ${y}`; };
+  const monthIdx = tgtMonthIdx;
+  const yearOf = tgtYearOf;
+  const qKeyOf = tgtQKey;
   const monthSort = (a, b) => { const ya = yearOf(a), yb = yearOf(b); if (ya !== yb) return yb.localeCompare(ya); return monthIdx(b) - monthIdx(a); };
 
   /* period options built from the team's own targets, so Quarter/Year are
