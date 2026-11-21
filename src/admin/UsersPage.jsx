@@ -6,7 +6,7 @@ import { api } from "../lib/api.js";
 import { Avatar, fileUrl } from "../lib/avatar.jsx";
 import { visibleUsers } from "../lib/scope.js";
 
-const ROLES = ["Admin", "HOD (Sales)", "HOD (Specs)", "Sub HOD (Sales)", "Sub HOD (Specs)", "Sales Person", "Specs Person", "Sales Collection"];
+const ROLES = ["Admin", "HOD (Sales)", "HOD (Specs)", "HOD (Export)", "Sub HOD (Sales)", "Sub HOD (Specs)", "Sub HOD (Export)", "Sales Person", "Specs Person", "Export Person", "Sales Collection"];
 const GRADES = ["S1", "S2", "S3", "S4", "S5", "M1", "M2", "M3"];
 const empty = { name: "", mobile: "", code: "", email: "", role: "Sales Person", grade: "", designation: "", doj: "", dob: "", state: "", zone: "", city: "", manager: "", password: "", photo: "", qr: "", states: "", nearby_range_m: 500 };
 

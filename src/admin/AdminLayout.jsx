@@ -399,16 +399,20 @@ export default function AdminLayout() {
   useEffect(() => {
     const u = auth.user || {};
     const role = String(u.role || "");
-    if (/admin/i.test(role) || u.bootstrap) { setAllowedNav(null); return; }   // admin → all
+    /* Owner / System always see everything. The Admin role follows its grid (if
+       configured); with no grid row the admin stays full, so nothing breaks. */
+    if (u.owner || u.bootstrap || /^system$/i.test(role.trim())) { setAllowedNav(null); return; }
+    const isAdminRole = /admin/i.test(role);
+    const plain = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     api.list("roles", false).then((d) => {
-      const rec = (d.records || []).map((r) => r.data).find((r) => r && r.name === role);
-      if (!rec || !rec.grid) { setAllowedNav(new Set()); return; }              // no grid → nothing extra
+      const rec = (d.records || []).map((r) => r.data).find((r) => r && plain(r.name) === plain(role));
+      if (!rec || !rec.grid) { setAllowedNav(isAdminRole ? null : new Set()); return; }   // admin w/o grid → all; others → nothing
       const allow = new Set();
       Object.entries(rec.grid).forEach(([mod, perms]) => {
         if (perms && Object.values(perms).some((v) => v === true)) allow.add(mod);
       });
       setAllowedNav(allow);
-    }).catch(() => setAllowedNav(new Set()));
+    }).catch(() => setAllowedNav(isAdminRole ? null : new Set()));
   }, []);
 
   useEffect(() => {

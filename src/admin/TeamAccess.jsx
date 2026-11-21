@@ -32,7 +32,7 @@ const APP_MODULES = [
   { key: "task", label: "Task" },
 ];
 /* Admin excluded — Admin always sees all app modules. These are the roles admin configures. */
-const ROLES = ["HOD (Sales)", "HOD (Specs)", "Sub HOD (Sales)", "Sub HOD (Specs)", "Sales Person", "Specs Person", "Sales Collection"];
+const ROLES = ["HOD (Sales)", "HOD (Specs)", "HOD (Export)", "Sub HOD (Sales)", "Sub HOD (Specs)", "Sub HOD (Export)", "Sales Person", "Specs Person", "Export Person", "Sales Collection"];
 
 /* default visibility per role (admin can override & save) */
 const HOD_ONLY = ["leaveApproval", "teamPerformance", "teamTracking", "teamCustomers"];

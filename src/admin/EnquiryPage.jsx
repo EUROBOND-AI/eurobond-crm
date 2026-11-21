@@ -899,9 +899,28 @@ function AssignModal({ users, reassign, count, onClose, onAssign }) {
   );
 }
 
+/* long text that collapses with a "view more" toggle */
+function ClampText({ text, limit = 150 }) {
+  const [open, setOpen] = useState(false);
+  const t = String(text || "");
+  if (t.length <= limit) return <span style={{ whiteSpace: "pre-wrap" }}>{t}</span>;
+  return (
+    <span style={{ whiteSpace: "pre-wrap" }}>
+      {open ? t : t.slice(0, limit) + "… "}
+      <span onClick={() => setOpen(!open)} style={{ color: "var(--accent)", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>{open ? "  view less" : "view more"}</span>
+    </span>
+  );
+}
+
 /* Admin enquiry detail view — shows all + Win Sq.Meter + attachment download */
 function AdminEnquiryView({ r, onClose }) {
   const row = (label, val) => val ? <div style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "8px 0", borderBottom: "1px solid #f0f2f8", fontSize: 13 }}><span style={{ color: "var(--muted)" }}>{label}</span><span style={{ fontWeight: 600, textAlign: "right" }}>{val}</span></div> : null;
+  const remarks = Array.isArray(r.remarks) ? r.remarks : [];
+  const chat = Array.isArray(r.chat) ? r.chat : [];
+  const timeline = [
+    ...remarks.map((x) => ({ by: x.by, kind: "Remark", at: x.at, ts: x.ts || 0, text: (x.remark || "") + (x.nextDate ? `  →  next ${x.nextType || "call"} ${x.nextDate}${x.nextTime ? " " + x.nextTime : ""}` : "") })),
+    ...chat.map((x) => ({ by: x.by, kind: x.admin ? "Admin" : "Message", at: x.at, ts: x.ts || 0, text: x.text || "" })),
+  ].sort((a, b) => (a.ts || 0) - (b.ts || 0));
   const isPdf = r.winInvoice && String(r.winInvoice).match(/\.pdf$/i);
   return (
     <div className="modal-mask" onClick={onClose}>
@@ -952,6 +971,23 @@ function AdminEnquiryView({ r, onClose }) {
                 <a href={r.winInvoice} download style={{ display: "inline-block", marginLeft: 12, color: "#0f7a44", fontWeight: 700, fontSize: 12.5 }}>⬇ Download</a>
               </div>
             )}
+          </div>
+        )}
+        {(timeline.length > 0 || r.lastRemark) && (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ fontWeight: 800, color: "#1f3a68", marginBottom: 8 }}>📝 Follow-up & History {timeline.length ? `(${timeline.length})` : ""}</div>
+            {timeline.length === 0 && r.lastRemark ? (
+              <div style={{ background: "#f3fbf6", border: "1px solid #e1f0e8", borderRadius: 10, padding: "9px 11px" }}>
+                <div style={{ fontSize: 11.5, fontWeight: 800, color: "#1f3a68" }}>{r.lastRemarkBy || "—"}{r.lastRemarkAt ? " · " + r.lastRemarkAt : ""}</div>
+                <div style={{ fontSize: 13, margin: "3px 0" }}><ClampText text={r.lastRemark} /></div>
+              </div>
+            ) : timeline.map((m, i) => (
+              <div key={i} style={{ background: m.kind === "Admin" ? "#eef4ff" : "#f3fbf6", border: "1px solid #e8edf6", borderRadius: 10, padding: "9px 11px", marginBottom: 8 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 800, color: "#1f3a68" }}>{m.by}{m.kind ? ` · ${m.kind}` : ""}</div>
+                <div style={{ fontSize: 13, margin: "3px 0" }}><ClampText text={m.text} /></div>
+                {m.at && <div style={{ fontSize: 10.5, color: "var(--muted)" }}>{m.at}</div>}
+              </div>
+            ))}
           </div>
         )}
       </div>

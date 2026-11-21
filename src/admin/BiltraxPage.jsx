@@ -452,7 +452,21 @@ const rowLine = (k, v) => (
   </div>
 );
 
+/* long text that collapses with a "view more" toggle */
+function ClampText({ text, limit = 150 }) {
+  const [open, setOpen] = useState(false);
+  const t = String(text || "");
+  if (t.length <= limit) return <div style={{ fontSize: 13, margin: "3px 0", whiteSpace: "pre-wrap" }}>{t}</div>;
+  return (
+    <div style={{ fontSize: 13, margin: "3px 0", whiteSpace: "pre-wrap" }}>
+      {open ? t : t.slice(0, limit) + "… "}
+      <span onClick={() => setOpen(!open)} style={{ color: "var(--accent, #2b6fb8)", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>{open ? "  view less" : "view more"}</span>
+    </div>
+  );
+}
+
 function BiltraxView({ r, onClose }) {
+  const followups = Array.isArray(r.followups) ? r.followups : [];
   return (
     <Modal title={r.projectName || "Biltrax Project"} onClose={onClose} wide>
       {rowLine("Biltrax Type", r.biltraxType || "Requested")}
@@ -483,6 +497,19 @@ function BiltraxView({ r, onClose }) {
           {r.winAttachment && rowLine("Attachment",
             <span className="link" style={{ cursor: "pointer" }}
               onClick={() => window.dispatchEvent(new CustomEvent("crm-lightbox", { detail: r.winAttachment }))}>View file</span>)}
+        </div>
+      )}
+      {followups.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <div style={{ fontWeight: 800, color: "#1f3a68", marginBottom: 8 }}>📝 Follow-up & History ({followups.length})</div>
+          {followups.slice().reverse().map((fu, i) => (
+            <div key={i} style={{ background: "#f3fbf6", border: "1px solid #e1f0e8", borderRadius: 10, padding: "9px 11px", marginBottom: 8 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 800, color: "#1f3a68" }}>{fu.by || "—"}{fu.date ? " · " + fu.date : ""}</div>
+              {fu.remark ? <ClampText text={fu.remark} /> : null}
+              {fu.nextDate && <div style={{ fontSize: 11.5, color: "var(--accent, #2b6fb8)", marginTop: 3 }}>→ Next {fu.nextType || "call"}: {fu.nextDate}{fu.nextTime ? " " + fu.nextTime : ""}{fu.nextNote ? " — " + fu.nextNote : ""}</div>}
+              {fu.at && <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 2 }}>{fu.at}</div>}
+            </div>
+          ))}
         </div>
       )}
       <button className="btn" style={{ width: "100%", marginTop: 14 }} onClick={onClose}>Close</button>

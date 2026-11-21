@@ -8,7 +8,7 @@ import { useBulk, BulkHead, BulkCell, BulkBar } from "../components/Bulk.jsx";
 /* Admin Users — people who can log into the BACKEND panel (password login).
    Separate from App Users (field staff, OTP login). Role decides which admin
    modules they see (via Role & Permission). */
-const ROLES = ["Admin", "HOD (Sales)", "HOD (Specs)", "Sub HOD (Sales)", "Sub HOD (Specs)", "Sales Person", "Specs Person", "Sales Collection"];
+const ROLES = ["Admin", "HOD (Sales)", "HOD (Specs)", "HOD (Export)", "Sub HOD (Sales)", "Sub HOD (Specs)", "Sub HOD (Export)", "Sales Person", "Specs Person", "Export Person", "Sales Collection"];
 const empty = { name: "", username: "", email: "", role: "Admin", password: "" };
 /* Only the Admin role carries a panel password; every other role signs in
    through the app with a one-time code. */
