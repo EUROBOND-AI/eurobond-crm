@@ -10,6 +10,7 @@ import SavingOverlay from "./components/SavingOverlay.jsx";
 import AdminLayout from "./admin/AdminLayout.jsx";
 const DealPipeline = lazy(() => import("./admin/DealPipeline.jsx"));
 const AreasPage = lazy(() => import("./admin/AreasPage.jsx"));
+const ExportAreasPage = lazy(() => import("./admin/ExportAreasPage.jsx"));
 const ExpenseDashboard = lazy(() => import("./admin/ExpenseDashboard.jsx"));
 const ExpenseApprovals = lazy(() => import("./admin/ExpenseApprovals.jsx"));
 const UserReportCard = lazy(() => import("./admin/UserReportCard.jsx"));
@@ -103,6 +104,7 @@ export default function App() {
         <Route path="dashboards/home" element={<Navigate to="/admin/dashboards/enquiry" replace />} />
         <Route path="sfa/pipeline" element={<DealPipeline />} />
         <Route path="master/areas" element={<AreasPage />} />
+        <Route path="master/export-areas" element={<ExportAreasPage />} />
         <Route path="dashboards/expense" element={<ExpenseDashboard />} />
         <Route path="dashboards/user-report" element={<UserReportCard />} />
         <Route path="dashboards/enquiry" element={<EnquiryDashboard />} />

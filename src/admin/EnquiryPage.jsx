@@ -746,6 +746,7 @@ function EnquiryForm({ row, onClose, onSaved }) {
   /* State + Area come from the Areas master so entries stay consistent */
   const [mStates, setMStates] = useState([]);
   const [mAreas, setMAreas] = useState([]);
+  const [expRows, setExpRows] = useState([]);   // export-area master rows [{country, area}]
   const [f, setF] = useState(row || {
     date: new Date().toISOString().slice(0, 10), customer: "", contactPerson: "", phone: "", email: "",
     area: "", state: "", address: "", leadFrom: "IndiaMart", subFrom: "", product: "", quantity: "", uom: "Sq.Mtr", orderValue: "", enquiryDetails: "",
@@ -755,10 +756,19 @@ function EnquiryForm({ row, onClose, onSaved }) {
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
 
   useEffect(() => { api.areaStates().then((d) => setMStates(d.states || [])).catch(() => {}); }, []);
+  /* export-area master: Country + State/Town/Area — loaded for Export enquiries */
+  useEffect(() => { api.listAll("exportArea", false).then((d) => setExpRows((d.records || []).map((r) => ({ country: r.data?.country || "", area: r.data?.area || "" })))).catch(() => {}); }, []);
   useEffect(() => {
+    if (f.leadFrom === EXPORT_SOURCE) return;   // export uses expRows, handled below
     if (!f.state) { setMAreas([]); return; }
     api.areasByState(f.state).then((d) => setMAreas(d.areas || [])).catch(() => setMAreas([]));
-  }, [f.state]);
+  }, [f.state, f.leadFrom]);
+
+  const isExport = f.leadFrom === EXPORT_SOURCE;
+  /* when Export, the State dropdown shows Countries and Area shows that country's towns */
+  const expCountries = [...new Set(expRows.map((r) => r.country).filter(Boolean))].sort();
+  const stateOpts = isExport ? expCountries : mStates;
+  const areaOpts = isExport ? expRows.filter((r) => r.country === f.state).map((r) => r.area) : mAreas;
 
   const save = async () => {
     if (!f.customer) { alert("Customer Name required"); return; }
@@ -823,19 +833,26 @@ function EnquiryForm({ row, onClose, onSaved }) {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
           <div><label style={{ fontSize: 11.5, fontWeight: 700 }}>Email</label><input type="email" value={f.email} onChange={(e) => set("email", e.target.value)} style={inp} /></div>
-          <div><label style={{ fontSize: 11.5, fontWeight: 700 }}>State</label>
+          <div><label style={{ fontSize: 11.5, fontWeight: 700 }}>{f.leadFrom === EXPORT_SOURCE ? "Country" : "State"}</label>
             <select value={f.state} onChange={(e) => { set("state", e.target.value); set("area", ""); }} style={inp}>
-              <option value="">Select State…</option>
-              {mStates.map((st) => <option key={st}>{st}</option>)}
+              <option value="">{f.leadFrom === EXPORT_SOURCE ? "Select Country…" : "Select State…"}</option>
+              {stateOpts.map((st) => <option key={st}>{st}</option>)}
             </select>
           </div>
-          <div><label style={{ fontSize: 11.5, fontWeight: 700 }}>Location / Area</label>
+          <div><label style={{ fontSize: 11.5, fontWeight: 700 }}>{f.leadFrom === EXPORT_SOURCE ? "State / Town / Area" : "Location / Area"}</label>
             <select value={f.area} onChange={(e) => set("area", e.target.value)} style={inp} disabled={!f.state}>
-              <option value="">{f.state ? "Select Area…" : "Select State first"}</option>
-              {mAreas.map((a) => <option key={a}>{a}</option>)}
+              <option value="">{f.state ? (f.leadFrom === EXPORT_SOURCE ? "Select State/Town/Area…" : "Select Area…") : (f.leadFrom === EXPORT_SOURCE ? "Select Country first" : "Select State first")}</option>
+              {areaOpts.map((a) => <option key={a}>{a}</option>)}
             </select>
           </div>
         </div>
+        {f.leadFrom === EXPORT_SOURCE && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+            <div><label style={{ fontSize: 11.5, fontWeight: 700 }}>Panel Thickness</label><input value={f.panelThickness || ""} onChange={(e) => set("panelThickness", e.target.value)} placeholder="e.g. 4mm" style={inp} /></div>
+            <div><label style={{ fontSize: 11.5, fontWeight: 700 }}>Coil Thickness</label><input value={f.coilThickness || ""} onChange={(e) => set("coilThickness", e.target.value)} placeholder="e.g. 0.30mm" style={inp} /></div>
+            <div><label style={{ fontSize: 11.5, fontWeight: 700 }}>Grade</label><input value={f.grade || ""} onChange={(e) => set("grade", e.target.value)} placeholder="e.g. PVDF" style={inp} /></div>
+          </div>
+        )}
         <label style={{ fontSize: 11.5, fontWeight: 700 }}>Full Address (with pincode)</label>
         <textarea rows={2} value={f.address || ""} onChange={(e) => set("address", e.target.value)}
           placeholder="Street, locality, city, state — 400092"
