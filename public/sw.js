@@ -1,5 +1,5 @@
 /* Service worker — app shell caching so returning to the app does NOT reload */
-const CACHE = "eb-crm-v3";
+const CACHE = "eb-crm-v4";
 const ASSET = /\/assets\//;   // hashed build files (js/css) — safe to cache-first
 
 self.addEventListener("install", () => self.skipWaiting());
