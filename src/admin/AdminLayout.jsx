@@ -402,6 +402,12 @@ export default function AdminLayout() {
     /* Owner / System always see everything. The Admin role follows its grid (if
        configured); with no grid row the admin stays full, so nothing breaks. */
     if (u.owner || u.bootstrap || /^system$/i.test(role.trim())) { setAllowedNav(null); return; }
+    /* per-user access set on this admin's own record wins */
+    if (u.perm && typeof u.perm === "object" && Object.keys(u.perm).length) {
+      const allow = new Set();
+      Object.entries(u.perm).forEach(([mod, perms]) => { if (perms && Object.values(perms).some((v) => v === true)) allow.add(mod); });
+      setAllowedNav(allow); return;
+    }
     const isAdminRole = /admin/i.test(role);
     const plain = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     api.list("roles", false).then((d) => {

@@ -4,18 +4,18 @@ import { Plus, RefreshCw, Save, Trash2 } from "lucide-react";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 
-const MODULES = ["Enquiry Dashboard", "Customers Dashboard", "Target Dashboard", "Project Dashboard", "Task Dashboard", "Attendance", "Attendance Sheet", "Checkin", "Tour Report", "Beat Plan", "Biltrax", "Biltrax Dashboard", "Activity Logs", "Login History", "Expense", "Leave", "Enquiry", "Customers", "Quotation", "Project Projection", "Targets", "Sales to Spec", "Spec to Sales", "Task", "Holidays", "Areas", "Products", "Resources & Links", "Announcement", "Notification", "App Users", "Admin Users", "Role & Permission"];
+export const MODULES = ["Enquiry Dashboard", "Customers Dashboard", "Target Dashboard", "Project Dashboard", "Task Dashboard", "Power BI", "Analytics Hub", "Attendance", "Attendance Sheet", "Checkin", "Tour Report", "Beat Plan", "Special Working", "Biltrax", "Biltrax Dashboard", "Specs-Hub", "Activity Logs", "Login History", "Expense", "Leave", "Enquiry", "Customers", "Quotation", "Project Projection", "Targets", "Sales to Spec", "Spec to Sales", "Task", "Holidays", "Areas", "Products", "Resources & Links", "Announcement", "Notification", "Chitra AI Training", "Chitra Chat History", "Joining Formalities", "Exit Formalities", "App Users", "Admin Users", "Role & Permission"];
 /* API Keys and System Health were listed here but are not role-granted — they
    belong to the owner account alone, so a tick against them meant nothing. */
-const PERMS = ["Add", "Approve", "Delete", "Export", "Import", "Modify", "View"];
+export const PERMS = ["Add", "Approve", "Delete", "Export", "Import", "Modify", "View"];
 /* Fixed roles — same as User creation (no add/delete).
    "Admin" IS listed now so admin backend users can be given limited access. It
    starts with FULL access (nothing changes) until the owner unticks modules.
    The OWNER account always keeps full access regardless of this grid. */
 const STD_ROLES = ["Admin", "HOD (Sales)", "HOD (Specs)", "HOD (Export)", "Sub HOD (Sales)", "Sub HOD (Specs)", "Sub HOD (Export)", "Sales Person", "Specs Person", "Export Person", "Sales Collection"];
 
-const emptyGrid = () => Object.fromEntries(MODULES.map((m) => [m, Object.fromEntries(PERMS.map((p) => [p, false]))]));
-const adminGrid = () => Object.fromEntries(MODULES.map((m) => [m, Object.fromEntries(PERMS.map((p) => [p, true]))]));
+export const emptyGrid = () => Object.fromEntries(MODULES.map((m) => [m, Object.fromEntries(PERMS.map((p) => [p, false]))]));
+export const adminGrid = () => Object.fromEntries(MODULES.map((m) => [m, Object.fromEntries(PERMS.map((p) => [p, true]))]));
 
 export default function RolePermission() {
   const [roles, setRoles] = useState([]);

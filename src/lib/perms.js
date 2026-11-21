@@ -16,11 +16,14 @@ export async function loadPerms() {
   if (loading) return loading;
   loading = (async () => {
     const role = norm(auth.user?.role);
-    /* the OWNER account and System are never restricted. A plain Admin now
-       follows the "Admin" role grid (if the owner configured one); with no grid
-       row it stays full, so nothing breaks until the owner limits it. */
+    /* the OWNER account and System are never restricted. */
     if (auth.user?.owner || auth.user?.bootstrap || role === "system") { GRID = "ALL"; return GRID; }
+    /* a per-user grid set on this admin's own record wins (user-wise access) */
+    const up = auth.user?.perm;
+    if (up && typeof up === "object" && Object.keys(up).length) { GRID = up; return GRID; }
     if (!role) { GRID = "ALL"; return GRID; }
+    /* otherwise a plain Admin follows the shared "Admin" role grid (full until
+       the owner limits it); every other role follows its own grid. */
     try {
       const d = await api.list("roles", false);
       /* role names are typed in two places ("HOD (Sales)" vs "hod (sales)"),

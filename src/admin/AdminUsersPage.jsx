@@ -4,6 +4,7 @@ import { UserPlus, Trash2, X, ShieldCheck } from "lucide-react";
 import { PageHead } from "../components/ui.jsx";
 import { api } from "../lib/api.js";
 import { useBulk, BulkHead, BulkCell, BulkBar } from "../components/Bulk.jsx";
+import { MODULES, PERMS, emptyGrid, adminGrid } from "./RolePermission.jsx";
 
 /* Admin Users — people who can log into the BACKEND panel (password login).
    Separate from App Users (field staff, OTP login). Role decides which admin
@@ -19,6 +20,7 @@ export default function AdminUsersPage() {
   const [form, setForm] = useState(null);
   const [busy, setBusy] = useState(false);
   const [appUsers, setAppUsers] = useState([]);
+  const [accessFor, setAccessFor] = useState(null);   // admin user whose per-user module access we are editing
   /* search and filter, with nothing listed until Show is pressed */
   const [q, setQ] = useState("");
   const [fRole, setFRole] = useState("");
@@ -138,6 +140,9 @@ export default function AdminUsersPage() {
                   </td>
                   <td style={{ padding: "11px 14px" }}>
                     <div style={{ display: "flex", gap: 6 }}>
+                      {/admin/i.test(String(r.role || "")) && (
+                        <button className="btn btn-ghost" style={{ padding: "4px 10px", fontSize: 12 }} title="Set which modules this admin can see" onClick={() => setAccessFor(r)}>🔒 Access</button>
+                      )}
                       <button className="btn btn-ghost" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => setForm({ ...r, password: "" })}>Edit</button>
                       <button className="btn btn-danger" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => del(r)}><Trash2 size={13} /></button>
                     </div>
@@ -208,7 +213,65 @@ export default function AdminUsersPage() {
           </div>
         </div>
       )}
+      {accessFor && <AccessModal user={accessFor} onClose={() => setAccessFor(null)} onSaved={load} />}
     </>
+  );
+}
+
+/* Per-admin-user module access. Each admin can be given a different set of
+   modules (user-wise), overriding the shared Admin role grid. Saved on the
+   admin user's own record as `perm`. Empty/unset = follows the Admin role. */
+function AccessModal({ user, onClose, onSaved }) {
+  const [grid, setGrid] = useState(() => (user.perm && typeof user.perm === "object") ? user.perm : adminGrid());
+  const [saving, setSaving] = useState(false);
+  const cell = (m, p) => (grid[m] && grid[m][p]) || false;
+  const toggle = (m, p) => setGrid({ ...grid, [m]: { ...(grid[m] || {}), [p]: !cell(m, p) } });
+  const toggleCol = (p) => { const allOn = MODULES.every((m) => cell(m, p)); const g = { ...grid }; MODULES.forEach((m) => { g[m] = { ...(g[m] || {}), [p]: !allOn }; }); setGrid(g); };
+  const toggleRow = (m) => { const allOn = PERMS.every((p) => cell(m, p)); const g = { ...grid, [m]: {} }; PERMS.forEach((p) => { g[m][p] = !allOn; }); setGrid(g); };
+  const setAll = (val) => setGrid(val ? adminGrid() : emptyGrid());
+  const save = async () => {
+    setSaving(true);
+    try { const { _id, id, ...data } = user; await api.update("adminUser", user._id || user.id, { ...data, perm: grid }); alert("Access saved for " + user.name); onSaved && onSaved(); onClose(); }
+    catch (e) { alert(e.message); }
+    setSaving(false);
+  };
+  return (
+    <div className="modal-mask" onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.5)", zIndex: 9999, display: "grid", placeItems: "center", padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 760, padding: 20, maxHeight: "88vh", overflowY: "auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <h3 style={{ margin: 0 }}>🔒 Module Access — {user.name}</h3>
+          <button className="btn btn-ghost" style={{ padding: 4 }} onClick={onClose}><X size={16} /></button>
+        </div>
+        <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12 }}>Tick only what this admin may use. This is per-user and overrides the shared Admin role.</div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+          <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setAll(true)}>Select all</button>
+          <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setAll(false)}>Clear all</button>
+        </div>
+        <div style={{ overflowX: "auto" }}>
+          <table className="grid">
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left" }}>Module</th>
+                {PERMS.map((p) => <th key={p} style={{ textAlign: "center", cursor: "pointer" }} onClick={() => toggleCol(p)} title="Toggle all">{p}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {MODULES.map((m) => (
+                <tr key={m}>
+                  <td style={{ fontWeight: 700, cursor: "pointer" }} onClick={() => toggleRow(m)} title="Toggle row">{m}</td>
+                  {PERMS.map((p) => <td key={p} style={{ textAlign: "center" }}><input type="checkbox" checked={cell(m, p)} onChange={() => toggle(m, p)} /></td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+          <div style={{ flex: 1 }} />
+          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" disabled={saving} onClick={save}>{saving ? "Saving…" : "Save Access"}</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
