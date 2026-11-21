@@ -18,7 +18,8 @@ const IX = { Y: 0, Q: 1, M: 2, B: 3, C: 4, P: 5, R: 6, E: 7, PA: 8, CO: 9, GR: 1
 const FULL_COLS = ["Year", "QTR", "MTH", "Month", "Date", "Voucher Type", "Voucher No", "Party Name", "Item Description", "Item Group", "Item Group Description", "Code", "Grade", "#", "Category", "Brand", "QTY", "Sq.Mtr", "CO", "SALES G", "HOD", "Area", "STATE", "Region", "Sales person", "Employee Code", "Target D", "Sales D", "Expenses", "Company", "Category CAT", "Target CAT", "Sales CAT", "# Brand", "# Category", "# Year", "Employee Status", "DOJ", "DOR", "SL -2025-26 SALES G", "SL -2026-27 SALES G", "Expenses-I", "Inc", "# Category Cat", "SL -2025-26 SALES G (Nw)", "SL -2026-27 SALES G (Nw)"];
 const EXPORT_COLS = ["Year", "QTR", "Month", "Brand", "Category", "Sales person", "Employee Code", "Region", "Employee Status", "Party Name", "Code", "Grade", "SALES G", "Sq.Mtr", "Target D", "Expenses"];
 
-const cr = (n) => { n = Number(n) || 0; return (n / 1e7).toFixed(2) + " Cr"; };
+const crINR = (n) => { n = Number(n) || 0; return (n / 1e7).toFixed(2) + " Cr"; };
+const crUSD = (n) => { n = Number(n) || 0; return "$" + (n / 1e6).toFixed(2) + "M"; };
 const pcN = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : 0);
 const pcStr = (a, b) => (b ? (a / b * 100).toFixed(1) + "%" : "—");
 const pcColor = (p) => (p >= 100 ? "#10b981" : p >= 75 ? "#f59e0b" : "#ef4444");
@@ -59,10 +60,10 @@ function buildFromAOA(aoa) {
 }
 
 /* upload with a real progress % (fetch has no upload progress, XHR does) */
-function uploadWithProgress(obj, onProgress) {
+function uploadWithProgress(obj, onProgress, scope) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", API_BASE + "/powerbi.php");
+    xhr.open("POST", API_BASE + "/powerbi.php" + (scope === "export" ? "?scope=export" : ""));
     if (auth.token) xhr.setRequestHeader("Authorization", "Bearer " + auth.token);
     xhr.setRequestHeader("Content-Type", "application/json");
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100)); };
@@ -255,7 +256,14 @@ function ZPanel({ title, sub, children }) {
   );
 }
 
-export default function SalesReview() {
+export default function SalesReview({ scope = "sales" } = {}) {
+  const isExp = scope === "export";
+  /* Export BI shows $ as the primary unit (data uploaded in USD); ₹ is shown
+     side-by-side on the KPI cards using an editable USD→INR rate. */
+  const cr = isExp ? crUSD : crINR;
+  const [rate, setRate] = useState(() => { const v = Number(localStorage.getItem("eb-usdinr")); return v > 0 ? v : 83; });
+  const toINRcr = (n) => "₹" + (((Number(n) || 0) * rate) / 1e7).toFixed(2) + " Cr";
+
   const [db, setDb] = useState(null);
   const [busy, setBusy] = useState(false);
   const [shown, setShown] = useState(false);
@@ -288,7 +296,7 @@ export default function SalesReview() {
 
   const load = () => {
     setShown(true); setBusy(true);
-    api.pbLoad()
+    api.pbLoad(isExp ? "export" : "")
       .then((j) => setDb(j && Array.isArray(j.sg) ? Object.assign(blankDB(), j) : blankDB()))
       .catch(() => setDb(blankDB()))
       .finally(() => setBusy(false));
@@ -305,7 +313,7 @@ export default function SalesReview() {
       setMsg("Parsing " + (aoa.length - 1).toLocaleString() + " rows …");
       const nd = buildFromAOA(aoa);
       setMsg("Uploading " + nd.sg.length.toLocaleString() + " rows …");
-      const r = await uploadWithProgress(nd, setProg);
+      const r = await uploadWithProgress(nd, setProg, scope);
       setDb(nd); setShown(true);
       setMsg("Saved " + Number(r.rows).toLocaleString() + " rows ✓");
       resetF();
@@ -319,16 +327,16 @@ export default function SalesReview() {
     const out = [EXPORT_COLS];
     db.sg.forEach((r) => out.push([(db.yrs[r[0]]) || "", (r[1] >= 0 ? QS[r[1]] : ""), MO[r[2]] || "", db.b[r[3]] || "", db.c[r[4]] || "", db.sp[r[5]] || "", (db.ec && db.ec[r[IX.EC]]) || "", db.r[r[6]] || "", (r[7] === 1 ? "Resigned" : "Active"), db.pa[r[8]] || "", db.co[r[9]] || "", db.gr[r[10]] || "", r[11], r[12], r[13], r[14]]));
     const ws = XLSX.utils.aoa_to_sheet(out);
-    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Sales"); XLSX.writeFile(wb, "sales-review-export.xlsx");
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Sales"); XLSX.writeFile(wb, (isExp ? "export-bi" : "sales-review") + "-export.xlsx");
   };
   const onFormat = () => {
     const ws = XLSX.utils.aoa_to_sheet([FULL_COLS]);
-    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Sales"); XLSX.writeFile(wb, "sales-review-format.xlsx");
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Sales"); XLSX.writeFile(wb, (isExp ? "export-bi" : "sales-review") + "-format.xlsx");
   };
   const onDelete = async () => {
     if (!db || !db.sg.length) { alert("No data to delete."); return; }
-    if (!window.confirm("Delete all uploaded Sales Review data? This cannot be undone.")) return;
-    try { await api.pbDelete(); setDb(blankDB()); resetF(); setMsg("All data deleted."); }
+    if (!window.confirm("Delete all uploaded " + (isExp ? "Export BI" : "Sales Review") + " data? This cannot be undone.")) return;
+    try { await api.pbDelete(isExp ? "export" : ""); setDb(blankDB()); resetF(); setMsg("All data deleted."); }
     catch (e) { alert("Delete failed: " + e.message); }
   };
 
@@ -409,7 +417,7 @@ export default function SalesReview() {
   const hasData = db && db.sg.length > 0;
 
   return (
-    <DxPage title="Power BI" sub="Pan-India sales — target, achievement and contribution"
+    <DxPage title={isExp ? "Export BI (Global)" : "Power BI"} sub={isExp ? "Export sales — $ primary, ₹ shown side-by-side on KPIs" : "Pan-India sales — target, achievement and contribution"}
       actions={<>
         {admin && <>
           <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={onFile} />
@@ -432,17 +440,21 @@ export default function SalesReview() {
         <Sel label="Month" value={fm} set={setFm} allLabel="All months" opts={MO.map((y, i) => ({ v: i, lbl: y }))} />
         {db && db.gr && db.gr.length > 0 && <MultiSel label="Grade" allLabel="All grades" opts={optsOf(db.gr)} sel={fgr} setSel={setFgr} />}
         {db && db.co && db.co.length > 0 && <MultiSel label="Code" allLabel="All codes" opts={optsOf(db.co)} sel={fco} setSel={setFco} />}
+        {isExp && <div><label>USD → INR</label>
+          <input type="number" value={rate} min="1" step="0.5"
+            onChange={(e) => { const v = Number(e.target.value) || 0; setRate(v); if (v > 0) localStorage.setItem("eb-usdinr", String(v)); }}
+            style={{ width: 90 }} /></div>}
         {(fy || fb || fq || fm || fr || fst || fhd || fp || fgr.size || fco.size) && <button className="dx-btn" style={{ alignSelf: "flex-end" }} onClick={resetF}>Reset</button>}
       </div>
 
       {!shown || (busy && !db) ? <ShowGate onShow={load} busy={busy} what="Sales Review" /> : !hasData ? (
-        <Panel><div style={{ textAlign: "center", padding: 40, color: "var(--muted)" }}>{admin ? <>No data yet — press <b>Import Excel</b> above to upload the combined Pan-India file.</> : "No sales data available for you yet."}</div></Panel>
+        <Panel><div style={{ textAlign: "center", padding: 40, color: "var(--muted)" }}>{admin ? <>No data yet — press <b>Import Excel</b> above to upload the {isExp ? "Export sales" : "combined Pan-India"} file.</> : "No sales data available for you yet."}</div></Panel>
       ) : (
         <>
           <div className="dx-grid dx-kpis" style={{ marginBottom: 16 }}>
-            <KpiCard hero label="Target" value={cr(A.tgAll)} sub="combined target" />
-            <KpiCard label="Sales" value={cr(A.sAll)} chip={pcStr(A.sAll, A.tgAll)} sub="of target" />
-            <KpiCard label="Shortfall" value={cr(A.shortfall)} sub={A.shortfall ? "still to come" : "on target"} />
+            <KpiCard hero label="Target" value={cr(A.tgAll)} sub={isExp ? toINRcr(A.tgAll) : "combined target"} />
+            <KpiCard label="Sales" value={cr(A.sAll)} chip={pcStr(A.sAll, A.tgAll)} sub={isExp ? toINRcr(A.sAll) : "of target"} />
+            <KpiCard label="Shortfall" value={cr(A.shortfall)} sub={isExp ? toINRcr(A.shortfall) : (A.shortfall ? "still to come" : "on target")} />
             <KpiCard label="GW %" value={A.gw.toFixed(1) + "%"} sub={YA + " → " + YB} />
           </div>
 

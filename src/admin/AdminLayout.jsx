@@ -29,6 +29,7 @@ const NAV = [
           { label: "Biltrax Dashboard", to: "/admin/dashboards/biltrax" },
           { label: "Task Dashboard", to: "/admin/dashboards/task" },
           { label: "Power BI", to: "/admin/dashboards/sales-review" },
+          { label: "Export BI", to: "/admin/dashboards/export-bi" },
         ],
       },
       { label: "Task", icon: <ListTodo size={17} />, to: "/admin/sfa/task" },
@@ -267,7 +268,7 @@ function ModuleSearch({ nav }) {
     { title: "Target Dashboard", path: "dashboards/target" },
     { title: "Project Dashboard", path: "dashboards/project" },
     { title: "Task Dashboard", path: "dashboards/task" },
-    { title: "Power BI", path: "dashboards/sales-review" },
+    { title: "Power BI", path: "dashboards/sales-review" }, { title: "Export BI", path: "dashboards/export-bi" },
   ];
   const all = [...Object.values(MODULES).map((m) => ({ title: m.title, path: m.path })), ...extra];
   const ql = q.trim().toLowerCase();

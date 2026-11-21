@@ -5509,6 +5509,7 @@ function MenuDrawer({ open, close }) {
       ["Enquiry", <FileText size={16} />, "/app/m/enquiry", "enquiry"],
       ["Quotation", <FileText size={16} />, "/app/m/quotation", "quotation"],
       ["Project Projection", <Building2 size={16} />, "/app/m/projectProjection", "projectProjection"],
+      ["Export Projects", <Building2 size={16} />, "/app/m/exportProjects", "exportProjects"],
       ["Sales to Spec", <ClipboardList size={16} />, "/app/m/salesToSpec", "salesToSpec"],
       ["Spec to Sales", <ClipboardList size={16} />, "/app/m/specToSales", "specToSales"],
       /* Specs-Hub (specs persons create & mail approved specs) and Sales-Hub
@@ -6004,7 +6005,7 @@ function FieldModuleNew({ mod }) {
                 ...(autoId ? { id: autoId } : {}),
                 ...f,
                 ...(photoUrl ? { photo: photoUrl } : {}),
-                status: firstTab,
+                status: f.status || firstTab,
                 createdBy: CU().name,
                 createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
               });

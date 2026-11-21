@@ -253,9 +253,9 @@ export const MODULES = {
     tabField: "status",
     columns: [
       { key: "createdAt", label: "Created At" },
-      { key: "date", label: "Date" },
       { key: "createdBy", label: "Created By", render: link },
       { key: "customer", label: "Customer" },
+      { key: "date", label: "Date" },
       { key: "contactPerson", label: "Contact" },
       { key: "phone", label: "Phone" },
       { key: "country", label: "Country" },

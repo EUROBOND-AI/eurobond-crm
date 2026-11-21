@@ -310,9 +310,9 @@ export const api = {
   /* #19 — admin unlocks a user so they can still mark attendance after the cut-off */
   attUnlock: (name, date) => req("/attendance.php?action=unlock", { method: "POST", body: { name, date } }),
   /* Sales Review (Power BI) dataset — stored compact, replaced on each upload */
-  pbLoad: () => req("/powerbi.php"),
-  pbSave: (db) => req("/powerbi.php", { method: "POST", body: db }),
-  pbDelete: () => req("/powerbi.php?action=delete", { method: "POST", body: {} }),
+  pbLoad: (scope = "") => req("/powerbi.php" + (scope === "export" ? "?scope=export" : "")),
+  pbSave: (db, scope = "") => req("/powerbi.php" + (scope === "export" ? "?scope=export" : ""), { method: "POST", body: db }),
+  pbDelete: (scope = "") => req("/powerbi.php?action=delete" + (scope === "export" ? "&scope=export" : ""), { method: "POST", body: {} }),
   attList: (from, to) => req(`/attendance.php?action=list&from=${from}&to=${to || from}`),
   areasAll: () => req("/areas.php?action=all"),
   areaStates: () => req("/areas.php?action=states"),
