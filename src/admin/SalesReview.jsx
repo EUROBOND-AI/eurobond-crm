@@ -260,12 +260,9 @@ export default function SalesReview({ scope = "sales" } = {}) {
   const isExp = scope === "export";
   /* Export BI shows $ as the primary unit (data uploaded in USD); ₹ is shown
      side-by-side on the KPI cards using an editable USD→INR rate. */
+  const cr = isExp ? crUSD : crINR;
   const [rate, setRate] = useState(() => { const v = Number(localStorage.getItem("eb-usdinr")); return v > 0 ? v : 83; });
-  /* Export BI shows $ and ₹ TOGETHER on every figure (KPIs, tables, bars) so it
-     reads easily; the ₹ uses the editable USD→INR rate above. */
-  const cr = isExp
-    ? ((n) => { n = Number(n) || 0; return `$${(n / 1e6).toFixed(2)}M / ₹${((n * rate) / 1e7).toFixed(2)}Cr`; })
-    : crINR;
+  const toINRcr = (n) => "₹" + (((Number(n) || 0) * rate) / 1e7).toFixed(2) + " Cr";
 
   const [db, setDb] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -411,7 +408,7 @@ export default function SalesReview({ scope = "sales" } = {}) {
   const monthBars = useMemo(() => MO.map((m, mi) => {
     const a = sm(A.y0.filter((r) => r[IX.M] === mi), IX.S), b = sm(A.y1.filter((r) => r[IX.M] === mi), IX.S);
     return { label: m, value: b || a, note: cr((a + b)), isToday: false };
-  }), [A, rate]);
+  }), [A]);
   const qtrBars = useMemo(() => QS.map((q, qi) => {
     const r1 = A.y1.filter((r) => r[IX.Q] === qi); const s = sm(r1, IX.S), tg = sm(r1, IX.TG);
     return { label: q, value: s, note: pcStr(s, tg) };
@@ -455,9 +452,9 @@ export default function SalesReview({ scope = "sales" } = {}) {
       ) : (
         <>
           <div className="dx-grid dx-kpis" style={{ marginBottom: 16 }}>
-            <KpiCard hero label="Target" value={cr(A.tgAll)} sub="combined target" />
-            <KpiCard label="Sales" value={cr(A.sAll)} chip={pcStr(A.sAll, A.tgAll)} sub="of target" />
-            <KpiCard label="Shortfall" value={cr(A.shortfall)} sub={A.shortfall ? "still to come" : "on target"} />
+            <KpiCard hero label="Target" value={cr(A.tgAll)} sub={isExp ? toINRcr(A.tgAll) : "combined target"} />
+            <KpiCard label="Sales" value={cr(A.sAll)} chip={pcStr(A.sAll, A.tgAll)} sub={isExp ? toINRcr(A.sAll) : "of target"} />
+            <KpiCard label="Shortfall" value={cr(A.shortfall)} sub={isExp ? toINRcr(A.shortfall) : (A.shortfall ? "still to come" : "on target")} />
             <KpiCard label="GW %" value={A.gw.toFixed(1) + "%"} sub={YA + " → " + YB} />
           </div>
 
