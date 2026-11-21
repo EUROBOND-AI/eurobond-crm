@@ -63,7 +63,7 @@ function buildFromAOA(aoa) {
 function uploadWithProgress(obj, onProgress, scope) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", API_BASE + "/powerbi.php" + (scope === "export" ? "?scope=export" : ""));
+    xhr.open("POST", API_BASE + (scope === "export" ? "/exportbi.php" : "/powerbi.php"));
     if (auth.token) xhr.setRequestHeader("Authorization", "Bearer " + auth.token);
     xhr.setRequestHeader("Content-Type", "application/json");
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100)); };
@@ -336,7 +336,7 @@ export default function SalesReview({ scope = "sales" } = {}) {
   const onDelete = async () => {
     if (!db || !db.sg.length) { alert("No data to delete."); return; }
     if (!window.confirm("Delete all uploaded " + (isExp ? "Export BI" : "Sales Review") + " data? This cannot be undone.")) return;
-    try { await api.pbDelete(isExp ? "export" : ""); setDb(blankDB()); resetF(); setMsg("All data deleted."); }
+    try { await api.pbDelete(isExp ? "export" : ""); setDb(blankDB()); resetF(); setMsg(""); }
     catch (e) { alert("Delete failed: " + e.message); }
   };
 

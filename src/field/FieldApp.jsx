@@ -5025,19 +5025,36 @@ function FieldTeamPerformance() {
   const [q, setQ] = useState("");
   const [sortBy, setSortBy] = useState("performance");
   const [filter, setFilter] = useState("Month");
+  const [pick, setPick] = useState(null);   // chosen month/quarter/year (null = current)
   const isSpecHod = `${CU().role || ""} ${CU().designation || ""}`.toLowerCase().includes("spec");
 
   const now = new Date();
-  const curMonth = now.toLocaleString("en-IN", { month: "short", year: "numeric" }).toLowerCase().split(" ")[0];
   const curYear = String(now.getFullYear());
   const curQ = Math.floor(((now.getMonth() + 9) % 12) / 3);
   const monthIdx = (period) => { const m = new Date(("1 " + (period || "")).replace(/(\w+)\s+(\d{4})/, "$1 1, $2")); return isNaN(m) ? -1 : m.getMonth(); };
+  const yearOf = (period) => { const y = (period || "").match(/\d{4}/); return y ? y[0] : ""; };
+  const qKeyOf = (p) => { const mi = monthIdx(p); const y = yearOf(p); if (mi < 0 || !y) return ""; const q = Math.floor(((mi + 9) % 12) / 3); return `Q${q + 1} ${y}`; };
+  const monthSort = (a, b) => { const ya = yearOf(a), yb = yearOf(b); if (ya !== yb) return yb.localeCompare(ya); return monthIdx(b) - monthIdx(a); };
+
+  /* period options built from the team's own targets, so Quarter/Year are
+     pickable (not stuck on the current one) */
+  const allPeriods = [...new Set(((data && data.targets) || []).map((t) => t.period).filter(Boolean))];
+  const monthOpts = allPeriods.filter((p) => monthIdx(p) >= 0).sort(monthSort);
+  const quarterOpts = [...new Set(allPeriods.map(qKeyOf).filter(Boolean))];
+  const yearOpts = [...new Set(allPeriods.map(yearOf).filter(Boolean))].sort().reverse();
+  const opts = filter === "Month" ? monthOpts : filter === "Quarter" ? quarterOpts : filter === "Year" ? yearOpts : [];
+  const defaultPick =
+    filter === "Month" ? (monthOpts.find((p) => monthIdx(p) === now.getMonth() && yearOf(p) === curYear) || monthOpts[0]) :
+    filter === "Quarter" ? (quarterOpts.find((q) => q === `Q${curQ + 1} ${curYear}`) || quarterOpts[0]) :
+    filter === "Year" ? (yearOpts.includes(curYear) ? curYear : yearOpts[0]) : null;
+  const sel = pick || defaultPick;
+
   const inFilter = (t) => {
-    const p = (t.period || "").toLowerCase();
     if (filter === "All") return true;
-    if (filter === "Month") return p.includes(curMonth) && p.includes(curYear);
-    if (filter === "Year") return p.includes(curYear);
-    if (filter === "Quarter") { const mi = monthIdx(t.period); if (mi < 0) return false; return Math.floor(((mi + 9) % 12) / 3) === curQ && p.includes(curYear); }
+    if (!sel) return false;
+    if (filter === "Month") return t.period === sel;
+    if (filter === "Year") return yearOf(t.period) === sel;
+    if (filter === "Quarter") return qKeyOf(t.period) === sel;
     return true;
   };
 
@@ -5075,7 +5092,7 @@ function FieldTeamPerformance() {
         : (tgtA > 0 ? Math.round((achA / tgtA) * 100) : (tgtS > 0 ? Math.round((achS / tgtS) * 100) : 0));
       return { m, tgtS, tgtA, achS, achA, pc };
     });
-  }, [data, filter]);
+  }, [data, filter, sel]);
 
   return (
     <>
@@ -5083,9 +5100,14 @@ function FieldTeamPerformance() {
       <div className="f-list-pad" style={{ paddingTop: 14 }}>
         <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
           {["Month", "Quarter", "Year", "All"].map((f) => (
-            <button key={f} onClick={() => setFilter(f)} style={{ flex: 1, padding: "8px 0", borderRadius: 9, border: "none", fontWeight: 700, fontSize: 12.5, cursor: "pointer", background: filter === f ? "var(--navy)" : "#eef1ff", color: filter === f ? "#fff" : "var(--navy)" }}>{f}</button>
+            <button key={f} onClick={() => { setFilter(f); setPick(null); }} style={{ flex: 1, padding: "8px 0", borderRadius: 9, border: "none", fontWeight: 700, fontSize: 12.5, cursor: "pointer", background: filter === f ? "var(--navy)" : "#eef1ff", color: filter === f ? "#fff" : "var(--navy)" }}>{f}</button>
           ))}
         </div>
+        {filter !== "All" && opts.length > 0 && (
+          <select value={sel || ""} onChange={(e) => setPick(e.target.value)} style={{ width: "100%", marginBottom: 12, padding: "9px 11px", borderRadius: 9, border: "1px solid #d7dcef", fontSize: 13, fontWeight: 700, background: "#fff" }}>
+            {opts.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+        )}
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
           <div style={{ position: "relative", flex: 1 }}>
             <Search size={15} color="var(--muted)" style={{ position: "absolute", left: 11, top: 11 }} />
