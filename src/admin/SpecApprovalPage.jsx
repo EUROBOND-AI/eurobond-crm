@@ -36,7 +36,7 @@ export default function SpecApprovalPage() {
         ))}
       </div>
 
-      {loading ? <div style={{ padding: 16 }}><SkeletonList rows={6} /></div>
+      {loading ? <div style={{ padding: 16 }}><SkeletonList rows={11} fill /></div>
       : filtered.length === 0 ? <div style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No {tab.toLowerCase()} spec requests.</div>
       : (
         <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 16 }}>

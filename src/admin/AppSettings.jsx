@@ -60,7 +60,7 @@ export default function AppSettings() {
     setBusy(false);
   };
 
-  if (loading) return <div style={{ padding: 16 }}><SkeletonList rows={6} /></div>;
+  if (loading) return <div style={{ padding: 16 }}><SkeletonList rows={11} fill /></div>;
 
   const idleMin = Math.round((Number(f.idleMaxMs) || 300000) / 60000);
 

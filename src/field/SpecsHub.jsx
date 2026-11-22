@@ -477,7 +477,7 @@ export function SpecsHubScreen() {
             ))}
           </div>
         )}
-        {rows === null ? <SkeletonList rows={5} /> : rows.length === 0 ? (
+        {rows === null ? <SkeletonList rows={10} fill /> : rows.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", marginTop: 50 }}>No specifications yet.<br />Tap <b>Add</b> to create one.</div>
         ) : rows.filter((r) => (filter === "All" || specStatusOf(r) === filter) && rowHit(r, q)).map((rec) => (
           <RowCard key={rid(rec)} rec={rec} actions={<>
@@ -593,7 +593,7 @@ export function SalesHubScreen() {
             ))}
           </div>
         )}
-        {rows === null ? <SkeletonList rows={5} /> : rows.length === 0 ? (
+        {rows === null ? <SkeletonList rows={10} fill /> : rows.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", marginTop: 50 }}>No specifications shared with you yet.</div>
         ) : rows.filter((r) => (filter === "All" || salesStatusLabel(r) === filter) && rowHit(r, q)).map((rec) => (
           <RowCard key={rid(rec)} rec={rec} statusLabel={salesStatusLabel(rec)} actions={<>

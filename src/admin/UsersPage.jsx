@@ -265,7 +265,7 @@ export default function UsersPage() {
         )}
       </div>
 
-      {loading ? <div style={{ padding: 16 }}><SkeletonList rows={6} /></div>
+      {loading ? <div style={{ padding: 16 }}><SkeletonList rows={11} fill /></div>
         : err ? <div style={{ padding: 20, background: "#fdecec", color: "#c03636", borderRadius: 10 }}>{err}</div>
         : (
         <div className="table-wrap">

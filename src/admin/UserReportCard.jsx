@@ -58,7 +58,7 @@ export default function UserReportCard() {
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ padding: "9px 12px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13 }} />
       </div>
 
-      {loading ? <div style={{ padding: 16 }}><SkeletonList rows={6} /></div>
+      {loading ? <div style={{ padding: 16 }}><SkeletonList rows={11} fill /></div>
       : !u ? <div style={{ padding: 50, textAlign: "center", color: "var(--muted)" }}>Select a team member to see their report card.</div>
       : (
         <>

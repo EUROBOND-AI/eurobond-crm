@@ -7,8 +7,29 @@ import {
   MapPin, Clock, Wallet, ClipboardList, LogOut, Phone, Mail, Building2, X,
   PlaneTakeoff, FileText, CalendarDays, Briefcase, ListChecks, Map as MapIcon,
   Play, Square, Navigation, Smartphone, CheckCircle2, AlertCircle, Eye, EyeOff, Camera, Search, Filter, Pencil, RefreshCw,
-  LifeBuoy, Send,
+  LifeBuoy, Send, WifiOff,
 } from "lucide-react";
+
+/* #offline — Instagram-style bottom banner shown across the whole app whenever
+   the phone has no network, so users know it's a connection issue (not that
+   their customers/data are gone or that they must log in again). */
+function OfflineBanner({ bottomOffset }) {
+  const [online, setOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
+  useEffect(() => {
+    const on = () => setOnline(true), off = () => setOnline(false);
+    window.addEventListener("online", on); window.addEventListener("offline", off);
+    return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
+  }, []);
+  if (online) return null;
+  return (
+    <div style={{ position: "fixed", left: 0, right: 0, bottom: bottomOffset || "calc(var(--f-nav-total) + 8px)", zIndex: 9000, display: "flex", justifyContent: "center", padding: "0 12px", pointerEvents: "none" }}>
+      <div style={{ background: "#1a1a1a", color: "#fff", borderRadius: 11, padding: "11px 16px", fontSize: 13, fontWeight: 700, boxShadow: "0 8px 24px rgba(0,0,0,.35)", display: "flex", alignItems: "center", gap: 9, maxWidth: 460, width: "100%", justifyContent: "center" }}>
+        <WifiOff size={16} /> No Internet Connection
+      </div>
+      <style>{`@keyframes ebslideup{from{transform:translateY(120%);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
+    </div>
+  );
+}
 import RefreshBtn, { startRefresh } from "../components/RefreshBtn.jsx";
 import { ebFlushQueue, ebQueueSize, watchLocation, startTracker, stopTracker, setTrackerHandler, setTrackerSession, isTrackerActive, showTrackingNotification, hideTrackingNotification, totalDistanceKm, haversineKm, fmtKm, fmtDuration } from "../lib/geo.js";
 import { api, auth, API_BASE, clearApiCache, myStates, areasForMyStates } from "../lib/api.js";
@@ -1180,7 +1201,7 @@ const ATT_START_HOUR = 0;      // midnight — attendance can be marked any time
 const ATT_END_HOUR = 23;       // window closes at 11:55 PM
 const ATT_END_MIN = 55;
 const withinAttWindow = () => { const d = new Date(); const mins = d.getHours() * 60 + d.getMinutes(); return mins >= ATT_START_HOUR * 60 && mins < ATT_END_HOUR * 60 + ATT_END_MIN; };
-function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expenses, followups, leaves, onStartAttendance, onStopAttendance }) {
+function FieldHome({ attChecked, attendanceOn, doneToday, setAttendanceOn, tracking, expenses, followups, leaves, onStartAttendance, onStopAttendance }) {
   const [seg, setSeg] = useState("Matrics");
   /* Meetings still ahead of them this month. An appointment whose time has gone
      by is no longer something to do, so it drops out of the count the moment it
@@ -1206,7 +1227,7 @@ function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expense
   /* #Off-Day — on a Sunday or a company Holiday the swipe is replaced by a
      SUNDAY / HOLIDAY greeting, UNLESS the person has an APPROVED Off-Day Work
      request for today (then they may start attendance as usual). */
-  const [offDay, setOffDay] = useState({ isOff: false, kind: "", approved: false });
+  const [offDay, setOffDay] = useState({ isOff: false, kind: "", approved: false, ready: false });
   useEffect(() => {
     const d0 = new Date();
     const today = `${d0.getFullYear()}-${String(d0.getMonth() + 1).padStart(2, "0")}-${String(d0.getDate()).padStart(2, "0")}`;
@@ -1224,7 +1245,7 @@ function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expense
           approved = (o.records || []).map((r) => r.data || r).some((x) => String(x.date || "").slice(0, 10) === today && /appro/i.test(x.status || ""));
         } catch {}
       }
-      setOffDay({ isOff: !!kind, kind, approved });
+      setOffDay({ isOff: !!kind, kind, approved, ready: true });
     })();
   }, []);
   const [sheet, setSheet] = useState(false);
@@ -1236,7 +1257,8 @@ function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expense
   /* #19 — after 11:00 AM, if the day was never started, attendance is locked and
      the day counts as Absent, unless an admin unlocked it from Check-in. */
   const [attUnlocked, setAttUnlocked] = useState(false);
-  useEffect(() => { api.attLockStatus().then((d) => setAttUnlocked(!!(d && d.unlocked))).catch(() => {}); }, []);
+  const [attUnlockReady, setAttUnlockReady] = useState(false);
+  useEffect(() => { api.attLockStatus().then((d) => setAttUnlocked(!!(d && d.unlocked))).catch(() => {}).finally(() => setAttUnlockReady(true)); }, []);
   const _nowH = new Date().getHours();
   const lockedAbsent = _nowH >= 11 && !doneToday && !attendanceOn && !attUnlocked;
 
@@ -1297,6 +1319,24 @@ function FieldHome({ attendanceOn, doneToday, setAttendanceOn, tracking, expense
     { label: "Leave", icon: <CalendarDays size={15} />, big: leavePending, note: "pending approvals", to: "/app/leave" },
     { label: "Expense", icon: <Wallet size={15} />, big: "₹" + expMonth.toLocaleString("en-IN"), note: "claimed this month", to: "/app/expense" },
   ];
+
+  /* #boot — hold a full-screen logo loader until the attendance status, the
+     Sunday/Holiday check and the lock status are ALL known, so the hero never
+     flashes ABSENT → SUNDAY or a wrong "start attendance" before data arrives. */
+  const bootReady = attChecked && offDay.ready && attUnlockReady;
+  if (!bootReady) {
+    return (
+      <div style={{ position: "fixed", inset: 0, zIndex: 4000, background: "var(--navy, #0f1f4b)", display: "grid", placeItems: "center" }}>
+        <div style={{ display: "grid", placeItems: "center", gap: 18 }}>
+          <div style={{ background: "#fff", borderRadius: 20, padding: "18px 22px", boxShadow: "0 10px 30px rgba(0,0,0,.25)" }}>
+            <img src={logoImg} alt="Eurobond" style={{ height: 46, display: "block" }} />
+          </div>
+          <div style={{ width: 34, height: 34, borderRadius: "50%", border: "3px solid rgba(255,255,255,.25)", borderTopColor: "#fff", animation: "ebspin 0.8s linear infinite" }} />
+          <style>{`@keyframes ebspin{to{transform:rotate(360deg)}}`}</style>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -1938,7 +1978,7 @@ function FieldAttendance({ attendanceOn, setAttendanceOn, tracking, setTracking,
               <b style={{ fontSize: 14 }}>{new Date(histDate).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short" })}</b>
               <span onClick={() => { setHistDate(null); setHistSess(null); }} style={{ cursor: "pointer", color: "var(--accent)", fontWeight: 700, fontSize: 12.5 }}>← Today</span>
             </div>
-            {histLoading ? <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
+            {histLoading ? <div style={{ padding: 10 }}><SkeletonList rows={10} fill /></div>
               : histSess === false ? <div style={{ color: "var(--muted)", fontSize: 13, padding: 10, textAlign: "center" }}>No attendance record for this day.</div>
                 : histSess ? (
                   <div style={{ display: "grid", gap: 7, fontSize: 13 }}>
@@ -3285,7 +3325,7 @@ function FieldProjectList() {
           ))}
         </div>
         {rows === null ? (
-          <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
+          <div style={{ padding: 10 }}><SkeletonList rows={10} fill /></div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>No projects yet. Tap + Add.</div>
         ) : pager.slice.map((r, i) => (
@@ -3674,7 +3714,7 @@ function FieldResources() {
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" style={{ width: "100%", padding: "9px 12px 9px 33px", borderRadius: 11, border: "1.5px solid #d7dcef", fontSize: 13, background: "#fff" }} />
         </div>
         {rows === null ? (
-          <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
+          <div style={{ padding: 10 }}><SkeletonList rows={10} fill /></div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>No resources yet.</div>
         ) : filtered.map((r, i) => (
@@ -3920,7 +3960,7 @@ function FieldHelp() {
 
         <div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 8, fontFamily: "Bricolage Grotesque" }}>My Tickets</div>
         {mine === null ? (
-          <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
+          <div style={{ padding: 10 }}><SkeletonList rows={10} fill /></div>
         ) : mine.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 24, fontSize: 13 }}>You have not raised any tickets.</div>
         ) : mine.slice(0, 20).map((t, i) => (
@@ -4478,7 +4518,7 @@ function TargetView({ targets, filter, setFilter, isSpec, title }) {
         )}
 
         {targets === null ? (
-          <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
+          <div style={{ padding: 10 }}><SkeletonList rows={10} fill /></div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 26, fontSize: 13 }}>
             <Target size={32} style={{ opacity: 0.4, marginBottom: 8 }} />
@@ -4727,7 +4767,7 @@ function FieldTeamTracking() {
       <div style={{ padding: "8px 16px", fontSize: 12, color: "var(--muted)" }}>Live location of your team — today only.</div>
       <div className="f-list-pad">
         {sessions === null ? (
-          <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
+          <div style={{ padding: 10 }}><SkeletonList rows={10} fill /></div>
         ) : sessions.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 30 }}>No team members have started tracking today.</div>
         ) : sessions.map((s) => (
@@ -5004,7 +5044,7 @@ function FieldTeamCustomers() {
       <div style={{ padding: "8px 16px", fontSize: 12, color: "var(--muted)" }}>Customers added by each team member.</div>
       <div className="f-list-pad">
         {data === null ? (
-          <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
+          <div style={{ padding: 10 }}><SkeletonList rows={10} fill /></div>
         ) : data.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 30 }}>No team members found.</div>
         ) : data.map((m, i) => (
@@ -5125,7 +5165,7 @@ function FieldTeamPerformance() {
           </select>
         </div>
         {rows === null ? (
-          <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
+          <div style={{ padding: 10 }}><SkeletonList rows={10} fill /></div>
         ) : rows.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>
             <Users size={32} style={{ opacity: 0.4, marginBottom: 8 }} />
@@ -5234,7 +5274,7 @@ function FieldLeaveApproval() {
       <ScreenHead title="Leave Approval" />
       <div className="f-list-pad" style={{ paddingTop: 14 }}>
         {rows === null ? (
-          <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
+          <div style={{ padding: 10 }}><SkeletonList rows={10} fill /></div>
         ) : (
           <>
             <div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 8, fontFamily: "Bricolage Grotesque" }}>Pending ({pending.length})</div>
@@ -5643,7 +5683,7 @@ function FieldSpecThreadList({ mod }) {
             <button key={s} onClick={() => setFilter(s)} style={{ padding: "7px 13px", borderRadius: 8, border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer", background: filter === s ? "var(--navy)" : "#eef1ff", color: filter === s ? "#fff" : "var(--navy)" }}>{s}</button>
           ))}
         </div>
-        {rows === null ? <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
+        {rows === null ? <div style={{ padding: 10 }}><SkeletonList rows={10} fill /></div>
         : filtered.length === 0 ? <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>Nothing here yet.</div>
         : pager.slice.map((r, i) => {
           const iAmReceiver = isS2S ? (r.specPerson === me) : (r.salesPerson === me);
@@ -5882,7 +5922,7 @@ function FieldModule({ mod }) {
       <div className="f-list-pad" style={{ paddingTop: 14 }}>
         {rows !== null && rows.length > 0 && <FSearch value={q} onChange={setQ} placeholder={"Search " + (cfg.appLabel || cfg.crumb || "") + "…"} />}
         {rows === null ? (
-          <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
+          <div style={{ padding: 10 }}><SkeletonList rows={10} fill /></div>
         ) : vrows.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>{q ? "No matches." : "No records yet. Tap + Add to create one."}</div>
         ) : pager.slice.map((r, i) => (
@@ -6324,7 +6364,7 @@ function FieldNotifications() {
       )}
       <div className="f-list-pad" style={{ paddingTop: 14 }}>
         {rows === null ? (
-          <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
+          <div style={{ padding: 10 }}><SkeletonList rows={10} fill /></div>
         ) : visible.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>
             <Bell size={34} style={{ opacity: 0.4, marginBottom: 10 }} />
@@ -6742,7 +6782,7 @@ function FieldSpecThread({ id }) {
     setBusy(false);
   };
 
-  if (!rec) return <><ScreenHead title="Spec Approval" /><div style={{ padding: 10 }}><SkeletonList rows={5} /></div></>;
+  if (!rec) return <><ScreenHead title="Spec Approval" /><div style={{ padding: 10 }}><SkeletonList rows={10} fill /></div></>;
   const thread = rec.thread || [];
 
   return (
@@ -6806,7 +6846,7 @@ function FieldProjectDetail({ id }) {
     setBusy(false);
   };
 
-  if (!rec) return <><ScreenHead title="Project" /><div style={{ padding: 10 }}><SkeletonList rows={5} /></div></>;
+  if (!rec) return <><ScreenHead title="Project" /><div style={{ padding: 10 }}><SkeletonList rows={10} fill /></div></>;
   const visits = rec.visits || [];
 
   return (
@@ -6893,7 +6933,7 @@ function FieldEnquiry() {
         </div>
       </div>
       <div className="f-list-pad" style={{ paddingTop: 8 }}>
-        {rows === null ? <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
+        {rows === null ? <div style={{ padding: 10 }}><SkeletonList rows={10} fill /></div>
         : filtered.length === 0 ? <div style={{ textAlign: "center", color: "var(--muted)", padding: 30, fontSize: 13 }}>No enquiries assigned yet.</div>
         : pager.slice.map((r, i) => (
           <div key={i} style={{ background: "#fff", borderRadius: 10, padding: "10px 12px", marginBottom: 7, boxShadow: "var(--shadow)" }}>
@@ -7397,7 +7437,7 @@ function FieldQuotationList() {
       <ScreenHead title="Quotation" right={<button onClick={() => { QUOTE_PREFILL.data = null; nav("/app/m/quotation/new"); }} style={{ background: "var(--navy)", color: "#fff", border: "none", borderRadius: 20, padding: "7px 14px", fontWeight: 800, fontSize: 13 }}>+ Add</button>} />
       <div className="f-list-pad" style={{ paddingTop: 12 }}>
         {rows !== null && rows.length > 0 && <FSearch value={q} onChange={setQ} placeholder="Search quotations…" />}
-        {rows === null ? <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
+        {rows === null ? <div style={{ padding: 10 }}><SkeletonList rows={10} fill /></div>
           : rows.length === 0 ? <div style={{ color: "var(--muted)", padding: 30, textAlign: "center" }}>No quotations yet.</div>
             : (() => { const vr = rows.filter((x) => rowHit(x, q)); return vr.length === 0 ? <div style={{ color: "var(--muted)", padding: 30, textAlign: "center" }}>No matches.</div> : vr.map((qr) => (
               <div key={qr._id} style={{ background: "#fff", borderRadius: 10, padding: "10px 12px", marginBottom: 7, boxShadow: "var(--shadow)" }}>
@@ -8005,7 +8045,7 @@ function FieldNearbyProjects() {
           </div>
         )}
         {list === null ? (
-          <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
+          <div style={{ padding: 10 }}><SkeletonList rows={10} fill /></div>
         ) : list.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>
             <Building2 size={32} style={{ opacity: 0.4, marginBottom: 8 }} />
@@ -8170,7 +8210,7 @@ function FieldCustomers({ nearbyOnly = false }) {
         )}
 
         {list === null ? (
-          <div style={{ padding: 10 }}><SkeletonList rows={5} /></div>
+          <div style={{ padding: 10 }}><SkeletonList rows={10} fill /></div>
         ) : list.length === 0 ? (
           <div style={{ textAlign: "center", color: "var(--muted)", padding: 40, fontSize: 13 }}>
             <Users size={32} style={{ opacity: 0.4, marginBottom: 8 }} />
@@ -8364,7 +8404,7 @@ function FieldGenericThread({ mod, id }) {
     setBusy(false);
   };
 
-  if (!rec) return <><ScreenHead title="Details" /><div style={{ padding: 10 }}><SkeletonList rows={5} /></div></>;
+  if (!rec) return <><ScreenHead title="Details" /><div style={{ padding: 10 }}><SkeletonList rows={10} fill /></div></>;
   const thread = rec.thread || [];
 
   return (
@@ -9123,6 +9163,9 @@ export default function FieldApp() {
   const todayKey = () => new Date().toLocaleDateString("en-CA");   // YYYY-MM-DD local (IST)
   useEffect(() => { localStorage.removeItem("eb_att_done"); }, []);   // clear stale lock from old versions
   const [doneToday, setDoneToday] = useState(false);
+  /* #boot — true once the server has answered today's attendance status, so Home
+     can wait on the logo loader instead of flashing ABSENT → SUNDAY etc. */
+  const [attChecked, setAttChecked] = useState(false);
 
   /* On app open: proactively request ALL permissions + disable battery optimization
      (so background GPS never sleeps). Runs on every phone brand. The battery-optimization
@@ -9183,7 +9226,7 @@ export default function FieldApp() {
     } else {
       setDoneToday(false);      // no session today -> fresh login available
     }
-  }).catch(() => {});
+  }).catch(() => {}).finally(() => setAttChecked(true));
 
   /* SERVER is the source of truth for attendance state (localStorage lock removed —
      adi stale ga undi false "completed" chupinchedi).
@@ -9734,7 +9777,7 @@ export default function FieldApp() {
             </div>
           ) : (
           <Routes>
-            <Route index element={<FieldHome attendanceOn={attendanceOn} doneToday={doneToday} setAttendanceOn={setAttendanceOn} tracking={tracking} expenses={expenses} followups={followups} leaves={leaves} onStartAttendance={async () => {
+            <Route index element={<FieldHome attChecked={attChecked} attendanceOn={attendanceOn} doneToday={doneToday} setAttendanceOn={setAttendanceOn} tracking={tracking} expenses={expenses} followups={followups} leaves={leaves} onStartAttendance={async () => {
               try {
                 const P2 = window.Capacitor && window.Capacitor.Plugins;
                 if (P2 && P2.AppLauncher) {
@@ -9833,6 +9876,7 @@ export default function FieldApp() {
         </div>
 
         <MenuDrawer open={menu} close={() => setMenu(false)} />
+        <OfflineBanner />
         {/* #6 — EUVA assistant is hidden for a resigned employee too */}
         {Number(CU().resigned) !== 1 && <ChatAssistant accent="#1b3a8f" bottom={78} surface="app" side="left" />}
         <PhotoZoom />

@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { Outlet, NavLink, useNavigate, Navigate, useLocation } from "react-router-dom";
 import {
   Search, Bell, Moon, Maximize, Pin, LayoutDashboard, Megaphone, Users,
-  BarChart3, Boxes, LifeBuoy, BellRing, ChevronDown, LogOut, PanelLeft, ListTodo, Palette, RotateCcw,
+  BarChart3, Boxes, LifeBuoy, BellRing, ChevronDown, LogOut, PanelLeft, ListTodo, Palette, RotateCcw, WifiOff,
 } from "lucide-react";
 import { FooterNote } from "../components/ui.jsx";
 import ChatAssistant from "../components/ChatAssistant.jsx";
@@ -15,6 +15,25 @@ import { loadPerms, canView } from "../lib/perms.js";
 import { isPanelAdmin, visibleNameSet } from "../lib/scope.js";
 import { subscribeTask } from "../lib/bgTask.js";
 import { useVisiblePoll } from "../lib/poll.js";
+
+/* #offline — bottom "No Internet Connection" banner, same as the app, so admins
+   on a dropped connection see why things stopped loading. */
+function AdminOfflineBanner() {
+  const [online, setOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
+  useEffect(() => {
+    const on = () => setOnline(true), off = () => setOnline(false);
+    window.addEventListener("online", on); window.addEventListener("offline", off);
+    return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
+  }, []);
+  if (online) return null;
+  return (
+    <div style={{ position: "fixed", left: 0, right: 0, bottom: 18, zIndex: 100000, display: "flex", justifyContent: "center", padding: "0 12px", pointerEvents: "none" }}>
+      <div style={{ background: "#1a1a1a", color: "#fff", borderRadius: 11, padding: "11px 18px", fontSize: 13.5, fontWeight: 700, boxShadow: "0 8px 24px rgba(0,0,0,.35)", display: "flex", alignItems: "center", gap: 9 }}>
+        <WifiOff size={16} /> No Internet Connection
+      </div>
+    </div>
+  );
+}
 
 const NAV = [
   {
@@ -458,6 +477,7 @@ export default function AdminLayout() {
   return (
     <div className="admin-shell">
       <BgTaskBadge />
+      <AdminOfflineBanner />
       <ChatAssistant accent="#1b3a8f" surface="admin" side="right" />
       <PhotoZoom />
       <aside className="sidebar">

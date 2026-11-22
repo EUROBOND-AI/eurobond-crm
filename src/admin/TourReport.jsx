@@ -169,7 +169,7 @@ export default function TourReport() {
       {!shown ? (
         <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Set filters and click <b>Show</b>.</div>
       ) : sessions === null ? (
-        <div style={{ padding: 16 }}><SkeletonList rows={6} /></div>
+        <div style={{ padding: 16 }}><SkeletonList rows={11} fill /></div>
       ) : (
         <>
 

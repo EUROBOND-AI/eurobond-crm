@@ -738,7 +738,7 @@ export default function AttendancePage() {
       </div>
 
       {!shown ? <div style={{ padding: 50, textAlign: "center", color: "var(--muted)" }}>Select date range and filters, then click <b>Show</b> to load attendance.</div>
-      : loading ? <div style={{ padding: 16 }}><SkeletonList rows={6} /></div>
+      : loading ? <div style={{ padding: 16 }}><SkeletonList rows={11} fill /></div>
       : filtered.length === 0 ? <div style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No attendance found for the selected filters.</div>
       : (
         <div className="table-wrap"><table className="grid">

@@ -50,10 +50,13 @@ export function Skeleton({ w = "100%", h = 14, r = 8, lines = 1, gap = 8, style 
   return <div className="eb-skel" style={{ width: w, height: h, borderRadius: r, ...style }} />;
 }
 
-/* a ready-made skeleton for a table/list while it loads */
-export function SkeletonList({ rows = 6, style }) {
+/* a ready-made skeleton for a table/list while it loads.
+   fill=true makes it cover the screen (so a loading list isn't a small strip
+   at the top with the rest blank). */
+export function SkeletonList({ rows = 6, fill = false, style }) {
+  const fillStyle = fill ? { minHeight: "68vh", alignContent: "start" } : null;
   return (
-    <div style={{ display: "grid", gap: 10, ...style }}>
+    <div style={{ display: "grid", gap: 10, ...fillStyle, ...style }}>
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} style={{ display: "grid", gridTemplateColumns: "40px 1fr 80px", gap: 12, alignItems: "center" }}>
           <Skeleton w={40} h={40} r={10} />

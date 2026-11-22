@@ -52,7 +52,7 @@ export default function ExpenseDashboard() {
   return (
     <>
       <PageHead crumb="Analytics / Expense" title="Expense Dashboard" />
-      {loading ? <div style={{ padding: 16 }}><SkeletonList rows={6} /></div>
+      {loading ? <div style={{ padding: 16 }}><SkeletonList rows={11} fill /></div>
       : err ? <div style={{ padding: 20, background: "#fdecec", color: "#c03636", borderRadius: 10 }}>{err}</div>
       : rows.length === 0 ? (
         <div style={{ padding: 50, textAlign: "center", color: "var(--muted)" }}>

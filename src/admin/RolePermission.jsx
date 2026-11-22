@@ -75,7 +75,7 @@ export default function RolePermission() {
         The <b>Owner</b> always has full access, and each <b>Admin</b> user's access is set per-user on the <b>Admin Users</b> page (🔒 Access). Set below what each other role can access.
       </div>
 
-      {loading ? <div style={{ padding: 16 }}><SkeletonList rows={6} /></div>
+      {loading ? <div style={{ padding: 16 }}><SkeletonList rows={11} fill /></div>
       : roles.length === 0 ? (
         <div style={{ padding: 50, textAlign: "center", color: "var(--muted)" }}>
           <h3 style={{ marginBottom: 8 }}>No roles yet</h3>

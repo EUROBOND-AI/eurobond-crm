@@ -361,7 +361,7 @@ export default function ExpenseApprovals() {
 
       <div style={{ background: "#fff", borderRadius: 14, boxShadow: "var(--shadow)", overflow: "hidden" }}>
         {!applied ? <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Set filters and click <b>Show</b> to view.</div>
-        : loading ? <div style={{ padding: 16 }}><SkeletonList rows={6} /></div>
+        : loading ? <div style={{ padding: 16 }}><SkeletonList rows={11} fill /></div>
         : list.length === 0 ? <div style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>No {tab.toLowerCase()} statements.</div>
         : (
           <div style={{ overflowX: "auto" }}>

@@ -14,7 +14,7 @@ import { taskFlash } from "../lib/bgTask.js";
 /* #7 — the data modules that carry people/place, so the Zone→State→HOD→User
    cascade belongs on them. Master lists (products, holidays, announcement,
    tickets, notification, resources, policies, …) are left out on purpose. */
-const CASCADE_MODS = ["enquiry", "quotation", "projectProjection", "salesToSpec", "specToSales", "task", "expense", "leave", "beatPlan", "target"];
+const CASCADE_MODS = ["enquiry", "quotation", "projectProjection", "exportProjects", "salesToSpec", "specToSales", "task", "expense", "leave", "beatPlan", "target"];
 
 /* #13 — Project Projection bulk import/export. The contact categories are the
    same six every sheet uses; Specs sheets carry two extra columns up front. */
@@ -213,7 +213,7 @@ export default function ModulePage({ cfgKey }) {
      Declared here, above the read that uses it: a value read during render has
      to exist by then, and leaving it further down the file is what made other
      screens fail to open at all. */
-  const gated = ["projectProjection", "salesToSpec", "specToSales", "target", "leave", "expense", "beatPlan", "task", "euvaLog", "resources", "aiTraining"].includes(cfgKey);
+  const gated = ["projectProjection", "exportProjects", "salesToSpec", "specToSales", "target", "leave", "expense", "beatPlan", "task", "euvaLog", "resources", "aiTraining"].includes(cfgKey);
 
   useEffect(() => { setTab(cfg.tabs?.[0]?.key); setShown(false); }, [cfgKey]);
 
@@ -992,7 +992,7 @@ export default function ModulePage({ cfgKey }) {
               ))}
             </div>
           )}
-          {["projectProjection", "salesToSpec", "specToSales", "target", "leave", "expense", "beatPlan", "task", "euvaLog", "resources", "aiTraining"].includes(cfgKey) && (
+          {["projectProjection", "exportProjects", "salesToSpec", "specToSales", "target", "leave", "expense", "beatPlan", "task", "euvaLog", "resources", "aiTraining"].includes(cfgKey) && (
             <button className="btn btn-primary" style={{ padding: "8px 20px", fontWeight: 700 }} onClick={() => setShown(true)}>Show</button>
           )}
         </div>
@@ -1022,7 +1022,7 @@ export default function ModulePage({ cfgKey }) {
       {gated && !shown ? (
         <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", fontWeight: 600 }}>Set filters and click <b>Show</b> to view.</div>
       ) : loading ? (
-        <div style={{ padding: 16 }}><SkeletonList rows={7} /></div>
+        <div style={{ padding: 16 }}><SkeletonList rows={12} fill /></div>
       ) : err ? (
         <div style={{ padding: 24, background: "#fdecec", color: "#c03636", borderRadius: 12, fontWeight: 600 }}>{err}</div>
       ) : (
