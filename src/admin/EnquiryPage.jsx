@@ -846,6 +846,10 @@ function EnquiryForm({ row, onClose, onSaved }) {
             </select>
           </div>
         </div>
+        <label style={{ fontSize: 11.5, fontWeight: 700 }}>Full Address (with pincode)</label>
+        <textarea rows={2} value={f.address || ""} onChange={(e) => set("address", e.target.value)}
+          placeholder="Street, locality, city, state — 400092"
+          style={{ ...inp, resize: "vertical" }} />
         {f.leadFrom === EXPORT_SOURCE && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
             <div><label style={{ fontSize: 11.5, fontWeight: 700 }}>Panel Thickness</label><input value={f.panelThickness || ""} onChange={(e) => set("panelThickness", e.target.value)} placeholder="e.g. 4mm" style={inp} /></div>
@@ -853,10 +857,6 @@ function EnquiryForm({ row, onClose, onSaved }) {
             <div><label style={{ fontSize: 11.5, fontWeight: 700 }}>Grade</label><input value={f.grade || ""} onChange={(e) => set("grade", e.target.value)} placeholder="e.g. PVDF" style={inp} /></div>
           </div>
         )}
-        <label style={{ fontSize: 11.5, fontWeight: 700 }}>Full Address (with pincode)</label>
-        <textarea rows={2} value={f.address || ""} onChange={(e) => set("address", e.target.value)}
-          placeholder="Street, locality, city, state — 400092"
-          style={{ ...inp, resize: "vertical" }} />
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 8 }}>
           <div><label style={{ fontSize: 11.5, fontWeight: 700 }}>Product Required</label><input value={f.product} onChange={(e) => set("product", e.target.value)} style={inp} /></div>
           <div><label style={{ fontSize: 11.5, fontWeight: 700 }}>Quantity</label><input value={f.quantity} onChange={(e) => set("quantity", e.target.value)} style={inp} /></div>

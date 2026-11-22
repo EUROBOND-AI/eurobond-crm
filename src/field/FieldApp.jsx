@@ -1322,9 +1322,11 @@ function FieldHome({ attChecked, attendanceOn, doneToday, setAttendanceOn, track
 
   /* #boot — hold a full-screen logo loader until the attendance status, the
      Sunday/Holiday check and the lock status are ALL known, so the hero never
-     flashes ABSENT → SUNDAY or a wrong "start attendance" before data arrives. */
+     flashes ABSENT → SUNDAY or a wrong "start attendance" before data arrives.
+     Only on a cold app open (homeBootedOnce), never on back-navigation to Home. */
   const bootReady = attChecked && offDay.ready && attUnlockReady;
-  if (!bootReady) {
+  useEffect(() => { if (bootReady) homeBootedOnce = true; }, [bootReady]);
+  if (!bootReady && !homeBootedOnce) {
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 4000, background: "var(--navy, #0f1f4b)", display: "grid", placeItems: "center" }}>
         <div style={{ display: "grid", placeItems: "center", gap: 18 }}>
@@ -4414,6 +4416,11 @@ function FieldProjectNew() {
    Performance colors: 100%+ green · 60%+ amber · below red.
 ============================================================================ */
 const pcColor = (pc) => (pc >= 100 ? "#1f9d55" : pc >= 60 ? "#e8a020" : "#d64545");
+
+/* #boot — true once the Home screen has fully loaded ONCE this app session, so
+   the logo loader shows only on a cold app open, never when navigating back to
+   Home from another screen. Resets only on a full app reload. */
+let homeBootedOnce = false;
 
 /* Target period parsing — handles "Aug 2026", "Aug-26", "Mar-27", "2026" etc.
    (month name in any separator, 4-digit OR 2-digit year). */
