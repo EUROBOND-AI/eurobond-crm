@@ -1201,7 +1201,7 @@ const ATT_START_HOUR = 0;      // midnight — attendance can be marked any time
 const ATT_END_HOUR = 23;       // window closes at 11:55 PM
 const ATT_END_MIN = 55;
 const withinAttWindow = () => { const d = new Date(); const mins = d.getHours() * 60 + d.getMinutes(); return mins >= ATT_START_HOUR * 60 && mins < ATT_END_HOUR * 60 + ATT_END_MIN; };
-function FieldHome({ attChecked, attendanceOn, doneToday, setAttendanceOn, tracking, expenses, followups, leaves, onStartAttendance, onStopAttendance }) {
+function FieldHome({ attChecked, onBooted, attendanceOn, doneToday, setAttendanceOn, tracking, expenses, followups, leaves, onStartAttendance, onStopAttendance }) {
   const [seg, setSeg] = useState("Matrics");
   /* Meetings still ahead of them this month. An appointment whose time has gone
      by is no longer something to do, so it drops out of the count the moment it
@@ -1320,21 +1320,11 @@ function FieldHome({ attChecked, attendanceOn, doneToday, setAttendanceOn, track
     { label: "Expense", icon: <Wallet size={15} />, big: "₹" + expMonth.toLocaleString("en-IN"), note: "claimed this month", to: "/app/expense" },
   ];
 
-  /* #boot — hold a full-screen logo loader until the attendance status, the
-     Sunday/Holiday check and the lock status are ALL known, so the hero never
-     flashes ABSENT → SUNDAY or a wrong "start attendance" before data arrives.
-     Only on a cold app open (homeBootedOnce), never on back-navigation to Home. */
+  /* #boot — tell the app the Home data (attendance status + Sunday/Holiday +
+     lock) is ready, so the app-level logo splash can lift. Until then the hero
+     never shows, so it can't flash ABSENT → SUNDAY or a wrong "start". */
   const bootReady = attChecked && offDay.ready && attUnlockReady;
-  useEffect(() => { if (bootReady) homeBootedOnce = true; }, [bootReady]);
-  if (!bootReady && !homeBootedOnce) {
-    return (
-      <div style={{ position: "fixed", inset: 0, zIndex: 4000, background: "var(--navy, #0f1f4b)", display: "grid", placeItems: "center" }}>
-        <div style={{ background: "#fff", borderRadius: 20, padding: "18px 22px", boxShadow: "0 10px 30px rgba(0,0,0,.25)" }}>
-          <img src={logoImg} alt="Eurobond" style={{ height: 52, display: "block" }} />
-        </div>
-      </div>
-    );
-  }
+  useEffect(() => { if (bootReady) { homeBootedOnce = true; onBooted && onBooted(); } }, [bootReady]);
 
   return (
     <>
@@ -4413,10 +4403,22 @@ function FieldProjectNew() {
 ============================================================================ */
 const pcColor = (pc) => (pc >= 100 ? "#1f9d55" : pc >= 60 ? "#e8a020" : "#d64545");
 
-/* #boot — true once the Home screen has fully loaded ONCE this app session, so
-   the logo loader shows only on a cold app open, never when navigating back to
-   Home from another screen. Resets only on a full app reload. */
+/* #boot — true once the app has fully loaded ONCE this session, so the logo
+   loader shows only on a cold app open, never on back-navigation. Resets only
+   on a full app reload. */
 let homeBootedOnce = false;
+
+/* Full-screen logo-only splash (nothing else — no top bar, nav, Chitra or any
+   flash) shown while the app does its first load on a cold open. */
+function BootSplash() {
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 100001, background: "var(--navy, #0f1f4b)", display: "grid", placeItems: "center" }}>
+      <div style={{ background: "#fff", borderRadius: 20, padding: "18px 22px", boxShadow: "0 10px 30px rgba(0,0,0,.25)" }}>
+        <img src={logoImg} alt="Eurobond" style={{ height: 52, display: "block" }} />
+      </div>
+    </div>
+  );
+}
 
 /* Target period parsing — handles "Aug 2026", "Aug-26", "Mar-27", "2026" etc.
    (month name in any separator, 4-digit OR 2-digit year). */
@@ -9169,6 +9171,15 @@ export default function FieldApp() {
   /* #boot — true once the server has answered today's attendance status, so Home
      can wait on the logo loader instead of flashing ABSENT → SUNDAY etc. */
   const [attChecked, setAttChecked] = useState(false);
+  /* #boot — app shows ONLY the logo splash (no top bar, nav, Chitra or flashes)
+     until Home signals it's ready; once booted this session it never shows again
+     (back-navigation is instant). Safety timer lifts it even if a load hangs. */
+  const [booted, setBooted] = useState(homeBootedOnce);
+  useEffect(() => {
+    if (booted) return;
+    const t = setTimeout(() => { homeBootedOnce = true; setBooted(true); }, 5000);
+    return () => clearTimeout(t);
+  }, [booted]);
 
   /* On app open: proactively request ALL permissions + disable battery optimization
      (so background GPS never sleeps). Runs on every phone brand. The battery-optimization
@@ -9715,6 +9726,7 @@ export default function FieldApp() {
 
   return (
     <div className="phone-stage">
+      {!booted && <BootSplash />}
       <AppPhotoViewer />
       {gpsAlarm && attendanceOn && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(180,20,20,.35)", backdropFilter: "blur(3px)", zIndex: 100000, display: "grid", placeItems: "center", padding: 22 }}>
@@ -9780,7 +9792,7 @@ export default function FieldApp() {
             </div>
           ) : (
           <Routes>
-            <Route index element={<FieldHome attChecked={attChecked} attendanceOn={attendanceOn} doneToday={doneToday} setAttendanceOn={setAttendanceOn} tracking={tracking} expenses={expenses} followups={followups} leaves={leaves} onStartAttendance={async () => {
+            <Route index element={<FieldHome attChecked={attChecked} onBooted={() => setBooted(true)} attendanceOn={attendanceOn} doneToday={doneToday} setAttendanceOn={setAttendanceOn} tracking={tracking} expenses={expenses} followups={followups} leaves={leaves} onStartAttendance={async () => {
               try {
                 const P2 = window.Capacitor && window.Capacitor.Plugins;
                 if (P2 && P2.AppLauncher) {
@@ -9880,8 +9892,9 @@ export default function FieldApp() {
 
         <MenuDrawer open={menu} close={() => setMenu(false)} />
         <OfflineBanner />
-        {/* #6 — EUVA assistant is hidden for a resigned employee too */}
-        {Number(CU().resigned) !== 1 && <ChatAssistant accent="#1b3a8f" bottom={78} surface="app" side="left" />}
+        {/* #6 — EUVA assistant is hidden for a resigned employee too; and it only
+            appears AFTER the logo splash (not during the cold-open loading). */}
+        {booted && Number(CU().resigned) !== 1 && <ChatAssistant accent="#1b3a8f" bottom={78} surface="app" side="left" />}
         <PhotoZoom />
         {/* #8 — build too old: a blocking screen that only lets them go to the Play Store */}
         {forceUpd && (
