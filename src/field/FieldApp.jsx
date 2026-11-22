@@ -1329,12 +1329,8 @@ function FieldHome({ attChecked, attendanceOn, doneToday, setAttendanceOn, track
   if (!bootReady && !homeBootedOnce) {
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 4000, background: "var(--navy, #0f1f4b)", display: "grid", placeItems: "center" }}>
-        <div style={{ display: "grid", placeItems: "center", gap: 18 }}>
-          <div style={{ background: "#fff", borderRadius: 20, padding: "18px 22px", boxShadow: "0 10px 30px rgba(0,0,0,.25)" }}>
-            <img src={logoImg} alt="Eurobond" style={{ height: 46, display: "block" }} />
-          </div>
-          <div style={{ width: 34, height: 34, borderRadius: "50%", border: "3px solid rgba(255,255,255,.25)", borderTopColor: "#fff", animation: "ebspin 0.8s linear infinite" }} />
-          <style>{`@keyframes ebspin{to{transform:rotate(360deg)}}`}</style>
+        <div style={{ background: "#fff", borderRadius: 20, padding: "18px 22px", boxShadow: "0 10px 30px rgba(0,0,0,.25)" }}>
+          <img src={logoImg} alt="Eurobond" style={{ height: 52, display: "block" }} />
         </div>
       </div>
     );
