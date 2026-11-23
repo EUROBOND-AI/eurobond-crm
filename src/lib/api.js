@@ -255,7 +255,10 @@ export const api = {
     if (opts.offset) p.set("offset", opts.offset);
     if (opts.from) p.set("from", opts.from);
     if (opts.to) p.set("to", opts.to);
-    return req(`/records.php?${p.toString()}`);
+    /* lists (esp. heavy ones like Project Projection) can take longer than the
+       25s default to build on the server — give them 60s so a slow-but-working
+       list isn't aborted as "taking too long" */
+    return req(`/records.php?${p.toString()}`, { timeout: opts.timeout || 60000 });
   },
   /* pull every page of a module (used by admin lists that need the full set) */
   listAll: async (module, mine = false, opts = {}) => {

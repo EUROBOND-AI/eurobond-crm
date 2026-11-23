@@ -605,8 +605,36 @@ export default function AdminLayout() {
           </div>
         )}
         <main className="content" style={expired ? { filter: "blur(6px)", pointerEvents: "none", userSelect: "none" } : undefined}>
-          <Outlet />
-          <FooterNote />
+          {(() => {
+            /* A restricted admin whose access was fully removed must NOT land on
+               the default Enquiry Dashboard — show a clear "no access" message,
+               or send them to the first module they ARE allowed. Owners/full
+               admins (allowedNav === null) are never gated. */
+            const viewable2 = (label) => (allowedNav === null || allowedNav.has(label)) && canView(label);
+            const leaves = [];
+            NAV.forEach((g) => g.items.forEach((it) => {
+              if (it.children) it.children.forEach((c) => { if (c.to && viewable2(c.label)) leaves.push(c); });
+              else if (it.to && viewable2(it.label)) leaves.push(it);
+            }));
+            const restricted = allowedNav !== null;
+            const path = loc.pathname.replace(/\/+$/, "");
+            const onDefault = path === "/admin" || path === "/admin/dashboards/enquiry";
+            if (restricted && leaves.length === 0) {
+              return (
+                <div style={{ padding: "80px 24px", textAlign: "center", maxWidth: 440, margin: "0 auto" }}>
+                  <div style={{ fontSize: 46, marginBottom: 14 }}>🔒</div>
+                  <div style={{ fontWeight: 800, fontSize: 19, color: "var(--navy, #1b3a8f)", marginBottom: 8 }}>No module access</div>
+                  <div style={{ fontSize: 14, color: "var(--muted, #667)", lineHeight: 1.6 }}>
+                    You haven't been given access to any module yet. Please contact the admin to get access.
+                  </div>
+                </div>
+              );
+            }
+            if (restricted && onDefault && !viewable2("Enquiry Dashboard")) {
+              return <Navigate to={leaves[0].to} replace />;
+            }
+            return <><Outlet /><FooterNote /></>;
+          })()}
         </main>
       </div>
       {expired && (

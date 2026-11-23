@@ -239,7 +239,9 @@ export default function ModulePage({ cfgKey }) {
      to read within a second instead of after a minute, and the line under the
      table says plainly that more is still coming. */
   const FIRST_PAGE = 25;
-  const NEXT_PAGE = 200;
+  /* heavy modules (photos inside each row) stream in smaller pages so no single
+     request runs long enough to time out */
+  const NEXT_PAGE = ["projectProjection", "salesToSpec", "specToSales"].includes(cfgKey) ? 100 : 200;
   const [loadingMore, setLoadingMore] = useState(0);   // rows loaded so far, 0 = not streaming
   useEffect(() => {
     if (gated && !shown) { setRows([]); setLoading(false); setErr(""); setLoadingMore(0); return; }
@@ -470,12 +472,26 @@ export default function ModulePage({ cfgKey }) {
     if (reloadBusy.current) return;
     reloadBusy.current = true;
     if (!silent) { setRefreshing(true); setErr(""); }
-    api.list(cfgKey, false, { slim: true, limit: 1000 })
-      .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, ...r.data, entriesCount: r.data.followupsCount ?? (r.data.followups || []).length, productsText: r.data.productsText ?? projProductsText(r.data.items), ...(r.data.catCols || projCategoryCols(r.data.contacts)), achievementPct: targetPct(r.data), planSummary: beatSummary(r.data), planRemarks: beatRemarks(r.data), ...beatDayCols(r.data), ...(cfgKey === "target" ? { status: targetStatus(r.data) } : {}) }))))
-      /* a background refresh that fails leaves what is on screen alone and says
-         nothing — only a refresh the person asked for reports an error */
-      .catch((e) => { if (!silent) setErr(e.message); })
-      .finally(() => { reloadBusy.current = false; if (!silent) setRefreshing(false); });
+    const mapRow = (r) => ({ _id: r.id, ...r.data, entriesCount: r.data.followupsCount ?? (r.data.followups || []).length, productsText: r.data.productsText ?? projProductsText(r.data.items), ...(r.data.catCols || projCategoryCols(r.data.contacts)), achievementPct: targetPct(r.data), planSummary: beatSummary(r.data), planRemarks: beatRemarks(r.data), ...beatDayCols(r.data), ...(cfgKey === "target" ? { status: targetStatus(r.data) } : {}) });
+    /* Project Projection / Sales↔Spec rows carry photos inside them, so a single
+       1000-row pull can exceed the request timeout. Pull them in small pages and
+       stitch together, then set the table once (no flicker). */
+    const heavy = ["projectProjection", "salesToSpec", "specToSales"].includes(cfgKey);
+    const PAGE = heavy ? 100 : 1000;
+    (async () => {
+      try {
+        let acc = [], offset = 0;
+        for (let round = 0; round < 200; round++) {
+          const d = await api.list(cfgKey, false, { slim: true, limit: PAGE, offset });
+          const part = (d.records || []).map(mapRow);
+          acc = acc.concat(part);
+          offset += part.length;
+          if (!part.length || !d.hasMore) break;
+        }
+        setRows(acc);
+      } catch (e) { if (!silent) setErr(e.message); }
+      finally { reloadBusy.current = false; if (!silent) setRefreshing(false); }
+    })();
   };
 
   const shownColumns = useMemo(() => {
@@ -1477,6 +1493,18 @@ function AdminProjectView({ rec, onClose }) {
 
         {(d.items || []).filter((it) => it.grade).length > 0 && <h4 style={{ margin: "14px 0 6px" }}>Products</h4>}
         {(d.items || []).map((it, i) => it.grade && <div key={i} style={{ fontSize: 12.5, color: "#64708a", marginBottom: 3 }}>{it.grade} · {it.colourCode} · Qty {it.qty}</div>)}
+
+        {/* Reply / Remarks History — the same thread the app shows, so admin
+            sees every reply the mentioned sales/spec person sent back */}
+        {(d.replies || []).length > 0 && <h4 style={{ margin: "14px 0 6px" }}>Reply / Remarks History ({d.replies.length})</h4>}
+        {(d.replies || []).slice().reverse().map((rp, i) => (
+          <div key={i} style={{ borderLeft: "3px solid #1f9d55", background: "#f7fdf9", borderRadius: 7, padding: "7px 10px", marginBottom: 5 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700 }}>{rp.by}{rp.status ? " · " + rp.status : ""}</div>
+            {rp.remark && <div style={{ fontSize: 12.5 }}>{rp.remark}</div>}
+            {rp.at && <div style={{ fontSize: 10.5, color: "#8a93a8" }}>{rp.at}</div>}
+            {showPics && real(rp.attachment) && <img src={rp.attachment} alt="" loading="lazy" style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 7, marginTop: 4 }} />}
+          </div>
+        ))}
 
         {(d.followups || []).length > 0 && <h4 style={{ margin: "14px 0 6px" }}>Followup History ({d.followups.length})</h4>}
         {(d.followups || []).slice().reverse().map((fu, i) => (
