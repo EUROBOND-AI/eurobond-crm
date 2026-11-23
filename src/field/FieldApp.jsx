@@ -3330,7 +3330,14 @@ function FieldProjectList() {
             </div>
             <div style={{ display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap" }}>
               <button onClick={() => setViewRec(r)} style={pBtn("#3949ab")}>👁 View</button>
-              <button onClick={() => { PROJ_EDIT.data = r; nav("/app/project/new"); }} style={pBtn("#0b3c8c")}>✏️ Edit</button>
+              <button onClick={async () => {
+                /* open the edit with the FULL record — the list row can have its
+                   contacts/products trimmed (heavy rows), and editing from that
+                   trimmed copy used to wipe them */
+                try { const d = await api.get("projectProjection", r._id); PROJ_EDIT.data = { _id: d.record.id, ...d.record.data }; }
+                catch { PROJ_EDIT.data = r; }
+                nav("/app/project/new");
+              }} style={pBtn("#0b3c8c")}>✏️ Edit</button>
               <button onClick={() => setFupRec(r)} style={pBtn("#1f9d55")}>📝 Followup</button>
               <button onClick={() => setStatRec(r)} style={pBtn("#e08600")}>📊 Status</button>
               <button onClick={() => setMentionRec(r)} style={pBtn("#8854d0")}>🔗 Mention</button>
@@ -3581,6 +3588,13 @@ function ProjectMention({ rec, isSpec, onClose, onSaved }) {
   const [busy, setBusy] = useState(false);
   const roleWord = isSpec ? "sales" : "spec";
   const targetMod = isSpec ? "specToSales" : "salesToSpec";
+  const mentionField = isSpec ? "salesPerson" : "specPerson";   // the role being mentioned
+
+  /* everyone ALREADY mentioned on this project (from the source project, so it is
+     the full list even when mentioning from a copy) — shown as "already
+     mentioned" and never offered again, so no duplicate copy can be made */
+  const [alreadyM, setAlreadyM] = useState(() => String(rec[mentionField] || "").split(",").map((x) => x.trim()).filter(Boolean));
+  const alreadySet = new Set(alreadyM.map((x) => x.toLowerCase()));
 
   useEffect(() => {
     api.listUsers().then((d) => {
@@ -3590,18 +3604,29 @@ function ProjectMention({ rec, isSpec, onClose, onSaved }) {
     }).catch(() => {});
   }, []);
 
-  const add = (n) => { if (n && !picked.includes(n)) setPicked((p) => [...p, n]); setOne(""); };
+  useEffect(() => {
+    const srcId = rec.projId || rec._id;
+    if (!srcId) return;
+    api.get("projectProjection", srcId).then((d) => {
+      const src = d && d.record ? d.record.data : null;
+      if (!src) return;
+      const names = String(src[mentionField] || "").split(",").map((x) => x.trim()).filter(Boolean);
+      if (names.length) setAlreadyM((prev) => [...new Set([...prev, ...names])]);
+    }).catch(() => {});
+  }, []);
+
+  const add = (n) => { if (n && !picked.includes(n) && !alreadySet.has(n.toLowerCase())) setPicked((p) => [...p, n]); setOne(""); };
   const remove = (n) => setPicked((p) => p.filter((x) => x !== n));
 
   const save = async () => {
     if (!picked.length) { alert("Select at least one person"); return; }
     setBusy(true);
     try {
-      /* who is ALREADY mentioned on this project — so mentioning the same person
-         twice never makes a second copy of the project for them */
-      const field = isSpec ? "salesPerson" : "specPerson";
-      const already = String(rec[field] || "").split(",").map((x) => x.trim()).filter(Boolean);
-      const fresh = picked.filter((n) => !already.includes(n));
+      /* dedup against EVERYONE already mentioned on the project (the full list
+         from the source), so a second copy can never be made for the same
+         person — whichever record the mention is made from */
+      const already = alreadyM;
+      const fresh = picked.filter((n) => !alreadySet.has(n.toLowerCase()));
       if (!fresh.length) { alert("Already mentioned to " + picked.join(", ") + "."); setBusy(false); return; }
       for (const to of fresh) {
         const rowData = {
@@ -3622,10 +3647,16 @@ function ProjectMention({ rec, isSpec, onClose, onSaved }) {
             to, link: `/app/m/${targetMod}`, at: new Date().toISOString() });
         } catch {}
       }
-      /* keep the project row pointing at everyone mentioned — merged + deduped */
-      const joined = [...new Set([...already, ...picked])].join(", ");
-      const patch = isSpec ? { salesPerson: joined } : { specPerson: joined };
-      try { await api.update("projectProjection", rec._id, { ...rec, ...patch }); } catch {}
+      /* keep the SOURCE project pointing at everyone mentioned — merged + deduped.
+         Fetch the source first so nothing else on it is overwritten (the mention
+         may have been made from a copy, whose data is not the source's). */
+      const joined = [...new Set([...already, ...fresh])].join(", ");
+      const srcId = rec.projId || rec._id;
+      try {
+        const sd = await api.get("projectProjection", srcId);
+        const src = sd && sd.record ? sd.record.data : null;
+        if (src) await api.update("projectProjection", srcId, { ...src, [mentionField]: joined });
+      } catch {}
       onSaved();
     } catch (e) { alert(e.message); setBusy(false); }
   };
@@ -3635,7 +3666,19 @@ function ProjectMention({ rec, isSpec, onClose, onSaved }) {
       <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, maxWidth: 400, width: "100%", padding: 18, maxHeight: "85vh", overflowY: "auto" }}>
         <h3 style={{ marginTop: 0 }}>🔗 Mention to {isSpec ? "Sales" : "Specification"} {picked.length > 1 ? "People" : "Person"}</h3>
         <label style={{ fontWeight: 700, fontSize: 13 }}>Add {isSpec ? "sales" : "specification"} people (more than one allowed)</label>
-        <SearchSelect value={one} onChange={add} options={users.filter((u) => !picked.includes(u))} placeholder="Search person..." />
+        <SearchSelect value={one} onChange={add} options={users.filter((u) => !picked.includes(u) && !alreadySet.has(u.toLowerCase()))} placeholder="Search person..." />
+        {alreadyM.length > 0 && (
+          <div style={{ margin: "10px 0 2px" }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: "#c0392b", marginBottom: 4 }}>Already mentioned</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {alreadyM.map((n) => (
+                <span key={n} style={{ background: "#fdecec", color: "#c0392b", border: "1px solid #f5c2c2", borderRadius: 999, padding: "5px 10px", fontSize: 12, fontWeight: 700 }}>
+                  ✓ {n}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
         {picked.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "10px 0" }}>
             {picked.map((n) => (
