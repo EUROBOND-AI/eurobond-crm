@@ -617,7 +617,7 @@ export default function AdminLayout() {
               else if (it.to && viewable2(it.label)) leaves.push(it);
             }));
             const restricted = allowedNav !== null;
-            const path = loc.pathname.replace(/\/+$/, "");
+            const path = _loc.pathname.replace(/\/+$/, "");
             const onDefault = path === "/admin" || path === "/admin/dashboards/enquiry";
             if (restricted && leaves.length === 0) {
               return (
