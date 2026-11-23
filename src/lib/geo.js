@@ -174,8 +174,16 @@ export function isTrackerActive() { return _tracker.active; }
 let _beat = null;
 function startHeartbeat() {
   if (_beat) return;
-  const tick = async () => {
+  const tick = async (first) => {
     try {
+      if (!_tracker.sessionId) return;
+      /* Jitter. With ~400 phones on the same ~30s cadence, their uploads can land
+         in the same second and pile onto the server all at once (that thundering
+         herd helped take the site down). A small random delay — skipped on the
+         very first tick so the first point is still prompt — spreads the uploads
+         across a window so no single instant gets the whole fleet. The server-side
+         index fix already prevents a melt; this keeps the load smooth. */
+      if (!first) await new Promise((r) => setTimeout(r, Math.floor(Math.random() * 12000)));
       if (!_tracker.sessionId) return;
       const Cap = typeof window !== "undefined" ? window.Capacitor : null;
       const G = Cap && Cap.Plugins && Cap.Plugins.Geolocation;
@@ -194,7 +202,7 @@ function startHeartbeat() {
     } catch {}
   };
   _beat = setInterval(tick, Math.max(15000, _tracker.intervalMs || 30000));
-  tick();
+  tick(true);   // first point immediately, no jitter
 }
 function stopHeartbeat() { if (_beat) { clearInterval(_beat); _beat = null; } }
 
