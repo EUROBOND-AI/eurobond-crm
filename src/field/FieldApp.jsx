@@ -9149,6 +9149,38 @@ function useIdleReset(nav) {
   const lastSeen = useRef(Date.now());
   const loc = useLocation();
 
+  /* #screenshot — screenshots BLOCKED only on these sensitive screens; every
+     other screen is allowed. The native ScreenGuard plugin sets Android
+     FLAG_SECURE; when blocked and someone tries a screenshot, Android itself
+     shows the "couldn't capture screenshot / not allowed" notice (same as
+     banking apps). No-op on web or if the native plugin isn't present. */
+  useEffect(() => {
+    const block = [
+      "/app/customers", "/app/customer/edit", "/app/team-customers",  // Customers + Team Customers
+      "/app/m/projectProjection", "/app/project/new",                 // Project Projection + Site Project
+      "/app/m/salesToSpec",                                           // Sales to Spec
+      "/app/m/specToSales",                                           // Spec to Sales
+      "/app/biltrax",                                                 // Biltrax
+      "/app/specs-hub",                                               // Specs Hub
+      "/app/target",                                                  // Target
+      "/app/resources",                                               // Resources & Links
+      "/app/nearby-projects",                                         // Near By Projects
+      "/app/nearby",                                                  // Near By Customers
+      "/app/m/quotation",                                             // Quotation
+      "/app/followup",                                                // Follow-up
+      "/app/m/enquiry",                                               // Enquiry
+      "/app/m/exportProjects",                                        // Export Projects
+      "/app/team",                                                    // Team Performance
+      "/app/team-tracking",                                           // Team (Customers) Tracking
+    ];
+    const path = (loc.pathname || "/app").replace(/\/+$/, "") || "/app";
+    const secure = block.some((p) => path === p || path.startsWith(p + "/"));
+    try {
+      const sg = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.ScreenGuard;
+      if (sg && sg.setSecure) sg.setSecure({ secure });
+    } catch {}
+  }, [loc.pathname]);
+
   useEffect(() => {
     const IDLE = 15 * 60 * 1000;
 
