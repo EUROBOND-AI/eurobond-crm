@@ -756,16 +756,21 @@ function FieldLogin({ onLogin }) {
 
   return (
     <div className="phone-body" style={{ position: "relative", minHeight: "100%", display: "flex", flexDirection: "column", background: "#eef3fb", overflow: "hidden" }}>
-      {/* two-tone background — layered WAVE divider + soft 3D sheen */}
+      {/* two-tone background — layered WAVE divider + soft 3D sheen (original),
+          with floating glass cards added in the blue area for a little depth */}
       <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
         <div style={{
-          position: "absolute", top: 0, left: 0, right: 0, height: "52%",
+          position: "absolute", top: 0, left: 0, right: 0, height: "50%",
           background: "linear-gradient(150deg,#0a3685 0%,#1a5ec6 55%,#2f7ce2 100%)",
           overflow: "hidden",
         }}>
           {/* 3D light sheen */}
           <div style={{ position: "absolute", top: "-30%", left: "-16%", width: "88%", height: "96%", transform: "rotate(-10deg)", background: "radial-gradient(ellipse at center, rgba(255,255,255,.26), rgba(255,255,255,0) 62%)" }} />
           <div style={{ position: "absolute", top: "4%", right: "-10%", width: "58%", height: "64%", background: "radial-gradient(ellipse at center, rgba(140,194,255,.34), rgba(140,194,255,0) 60%)" }} />
+          {/* floating 3D glass cards — tucked near the top corners so they peek
+              out beside the logo badge */}
+          <div style={{ position: "absolute", top: "3%", right: "4%", width: 112, height: 68, borderRadius: 16, background: "rgba(255,255,255,0.13)", border: "1px solid rgba(255,255,255,0.28)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", boxShadow: "0 22px 46px rgba(0,0,0,.32)", transform: "rotate(-11deg)" }} />
+          <div style={{ position: "absolute", top: "7%", left: "4%", width: 88, height: 54, borderRadius: 14, background: "rgba(255,255,255,0.10)", border: "1px solid rgba(255,255,255,0.22)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", boxShadow: "0 16px 36px rgba(0,0,0,.28)", transform: "rotate(9deg)" }} />
           {/* layered wave — a lighter wave behind, a solid wave in front, with a soft upward shadow for depth */}
           <svg viewBox="0 0 390 92" preserveAspectRatio="none" style={{ position: "absolute", left: 0, right: 0, bottom: -1, width: "100%", height: 94, display: "block", filter: "drop-shadow(0 -5px 9px rgba(8,36,92,.16))" }}>
             <path d="M0,46 C70,18 135,74 205,50 C280,24 330,66 390,40 L390,92 L0,92 Z" fill="#d9e4f6" opacity="0.6" />
@@ -775,15 +780,17 @@ function FieldLogin({ onLogin }) {
       </div>
 
       <div style={{ position: "relative", zIndex: 1, flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
-        <div style={{ width: "100%", maxWidth: 340 }}>
-          {/* logo only — small, in a clean white badge, sitting a little lower */}
-          <div style={{ display: "flex", justifyContent: "center", marginTop: 34, marginBottom: 24 }}>
-            <div style={{ background: "#fff", borderRadius: 18, padding: "13px 24px", boxShadow: "0 16px 38px rgba(8,38,96,.30)" }}>
-              <img src={logoImg} alt="Eurobond" style={{ height: 40, display: "block" }} />
+        <div style={{ width: "100%", maxWidth: 380, position: "relative" }}>
+          {/* company logo — floats just above the card, absolutely positioned so it
+              never shifts the card off the vertical centre (the card sits right on
+              the blue/white colour seam) */}
+          <div style={{ position: "absolute", left: 0, right: 0, bottom: "100%", marginBottom: 22, display: "flex", justifyContent: "center" }}>
+            <div style={{ background: "#fff", borderRadius: 18, padding: "13px 26px", boxShadow: "0 16px 38px rgba(8,38,96,.30)" }}>
+              <img src={logoImg} alt="Eurobond" style={{ height: 46, display: "block" }} />
             </div>
           </div>
 
-          <div style={{ background: "#fff", borderRadius: 20, padding: 20, boxShadow: "0 22px 54px rgba(11,60,140,.18), 0 4px 12px rgba(11,60,140,.08)", border: "1px solid #eef1f8" }}>
+          <div style={{ background: "#fff", borderRadius: 22, padding: 26, boxShadow: "0 22px 54px rgba(11,60,140,.18), 0 4px 12px rgba(11,60,140,.08)", border: "1px solid #eef1f8" }}>
             <p style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, marginBottom: 22 }}>
               {step === 1 ? "Login with your mobile number — OTP will be sent to your registered email" : `Enter the OTP sent to ${maskedEmail || "your email"}`}
             </p>
