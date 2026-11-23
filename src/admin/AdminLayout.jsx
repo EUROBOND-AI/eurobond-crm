@@ -497,7 +497,7 @@ export default function AdminLayout() {
         {!collapsed && <ModuleSearch nav={nav} />}
         {(() => {
           /* filter children/items by role permission (Admin: allowedNav === null → show all) */
-          const ALWAYS = new Set(["Power BI"]);
+          const ALWAYS = new Set();   // nothing is force-visible — everything follows the permission grid
           const viewable = (label) => ALWAYS.has(label) || ((allowedNav === null || allowedNav.has(label)) && canView(label));
           const groups = NAV.map((g) => {
             const items = g.items.map((it) => {

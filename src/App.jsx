@@ -7,6 +7,20 @@ import { Monitor, Smartphone } from "lucide-react";
 import AdminLogin from "./admin/AdminLogin.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import SavingOverlay from "./components/SavingOverlay.jsx";
+import appLogo from "./assets/logo.jpg";
+
+/* #boot — the ONLY thing shown while the phone app's code chunk is still
+   downloading on a cold open: just the logo (no spinner, no "Saving…", no
+   "Loading…"). Its z-index sits above SavingOverlay so nothing peeks through. */
+function AppLogoSplash() {
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 2147483600, background: "#0b1a3a", display: "grid", placeItems: "center" }}>
+      <div style={{ background: "#fff", borderRadius: 20, padding: "18px 22px", boxShadow: "0 10px 30px rgba(0,0,0,.25)" }}>
+        <img src={appLogo} alt="Eurobond" style={{ height: 52, display: "block" }} />
+      </div>
+    </div>
+  );
+}
 import AdminLayout from "./admin/AdminLayout.jsx";
 const DealPipeline = lazy(() => import("./admin/DealPipeline.jsx"));
 const AreasPage = lazy(() => import("./admin/AreasPage.jsx"));
@@ -143,7 +157,7 @@ export default function App() {
         ))}
         <Route path="*" element={<Navigate to="dashboards/enquiry" replace />} />
       </Route>
-      <Route path="/app/*" element={<FieldApp />} />
+      <Route path="/app/*" element={<Suspense fallback={<AppLogoSplash />}><FieldApp /></Suspense>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     </Suspense>

@@ -3597,11 +3597,19 @@ function ProjectMention({ rec, isSpec, onClose, onSaved }) {
     if (!picked.length) { alert("Select at least one person"); return; }
     setBusy(true);
     try {
-      for (const to of picked) {
+      /* who is ALREADY mentioned on this project — so mentioning the same person
+         twice never makes a second copy of the project for them */
+      const field = isSpec ? "salesPerson" : "specPerson";
+      const already = String(rec[field] || "").split(",").map((x) => x.trim()).filter(Boolean);
+      const fresh = picked.filter((n) => !already.includes(n));
+      if (!fresh.length) { alert("Already mentioned to " + picked.join(", ") + "."); setBusy(false); return; }
+      for (const to of fresh) {
         const rowData = {
           projId: rec._id, projectName: rec.projectName, items: rec.items || [], contacts: rec.contacts || [],
           city: rec.city, projectType: rec.projectType, expectedMonth: rec.expectedMonth,
           helpNeeded: note || rec.helpNeeded || "", photo: rec.photo || "", status: "Pending",
+          /* carry the project's running history so the newly-added person sees it */
+          followups: rec.followups || [], replies: rec.replies || [], thread: rec.thread || [],
           createdBy: CU().name,
           createdAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
         };
@@ -3614,8 +3622,8 @@ function ProjectMention({ rec, isSpec, onClose, onSaved }) {
             to, link: `/app/m/${targetMod}`, at: new Date().toISOString() });
         } catch {}
       }
-      /* keep the project row pointing at everyone mentioned */
-      const joined = picked.join(", ");
+      /* keep the project row pointing at everyone mentioned — merged + deduped */
+      const joined = [...new Set([...already, ...picked])].join(", ");
       const patch = isSpec ? { salesPerson: joined } : { specPerson: joined };
       try { await api.update("projectProjection", rec._id, { ...rec, ...patch }); } catch {}
       onSaved();
@@ -4412,7 +4420,7 @@ let homeBootedOnce = false;
    flash) shown while the app does its first load on a cold open. */
 function BootSplash() {
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 100001, background: "var(--navy, #0f1f4b)", display: "grid", placeItems: "center" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 2147483600, background: "#0b1a3a", display: "grid", placeItems: "center" }}>
       <div style={{ background: "#fff", borderRadius: 20, padding: "18px 22px", boxShadow: "0 10px 30px rgba(0,0,0,.25)" }}>
         <img src={logoImg} alt="Eurobond" style={{ height: 52, display: "block" }} />
       </div>
