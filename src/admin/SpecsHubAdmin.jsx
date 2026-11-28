@@ -125,11 +125,14 @@ function AdminChat({ rec, onClose, onChange }) {
 /* record view — admin assigns Category + tier here */
 function ViewModal({ rec, cats, tiers, onSaved, onClose }) {
   const [cat, setCat] = useState(rec.category || "");
-  const [tier, setTier] = useState(rec.tier || "");
+  /* tier is multi-select now — a record can be Standard AND Premium etc.
+     Stored as a comma-joined string so everything that reads rec.tier still works. */
+  const [tierArr, setTierArr] = useState(() => String(rec.tier || "").split(",").map((s) => s.trim()).filter(Boolean));
+  const toggleTier = (t) => setTierArr((a) => (a.includes(t) ? a.filter((x) => x !== t) : [...a, t]));
   const [busy, setBusy] = useState(false);
   const [zoom, setZoom] = useState(null);
   const Row = ({ k, v }) => <div style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", borderBottom: "1px solid #eef1f8", fontSize: 14 }}><span style={{ color: "var(--muted)", fontWeight: 600 }}>{k}</span><b style={{ textAlign: "right", maxWidth: "62%" }}>{v || "—"}</b></div>;
-  const save = async () => { setBusy(true); try { const d = { ...rec, category: cat, tier }; await api.update("specsHub", rid(rec), d); onSaved(d); } catch (e) { alert(e.message); setBusy(false); } };
+  const save = async () => { setBusy(true); try { const d = { ...rec, category: cat, tier: tierArr.join(", ") }; await api.update("specsHub", rid(rec), d); onSaved(d); } catch (e) { alert(e.message); setBusy(false); } };
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.4)", zIndex: 1000, display: "grid", placeItems: "center", padding: 20 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", width: 620, maxWidth: "100%", maxHeight: "90vh", overflowY: "auto", borderRadius: 16, padding: 20 }}>
@@ -163,8 +166,20 @@ function ViewModal({ rec, cats, tiers, onSaved, onClose }) {
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
           <div style={{ flex: 1, minWidth: 180 }}><div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--muted)", marginBottom: 4 }}>Category (admin)</div>
             <select value={cat} onChange={(e) => setCat(e.target.value)} style={{ ...sel, width: "100%" }}><option value="">Select…</option>{cats.map((c) => <option key={c}>{c}</option>)}</select></div>
-          <div style={{ flex: 1, minWidth: 180 }}><div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--muted)", marginBottom: 4 }}>Standard / Premium / Premium Plus</div>
-            <select value={tier} onChange={(e) => setTier(e.target.value)} style={{ ...sel, width: "100%" }}><option value="">Select…</option>{tiers.map((c) => <option key={c}>{c}</option>)}</select></div>
+          <div style={{ flex: 1, minWidth: 180 }}><div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--muted)", marginBottom: 4 }}>Standard / Premium / Premium Plus <span style={{ fontWeight: 500 }}>(pick one or more)</span></div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+              {tiers.map((c) => {
+                const on = tierArr.includes(c);
+                return (
+                  <button key={c} type="button" onClick={() => toggleTier(c)}
+                    style={{ cursor: "pointer", padding: "7px 13px", borderRadius: 9, fontSize: 12.5, fontWeight: 700,
+                      border: on ? "1.5px solid var(--accent)" : "1px solid var(--line)",
+                      background: on ? "var(--accent)" : "#fff", color: on ? "#fff" : "var(--navy)" }}>
+                    {on ? "✓ " : ""}{c}
+                  </button>
+                );
+              })}
+            </div></div>
         </div>
         <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--muted)", marginBottom: 6 }}>ATTACHMENTS</div>
         <Atts atts={rec.attachments} onZoom={setZoom} />
