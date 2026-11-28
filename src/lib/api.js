@@ -203,6 +203,7 @@ export const api = {
   async adminLogin(username, password) {
     const d = await req("/auth.php?action=admin_login", { method: "POST", body: { username, password } });
     auth.set(d.token, d.user);
+    try { import("./perms.js").then((m) => m.resetPerms()); } catch {}   // fresh permission grid for the new login
     return d.user;
   },
   async adminMe() { return (await req("/auth.php?action=admin_me")).user; },
@@ -213,6 +214,7 @@ export const api = {
     /* panel: true keeps the phone's session alive when signing in to the backend */
     const d = await req("/auth.php?action=verify_otp", { method: "POST", body: { username, otp, panel } });
     auth.set(d.token, d.user);
+    try { import("./perms.js").then((m) => m.resetPerms()); } catch {}   // fresh permission grid for the new login
     return d.user;
   },
   async me() { return (await req("/auth.php?action=me")).user; },

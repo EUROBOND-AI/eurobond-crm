@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, auth } from "../lib/api.js";
 import { PageHead, Tabs, StatCard, DataTable, ToolButtons, Pill } from "../components/ui.jsx";
 import { SkeletonList } from "../components/Loaders.jsx";
-import { recordMatchesPlace, recordPeople, hodNamesOf, visibleUsers } from "../lib/scope.js";
+import { recordMatchesPlace, recordPeople, hodNamesOf, visibleUsers, scopeRows } from "../lib/scope.js";
 import { canApprove, canModify, canDelete } from "../lib/perms.js";
 import { SpecsHubImport } from "./HistoryImport.jsx";
 const SH = "Specs-Hub";   // permission module name
@@ -379,7 +379,10 @@ export default function SpecsHubAdmin() {
   };
 
   const base = useMemo(() => {
-    let rs = all || [];
+    /* scope to the login's own team first — a Sales/Specs HOD must see only their
+       team's specs (cross-team: match on spec person OR sales person on the row).
+       Owner/Admin see everything (scopeRows returns all for them). */
+    let rs = scopeRows(all || [], users, undefined, { anyPeople: true });
     if (from) rs = rs.filter((r) => (r.approvalDate || "") >= from);
     if (to) rs = rs.filter((r) => (r.approvalDate || "") <= to);
     if (fZone || fState || fHod) rs = rs.filter((r) => recordMatchesPlace(r, users, { zone: fZone, state: fState, hod: fHod }));
