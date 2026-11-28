@@ -135,6 +135,35 @@ function ViewModal({ rec, cats, tiers, onSaved, onClose }) {
   /* finally — otherwise a successful save left busy=true and the button sat on
      "Saving…" forever (it had actually saved). */
   const save = async () => { setBusy(true); try { const d = { ...rec, category: cat, tier: tierArr.join(", ") }; await api.update("specsHub", rid(rec), d); onSaved(d); } catch (e) { alert(e.message); } finally { setBusy(false); } };
+
+  /* Approve / Reject. Approve now REQUIRES Category + at least one Tier and
+     writes them in the same save — there is no separate Approve button any more;
+     the bottom button does both. Reject stays its own button and needs neither. */
+  const stNow = statusOf(rec);
+  const pending = stNow === "Draft" || stNow === "Mailed";
+  const canApprove = !!cat && tierArr.length > 0;
+  const decide = async (action) => {
+    let remark = "";
+    if (action === "Reject") { remark = window.prompt("Reject remark (reason) — saved to History; the specs person can see it:"); if (remark === null) return; }
+    if (action === "Approve" && !canApprove) { alert("Select Category and at least one Tier (Standard / Premium / Premium Plus) before approving."); return; }
+    setBusy(true);
+    const by = (auth.user?.name || auth.user?.username || "Admin");
+    const at = new Date().toLocaleString("en-IN");
+    const hist = [...(rec.history || []), { at, by, action, remark }];
+    const d = action === "Approve"
+      ? { ...rec, category: cat, tier: tierArr.join(", "), flowStatus: "Approved", reflectedToSales: true, approvedBy: by, approvedAt: at, rejectRemark: "", history: hist }
+      : { ...rec, flowStatus: "Reject", reflectedToSales: false, rejectRemark: remark || "", rejectedBy: by, rejectedAt: at, history: hist };
+    try {
+      await api.update("specsHub", rid(rec), d);
+      if (action === "Approve") {
+        const sps = d.salesPersons && d.salesPersons.length ? d.salesPersons : String(d.salesPerson || "").split(/,\s*/);
+        for (const sp of sps) if (sp) { try { await api.create("notification", { title: "Specification approved", message: `"${rec.projectName}" approved — it is now with you.`, to: sp, link: "/app/sales-hub", at: new Date().toISOString() }); } catch {} }
+      } else if (rec.specPerson) {
+        try { await api.create("notification", { title: "Specification rejected", message: `"${rec.projectName}" needs changes.${remark ? " Remark: " + remark : ""}`, to: rec.specPerson, link: "/app/specs-hub", at: new Date().toISOString() }); } catch {}
+      }
+      onSaved(d);
+    } catch (e) { alert(e.message); } finally { setBusy(false); }
+  };
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.4)", zIndex: 1000, display: "grid", placeItems: "center", padding: 20 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", width: 620, maxWidth: "100%", maxHeight: "90vh", overflowY: "auto", borderRadius: 16, padding: 20 }}>
@@ -188,61 +217,116 @@ function ViewModal({ rec, cats, tiers, onSaved, onClose }) {
         {rec.salesStatus === "Win" && <div style={{ marginTop: 14, background: "#e3f5ec", borderRadius: 12, padding: 14 }}><b style={{ color: "#0f7a44" }}>🏆 WON</b> — {rec.winSqm} Sq.Mtr {rec.winRemark ? "· " + rec.winRemark : ""}{(rec.invoices || []).length ? <div style={{ marginTop: 6, fontSize: 13 }}>Invoices: {(rec.invoices || []).map((x, i) => <span key={i}>{x.no} ₹{x.amount}; </span>)}</div> : null}</div>}
         {rec.salesStatus === "Loss" && <div style={{ marginTop: 14, background: "#fdecec", borderRadius: 12, padding: 14 }}><b style={{ color: "#c03636" }}>✗ LOST</b> — {rec.lossRemark}</div>}
 
-        {/* ---- admin approval: Approve, or Reject with a remark that is saved to History ---- */}
-        {(() => {
-          const st = statusOf(rec);
-          const pendingDecision = st === "Draft" || st === "Mailed";
-          const decide = async (action) => {
-            let remark = "";
-            if (action === "Reject") { remark = window.prompt("Reject remark (reason) — saved to History; the specs person can see it:"); if (remark === null) return; }
-            setBusy(true);
-            const by = (auth.user?.name || auth.user?.username || "Admin");
-            const at = new Date().toLocaleString("en-IN");
-            const hist = [...(rec.history || []), { at, by, action, remark }];
-            const d = action === "Approve"
-              ? { ...rec, flowStatus: "Approved", reflectedToSales: true, approvedBy: by, approvedAt: at, rejectRemark: "", history: hist }
-              : { ...rec, flowStatus: "Reject", reflectedToSales: false, rejectRemark: remark || "", rejectedBy: by, rejectedAt: at, history: hist };
-            try {
-              await api.update("specsHub", rid(rec), d);
-              if (action === "Approve") {
-                const sps = d.salesPersons && d.salesPersons.length ? d.salesPersons : String(d.salesPerson || "").split(/,\s*/);
-                for (const sp of sps) if (sp) { try { await api.create("notification", { title: "Specification approved", message: `"${rec.projectName}" approved — it is now with you.`, to: sp, link: "/app/sales-hub", at: new Date().toISOString() }); } catch {} }
-              } else if (rec.specPerson) {
-                try { await api.create("notification", { title: "Specification rejected", message: `"${rec.projectName}" needs changes.${remark ? " Remark: " + remark : ""}`, to: rec.specPerson, link: "/app/specs-hub", at: new Date().toISOString() }); } catch {}
-              }
-              onSaved(d);
-            } catch (e) { alert(e.message); } finally { setBusy(false); }
-          };
-          return (
-            <>
-              {pendingDecision && (
-                <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-                  <button className="btn" disabled={busy} onClick={() => decide("Approve")} style={{ flex: 1, background: "#0f7a44", color: "#fff", borderColor: "transparent", fontWeight: 800 }}>✓ Approve</button>
-                  <button className="btn" disabled={busy} onClick={() => decide("Reject")} style={{ flex: 1, background: "#c03636", color: "#fff", borderColor: "transparent", fontWeight: 800 }}>✕ Reject (remark)</button>
-                </div>
-              )}
-              {rec.rejectRemark && (
-                <div style={{ marginTop: 14, background: "#fdecec", border: "1px solid #f3c2c2", borderRadius: 12, padding: "10px 14px" }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 800, color: "#c03636", marginBottom: 4 }}>REJECT REMARK</div>
-                  <div style={{ fontSize: 14, whiteSpace: "pre-wrap" }}>{rec.rejectRemark}</div>
-                </div>
-              )}
-              {(rec.history || []).length > 0 && (
-                <div style={{ marginTop: 14 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--muted)", marginBottom: 6 }}>HISTORY</div>
-                  {rec.history.map((h, i) => (
-                    <div key={i} style={{ fontSize: 12.5, padding: "6px 0", borderBottom: "1px solid #eef1f8" }}>
-                      <b>{h.action}</b> · {h.by} · <span style={{ color: "var(--muted)" }}>{h.at}</span>{h.remark ? <div style={{ color: "#555", marginTop: 2 }}>{h.remark}</div> : null}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          );
-        })()}
+        {/* ---- admin approval. Approve is merged into the bottom button (needs
+             Category + Tier). Reject stays its own button, as before. ---- */}
+        {pending && (
+          <div style={{ display: "flex", marginTop: 16 }}>
+            <button className="btn" disabled={busy} onClick={() => decide("Reject")} style={{ flex: 1, background: "#c03636", color: "#fff", borderColor: "transparent", fontWeight: 800 }}>✕ Reject (remark)</button>
+          </div>
+        )}
+        {rec.rejectRemark && (
+          <div style={{ marginTop: 14, background: "#fdecec", border: "1px solid #f3c2c2", borderRadius: 12, padding: "10px 14px" }}>
+            <div style={{ fontSize: 12.5, fontWeight: 800, color: "#c03636", marginBottom: 4 }}>REJECT REMARK</div>
+            <div style={{ fontSize: 14, whiteSpace: "pre-wrap" }}>{rec.rejectRemark}</div>
+          </div>
+        )}
+        {(rec.history || []).length > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--muted)", marginBottom: 6 }}>HISTORY</div>
+            {rec.history.map((h, i) => (
+              <div key={i} style={{ fontSize: 12.5, padding: "6px 0", borderBottom: "1px solid #eef1f8" }}>
+                <b>{h.action}</b> · {h.by} · <span style={{ color: "var(--muted)" }}>{h.at}</span>{h.remark ? <div style={{ color: "#555", marginTop: 2 }}>{h.remark}</div> : null}
+              </div>
+            ))}
+          </div>
+        )}
 
-        <button className="btn btn-primary" disabled={busy} onClick={save} style={{ width: "100%", marginTop: 16 }}>{busy ? "Saving…" : "Save Category / Tier"}</button>
+        {pending ? (
+          /* pending record → the one button approves AND saves Category/Tier.
+             Disabled until both are chosen, so approval can't happen without them. */
+          <button className="btn" disabled={busy || !canApprove} onClick={() => decide("Approve")}
+            style={{ width: "100%", marginTop: 16, background: canApprove ? "#0f7a44" : "#9bb7a8", color: "#fff", borderColor: "transparent", fontWeight: 800, cursor: canApprove ? "pointer" : "not-allowed" }}>
+            {busy ? "Saving…" : canApprove ? "✓ Approve & Save" : "Select Category & Tier to Approve"}
+          </button>
+        ) : (
+          /* already decided → still allow editing Category / Tier */
+          <button className="btn btn-primary" disabled={busy} onClick={save} style={{ width: "100%", marginTop: 16 }}>{busy ? "Saving…" : "Save Category / Tier"}</button>
+        )}
         <Lightbox src={zoom} onClose={() => setZoom(null)} />
+      </div>
+    </div>
+  );
+}
+
+/* Full edit of a record's fields (admin) — opened from the Action column's Edit. */
+function EditModal({ rec, cats, tiers, onSaved, onClose }) {
+  const [f, setF] = useState(() => ({
+    projectName: rec.projectName || "", location: rec.location || "", colourCode: rec.colourCode || "",
+    grade: rec.grade || "", approvedByType: rec.approvedByType || "", firmName: rec.firmName || "",
+    contactPerson: rec.contactPerson || "", contactNumber: rec.contactNumber || "", mailId: rec.mailId || "",
+    approvedQty: rec.approvedQty || "", specPerson: rec.specPerson || "",
+    salesPersons: Array.isArray(rec.salesPersons) ? rec.salesPersons.join(", ") : (rec.salesPerson || ""),
+    category: rec.category || "", remark: rec.remark || "",
+  }));
+  const [tierArr, setTierArr] = useState(() => String(rec.tier || "").split(",").map((s) => s.trim()).filter(Boolean));
+  const toggleTier = (t) => setTierArr((a) => (a.includes(t) ? a.filter((x) => x !== t) : [...a, t]));
+  const [busy, setBusy] = useState(false);
+  const set = (k, v) => setF((o) => ({ ...o, [k]: v }));
+  const save = async () => {
+    setBusy(true);
+    try {
+      const salesPersons = f.salesPersons.split(",").map((s) => s.trim()).filter(Boolean);
+      const d = { ...rec, ...f, salesPersons, salesPerson: salesPersons.join(", "), tier: tierArr.join(", ") };
+      await api.update("specsHub", rid(rec), d);
+      onSaved(d);
+    } catch (e) { alert(e.message); } finally { setBusy(false); }
+  };
+  /* a plain JSX-returning helper (NOT a nested component) so inputs keep focus between keystrokes */
+  const fld = (k, label, type) => (
+    <div key={k} style={{ flex: "1 1 220px", minWidth: 200 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 4 }}>{label}</div>
+      <input type={type || "text"} value={f[k]} onChange={(e) => set(k, e.target.value)}
+        style={{ width: "100%", padding: "9px 10px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, boxSizing: "border-box" }} />
+    </div>
+  );
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.4)", zIndex: 1000, display: "grid", placeItems: "center", padding: 20 }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", width: 640, maxWidth: "100%", maxHeight: "90vh", overflowY: "auto", borderRadius: 16, padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <h3 style={{ margin: 0 }}>Edit — {rec.projectName}</h3>
+          <button className="btn btn-ghost" onClick={onClose}>✕</button>
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+          {fld("projectName", "Project / Brand")}
+          {fld("location", "Project Location")}
+          {fld("colourCode", "Colour Code")}
+          {fld("grade", "Grade")}
+          {fld("approvedByType", "Approved By (type)")}
+          {fld("firmName", "Firm")}
+          {fld("contactPerson", "Contact Person")}
+          {fld("contactNumber", "Contact Number")}
+          {fld("mailId", "Mail ID")}
+          {fld("approvedQty", "Approved Qty (Sq.Mtr)")}
+          {fld("specPerson", "Spec Person")}
+          {fld("salesPersons", "Sales Persons (comma separated)")}
+          <div style={{ flex: "1 1 220px", minWidth: 200 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 4 }}>Category</div>
+            <select value={f.category} onChange={(e) => set("category", e.target.value)} style={{ ...sel, width: "100%" }}><option value="">Select…</option>{cats.map((c) => <option key={c}>{c}</option>)}</select>
+          </div>
+          <div style={{ flex: "1 1 220px", minWidth: 200 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 4 }}>Standard / Premium / Premium Plus</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+              {tiers.map((c) => { const on = tierArr.includes(c); return (
+                <button key={c} type="button" onClick={() => toggleTier(c)} style={{ cursor: "pointer", padding: "7px 13px", borderRadius: 9, fontSize: 12.5, fontWeight: 700, border: on ? "1.5px solid var(--accent)" : "1px solid var(--line)", background: on ? "var(--accent)" : "#fff", color: on ? "#fff" : "var(--navy)" }}>{on ? "✓ " : ""}{c}</button>
+              ); })}
+            </div>
+          </div>
+          <div style={{ flex: "1 1 100%" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 4 }}>Remark</div>
+            <textarea value={f.remark} onChange={(e) => set("remark", e.target.value)} rows={3} style={{ width: "100%", padding: "9px 10px", borderRadius: 9, border: "1px solid var(--line)", fontSize: 13, resize: "vertical", boxSizing: "border-box" }} />
+          </div>
+        </div>
+        <button className="btn btn-primary" disabled={busy} onClick={save} style={{ width: "100%", marginTop: 16 }}>{busy ? "Saving…" : "Save Changes"}</button>
       </div>
     </div>
   );
@@ -262,6 +346,7 @@ export default function SpecsHubAdmin() {
   const [users, setUsers] = useState([]);
   const [shown, setShown] = useState(false);
   const [view, setView] = useState(null);
+  const [edit, setEdit] = useState(null);
   const [chat, setChat] = useState(null);
   const [showMasters, setShowMasters] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -381,11 +466,12 @@ export default function SpecsHubAdmin() {
             ))}
           </div>
           <Tabs tabs={tabs} active={tab} onChange={setTab} />
-          <DataTable columns={columns} rows={tabbed} onView={(r) => setView(r)} onChat={(r) => setChat(r)} onDelete={delRow} />
+          <DataTable columns={columns} rows={tabbed} onView={(r) => setView(r)} onEdit={(r) => setEdit(r)} onChat={(r) => setChat(r)} onDelete={delRow} />
         </>
       )}
 
       {view && <ViewModal rec={view} cats={cats} tiers={tiers} onSaved={(r) => { updRow(r); setView(r); }} onClose={() => setView(null)} />}
+      {edit && <EditModal rec={edit} cats={cats} tiers={tiers} onSaved={(r) => { updRow(r); setEdit(null); }} onClose={() => setEdit(null)} />}
       {chat && <AdminChat rec={chat} onChange={updRow} onClose={() => setChat(null)} />}
       {showMasters && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.4)", zIndex: 1000, display: "grid", placeItems: "center", padding: 20 }} onClick={() => setShowMasters(false)}>
