@@ -17,7 +17,12 @@ export default function ExportAreasPage() {
   const load = () => api.listAll("exportArea", false)
     .then((d) => setRows((d.records || []).map((r) => ({ _id: r.id, country: r.data?.country || "", area: r.data?.area || "" }))))
     .catch(() => {});
-  useEffect(load, []);
+  /* NOTE: must NOT be useEffect(load, []) — load returns a Promise, and React
+     calls an effect's return value as the cleanup function on unmount. A Promise
+     is not a function, so leaving this page crashed with "n is not a function"
+     (and then dropped you onto the default module). Wrap it so the effect
+     returns nothing. */
+  useEffect(() => { load(); }, []);
 
   const countries = useMemo(() => [...new Set(rows.map((r) => r.country).filter(Boolean))].sort(), [rows]);
   const areas = useMemo(() => rows.filter((r) => r.country === sel), [rows, sel]);
