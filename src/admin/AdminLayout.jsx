@@ -605,7 +605,12 @@ export default function AdminLayout() {
           </div>
         )}
         <main className="content" style={expired ? { filter: "blur(6px)", pointerEvents: "none", userSelect: "none" } : undefined}>
-          {(() => {
+          {!permsReady ? (
+            /* Wait for the permission grid before rendering any page, so every
+               screen's Add/Edit/Delete/Export/Approve buttons are decided with the
+               real grid loaded — not shown for a moment and never re-hidden. */
+            <div style={{ padding: 80, textAlign: "center", color: "var(--muted, #667)", fontWeight: 600 }}>Loading…</div>
+          ) : (() => {
             /* A restricted admin whose access was fully removed must NOT land on
                the default Enquiry Dashboard — show a clear "no access" message,
                or send them to the first module they ARE allowed. Owners/full
