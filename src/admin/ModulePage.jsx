@@ -915,6 +915,7 @@ export default function ModulePage({ cfgKey }) {
             onHeaderConfig={() => setShowColCfg(true)}
             onLogs={() => setShowLogs(true)}
             onReport={viewReport}
+            module={permName(cfg)}
           />
         }
       />

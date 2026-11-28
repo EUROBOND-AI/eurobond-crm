@@ -67,7 +67,11 @@ export function EmptyState() {
 }
 
 // Generic filterable table used across every module
-export function DataTable({ columns, rows, onDelete, onEdit, onView, onChat, onRowClick, onBulkDelete, onBulkForward, selectable, actions = true, extraActions }) {
+export function DataTable({ columns, rows, onDelete, onEdit, onView, onChat, onRowClick, onBulkDelete, onBulkForward, selectable, actions = true, extraActions, module }) {
+  /* Roles & Permission gating: pass `module` and the Edit/Delete actions only
+     appear when that role is allowed to Modify / Delete. Without `module` nothing
+     is gated (owner/admin and un-migrated screens behave exactly as before). */
+  const allow = (a) => (module ? can(module, a) : true);
   const [filters, setFilters] = useState({});
   const [sel, setSel] = useState(new Set());
   const filtered = useMemo(
@@ -90,7 +94,7 @@ export function DataTable({ columns, rows, onDelete, onEdit, onView, onChat, onR
       {selectable && sel.size > 0 && (
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", background: "linear-gradient(135deg,#eef1ff,#f4ecff)", borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
           <span style={{ fontWeight: 800, fontSize: 13, color: "var(--accent)" }}>{sel.size} selected</span>
-          {onBulkDelete && <button className="btn btn-danger" style={{ padding: "5px 12px", fontSize: 12 }} onClick={() => { onBulkDelete([...sel]); setSel(new Set()); }}>Delete Selected</button>}
+          {onBulkDelete && allow("Delete") && <button className="btn btn-danger" style={{ padding: "5px 12px", fontSize: 12 }} onClick={() => { onBulkDelete([...sel]); setSel(new Set()); }}>Delete Selected</button>}
           {onBulkForward && <button className="btn" style={{ padding: "5px 12px", fontSize: 12, background: "#efe7fb", color: "#8854d0" }} onClick={() => onBulkForward([...sel])}>Forward Selected</button>}
           <button className="btn btn-ghost" style={{ padding: "5px 12px", fontSize: 12 }} onClick={() => setSel(new Set())}>Clear</button>
         </div>
@@ -147,8 +151,8 @@ export function DataTable({ columns, rows, onDelete, onEdit, onView, onChat, onR
                           )}
                         </button>
                       )}
-                      {onEdit && <button className="btn" style={{ padding: "6px 8px", background: "#e2f8f1", color: "#00b894" }} onClick={() => onEdit(r)}><Pencil size={14} /></button>}
-                      {onDelete && <button className="btn btn-danger" style={{ padding: "6px 8px" }} onClick={() => onDelete(r)}><Trash2 size={14} /></button>}
+                      {onEdit && allow("Modify") && <button className="btn" style={{ padding: "6px 8px", background: "#e2f8f1", color: "#00b894" }} onClick={() => onEdit(r)}><Pencil size={14} /></button>}
+                      {onDelete && allow("Delete") && <button className="btn btn-danger" style={{ padding: "6px 8px" }} onClick={() => onDelete(r)}><Trash2 size={14} /></button>}
                     </div>
                   </td>
                 )}

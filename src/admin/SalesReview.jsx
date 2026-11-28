@@ -8,6 +8,7 @@ import * as XLSX from "xlsx";
 import { Upload, Download, FileDown, Maximize2, X, Trash2, Filter } from "lucide-react";
 import { api, auth, API_BASE } from "../lib/api.js";
 import { isPanelAdmin } from "../lib/scope.js";
+import { canExport, canImport, canDelete } from "../lib/perms.js";
 import { DxPage, KpiCard, Panel, ShowGate, RankBars, WeekBars, HalfDonut } from "../components/dash.jsx";
 
 const MO = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
@@ -285,6 +286,7 @@ export default function SalesReview({ scope = "sales" } = {}) {
      spelled differently, the code is not), and fall back to the name only when
      the user has no code or it is not in the data. */
   const admin = isPanelAdmin();
+  const mod = isExp ? "Export BI" : "Power BI";   // permission module name
   const myScope = useMemo(() => {
     if (admin || !db) return { ec: -1, sp: -1 };
     const code = String(auth.user?.code || auth.user?.empCode || auth.user?.employeeCode || "").trim().toLowerCase();
@@ -423,13 +425,13 @@ export default function SalesReview({ scope = "sales" } = {}) {
   return (
     <DxPage title={isExp ? "Export BI (Global)" : "Power BI"} sub={isExp ? "Export sales — $ primary, ₹ shown side-by-side on KPIs" : "Pan-India sales — target, achievement and contribution"}
       actions={<>
-        {admin && <>
+        {admin && canImport(mod) && <>
           <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={onFile} />
           <button className="dx-btn dx-btn-p" onClick={() => fileRef.current && fileRef.current.click()}><Upload size={15} /> Import Excel</button>
           <button className="dx-btn" onClick={onFormat}><FileDown size={15} /> Download Format</button>
         </>}
-        <button className="dx-btn" onClick={onExport}><Download size={15} /> Export</button>
-        {admin && <button className="dx-btn" style={{ color: "#ef4444", borderColor: "#f3b4b0" }} onClick={onDelete}><Trash2 size={15} /> Delete</button>}
+        {canExport(mod) && <button className="dx-btn" onClick={onExport}><Download size={15} /> Export</button>}
+        {admin && canDelete(mod) && <button className="dx-btn" style={{ color: "#ef4444", borderColor: "#f3b4b0" }} onClick={onDelete}><Trash2 size={15} /> Delete</button>}
         {msg && <span style={{ fontSize: 12, color: "var(--muted)", alignSelf: "center", fontWeight: 600 }}>{msg}</span>}
       </>}>
 

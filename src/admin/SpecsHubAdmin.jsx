@@ -3,7 +3,9 @@ import { api, auth } from "../lib/api.js";
 import { PageHead, Tabs, StatCard, DataTable, ToolButtons, Pill } from "../components/ui.jsx";
 import { SkeletonList } from "../components/Loaders.jsx";
 import { recordMatchesPlace, recordPeople, hodNamesOf, visibleUsers } from "../lib/scope.js";
+import { canApprove, canModify, canDelete } from "../lib/perms.js";
 import { SpecsHubImport } from "./HistoryImport.jsx";
+const SH = "Specs-Hub";   // permission module name
 
 /* Admin Specs-Hub — same look as every other module (stat boxes, filters, Show,
    tabs, table, export, refresh). Admin also sets each record's Category and
@@ -141,11 +143,11 @@ function ViewModal({ rec, cats, tiers, onSaved, onClose }) {
      the bottom button does both. Reject stays its own button and needs neither. */
   const stNow = statusOf(rec);
   const pending = stNow === "Draft" || stNow === "Mailed";
-  const canApprove = !!cat && tierArr.length > 0;
+  const readyToApprove = !!cat && tierArr.length > 0;
   const decide = async (action) => {
     let remark = "";
     if (action === "Reject") { remark = window.prompt("Reject remark (reason) — saved to History; the specs person can see it:"); if (remark === null) return; }
-    if (action === "Approve" && !canApprove) { alert("Select Category and at least one Tier (Standard / Premium / Premium Plus) before approving."); return; }
+    if (action === "Approve" && !readyToApprove) { alert("Select Category and at least one Tier (Standard / Premium / Premium Plus) before approving."); return; }
     setBusy(true);
     const by = (auth.user?.name || auth.user?.username || "Admin");
     const at = new Date().toLocaleString("en-IN");
@@ -219,7 +221,7 @@ function ViewModal({ rec, cats, tiers, onSaved, onClose }) {
 
         {/* ---- admin approval. Approve is merged into the bottom button (needs
              Category + Tier). Reject stays its own button, as before. ---- */}
-        {pending && (
+        {pending && canApprove(SH) && (
           <div style={{ display: "flex", marginTop: 16 }}>
             <button className="btn" disabled={busy} onClick={() => decide("Reject")} style={{ flex: 1, background: "#c03636", color: "#fff", borderColor: "transparent", fontWeight: 800 }}>✕ Reject (remark)</button>
           </div>
@@ -243,14 +245,17 @@ function ViewModal({ rec, cats, tiers, onSaved, onClose }) {
 
         {pending ? (
           /* pending record → the one button approves AND saves Category/Tier.
-             Disabled until both are chosen, so approval can't happen without them. */
-          <button className="btn" disabled={busy || !canApprove} onClick={() => decide("Approve")}
-            style={{ width: "100%", marginTop: 16, background: canApprove ? "#0f7a44" : "#9bb7a8", color: "#fff", borderColor: "transparent", fontWeight: 800, cursor: canApprove ? "pointer" : "not-allowed" }}>
-            {busy ? "Saving…" : canApprove ? "✓ Approve & Save" : "Select Category & Tier to Approve"}
-          </button>
+             Disabled until both are chosen, so approval can't happen without them.
+             Shown only to roles allowed to Approve. */
+          canApprove(SH) && (
+            <button className="btn" disabled={busy || !readyToApprove} onClick={() => decide("Approve")}
+              style={{ width: "100%", marginTop: 16, background: readyToApprove ? "#0f7a44" : "#9bb7a8", color: "#fff", borderColor: "transparent", fontWeight: 800, cursor: readyToApprove ? "pointer" : "not-allowed" }}>
+              {busy ? "Saving…" : readyToApprove ? "✓ Approve & Save" : "Select Category & Tier to Approve"}
+            </button>
+          )
         ) : (
-          /* already decided → still allow editing Category / Tier */
-          <button className="btn btn-primary" disabled={busy} onClick={save} style={{ width: "100%", marginTop: 16 }}>{busy ? "Saving…" : "Save Category / Tier"}</button>
+          /* already decided → still allow editing Category / Tier (Modify perm) */
+          canModify(SH) && <button className="btn btn-primary" disabled={busy} onClick={save} style={{ width: "100%", marginTop: 16 }}>{busy ? "Saving…" : "Save Category / Tier"}</button>
         )}
         <Lightbox src={zoom} onClose={() => setZoom(null)} />
       </div>
@@ -429,7 +434,7 @@ export default function SpecsHubAdmin() {
       <PageHead crumb="Specs-Hub" title="Specs-Hub"
         actions={<div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <SpecsHubImport users={users} onDone={() => { loadRows(); setShown(true); }} />
-          <ToolButtons onRefresh={refresh} refreshing={refreshing} onExport={exportCsv} onHeaderConfig={() => setShowMasters(true)} />
+          <ToolButtons onRefresh={refresh} refreshing={refreshing} onExport={exportCsv} onHeaderConfig={() => setShowMasters(true)} module={SH} />
         </div>} />
 
       <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 14, marginBottom: 16 }}>
@@ -466,7 +471,7 @@ export default function SpecsHubAdmin() {
             ))}
           </div>
           <Tabs tabs={tabs} active={tab} onChange={setTab} />
-          <DataTable columns={columns} rows={tabbed} onView={(r) => setView(r)} onEdit={(r) => setEdit(r)} onChat={(r) => setChat(r)} onDelete={delRow} />
+          <DataTable columns={columns} rows={tabbed} module={SH} onView={(r) => setView(r)} onEdit={(r) => setEdit(r)} onChat={(r) => setChat(r)} onDelete={delRow} />
         </>
       )}
 
