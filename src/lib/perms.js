@@ -47,10 +47,18 @@ export function resetPerms() { GRID = null; loading = null; }
 export function can(module, action) {
   if (GRID === null) return true;      // not loaded yet — don't block the first paint
   if (GRID === "ALL") return true;
+  const VIEW = action === "View";
   const key = Object.keys(GRID).find((k) => norm(k) === norm(module));
-  if (!key) return true;               // module not listed -> not restricted
+  /* A restricted role's grid only lists the modules that existed when it was last
+     saved. A module added LATER (Power BI, Export BI, Export Projects, Special
+     Working, Specs-Hub, …) has no row, and returning true for it meant every
+     action button (Export/Edit/Delete/Add/…) appeared even though nothing was
+     granted. So for an un-granted module/action, allow only View (keep the module
+     visible and its data readable) and deny every other action until it is ticked
+     in Roles & Permission. */
+  if (!key) return VIEW;
   const row = GRID[key] || {};
-  if (row[action] === undefined) return true;
+  if (row[action] === undefined) return VIEW;
   return !!row[action];
 }
 

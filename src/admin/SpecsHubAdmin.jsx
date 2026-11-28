@@ -3,7 +3,7 @@ import { api, auth } from "../lib/api.js";
 import { PageHead, Tabs, StatCard, DataTable, ToolButtons, Pill } from "../components/ui.jsx";
 import { SkeletonList } from "../components/Loaders.jsx";
 import { recordMatchesPlace, recordPeople, hodNamesOf, visibleUsers, scopeRows } from "../lib/scope.js";
-import { canApprove, canModify, canDelete } from "../lib/perms.js";
+import { canApprove, canModify, canDelete, canImport } from "../lib/perms.js";
 import { SpecsHubImport } from "./HistoryImport.jsx";
 const SH = "Specs-Hub";   // permission module name
 
@@ -436,7 +436,7 @@ export default function SpecsHubAdmin() {
     <div>
       <PageHead crumb="Specs-Hub" title="Specs-Hub"
         actions={<div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <SpecsHubImport users={users} onDone={() => { loadRows(); setShown(true); }} />
+          {canImport(SH) && <SpecsHubImport users={users} onDone={() => { loadRows(); setShown(true); }} />}
           <ToolButtons onRefresh={refresh} refreshing={refreshing} onExport={exportCsv} onHeaderConfig={() => setShowMasters(true)} module={SH} />
         </div>} />
 
