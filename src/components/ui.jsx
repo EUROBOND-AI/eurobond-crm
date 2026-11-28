@@ -366,11 +366,9 @@ export function FormModal({ title, fields, onClose, onSave, initial }) {
 }
 
 export function FooterNote() {
-  /* version stamp — so you can tell at a glance which build is actually live */
-  let v = ""; try { v = typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : ""; } catch { v = ""; }
   return (
     <p className="footer-note">
-      Copyright ©2026 <b>Eurobond CRM</b> · Developed and Designed by <b>Karthik G</b>{v ? <> · <b>v{v}</b></> : null}
+      Copyright ©2026 <b>Eurobond CRM</b> · Developed and Designed by <b>Karthik G</b>
     </p>
   );
 }

@@ -2843,19 +2843,23 @@ function financialYear(d = new Date()) {
   return m >= 3 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
 }
 async function nextQuoteNo() {
-  /* Admin sets the FULL next number in API Keys & Settings, e.g. EP/08/161/26-27.
-     We keep that month + financial year and just move the running number forward
-     past whatever already exists, so the series never repeats. */
+  /* Format EP / MM / running-no / FY  e.g. EP/11/344/26-27
+       - MM  = the CURRENT month, always (it used to be copied from the admin seed,
+               so a seed set in October kept printing /10/ in November).
+       - FY  = the CURRENT financial year, always.
+       - running number continues within the financial year and resets each new FY
+         (only this FY's numbers are counted). The admin's quotation_next_no sets a
+         floor for the running number; its month/FY are ignored. */
   const mm = String(new Date().getMonth() + 1).padStart(2, "0");
   const fy = financialYear();
-  let seedNo = 160, seedMm = mm, seedFy = fy;
+  let seedNo = 1;
 
   try {
     const st = await api.settingsList();
     const row = (st.settings || []).find((x) => x.skey === "quotation_next_no");
     const setting = row ? String(row.svalue || "").trim() : "";
     const m = setting.match(/^EP\/(\d{2})\/(\d+)\/(.+)$/i);
-    if (m) { seedMm = m[1]; seedNo = parseInt(m[2], 10); seedFy = m[3]; }
+    if (m) { seedNo = parseInt(m[2], 10); }                 // admin controls only the running number
     else if (/^\d+$/.test(setting)) { seedNo = parseInt(setting, 10); }
   } catch {}
 
@@ -2864,14 +2868,15 @@ async function nextQuoteNo() {
     const d = await api.list("quotation", false);
     const nums = (d.records || []).map((r) => {
       const s2 = String(r.data?.baseNo || r.data?.quoteNo || "");
+      if (!s2.includes("/" + fy)) return 0;                 // count only THIS financial year's numbers (resets each FY)
       const mm2 = s2.match(/EP\/\d+\/(\d+)\//i);
       return mm2 ? parseInt(mm2[1], 10) : 0;
     });
     const max = nums.length ? Math.max(...nums) : 0;
-    running = Math.max(max + 1, seedNo);      // never below what admin set
+    running = Math.max(max + 1, seedNo);                    // never below what admin set
   } catch {}
 
-  return `EP/${seedMm}/${running}/${seedFy}`;
+  return `EP/${mm}/${running}/${fy}`;
 }
 
 async function sendVisitWhatsApp(number, party) {

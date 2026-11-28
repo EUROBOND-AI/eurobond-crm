@@ -288,12 +288,16 @@ export default function SalesReview({ scope = "sales" } = {}) {
   const admin = isPanelAdmin();
   const mod = isExp ? "Export BI" : "Power BI";   // permission module name
   const myScope = useMemo(() => {
-    if (admin || !db) return { ec: -1, sp: -1 };
+    if (admin || !db) return { ec: -1, sp: -1, hd: -1 };
     const code = String(auth.user?.code || auth.user?.empCode || auth.user?.employeeCode || "").trim().toLowerCase();
     const name = String(auth.user?.name || "").trim().toLowerCase();
     const ec = code ? (db.ec || []).findIndex((c) => String(c).trim().toLowerCase() === code) : -1;
     const sp = name ? (db.sp || []).findIndex((n) => String(n).trim().toLowerCase() === name) : -1;
-    return { ec, sp };
+    /* a HOD login also sees their whole TEAM — the sales sheet names the HOD on
+       every row, so match the HOD column to this login's name. */
+    const isHod = /hod/i.test(String(auth.user?.role || ""));
+    const hd = (isHod && name) ? (db.hd || []).findIndex((n) => String(n).trim().toLowerCase() === name) : -1;
+    return { ec, sp, hd };
   }, [admin, db]);
 
   /* if this same component is reused when switching between Power BI and Export
@@ -350,7 +354,9 @@ export default function SalesReview({ scope = "sales" } = {}) {
     if (!db) return [];
     /* a non-admin only ever sees their own rows: by Employee Code when we could
        match it, otherwise by name. If neither matched they correctly see nothing. */
-    const mine = (r) => admin || (myScope.ec >= 0 ? r[IX.EC] === myScope.ec : r[IX.P] === myScope.sp);
+    const mine = (r) => admin
+      || (myScope.hd >= 0 && r[IX.HD] === myScope.hd)                              // HOD → whole team
+      || (myScope.ec >= 0 ? r[IX.EC] === myScope.ec : r[IX.P] === myScope.sp);     // own rows
     return db.sg.filter((r) =>
       mine(r) &&
       (fy === "" || r[IX.Y] === +fy) && (fb === "" || r[IX.B] === +fb) &&
