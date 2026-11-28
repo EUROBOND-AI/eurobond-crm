@@ -342,7 +342,11 @@ export default function ModulePage({ cfgKey }) {
       const me = (auth.user || {}).name;
       base = base.filter((n) => n.to === "ADMIN" || /admin/i.test(String(n.forRole || "")) || n.createdBy === me || n._by === me);
     }
-    return scopeRows(base, allUsers);
+    /* Sales-to-Spec and Spec-to-Sales involve two people (sender + receiver), so
+       scope on ANY person named on the row — otherwise the receiving side's HOD
+       and team saw nothing (the row's creator is on the other team). */
+    const crossTeam = cfgKey === "salesToSpec" || cfgKey === "specToSales";
+    return scopeRows(base, allUsers, undefined, { anyPeople: crossTeam });
   }, [rows, allUsers, cfgKey]);
 
   const filteredNoTab = useMemo(() => {

@@ -7,7 +7,7 @@ import { auth } from "./api.js";
    - Others (Sales/Specs Person, Sales Collection) → see only their own records
    `users` is the full user list (for resolving team membership).
    A record "belongs to" whoever is in its createdBy / by / user / createdById field. */
-export function scopeRows(rows, users, ownerFields) {
+export function scopeRows(rows, users, ownerFields, opts = {}) {
   const u = auth.user || {};
   const role = String(u.role || "").toUpperCase();
   /* Admin, System, and the panel owner/bootstrap account always see all —
@@ -22,22 +22,34 @@ export function scopeRows(rows, users, ownerFields) {
   const fields = ownerFields || ["createdBy", "by", "user", "createdByName", "salesPerson", "person"];
   const ownerOf = (r) => { for (const f of fields) { if (r[f]) return r[f]; } return ""; };
 
+  /* Cross-team modules (Sales ⇄ Spec) name TWO people — the sender and the
+     receiver. Matching only the creator hid a record from the OTHER side: a
+     Sales-to-Spec row is created by a sales person, so its owner is never in a
+     Specs HOD's team, and that HOD saw nothing even though it was sent to their
+     specs team. With anyPeople, a row is in scope when ANY person on it
+     (creator, salesPerson, specPerson, …) is in the team. */
+  const anyPeople = !!opts.anyPeople;
+  const matches = (r, who) => anyPeople
+    ? recordPeople(r).some((p) => who.has(p))
+    : who.has(ownerOf(r));
+
   if (/^HOD /.test(role)) {
     /* HOD → direct reports + reports under their Sub HODs */
     const subHods = all.filter((x) => x.manager === me && /^sub hod/i.test(x.role || "")).map((x) => x.name);
     const team = new Set(all.filter((x) => x.manager === me || subHods.includes(x.manager)).map((x) => x.name));
     team.add(me);
-    return rows.filter((r) => team.has(ownerOf(r)));
+    return rows.filter((r) => matches(r, team));
   }
 
   if (/^SUB HOD /.test(role)) {
     const team = new Set(all.filter((x) => x.manager === me).map((x) => x.name));
     team.add(me);
-    return rows.filter((r) => team.has(ownerOf(r)));
+    return rows.filter((r) => matches(r, team));
   }
 
-  /* Everyone else → only their own records */
-  return rows.filter((r) => ownerOf(r) === me);
+  /* Everyone else → only their own records (or ones naming them, for cross-team) */
+  const mine = new Set([me]);
+  return rows.filter((r) => matches(r, mine));
 }
 
 /* The people this login is allowed to see — used by pages that list users
