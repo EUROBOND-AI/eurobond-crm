@@ -313,7 +313,7 @@ export const api = {
   /* #19 — whether the admin has unlocked late attendance for me today */
   attLockStatus: () => req("/attendance.php?action=lockStatus"),
   /* #19 — admin unlocks a user so they can still mark attendance after the cut-off */
-  attUnlock: (name, date) => req("/attendance.php?action=unlock", { method: "POST", body: { name, date } }),
+  attUnlock: (name, date) => req("/attendance.php?action=unlock", { method: "POST", body: { name, date, by: (auth.user?.name || auth.user?.username || "Admin") } }),
   /* Sales Review (Power BI) dataset — stored compact, replaced on each upload */
   pbLoad: (scope = "") => req(scope === "export" ? "/exportbi.php" : "/powerbi.php"),
   pbSave: (db, scope = "") => req(scope === "export" ? "/exportbi.php" : "/powerbi.php", { method: "POST", body: db }),

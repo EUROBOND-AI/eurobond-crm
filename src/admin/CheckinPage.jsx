@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { SkeletonList } from "../components/Loaders.jsx";
 import { PageHead } from "../components/ui.jsx";
-import { api } from "../lib/api.js";
-import { visibleUsers, visibleNameSet, isUnderHod } from "../lib/scope.js";
+import { api, auth } from "../lib/api.js";
+import { visibleUsers, visibleNameSet, isUnderHod, isPanelAdmin } from "../lib/scope.js";
 import { Avatar } from "../lib/avatar.jsx";
 
 /* Live check-in overview — 4 cards (Total Users, Login, Pending, Leave).
@@ -22,7 +22,7 @@ export default function CheckinPage() {
   const [loaded, setLoaded] = useState(false);
   /* #19b — names already unlocked for this date, so the button stays "Unlocked"
      even after the list re-renders or the page is reloaded */
-  const [unlocked, setUnlocked] = useState(new Set());
+  const [unlocked, setUnlocked] = useState(new Map());   // name(lc) -> who unlocked
 
   const loadData = () => {
     setLoaded(true);
@@ -35,10 +35,12 @@ export default function CheckinPage() {
         setSessions((d.sessions || []).filter((s2) => allow.has(s2.name)));
         setAllUsers(allowed.filter((x) => Number(x.status) !== 0 && x.role !== "Admin"));
         setLeaves((l.records || []).map((r) => r.data));
-        const uset = new Set((un.records || [])
-          .map((r) => r.data).filter((x) => String(x.date || "").slice(0, 10) === date)
-          .map((x) => String(x.name || "").trim().toLowerCase()));
-        setUnlocked(uset);
+        /* map person -> who unlocked them, so the list can show "Unlocked by X" */
+        const umap = new Map();
+        (un.records || []).map((r) => r.data)
+          .filter((x) => String(x.date || "").slice(0, 10) === date)
+          .forEach((x) => umap.set(String(x.name || "").trim().toLowerCase(), String(x.by || x.createdBy || x.unlockedBy || "").trim()));
+        setUnlocked(umap);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -177,26 +179,33 @@ export default function CheckinPage() {
                   </div>
                   {/* #19 — unlock late attendance for this person so they can still
                       mark it after the 10:30 cut-off */}
-                  {show === "pending" && (
-                    unlocked.has(String(r.name || "").trim().toLowerCase()) ? (
-                      <span style={{ fontWeight: 800, fontSize: 11, padding: "5px 10px", borderRadius: 8, background: "#dcfce7", color: "#16a34a", flexShrink: 0 }}>
-                        ✓ Unlocked
-                      </span>
-                    ) : (
+                  {show === "pending" && (() => {
+                    const nlc = String(r.name || "").trim().toLowerCase();
+                    if (unlocked.has(nlc)) {
+                      const by = unlocked.get(nlc);
+                      return (
+                        <span style={{ fontWeight: 800, fontSize: 11, padding: "5px 10px", borderRadius: 8, background: "#dcfce7", color: "#16a34a", flexShrink: 0, textAlign: "right" }}>
+                          ✓ Unlocked{by ? <><br /><span style={{ fontWeight: 600, fontSize: 10.5, color: "#15803d" }}>by {by}</span></> : null}
+                        </span>
+                      );
+                    }
+                    /* Unlock is a Backend-Team (admin) action only — individual logins don't get it */
+                    if (!isPanelAdmin()) return null;
+                    return (
                       <button
                         onClick={async (e) => {
                           const btn = e.currentTarget; btn.disabled = true; btn.textContent = "…";
                           try {
                             await api.attUnlock(r.name, date);
-                            setUnlocked((s) => new Set(s).add(String(r.name || "").trim().toLowerCase()));
+                            setUnlocked((m) => new Map(m).set(nlc, auth.user?.name || "Admin"));
                           } catch (err) { alert(err.message); btn.disabled = false; btn.textContent = "Unlock"; }
                         }}
                         title="Let this person mark attendance after the cut-off"
                         style={{ border: "none", cursor: "pointer", fontWeight: 800, fontSize: 11, padding: "5px 10px", borderRadius: 8, background: "#e8f0ff", color: "#2563eb", flexShrink: 0 }}>
                         Unlock
                       </button>
-                    )
-                  )}
+                    );
+                  })()}
                 </div>
               ))}
             </div>}

@@ -1313,7 +1313,14 @@ function AdminChatModal({ row, cfgKey, onClose, onSent }) {
     <div className="modal-mask" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 480, display: "flex", flexDirection: "column", maxHeight: "80vh" }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginBottom: 4 }}>{rec.id} · {rec.project || rec.name || rec.category || rec.type || ""}</h3>
-        <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 8 }}>{rec.createdBy} {rec.specPerson || rec.salesPerson ? "↔ " + (rec.specPerson || rec.salesPerson) : ""} {rec.help ? "· " + rec.help : ""}</div>
+        {(() => {
+          /* Show "creator ↔ the OTHER party". Spec-to-Sales rows are created by the
+             spec person and also carry that same spec person in specPerson, so
+             picking specPerson first printed "Tanisha ↔ Tanisha". Pick whichever of
+             spec/sales person is NOT the creator (that's the counterparty). */
+          const other = [rec.specPerson, rec.salesPerson].find((p) => p && p !== rec.createdBy) || rec.specPerson || rec.salesPerson;
+          return <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 8 }}>{rec.createdBy} {other ? "↔ " + other : ""} {rec.help ? "· " + rec.help : ""}</div>;
+        })()}
         {(() => {
           /* every attachment on this record, however it was stored, with
              duplicates removed. A placeholder (a stripped base64 the list sent)
