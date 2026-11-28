@@ -132,7 +132,9 @@ function ViewModal({ rec, cats, tiers, onSaved, onClose }) {
   const [busy, setBusy] = useState(false);
   const [zoom, setZoom] = useState(null);
   const Row = ({ k, v }) => <div style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", borderBottom: "1px solid #eef1f8", fontSize: 14 }}><span style={{ color: "var(--muted)", fontWeight: 600 }}>{k}</span><b style={{ textAlign: "right", maxWidth: "62%" }}>{v || "—"}</b></div>;
-  const save = async () => { setBusy(true); try { const d = { ...rec, category: cat, tier: tierArr.join(", ") }; await api.update("specsHub", rid(rec), d); onSaved(d); } catch (e) { alert(e.message); setBusy(false); } };
+  /* finally — otherwise a successful save left busy=true and the button sat on
+     "Saving…" forever (it had actually saved). */
+  const save = async () => { setBusy(true); try { const d = { ...rec, category: cat, tier: tierArr.join(", ") }; await api.update("specsHub", rid(rec), d); onSaved(d); } catch (e) { alert(e.message); } finally { setBusy(false); } };
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(10,16,40,.4)", zIndex: 1000, display: "grid", placeItems: "center", padding: 20 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", width: 620, maxWidth: "100%", maxHeight: "90vh", overflowY: "auto", borderRadius: 16, padding: 20 }}>
@@ -209,7 +211,7 @@ function ViewModal({ rec, cats, tiers, onSaved, onClose }) {
                 try { await api.create("notification", { title: "Specification rejected", message: `"${rec.projectName}" needs changes.${remark ? " Remark: " + remark : ""}`, to: rec.specPerson, link: "/app/specs-hub", at: new Date().toISOString() }); } catch {}
               }
               onSaved(d);
-            } catch (e) { alert(e.message); setBusy(false); }
+            } catch (e) { alert(e.message); } finally { setBusy(false); }
           };
           return (
             <>
