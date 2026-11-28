@@ -143,27 +143,23 @@ export default function AreasPage() {
           }}><Upload size={14} /> Download Format</button>
           <button className="btn btn-ghost" onClick={async () => {
             try {
-              /* Prefer the server's one-shot "all" endpoint. It sometimes comes
-                 back empty (older server / shape mismatch), which made Export
-                 produce just the header row with no data — so fall back to walking
-                 every state and pulling its areas (with tiers) client-side. */
-              let rows = [];
-              try {
-                const d = await api.areasAll();
-                rows = (d.areaRows || d.areas || []).map((r) => typeof r === "string" ? { state: "", name: r, tier: "" } : r);
-              } catch { rows = []; }
-              if (!rows.length) {
-                const st = await api.areaStates().then((d) => d.states || []).catch(() => []);
-                const parts = await Promise.all(st.map((s) =>
-                  api.areasByState(s)
-                    .then((d) => (d.areaRows || (d.areas || []).map((n) => ({ name: n, tier: "" }))).map((r) => ({ state: s, name: r.name || r, tier: r.tier || "" })))
-                    .catch(() => [])
-                ));
-                rows = parts.flat();
-              }
+              /* Build the export from the SAME path the list uses — walk every
+                 state and pull its areas via areasByState. The server's one-shot
+                 "all" endpoint returned rows in a shape whose area name didn't map,
+                 so Export finished instantly with blank rows. areasByState is the
+                 proven path (it's what fills the on-screen list), so use only it. */
+              const st = await api.areaStates().then((d) => d.states || []).catch(() => []);
+              if (!st.length) { alert("No areas to export."); return; }
+              const parts = await Promise.all(st.map((s) =>
+                api.areasByState(s)
+                  .then((d) => (d.areaRows || (d.areas || []).map((n) => ({ name: n, tier: "" })))
+                    .map((r) => ({ state: s, name: (r && (r.name || r.area)) || r, tier: (r && r.tier) || "" })))
+                  .catch(() => [])
+              ));
+              const rows = parts.flat().filter((r) => r.name);
               if (!rows.length) { alert("No areas to export."); return; }
               const csv = [["State", "Area / City", "Tier (A/B/C)"]]
-                .concat(rows.map((r) => [r.state || "", r.name || r.area || "", r.tier || ""]))
+                .concat(rows.map((r) => [r.state || "", r.name || "", r.tier || ""]))
                 .map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(",")).join("\n");
               const a = document.createElement("a");
               a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
